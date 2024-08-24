@@ -31,8 +31,11 @@ dependencies:
   flutter:
     sdk: flutter
   google_maps_flutter: ^2.0.10
-  location: ^5.0.0
-    
+  location: ^7.0.0
+  firebase_core: ^3.2.0
+  cloud_firestore: ^5.1.0  # For Firestore
+  firebase_database: ^11.0.3  # For Realtime Database
+  logging: ^1.2.0
 
 
   # The following adds the Cupertino Icons font to your application.
@@ -48,7 +51,7 @@ dev_dependencies:
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
-  flutter_lints: ^3.0.0
+  flutter_lints: ^4.0.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -62,9 +65,9 @@ flutter:
   uses-material-design: true
 
   # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
+  assets:
+    - lib/assets/map_style.json
+    - lib/assets/pinitLogo.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware

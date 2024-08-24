@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "711637650309",
+    "project_id": "pinit-10b36",
+    "storage_bucket": "pinit-10b36.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:711637650309:android:b104b2c79e4631c64092ec",
+        "android_client_info": {
+          "package_name": "com.srishlok.pinit"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDA_nIWRAfUjAEeGeZydIJki-CGY32ab-E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
