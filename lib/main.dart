@@ -53,65 +53,6 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: _pages[_currentIndex],
-      appBar: _currentIndex == 0
-          ? AppBar(
-        title: 
-        // Column(
-        //   mainAxisSize: MainAxisSize.min, // Shrinks the column to fit its children
-          // children: [
-          //   // Add your logo at the top
-          //   Padding(
-          //     padding: const EdgeInsets.only(bottom: 8.0), // Adjust the padding as needed
-          //     child: Image.asset(
-          //       'lib/assets/pinitLogo.png', // Make sure to replace with the correct path to your logo
-          //       height: 40, // Adjust the size as needed
-          //     ),
-          //   ),
-            // Row with buttons
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: TextButton(
-                    onPressed: () {
-                      // Handle "Following" button press
-                    },
-                    child: const Text(
-                      'Following',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Center(
-                    child: TextButton(
-                      onPressed: () {
-                        // Handle "For you" button press
-                      },
-                      child: const Text(
-                        'For you',
-                        style: TextStyle(color: Colors.black), // Black color to highlight as selected
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: TextButton(
-                    onPressed: () {
-                      // Handle "Your Pins" button press
-                    },
-                    child: const Text(
-                      'Your Pins',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-        centerTitle: true, // Center the column (title) horizontally
-        automaticallyImplyLeading: false,
-      )
-          : null,
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) {

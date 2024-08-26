@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:login/widgets/locationSearchTextWidget.dart';
 // import 'package:logging/logging.dart';
 
 
@@ -26,6 +27,16 @@ class _HomePageState extends State<HomePage> {
     'Item 5',
   ];
 
+  String _searchQuery = ""; // Variable to store the search input
+
+  void _updateSearchQuery(String query) {
+    setState(() {
+      _searchQuery = query;
+    });
+    print("Search query updated: $_searchQuery");
+    // Perform actions based on the updated search query, like filtering a list
+  }
+
   @override
   void initState() {
     super.initState();
@@ -43,87 +54,142 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
 
     return Scaffold(
-      body: Stack(
-        children: [
-          // Google Map
-          Positioned.fill(
-            child: GoogleMap(
-              style: _mapStyle,
-              initialCameraPosition: const CameraPosition(
-                target: LatLng(51.4988, -0.1749), // Coordinates for Imperial College London
-                zoom: 15,
-              ),
-              onMapCreated: (controller) {
-                setState(() {
-                  _controller = controller;
-                });
-              },
-            ),
-          ),
-          // Draggable and scrollable carousel
-          DraggableScrollableSheet(
-            initialChildSize: 0.1, // Initial size of the sheet
-            minChildSize: 0.1,     // Minimum size to which the sheet can shrink
-            maxChildSize: 0.6,     // Maximum size to which the sheet can expand
-            builder: (BuildContext context, ScrollController scrollController) {
-              return Container(
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(16.0),
-                    topRight: Radius.circular(16.0),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 10.0,
-                      spreadRadius: 0.5,
+      body: 
+        Column(
+          children: [
+            // Custom header with logo and buttons
+            Container(
+              padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top), // Adjust padding to account for the status bar
+              child: SafeArea(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Logo
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: Image.asset(
+                        'lib/assets/pinitLogo.png',
+                        height: 40,
+                      ),
+                    ),
+                    // Button Row
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () {
+                              // Handle "Following" button press
+                            },
+                            child: const Text(
+                              'Following',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Center(
+                            child: TextButton(
+                              onPressed: () {
+                                // Handle "For you" button press
+                              },
+                              child: const Text(
+                                'For you',
+                                style: TextStyle(color: Colors.black),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () {
+                              // Handle "Your Pins" button press
+                            },
+                            child: const Text(
+                              'Your Pins',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-                child: ListView.builder(
-                  controller: scrollController,
-                  itemCount: carouselItems.length,
-                  itemBuilder: (BuildContext context, int index) {
-                    return ListTile(
-                      leading: CircleAvatar(
-                        child: Text(carouselItems[index][0]),
+              ),
+            ),
+            Expanded(
+              child: Stack(
+                children: [
+                  // Google Map
+                  Positioned.fill(
+                    child: GoogleMap(
+                      style: _mapStyle,
+                      myLocationButtonEnabled: true,
+                      compassEnabled: false,
+                      zoomControlsEnabled: false,
+                      initialCameraPosition: const CameraPosition(
+                        target: LatLng(51.4988, -0.1749),
+                        zoom: 15,
                       ),
-                      title: Text(carouselItems[index]),
-                      subtitle: Text('Subtitle for ${carouselItems[index]}'),
-                    );
-                  },
-                ),
-              );
-            },
-          ),
-          // Search Bar
-          Positioned(
-            top: kToolbarHeight - 30, // Position it below the AppBar
-            left: 16.0,
-            right: 16.0,
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8.0),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 4.0,
+                      onMapCreated: (controller) {
+                        setState(() {
+                          _controller = controller;
+                        });
+                      },
+                    ),
+                  ),
+                  // Draggable and scrollable carousel
+                  DraggableScrollableSheet(
+                    initialChildSize: 0.1,
+                    minChildSize: 0.1,
+                    maxChildSize: 0.6,
+                    builder: (BuildContext context, ScrollController scrollController) {
+                      return Container(
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.only(
+                            topLeft: Radius.circular(16.0),
+                            topRight: Radius.circular(16.0),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black26,
+                              blurRadius: 10.0,
+                              spreadRadius: 0.5,
+                            ),
+                          ],
+                        ),
+                        child: ListView.builder(
+                          controller: scrollController,
+                          itemCount: carouselItems.length,
+                          itemBuilder: (BuildContext context, int index) {
+                            return ListTile(
+                              leading: CircleAvatar(
+                                child: Text(carouselItems[index][0]),
+                              ),
+                              title: Text(carouselItems[index]),
+                              subtitle: Text('Subtitle for ${carouselItems[index]}'),
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                  
+                  // Search bar
+                  Positioned(
+                    top: MediaQuery.of(context).padding.top,
+                    left: 16.0,
+                    right: 16.0,
+                    child: SearchWidget(
+                      onSearch: _updateSearchQuery, // Pass the callback to the SearchWidget
+                    ),
                   ),
                 ],
               ),
-              child: const TextField(
-                decoration: InputDecoration(
-                  hintText: 'Your next adventure...',
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(horizontal: 16.0),
-                ),
-              ),
             ),
-          ),
-        ],
-      ), 
+          ],
+        )
     );
   }
 }
