@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'pages/home.dart'; 
-
+import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -11,6 +12,10 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   GoogleMapController? _controller;
+  LatLng? _currentPosition;
+
+ 
+
 
   // Dummy data for carousel items
   final List<String> carouselItems = [
@@ -24,10 +29,32 @@ class _HomePageState extends State<HomePage> {
   // Dummy screenshot for the bottom bar
   final List<Widget> bottomBarScreens = [
     const HomeScreen(),
-    const Center(child: Text('Search')),
+    const Center(child: Text('Searching')),
     const Center(child: Text('Notifications')),
     const Center(child: Text('Profile')),
   ];
+
+  
+  @override
+  void initState() {
+    super.initState();
+    _getUserLocation();
+  }
+
+  Future<void> _getUserLocation() async {
+    PermissionStatus permission = await Permission.locationWhenInUse.request();
+    if (permission == PermissionStatus.granted) {
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      setState(() {
+        _currentPosition = LatLng(position.latitude, position.longitude);
+        
+        _controller?.animateCamera(CameraUpdate.newLatLngZoom(_currentPosition!, 15),);
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,15 +72,16 @@ class _HomePageState extends State<HomePage> {
           // Google Map
           Positioned.fill(
             child: GoogleMap(
-              initialCameraPosition: const CameraPosition(
-                target: LatLng(51.4988, -0.1749), // Coordinates for Imperial College London
-                zoom: 15,
-              ),
               onMapCreated: (controller) {
                 setState(() {
                   _controller = controller;
+                  if(_currentPosition != null) {
+                    _controller.animateCamera(CameraUpdate.newLatLngZoom(_currentPosition!, 15),);
+                  }
                 });
               },
+              initialCameraPosition: CameraPosition(target: LatLng(53.303, -1.2025), zoom: 2),
+
             ),
           ),
           // Draggable and scrollable carousel

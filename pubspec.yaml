@@ -36,6 +36,8 @@ dependencies:
   cloud_firestore: ^5.1.0  # For Firestore
   firebase_database: ^11.0.3  # For Realtime Database
   logging: ^1.2.0
+  geolocator: ^9.0.2
+  permission_handler: ^10.2.0
 
 
   # The following adds the Cupertino Icons font to your application.
