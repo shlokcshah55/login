@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:login/widgets/locationSearchTextWidget.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
+
 // import 'package:logging/logging.dart';
 
 
@@ -17,6 +20,7 @@ class _HomePageState extends State<HomePage> {
   GoogleMapController? _controller;
   String _mapStyle = '';
   int _currentIndex = 2;
+  LatLng? _currentPosition;
 
   // Dummy data for carousel items
   final List<String> carouselItems = [
@@ -37,6 +41,20 @@ class _HomePageState extends State<HomePage> {
     // Perform actions based on the updated search query, like filtering a list
   }
 
+  Future<void> _getUserLocation() async{
+    PermissionStatus permission = await Permission.locationWhenInUse.request();
+    if (permission == PermissionStatus.granted) {
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      setState(() {
+        _currentPosition = LatLng(position.latitude, position.longitude);
+        _controller?.animateCamera(CameraUpdate.newLatLngZoom(_currentPosition!, 15),);
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -48,6 +66,7 @@ class _HomePageState extends State<HomePage> {
       // widget.logger.severe(error.toString());
       print(error.toString());
     });
+    _getUserLocation();
   }
 
   @override
@@ -134,6 +153,9 @@ class _HomePageState extends State<HomePage> {
                       onMapCreated: (controller) {
                         setState(() {
                           _controller = controller;
+                          if(_currentPosition != null) {
+                            _controller?.animateCamera(CameraUpdate.newLatLngZoom(_currentPosition!, 15),);
+                          }
                         });
                       },
                     ),
