@@ -1,23 +1,52 @@
+'''
+File usage:
+- This file is used to retrieve TikTok videos based on a url.
+
+Setting up TikTokApi:
+
+    Installing Dependencies:
+    pip install TikTokApi
+    python -m playwright install
+
+    If this runs into an error, you may need to downgrade your playwright dependencies:
+    pip install playwright==1.37.0
+    playwright install
+'''
+
 from TikTokApi import TikTokApi
 import asyncio
+import os
 
-ms_token = "fRcI4TtrrnUMoYSBJ8RxJ6vcdLOUY-GbMgzt-2ssSUiMyyaRecW85L_cYAT8BUNP3qyoNPelz6owR3eFUSukX5VivB3gmspGawEyVlnVsqgM0HFdtlVETwS5X1gPiytv3d33hzaRJSYT"
+ms_token = os.environ.get(
+    "ms_token", None
+)  # set your own ms_token, go to tiktok.com and inspect and then go to cookies within the application tab
 
 
-async def user_example():
+async def get_video_info(url: str):
     async with TikTokApi() as api:
         await api.create_sessions(ms_tokens=[ms_token], num_sessions=1, sleep_after=3)
-        user = api.user("therock")
-        user_data = await user.info()
-        print(user_data)
+        video = api.video(
+            url=url
+        )
 
-        async for video in user.videos(count=30):
-            print(video)
-            print(video.as_dict)
+        video_info = await video.info()
+        keys = ["id", "locationCreated", "contentLocation", "poi", "diversificationLabels"]
+        res = {key: video_info[key] for key in keys if key in video_info}
+        res["description"] = video_info["desc"]
 
-        async for playlist in user.playlists():
-            print(playlist)
+        print("========== video info =========")
+        for key, value in video_info.items():
+            print(f"{key}: {value}")
 
+        print("========== res dictionary =========")
+        for key, value in res.items():
+            print(f"{key}: {value}")
+
+        # video_bytes = await video.bytes()
+        # with open("video.mp4", "wb") as f:
+        #     f.write(video_bytes)
+
+        return res
 
 if __name__ == "__main__":
-    asyncio.run(user_example())
+    asyncio.run(get_video_info("https://www.tiktok.com/@findfluffs/video/7269735509210041632?is_from_webapp=1&sender_device=pc&web_id=7410112369073325600"))
