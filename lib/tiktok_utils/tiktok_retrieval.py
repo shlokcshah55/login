@@ -23,6 +23,11 @@ ms_token = os.environ.get(
 
 
 async def get_video_info(url: str):
+    '''
+    This function retrieves the video information from a TikTok video URL.
+    :param url:
+    :return: dictionary containing video information necessary for location extraction
+    '''
     async with TikTokApi() as api:
         await api.create_sessions(ms_tokens=[ms_token], num_sessions=1, sleep_after=3)
         video = api.video(
