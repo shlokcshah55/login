@@ -16,6 +16,9 @@ Setting up TikTokApi:
 from TikTokApi import TikTokApi
 import asyncio
 import os
+import json
+from cleantext import clean
+from gpt_utils import start_gpt_session, find_location
 
 ms_token = os.environ.get(
     "ms_token", None
@@ -28,6 +31,16 @@ async def get_video_info(url: str):
     :param url:
     :return: dictionary containing video information necessary for location extraction
     '''
+    def _clean_dict(d):
+        if isinstance(d, dict):
+            return {k: _clean_dict(v) for k, v in d.items()}
+        elif isinstance(d, list):
+            return [_clean_dict(item) for item in d]
+        elif isinstance(d, str):
+            return clean(d, no_emoji=True)
+        else:
+            return d
+
     async with TikTokApi() as api:
         await api.create_sessions(ms_tokens=[ms_token], num_sessions=1, sleep_after=3)
         video = api.video(
@@ -39,19 +52,32 @@ async def get_video_info(url: str):
         res = {key: video_info[key] for key in keys if key in video_info}
         res["description"] = video_info["desc"]
 
-        print("========== video info =========")
-        for key, value in video_info.items():
-            print(f"{key}: {value}")
+        # print("========== video info =========")
+        # for key, value in video_info.items():
+        #     print(f"{key}: {value}")
 
-        print("========== res dictionary =========")
-        for key, value in res.items():
-            print(f"{key}: {value}")
+        # print("========== res dictionary =========")
+        # for key, value in res.items():
+        #     print(f"{key}: {value}")
 
         # video_bytes = await video.bytes()
         # with open("video.mp4", "wb") as f:
         #     f.write(video_bytes)
 
-        return res
+        return json.dumps(_clean_dict(res), indent=2)
+
 
 if __name__ == "__main__":
-    asyncio.run(get_video_info("https://www.tiktok.com/@findfluffs/video/7269735509210041632?is_from_webapp=1&sender_device=pc&web_id=7410112369073325600"))
+    EXAMPLE_TIKTOK2 = "https://www.tiktok.com/@findfluffs/video/7346303859205147937?is_from_webapp=1&web_id=7410112369073325600"
+    EXAMPLE_TIKTOK = "https://www.tiktok.com/@findfluffs/video/7269735509210041632?is_from_webapp=1&sender_device=pc&web_id=7410112369073325600"
+    
+    cutie_pies_metadata = asyncio.run(get_video_info(EXAMPLE_TIKTOK))
+    city_metadata = asyncio.run(get_video_info(EXAMPLE_TIKTOK2))
+
+    print(cutie_pies_metadata)  
+    print(city_metadata)
+
+    session = start_gpt_session()
+    print(find_location(session, cutie_pies_metadata))
+    print(find_location(session, city_metadata))
+
