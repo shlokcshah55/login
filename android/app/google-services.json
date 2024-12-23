@@ -2,7 +2,7 @@
   "project_info": {
     "project_number": "711637650309",
     "project_id": "pinit-10b36",
-    "storage_bucket": "pinit-10b36.appspot.com"
+    "storage_bucket": "pinit-10b36.firebasestorage.app"
   },
   "client": [
     {

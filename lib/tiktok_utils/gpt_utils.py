@@ -2,9 +2,12 @@ import os
 import google.generativeai as genai
 
 def start_gpt_session():
+    '''
+    creates a new chat session with configured Gemini AI model to extract location information from TikTok metadata
+    :return: chat session object
+    '''
 
-    genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-
+    genai.configure(api_key=os.environ["GEMINI_API_KEY"])  
     # Define the model configuration
     generation_config = {
         "temperature": 1,
@@ -52,6 +55,12 @@ def start_gpt_session():
     return chat_session
 
 def find_location(chat_session, metadata):
+    '''
+    extracts landmark and location information from TikTok metadata using AI chat model
+    :param chat_session: chat session object
+    :param metadata: dictionary containing TikTok metadata
+    :return: tuple containing landmark and location information
+    '''
     response = chat_session.send_message(metadata)
     return _extract_landmark_and_location(response.text)
 

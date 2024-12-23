@@ -1,9 +1,16 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:login/firebase_options.dart';
+import 'package:login/pages/auth_handler.dart';
 import 'pages/home_page.dart'; 
 // import 'package:logging/logging.dart';
 
+import 'firebase_utils/firebase_api.dart';
+
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   // _setupLogging();
   runApp(const MyApp());
 }
@@ -28,7 +35,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: const MainScreen(),
+      home: AuthHandler(),
     );
   }
 }
@@ -52,6 +59,8 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    getUsers();
+
     return Scaffold(
       body: _pages[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
@@ -71,3 +80,4 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 }
+
