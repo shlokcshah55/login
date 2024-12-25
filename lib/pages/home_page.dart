@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:login/widgets/PinitMap.dart';
 import 'package:login/widgets/locationSearchTextWidget.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -39,15 +40,12 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    //loading map style JSON from asset file
-    print('Loading map style');
-    DefaultAssetBundle.of(context).loadString('lib/assets/map_style.json').then((string) {
-      _mapStyle = string;
-    }).catchError((error) {
-      // widget.logger.severe(error.toString());
-      print(error.toString());
-    });
-    _getUserLocation();
+    _initializer();
+  }
+
+  Future<void> _initializer() async {
+    await _loadMapStyle();
+    await _getUserLocation();
     _plotKnownPins();
   }
 
@@ -57,6 +55,14 @@ class _HomePageState extends State<HomePage> {
     });
     print("Search query updated: $_searchQuery");
     // Perform actions based on the updated search query, like filtering a list
+  }
+
+  Future<void> _loadMapStyle() async {
+    try {
+      _mapStyle = await DefaultAssetBundle.of(context).loadString('lib/assets/map_style.json');
+    } catch (e) {
+      print("Error loading map style: $e");
+    }
   }
 
   Future<void> _getUserLocation() async{
@@ -75,7 +81,9 @@ class _HomePageState extends State<HomePage> {
 
 
   void _plotKnownPins() async {
-    print("Home_page: GeoPoint: ${widget.userData!['saved_locations']}");
+    
+    //TODO - Change database structure for locations to be retrieved from locatoins collection
+
     setState(() {
       for (GeoPoint point in widget.userData!['saved_locations']) {
         print("Home_page: plotting point: ${point.latitude}, ${point.longitude}");
@@ -166,24 +174,15 @@ class _HomePageState extends State<HomePage> {
                 children: [
                   // Google Map
                   Positioned.fill(
-                    child: GoogleMap(
-                      style: _mapStyle,
-                      myLocationButtonEnabled: true,
-                      compassEnabled: false,
-                      zoomControlsEnabled: false,
-                      initialCameraPosition: const CameraPosition(
-                        target: LatLng(51.4988, -0.1749),
-                        zoom: 15,
-                      ),
-                      onMapCreated: (controller) {
+                    child: CustomGoogleMap(
+                      mapStyle: _mapStyle,
+                      currentPosition: _currentPosition,
+                      markers: markers,
+                      onMapCreated: (mapController) {
                         setState(() {
-                          controller = controller;
-                          if(_currentPosition != null) {
-                            controller?.animateCamera(CameraUpdate.newLatLngZoom(_currentPosition!, 10),);
-                          }
+                          controller = mapController;
                         });
                       },
-                      markers: markers,
                     ),
                   ),
                   // Draggable and scrollable carousel
