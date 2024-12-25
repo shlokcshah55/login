@@ -70,14 +70,25 @@ async def get_video_info(url: str):
 if __name__ == "__main__":
     EXAMPLE_TIKTOK2 = "https://www.tiktok.com/@findfluffs/video/7346303859205147937?is_from_webapp=1&web_id=7410112369073325600"
     EXAMPLE_TIKTOK = "https://www.tiktok.com/@findfluffs/video/7269735509210041632?is_from_webapp=1&sender_device=pc&web_id=7410112369073325600"
-    
+    NO_LOCATION = "https://vm.tiktok.com/ZGdhGqvYC/"
+    MORE_OBSCURE_TIKTOK = "https://vm.tiktok.com/ZGdhGUgHJ/"  # worked perfectly
+    MIGHT_WORK = "https://vm.tiktok.com/ZGdhGtNaa/"  # didn't work 
+
     cutie_pies_metadata = asyncio.run(get_video_info(EXAMPLE_TIKTOK))
     city_metadata = asyncio.run(get_video_info(EXAMPLE_TIKTOK2))
-
+    no_location_metadata = asyncio.run(get_video_info(NO_LOCATION))
+    more_obscure = asyncio.run(get_video_info(MORE_OBSCURE_TIKTOK))
+    might_work = asyncio.run(get_video_info(MIGHT_WORK))
+    print(more_obscure) 
+    print(might_work)
     print(cutie_pies_metadata)  
     print(city_metadata)
+    print(no_location_metadata)
 
     session = start_gpt_session()
     print(find_location(session, cutie_pies_metadata))
     print(find_location(session, city_metadata))
+    print(find_location(session, no_location_metadata))
+    print(find_location(session, more_obscure))
+    print(find_location(session, might_work))
 

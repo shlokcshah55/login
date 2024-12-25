@@ -1,11 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
-void playBase() async {
-  FirebaseFirestore db = FirebaseFirestore.instance;
-
-}
+import 'package:firebase_auth/firebase_auth.dart';
 
 void getUsers() async {
   FirebaseFirestore db = FirebaseFirestore.instance;
@@ -21,20 +16,78 @@ void getUsers() async {
   );
 }
 
+void getUser(String userId) async {
+  FirebaseFirestore db = FirebaseFirestore.instance;
 
-void addUser() async {
-  FirebaseFirestore firestore = FirebaseFirestore.instance;
-
-  await firestore.collection('Users').doc('user_id_1').set({
-    'name': 'Waste Man',
-    'followers': [],
-    'following': [],
-    'saved_locations': [],
-    'posts': []
-  });
+  await db.collection("users").doc(userId).get().then(
+    (DocumentSnapshot doc) {
+      var data = doc.data() as Map<String, dynamic>;
+    },
+    onError: (e) => print("Error getting document: $e"),
+  );
 }
 
 
+Future<void> signUpUser(String email, String password, String name) async {
+  try {
+    // Sign up with Firebase Authentication
+    UserCredential userCredential = await FirebaseAuth.instance
+        .createUserWithEmailAndPassword(email: email, password: password);
 
+    User? user = userCredential.user;
+
+    if (user != null) {
+      // Add user to Firestore
+      FirebaseFirestore.instance.collection('Users').doc(user.uid).set({
+        'name': name,
+        'email': email,
+        'uid': user.uid, // Use uid as the unique identifier
+        'followers': [],
+        'following': [],
+        'saved_locations': [],
+      });
+    }
+  } catch (e) {
+    print('Error signing up user: $e');
+  }
+}
+
+Future<void> signInUser(String email, String password) async {
+  try {
+    // Sign in with Firebase Authentication
+    UserCredential userCredential = await FirebaseAuth.instance
+        .signInWithEmailAndPassword(email: email, password: password);
+
+    User? user = userCredential.user;
+
+    if (user != null) {
+      print('User signed in: ${user.email}');
+      // You can fetch additional data from Firestore using the uid
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(user.uid)
+          .get();
+
+      if (userDoc.exists) {
+        print('User data: ${userDoc.data()}');
+      }
+    }
+  } catch (e) {
+    print('Error signing in user: $e');
+  }
+}
+
+Future<DocumentSnapshot> getCurrentUserData(User user) async {
+  try {
+    DocumentSnapshot userDoc = await FirebaseFirestore.instance
+      .collection('Users')
+      .doc(user.uid)
+      .get();
+    return userDoc;
+  } catch (e) {
+    print('Error getting user data: $e');
+    return Future.error(e);
+  }
+}
 
 

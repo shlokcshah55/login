@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:login/widgets/locationSearchTextWidget.dart';
@@ -10,18 +11,19 @@ import 'package:permission_handler/permission_handler.dart';
 class HomePage extends StatefulWidget {
   // final Logger logger;
   // const HomePage({Key? key, required this.logger}) : super(key: key);
-  const HomePage({super.key});
+  final Map<String, dynamic>? userData;
+  const HomePage({Key? key, required this.userData}) : super(key: key);
 
   @override
   _HomePageState createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  GoogleMapController? _controller;
+  GoogleMapController? controller;
   String _mapStyle = '';
-  int _currentIndex = 2;
   LatLng? _currentPosition;
-
+  Set<Marker> markers = {};
+  
   // Dummy data for carousel items
   final List<String> carouselItems = [
     'Item 1',
@@ -32,6 +34,22 @@ class _HomePageState extends State<HomePage> {
   ];
 
   String _searchQuery = ""; // Variable to store the search input
+
+
+  @override
+  void initState() {
+    super.initState();
+    //loading map style JSON from asset file
+    print('Loading map style');
+    DefaultAssetBundle.of(context).loadString('lib/assets/map_style.json').then((string) {
+      _mapStyle = string;
+    }).catchError((error) {
+      // widget.logger.severe(error.toString());
+      print(error.toString());
+    });
+    _getUserLocation();
+    _plotKnownPins();
+  }
 
   void _updateSearchQuery(String query) {
     setState(() {
@@ -50,24 +68,31 @@ class _HomePageState extends State<HomePage> {
 
       setState(() {
         _currentPosition = LatLng(position.latitude, position.longitude);
-        _controller?.animateCamera(CameraUpdate.newLatLngZoom(_currentPosition!, 15),);
+        controller?.animateCamera(CameraUpdate.newLatLngZoom(_currentPosition!, 15),);
       });
     }
   }
 
-  @override
-  void initState() {
-    super.initState();
-    //loading map style JSON from asset file
-    print('Loading map style');
-    DefaultAssetBundle.of(context).loadString('lib/assets/map_style.json').then((string) {
-      _mapStyle = string;
-    }).catchError((error) {
-      // widget.logger.severe(error.toString());
-      print(error.toString());
+
+  void _plotKnownPins() async {
+    print("Home_page: GeoPoint: ${widget.userData!['saved_locations']}");
+    setState(() {
+      for (GeoPoint point in widget.userData!['saved_locations']) {
+        print("Home_page: plotting point: ${point.latitude}, ${point.longitude}");
+        markers.add(
+          Marker(
+            markerId: MarkerId(point.hashCode.toString()),
+            position: LatLng(point.latitude, point.longitude),
+            infoWindow: const InfoWindow(
+              title: 'Trial point',
+              snippet: 'Description for the saved location',
+            ),
+          ),
+        );
+      }
     });
-    _getUserLocation();
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -152,12 +177,13 @@ class _HomePageState extends State<HomePage> {
                       ),
                       onMapCreated: (controller) {
                         setState(() {
-                          _controller = controller;
+                          controller = controller;
                           if(_currentPosition != null) {
-                            _controller?.animateCamera(CameraUpdate.newLatLngZoom(_currentPosition!, 15),);
+                            controller?.animateCamera(CameraUpdate.newLatLngZoom(_currentPosition!, 10),);
                           }
                         });
                       },
+                      markers: markers,
                     ),
                   ),
                   // Draggable and scrollable carousel
