@@ -1,17 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:login/widgets/PinitMap.dart';
-import 'package:login/widgets/locationSearchTextWidget.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_place/google_place.dart';
+import 'package:login/services/googlePlaceService.dart';
+import 'package:login/widgets/PinitMap.dart';
 import 'package:permission_handler/permission_handler.dart';
-
-// import 'package:logging/logging.dart';
-
+// import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class HomePage extends StatefulWidget {
-  // final Logger logger;
-  // const HomePage({Key? key, required this.logger}) : super(key: key);
   final Map<String, dynamic>? userData;
   const HomePage({Key? key, required this.userData}) : super(key: key);
 
@@ -24,48 +21,23 @@ class _HomePageState extends State<HomePage> {
   String _mapStyle = '';
   LatLng? _currentPosition;
   Set<Marker> markers = {};
-  
-  // Dummy data for carousel items
-  final List<String> carouselItems = [
-    'Item 1',
-    'Item 2',
-    'Item 3',
-    'Item 4',
-    'Item 5',
-  ];
-
-  String _searchQuery = ""; // Variable to store the search input
-
+  List<Map<String, dynamic>> carouselItems = [];
+  final GooglePlacesService googlePlacesService = GooglePlacesService();
 
   @override
   void initState() {
     super.initState();
-    _initializer();
-  }
-
-  Future<void> _initializer() async {
-    await _loadMapStyle();
-    await _getUserLocation();
-    _plotKnownPins();
-  }
-
-  void _updateSearchQuery(String query) {
-    setState(() {
-      _searchQuery = query;
+    DefaultAssetBundle.of(context).loadString('lib/assets/map_style.json').then((string) {
+      _mapStyle = string;
+    }).catchError((error) {
+      print(error.toString());
     });
-    print("Search query updated: $_searchQuery");
-    // Perform actions based on the updated search query, like filtering a list
+    _getUserLocation();
+    _plotKnownPins();
+    googlePlacesService.fetchNearbyPlaces(latitude: 50.819788, longitude: -0.122921, placeType: "restaurant");
   }
 
-  Future<void> _loadMapStyle() async {
-    try {
-      _mapStyle = await DefaultAssetBundle.of(context).loadString('lib/assets/map_style.json');
-    } catch (e) {
-      print("Error loading map style: $e");
-    }
-  }
-
-  Future<void> _getUserLocation() async{
+  Future<void> _getUserLocation() async {
     PermissionStatus permission = await Permission.locationWhenInUse.request();
     if (permission == PermissionStatus.granted) {
       Position position = await Geolocator.getCurrentPosition(
@@ -74,107 +46,135 @@ class _HomePageState extends State<HomePage> {
 
       setState(() {
         _currentPosition = LatLng(position.latitude, position.longitude);
-        controller?.animateCamera(CameraUpdate.newLatLngZoom(_currentPosition!, 15),);
+        controller?.animateCamera(CameraUpdate.newLatLngZoom(_currentPosition!, 15));
       });
     }
   }
 
-
   void _plotKnownPins() async {
-    
-    //TODO - Change database structure for locations to be retrieved from locatoins collection
-
+    List<Map<String, dynamic>> fetchedItems = [];
     setState(() {
       for (GeoPoint point in widget.userData!['saved_locations']) {
-        print("Home_page: plotting point: ${point.latitude}, ${point.longitude}");
         markers.add(
           Marker(
             markerId: MarkerId(point.hashCode.toString()),
             position: LatLng(point.latitude, point.longitude),
-            infoWindow: const InfoWindow(
-              title: 'Trial point',
-              snippet: 'Description for the saved location',
+            infoWindow: InfoWindow(
+              title: 'Saved Location',
+              snippet: 'Location at (${point.latitude}, ${point.longitude})',
             ),
           ),
         );
+        fetchedItems.add({
+          'title': 'Saved Location',
+          'subtitle': 'Location at (${point.latitude}, ${point.longitude})',
+        });
       }
+      carouselItems = fetchedItems;
     });
   }
 
+  // void _plotRecommendedPins() {
+  //   // Implement recommended pins plotting here
+  //   List<Map<String, dynamic>> fetchedItems = [];
+  //   // key: AIzaSyCAAK9Qm8bMNTN8zcauCiIgdHQcYQrOjYQ
+  //   setState(() {
+  //     for (GeoPoint point in widget.userData!['saved_locations']) {
+  //       GooglePlace googlePlace = GooglePlace(dotenv.env["GOOGLE_PLACE_API_KEY"]!);
+  //       markers.add(
+  //         Marker(
+  //           markerId: MarkerId(point.hashCode.toString()),
+  //           position: LatLng(point.latitude, point.longitude),
+  //           infoWindow: InfoWindow(
+  //             title: 'Saved Location',
+  //             snippet: 'Location at (${point.latitude}, ${point.longitude})',
+  //           ),
+  //         ),
+  //       );
+  //       fetchedItems.add({
+  //         'title': 'Saved Location',
+  //         'subtitle': 'Location at (${point.latitude}, ${point.longitude})',
+  //       });
+  //     }
+  //     carouselItems = fetchedItems;
+  //   });
+
+  // }
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
-      body: 
-        Column(
-          children: [
-            // Custom header with logo and buttons
-            Container(
-              padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top), // Adjust padding to account for the status bar
-              child: SafeArea(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
+      body: Column(
+        children: [
+          // Welcome Header with Search Bar
+          Container(
+            color: Colors.white,
+            padding: EdgeInsets.only(
+              top: MediaQuery.of(context).padding.top + 16.0,
+              bottom: 16.0,
+              left: 16.0,
+              right: 16.0,
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Logo
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8.0),
-                      child: Image.asset(
-                        'lib/assets/pinitLogo.png',
-                        height: 40,
-                      ),
-                    ),
-                    // Button Row
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: TextButton(
-                            onPressed: () {
-                              // Handle "Following" button press
-                            },
-                            child: const Text(
-                              'Following',
-                              style: TextStyle(color: Colors.grey),
-                            ),
+                        const Text(
+                          'Welcome Back!',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                        Expanded(
-                          child: Center(
-                            child: TextButton(
-                              onPressed: () {
-                                // Handle "For you" button press
-                              },
-                              child: const Text(
-                                'For you',
-                                style: TextStyle(color: Colors.black),
-                              ),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: TextButton(
-                            onPressed: () {
-                              // Handle "Your Pins" button press
-                            },
-                            child: const Text(
-                              'Your Pins',
-                              style: TextStyle(color: Colors.grey),
-                            ),
+                        Text(
+                          widget.userData?["name"] ?? "User",
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey,
                           ),
                         ),
                       ],
                     ),
+                    IconButton(
+                      onPressed: () {
+                        // Handle pin icon press
+                      },
+                      icon: const Icon(
+                        Icons.push_pin,
+                        size: 28,
+                        color: Colors.black,
+                      ),
+                    ),
                   ],
                 ),
-              ),
+                const SizedBox(height: 8.0),
+                // Search Bar
+                TextField(
+                  decoration: InputDecoration(
+                    hintText: 'Next Destination',
+                    prefixIcon: Icon(Icons.search),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8.0),
+                    ),
+                  ),
+                  onChanged: (value) {
+                    // Implement search functionality here
+                  },
+                ),
+              ],
             ),
-            Expanded(
-              child: Stack(
-                children: [
-                  // Google Map
-                  Positioned.fill(
-                    child: CustomGoogleMap(
+          ),
+          Expanded(
+            child: Stack(
+              children: [
+                // Google Map
+                Positioned.fill(
+                  child: 
+                  CustomGoogleMap(
                       mapStyle: _mapStyle,
                       currentPosition: _currentPosition,
                       markers: markers,
@@ -185,58 +185,48 @@ class _HomePageState extends State<HomePage> {
                       },
                     ),
                   ),
-                  // Draggable and scrollable carousel
-                  DraggableScrollableSheet(
-                    initialChildSize: 0.1,
-                    minChildSize: 0.1,
-                    maxChildSize: 0.6,
-                    builder: (BuildContext context, ScrollController scrollController) {
-                      return Container(
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.only(
-                            topLeft: Radius.circular(16.0),
-                            topRight: Radius.circular(16.0),
+                // Draggable Scrollable Carousel
+                DraggableScrollableSheet(
+                  initialChildSize: 0.1,
+                  minChildSize: 0.1,
+                  maxChildSize: 0.6,
+                  builder: (BuildContext context, ScrollController scrollController) {
+                    return Container(
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(16.0),
+                          topRight: Radius.circular(16.0),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black26,
+                            blurRadius: 10.0,
+                            spreadRadius: 0.5,
                           ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black26,
-                              blurRadius: 10.0,
-                              spreadRadius: 0.5,
+                        ],
+                      ),
+                      child: ListView.builder(
+                        controller: scrollController,
+                        itemCount: carouselItems.length,
+                        itemBuilder: (BuildContext context, int index) {
+                          return ListTile(
+                            leading: CircleAvatar(
+                              child: Text(carouselItems[index]['title'][0]),
                             ),
-                          ],
-                        ),
-                        child: ListView.builder(
-                          controller: scrollController,
-                          itemCount: carouselItems.length,
-                          itemBuilder: (BuildContext context, int index) {
-                            return ListTile(
-                              leading: CircleAvatar(
-                                child: Text(carouselItems[index][0]),
-                              ),
-                              title: Text(carouselItems[index]),
-                              subtitle: Text('Subtitle for ${carouselItems[index]}'),
-                            );
-                          },
-                        ),
-                      );
-                    },
-                  ),
-                  
-                  // Search bar
-                  Positioned(
-                    top: MediaQuery.of(context).padding.top,
-                    left: 16.0,
-                    right: 16.0,
-                    child: SearchWidget(
-                      onSearch: _updateSearchQuery, // Pass the callback to the SearchWidget
-                    ),
-                  ),
-                ],
-              ),
+                            title: Text(carouselItems[index]['title']),
+                            subtitle: Text(carouselItems[index]['subtitle']),
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ],
             ),
-          ],
-        )
+          ),
+        ],
+      ),
     );
   }
 }
