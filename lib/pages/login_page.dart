@@ -1,7 +1,5 @@
 // ignore_for_file: prefer_const_constructors
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../widgets/my_text_widget.dart';
 import '../firebase_utils/firebase_api.dart';
@@ -29,6 +27,7 @@ class LoginPage extends StatelessWidget {
                 color: Color.fromARGB(255, 68, 66, 65),
               ), 
               const SizedBox(height: 20),
+              
               const Text(
                 'Pinit',
                 style: TextStyle(
@@ -37,11 +36,13 @@ class LoginPage extends StatelessWidget {
                   color: Color.fromARGB(255, 68, 66, 65),
                 ),
               ),  
+              
               const SizedBox(height: 20),
               SleekTextInput(controller: emailController, hintText: "Email", prefixIcon: Icons.email_outlined),
               const SizedBox(height: 20),
               SleekTextInput(controller: passwordController, hintText: "Password", prefixIcon: Icons.lock_outline, isPassword: true),
               SizedBox(height: 10),
+              
               // login button
               GestureDetector(
                 onTap: () => signInUser(emailController.text, passwordController.text),

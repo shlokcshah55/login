@@ -6,28 +6,18 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:login/firebase_options.dart';
 import 'package:login/pages/auth_handler.dart';
 import 'pages/home_page.dart'; 
-// import 'package:logging/logging.dart';
 
-import 'firebase_utils/firebase_api.dart';
 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // await dotenv.load(fileName: ".env");
+  await dotenv.load(); 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  // _setupLogging();
   runApp(const MyApp());
 }
 
-// void _setupLogging() {
-//   Logger.root.level = Level.ALL; // Set the logging level
-//   Logger.root.onRecord.listen((record) {
-//     print('${record.level.name}: ${record.time}: ${record.message}');
-//   });
-// }
 
 class MyApp extends StatelessWidget {
-  // Logger logger = Logger('MyApp');
 
   const MyApp({super.key});
 
@@ -39,7 +29,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: AuthHandler(),
+      home: const AuthHandler(),
     );
   }
 }

@@ -47,7 +47,7 @@ dependencies:
   firebase_auth: ^5.3.4
   google_place: ^0.4.7
   flutter_dotenv: ^5.2.1
-  dotenv: ^4.2.0
+  # dotenv: ^4.2.0
   http: ^0.13.6
 
 dev_dependencies:
@@ -76,6 +76,7 @@ flutter:
   assets:
     - lib/assets/map_style.json
     - lib/assets/pinitLogo.png
+    - .env
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware
