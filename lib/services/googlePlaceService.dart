@@ -34,7 +34,7 @@ class GooglePlacesService {
         print('GooglePlaceService: Found ${places.length} places');
         return places;
       } else {
-        throw Exception('GooglePlaceService: Error from Places API: ${data['status']}');
+        throw Exception('GooglePlaceService: No places found');
       }
     } else {
       throw Exception('GooglePlaceService: Failed to fetch nearby places');
@@ -44,7 +44,7 @@ class GooglePlacesService {
   Map<String, dynamic> _processPlace(Map<String, dynamic> result) {
     var name = result['name'];
     var location = result['geometry']['location'];
-    var lat = location['lat'];
+    var lat = location['lat'];  
     var lng = location['lng'];
     print('GooglePlaceService: Found place $name at $lat, $lng');
     return {'name': name, 'lat': lat, 'lng': lng};

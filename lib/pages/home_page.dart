@@ -39,7 +39,7 @@ class _HomePageState extends State<HomePage> {
 
     _getUserLocation();
     _plotKnownPins();
-    googlePlacesService.fetchNearbyPlaces(latitude: 50.819788, longitude: -0.122921, placeType: "restaurant");
+    _plotRecommendedPins();
   }
 
   /// Gets the user's current location and updates the map.
@@ -70,7 +70,7 @@ class _HomePageState extends State<HomePage> {
             markerId: MarkerId(point.hashCode.toString()),
             position: LatLng(point.latitude, point.longitude),
             infoWindow: InfoWindow(
-              title: 'Saved Location',
+              title: 'Saved Location - home',
               snippet: 'Location at (${point.latitude}, ${point.longitude})',
             ),
           ),
@@ -80,36 +80,39 @@ class _HomePageState extends State<HomePage> {
           'subtitle': 'Location at (${point.latitude}, ${point.longitude})',
         });
       }
-      carouselItems = fetchedItems;
+      carouselItems.addAll(fetchedItems);
     });
   }
 
-  // void _plotRecommendedPins() {
-  //   // Implement recommended pins plotting here
-  //   List<Map<String, dynamic>> fetchedItems = [];
-  //   // key: AIzaSyCAAK9Qm8bMNTN8zcauCiIgdHQcYQrOjYQ
-  //   setState(() {
-  //     for (GeoPoint point in widget.userData!['saved_locations']) {
-  //       GooglePlace googlePlace = GooglePlace(dotenv.env["GOOGLE_PLACE_API_KEY"]!);
-  //       markers.add(
-  //         Marker(
-  //           markerId: MarkerId(point.hashCode.toString()),
-  //           position: LatLng(point.latitude, point.longitude),
-  //           infoWindow: InfoWindow(
-  //             title: 'Saved Location',
-  //             snippet: 'Location at (${point.latitude}, ${point.longitude})',
-  //           ),
-  //         ),
-  //       );
-  //       fetchedItems.add({
-  //         'title': 'Saved Location',
-  //         'subtitle': 'Location at (${point.latitude}, ${point.longitude})',
-  //       });
-  //     }
-  //     carouselItems = fetchedItems;
-  //   });
+  Future<void> _plotRecommendedPins() async {
+    // Implement recommended pins plotting here
+    List<Map<String, dynamic>> fetchedItems = [];
+    var recs = await googlePlacesService.fetchNearbyPlaces(
+      latitude: 50.819788, longitude: -0.122921, placeType: "restaurant"); // default location in central Brighton
+    setState(() {
+      for (var place in recs) {
+        print("home_page: Place: $place");
+        markers.add(
+          Marker(
+            markerId: MarkerId(place.hashCode.toString()),
+            position: LatLng(place['lat'], place['lng']),
+            infoWindow: InfoWindow(
+              title: 'Recommended Location - ${place['name']}',
+              snippet: 'Location at (${place['lat']}, ${place['lng']})',
+            ),
+          ),
+        );
+        fetchedItems.add({
+          'title': 'Recommended Location - ${place['name']}', 
+          'subtitle': 'Location at (${place['lat']}, ${place['lng']})',
+        });
+      }
+      // carouselItems = fetchedItems;
+      carouselItems.addAll(fetchedItems);
 
-  // }
+    });
+
+  }
 
   @override
   Widget build(BuildContext context) {
