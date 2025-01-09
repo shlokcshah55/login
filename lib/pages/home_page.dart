@@ -4,6 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:login/services/googlePlaceService.dart';
+import 'package:login/widgets/CarouselTile.dart';
 import 'package:login/widgets/PinitMap.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -225,14 +226,9 @@ class _HomePageState extends State<HomePage> {
                         controller: scrollController,
                         itemCount: carouselItems.length,
                         itemBuilder: (BuildContext context, int index) {
-                          return ListTile(
-                            leading: CircleAvatar(
-                              child: Text(carouselItems[index]['title'][0]),
-                            ),
-                            title: Text(carouselItems[index]['title']),
-                            subtitle: Text(carouselItems[index]['subtitle']),
+                          return CarouselTile(
+                            item: carouselItems[index],
                             onTap: () => setState(() {
-                              print(carouselItems[index]);
                               controller?.animateCamera(CameraUpdate.newLatLng(
                                 LatLng(
                                   carouselItems[index]['lat'],
@@ -240,12 +236,16 @@ class _HomePageState extends State<HomePage> {
                                 ),
                               ));
                             }),
+                            onRemove: () => setState(() {
+                              carouselItems.removeAt(index);
+                            }),
                           );
                         },
                       ),
                     );
                   },
                 ),
+
               ],
             ),
           ),
