@@ -10,6 +10,18 @@ class LoginPage extends StatelessWidget {
 
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
+  final ValueNotifier<bool> signInFailedNotifier = ValueNotifier<bool>(false);
+
+  Future<void> signInUser(String email, String password) async {
+    try {
+      // Simulate a sign-in attempt
+      bool signInSuccess = await attemptSignIn(email, password);
+      signInFailedNotifier.value = !signInSuccess;
+    } catch (e) {
+      signInFailedNotifier.value = true;
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -60,7 +72,27 @@ class LoginPage extends StatelessWidget {
                     ),
                   ),
                 ),
-              )
+              ), 
+
+            SizedBox(height: 10),
+            // signin failure message
+            ValueListenableBuilder<bool>(
+              valueListenable: signInFailedNotifier,
+              builder: (context, signInFailed, child) {
+                if (signInFailed) {
+                  return const Text(
+                    'Incorrect email or password',
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontSize: 16,
+                    ),
+                  );
+                } else {
+                  return Container();
+                }
+              },
+            )
+
             ],
             ),
           ),

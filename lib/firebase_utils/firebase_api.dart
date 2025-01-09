@@ -52,7 +52,7 @@ Future<void> signUpUser(String email, String password, String name) async {
   }
 }
 
-Future<void> signInUser(String email, String password) async {
+Future<bool> attemptSignIn(String email, String password) async {
   try {
     // Sign in with Firebase Authentication
     UserCredential userCredential = await FirebaseAuth.instance
@@ -71,10 +71,12 @@ Future<void> signInUser(String email, String password) async {
       if (userDoc.exists) {
         print('User data: ${userDoc.data()}');
       }
+      return true;
     }
   } catch (e) {
     print('Error signing in user: $e');
-  }
+  } 
+  return false;
 }
 
 Future<DocumentSnapshot> getCurrentUserData(User user) async {
