@@ -37,7 +37,7 @@ class _HomePageState extends State<HomePage> {
       print(error.toString());
     });
 
-    _getUserLocation();
+    // _getUserLocation();
     _plotKnownPins();
     _plotRecommendedPins();
   }
@@ -105,6 +105,8 @@ class _HomePageState extends State<HomePage> {
         fetchedItems.add({
           'title': 'Recommended Location - ${place['name']}', 
           'subtitle': 'Location at (${place['lat']}, ${place['lng']})',
+          'lat': place['lat'],  
+          'lng': place['lng'],
         });
       }
       // carouselItems = fetchedItems;
@@ -229,6 +231,15 @@ class _HomePageState extends State<HomePage> {
                             ),
                             title: Text(carouselItems[index]['title']),
                             subtitle: Text(carouselItems[index]['subtitle']),
+                            onTap: () => setState(() {
+                              print(carouselItems[index]);
+                              controller?.animateCamera(CameraUpdate.newLatLng(
+                                LatLng(
+                                  carouselItems[index]['lat'],
+                                  carouselItems[index]['lng'],
+                                ),
+                              ));
+                            }),
                           );
                         },
                       ),
