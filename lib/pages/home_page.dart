@@ -93,9 +93,10 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       for (var place in recs) {
         print("home_page: Place: $place");
+        String markerId = place.hashCode.toString();
         markers.add(
           Marker(
-            markerId: MarkerId(place.hashCode.toString()),
+            markerId: MarkerId(markerId),
             position: LatLng(place['lat'], place['lng']),
             infoWindow: InfoWindow(
               title: 'Recommended Location - ${place['name']}',
@@ -108,6 +109,7 @@ class _HomePageState extends State<HomePage> {
           'subtitle': 'Location at (${place['lat']}, ${place['lng']})',
           'lat': place['lat'],  
           'lng': place['lng'],
+          'markerId': markerId,
         });
       }
       // carouselItems = fetchedItems;
@@ -235,9 +237,24 @@ class _HomePageState extends State<HomePage> {
                                   carouselItems[index]['lng'],
                                 ),
                               ));
+                              final updatedmarkers = <Marker>{};
+                              markers.forEach((element) {
+                                if (element.markerId.value == carouselItems[index]['markerId']) {
+                                  controller?.showMarkerInfoWindow(element.markerId);
+                                  updatedmarkers.add(element.copyWith(
+                                    iconParam: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+                                  ));
+                                } else {
+                                  updatedmarkers.add(element.copyWith(
+                                    iconParam: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+                                  ));
+                                }
+                              });
+                              markers = updatedmarkers;
                             }),
                             onRemove: () => setState(() {
                               carouselItems.removeAt(index);
+                              markers.removeWhere((element) => element.markerId.value == carouselItems[index]['markerId']);
                             }),
                           );
                         },
@@ -245,7 +262,6 @@ class _HomePageState extends State<HomePage> {
                     );
                   },
                 ),
-
               ],
             ),
           ),

@@ -34,3 +34,25 @@ class CustomGoogleMap extends StatelessWidget {
     );
   }
 }
+
+/// Extension to copy a Marker with new values
+/// When we make custom markers this gonna develop much more 
+extension MarkerCopyWith on Marker {
+    Marker copyWith({
+      BitmapDescriptor? iconParam,
+      LatLng? positionParam,
+      String? titleParam,
+      String? snippetParam,
+    }) {
+      return Marker(
+        markerId: this.markerId,
+        position: positionParam ?? this.position,
+        icon: iconParam ?? this.icon,
+        infoWindow: InfoWindow(
+          title: titleParam ?? this.infoWindow.title,
+          snippet: snippetParam ?? this.infoWindow.snippet,
+        ),
+        onTap: this.onTap,
+      );
+    }
+  }
