@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
+import 'dart:developer';
 
 
 class GooglePlacesService {
@@ -31,7 +32,7 @@ class GooglePlacesService {
           Map<String, dynamic> place = _processPlace(result);
           places.add(place);
         }
-        print('GooglePlaceService: Found ${places.length} places');
+        log('GooglePlaceService: Found ${places.length} places');
         return places;
       } else {
         throw Exception('GooglePlaceService: No places found');
@@ -42,11 +43,12 @@ class GooglePlacesService {
   }
 
   Map<String, dynamic> _processPlace(Map<String, dynamic> result) {
+    log('GooglePlaceService: Processing place $result');
     var name = result['name'];
     var location = result['geometry']['location'];
     var lat = location['lat'];  
     var lng = location['lng'];
-    print('GooglePlaceService: Found place $name at $lat, $lng');
+    log('GooglePlaceService: Found place $name at $lat, $lng');
     return {'name': name, 'lat': lat, 'lng': lng};
   }
 }

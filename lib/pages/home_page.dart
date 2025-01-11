@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:login/services/googlePlaceService.dart';
+import 'package:login/services/google_place_service.dart';
 import 'package:login/widgets/CarouselTile.dart';
 import 'package:login/widgets/PinitMap.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -22,7 +22,8 @@ class _HomePageState extends State<HomePage> {
   String _mapStyle = '';
   LatLng? _currentPosition;
   Set<Marker> markers = {};
-  List<Map<String, dynamic>> carouselItems = [];
+  List<Map<String, dynamic>> recommendedCarouselItems = [];
+  List<Map<String, dynamic>> savedCarouselItems = [];
   final GooglePlacesService googlePlacesService = GooglePlacesService();
 
   @override
@@ -39,7 +40,7 @@ class _HomePageState extends State<HomePage> {
     });
 
     // _getUserLocation();
-    _plotKnownPins();
+    _plotSavedPins();
     _plotRecommendedPins();
   }
 
@@ -62,7 +63,7 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  void _plotKnownPins() async {
+  void _plotSavedPins() async {
     List<Map<String, dynamic>> fetchedItems = [];
     setState(() {
       for (GeoPoint point in widget.userData!['saved_locations']) {
@@ -81,7 +82,7 @@ class _HomePageState extends State<HomePage> {
           'subtitle': 'Location at (${point.latitude}, ${point.longitude})',
         });
       }
-      carouselItems.addAll(fetchedItems);
+      savedCarouselItems.addAll(fetchedItems);
     });
   }
 
@@ -112,11 +113,9 @@ class _HomePageState extends State<HomePage> {
           'markerId': markerId,
         });
       }
-      // carouselItems = fetchedItems;
-      carouselItems.addAll(fetchedItems);
-
+      // recommendedCarouselItems = fetchedItems;
+      recommendedCarouselItems.addAll(fetchedItems);
     });
-
   }
 
   @override
@@ -226,20 +225,20 @@ class _HomePageState extends State<HomePage> {
                       ),
                       child: ListView.builder(
                         controller: scrollController,
-                        itemCount: carouselItems.length,
+                        itemCount: recommendedCarouselItems.length,
                         itemBuilder: (BuildContext context, int index) {
                           return CarouselTile(
-                            item: carouselItems[index],
+                            item: recommendedCarouselItems[index],
                             onTap: () => setState(() {
                               controller?.animateCamera(CameraUpdate.newLatLng(
                                 LatLng(
-                                  carouselItems[index]['lat'],
-                                  carouselItems[index]['lng'],
+                                  recommendedCarouselItems[index]['lat'],
+                                  recommendedCarouselItems[index]['lng'],
                                 ),
                               ));
                               final updatedmarkers = <Marker>{};
                               markers.forEach((element) {
-                                if (element.markerId.value == carouselItems[index]['markerId']) {
+                                if (element.markerId.value == recommendedCarouselItems[index]['markerId']) {
                                   controller?.showMarkerInfoWindow(element.markerId);
                                   updatedmarkers.add(element.copyWith(
                                     iconParam: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
@@ -253,9 +252,10 @@ class _HomePageState extends State<HomePage> {
                               markers = updatedmarkers;
                             }),
                             onRemove: () => setState(() {
-                              carouselItems.removeAt(index);
-                              markers.removeWhere((element) => element.markerId.value == carouselItems[index]['markerId']);
+                              recommendedCarouselItems.removeAt(index);
+                              markers.removeWhere((element) => element.markerId.value == recommendedCarouselItems[index]['markerId']);
                             }),
+                            onSecondaryAction: () => print('Secondary tap'),
                           );
                         },
                       ),
