@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 import '../widgets/my_text_widget.dart';
-import '../firebase_utils/firebase_api.dart';
+import '../services/firebase_service.dart';
 
 
 class LoginPage extends StatelessWidget {

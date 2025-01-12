@@ -1,12 +1,12 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:login/controllers/home_controller.dart';
+import 'package:login/providers/app_data_provider.dart';
 import 'package:login/services/google_place_service.dart';
 import 'package:login/widgets/CarouselTile.dart';
 import 'package:login/widgets/PinitMap.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:provider/provider.dart';
 
 
 class HomePage extends StatefulWidget {
@@ -19,18 +19,13 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   GoogleMapController? controller;
-  String _mapStyle = '';
-  LatLng? _currentPosition;
-  Set<Marker> markers = {};
-  List<Map<String, dynamic>> recommendedCarouselItems = [];
-  List<Map<String, dynamic>> savedCarouselItems = [];
-  final GooglePlacesService googlePlacesService = GooglePlacesService();
+  late HomeController homeController_;
 
   @override
   void initState() {
     super.initState();
-
     print("home_page: api key: ${dotenv.env['GOOGLE_PLACE_API_KEY']}");
+
 
     // Loading map style from assets
     DefaultAssetBundle.of(context).loadString('lib/assets/map_style.json').then((string) {
@@ -39,83 +34,8 @@ class _HomePageState extends State<HomePage> {
       print(error.toString());
     });
 
-    // _getUserLocation();
-    _plotSavedPins();
-    _plotRecommendedPins();
-  }
-
-  /// Gets the user's current location and updates the map.
-  ///
-  /// Requests location permission and, if granted, fetches the current position.
-  /// Updates the state with the new position and animates the map camera.
-  Future<void> _getUserLocation() async {
-    
-    PermissionStatus permission = await Permission.locationWhenInUse.request();
-    if (permission == PermissionStatus.granted) {
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-
-      setState(() {
-        _currentPosition = LatLng(position.latitude, position.longitude);
-        controller?.animateCamera(CameraUpdate.newLatLngZoom(_currentPosition!, 15));
-      });
-    }
-  }
-
-  void _plotSavedPins() async {
-    List<Map<String, dynamic>> fetchedItems = [];
-    setState(() {
-      for (GeoPoint point in widget.userData!['saved_locations']) {
-        markers.add(
-          Marker(
-            markerId: MarkerId(point.hashCode.toString()),
-            position: LatLng(point.latitude, point.longitude),
-            infoWindow: InfoWindow(
-              title: 'Saved Location - home',
-              snippet: 'Location at (${point.latitude}, ${point.longitude})',
-            ),
-          ),
-        );
-        fetchedItems.add({
-          'title': 'Saved Location',
-          'subtitle': 'Location at (${point.latitude}, ${point.longitude})',
-        });
-      }
-      savedCarouselItems.addAll(fetchedItems);
-    });
-  }
-
-  Future<void> _plotRecommendedPins() async {
-    // Implement recommended pins plotting here
-    List<Map<String, dynamic>> fetchedItems = [];
-    var recs = await googlePlacesService.fetchNearbyPlaces(
-      latitude: 50.819788, longitude: -0.122921, placeType: "restaurant"); // default location in central Brighton
-    setState(() {
-      for (var place in recs) {
-        print("home_page: Place: $place");
-        String markerId = place.hashCode.toString();
-        markers.add(
-          Marker(
-            markerId: MarkerId(markerId),
-            position: LatLng(place['lat'], place['lng']),
-            infoWindow: InfoWindow(
-              title: 'Recommended Location - ${place['name']}',
-              snippet: 'Location at (${place['lat']}, ${place['lng']})',
-            ),
-          ),
-        );
-        fetchedItems.add({
-          'title': 'Recommended Location - ${place['name']}', 
-          'subtitle': 'Location at (${place['lat']}, ${place['lng']})',
-          'lat': place['lat'],  
-          'lng': place['lng'],
-          'markerId': markerId,
-        });
-      }
-      // recommendedCarouselItems = fetchedItems;
-      recommendedCarouselItems.addAll(fetchedItems);
-    });
+    final appStateProvider = Provider.of<AppStateProvider>(context, listen: false);
+    homeController_ = HomeController(appStateProvider, controller!);
   }
 
   @override
@@ -179,7 +99,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                   onChanged: (value) {
-                    // Implement search functionality here
+                    //TODO: Implement search functionality here
                   },
                 ),
               ],
@@ -251,11 +171,6 @@ class _HomePageState extends State<HomePage> {
                               });
                               markers = updatedmarkers;
                             }),
-                            onRemove: () => setState(() {
-                              recommendedCarouselItems.removeAt(index);
-                              markers.removeWhere((element) => element.markerId.value == recommendedCarouselItems[index]['markerId']);
-                            }),
-                            onSecondaryAction: () => print('Secondary tap'),
                           );
                         },
                       ),

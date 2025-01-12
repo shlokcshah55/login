@@ -1,29 +1,30 @@
 import 'package:flutter/material.dart';
+import 'package:login/models/location_model.dart';
 
 class CarouselTile extends StatelessWidget {
-  final Map<String, dynamic> item;
+  final LocationModel item;
   final VoidCallback onRemove;
-  final VoidCallback onSecondaryAction; // Action for swiping start-to-end
+  final VoidCallback onSave; // Action for swiping start-to-end
   final VoidCallback onTap;
 
   const CarouselTile({
-    Key? key,
+    super.key,
     required this.item,
     required this.onRemove,
-    required this.onSecondaryAction,
+    required this.onSave,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
     return Dismissible(
-      key: Key(item['title']),
+      key: Key(item.title!),
       direction: DismissDirection.horizontal, // Allow both directions
       onDismissed: (direction) {
         if (direction == DismissDirection.endToStart) {
           onRemove();
         } else if (direction == DismissDirection.startToEnd) {
-          onSecondaryAction();
+          onSave();
         }
       },
       background: Container(
@@ -40,10 +41,10 @@ class CarouselTile extends StatelessWidget {
       ),
       child: ListTile(
         leading: CircleAvatar(
-          child: Text(item['title'][0]),
+          child: Text(item.title![0]),
         ),
-        title: Text(item['title']),
-        subtitle: Text(item['subtitle']),
+        title: Text(item.title!),
+        subtitle: Text(item.subtitle!),
         onTap: onTap,
       ),
     );

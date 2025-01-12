@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:login/providers/app_data_provider.dart';
+import 'package:provider/provider.dart';
 
 class CustomGoogleMap extends StatelessWidget {
   final String mapStyle;
@@ -17,6 +19,8 @@ class CustomGoogleMap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final appStateProvider = Provider.of<AppStateProvider>(context, listen: false);
+
     return GoogleMap(
       style: mapStyle,
       mapToolbarEnabled: false,
@@ -28,7 +32,7 @@ class CustomGoogleMap extends StatelessWidget {
         zoom: 15,
       ),
       onMapCreated: (controller) {
-        onMapCreated(controller);
+        appStateProvider.setMapController(controller);
       },
       markers: markers,
     );
