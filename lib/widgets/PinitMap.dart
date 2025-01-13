@@ -4,17 +4,14 @@ import 'package:login/providers/app_data_provider.dart';
 import 'package:provider/provider.dart';
 
 class CustomGoogleMap extends StatelessWidget {
+  static const double DEFAULT_LAT = 51.4988;
+  static const double DEFAULT_LNG = -0.1749;
+  
   final String mapStyle;
-  final LatLng? currentPosition;
-  final Set<Marker> markers;
-  final Function(GoogleMapController) onMapCreated;
 
   const CustomGoogleMap({
     super.key,
     required this.mapStyle,
-    required this.currentPosition,
-    required this.markers,
-    required this.onMapCreated,
   });
 
   @override
@@ -28,13 +25,13 @@ class CustomGoogleMap extends StatelessWidget {
       compassEnabled: false,
       zoomControlsEnabled: false,
       initialCameraPosition: CameraPosition(
-        target: currentPosition ?? const LatLng(51.4988, -0.1749),  // Default to Imperial 
+        target: appStateProvider.currentPosition ?? const LatLng(DEFAULT_LAT, DEFAULT_LNG),  // Default to Imperial 
         zoom: 15,
       ),
       onMapCreated: (controller) {
         appStateProvider.setMapController(controller);
       },
-      markers: markers,
+      markers: appStateProvider.markers,
     );
   }
 }

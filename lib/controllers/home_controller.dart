@@ -10,6 +10,7 @@ import 'package:permission_handler/permission_handler.dart';
 class HomeController {
   final AppStateProvider appStateProvider;
   final GooglePlacesService googlePlacesService = GooglePlacesService();
+  late GoogleMapController mapController = appStateProvider.mapController; 
 
   HomeController(this.appStateProvider);
 
@@ -56,8 +57,9 @@ class HomeController {
         appStateProvider.saveLocation(location);  
         appStateProvider.removeLocation(location);
       },
-      onTap: () {
+      onTap: () async {
         // Handle tap action
+        await appStateProvider.controllerFuture;
         appStateProvider.mapController.animateCamera(
           CameraUpdate.newLatLng(location.position!),
         );

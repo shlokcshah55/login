@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -5,6 +7,7 @@ import 'package:login/models/location_model.dart';
 import 'package:login/services/firebase_service.dart';
 
 class AppStateProvider with ChangeNotifier {
+  Completer<GoogleMapController> _completeController = Completer();
   late GoogleMapController _mapController;
   LatLng? _currentPosition;
   List<LocationModel> _savedLocations = [];
@@ -17,6 +20,8 @@ class AppStateProvider with ChangeNotifier {
 
   final FirebaseService firebaseService = FirebaseService();
 
+  Future<GoogleMapController> get controllerFuture => _completeController.future;
+  
   GoogleMapController get mapController => _mapController;
   LatLng? get currentPosition => _currentPosition;
   Set<Marker> get markers => _markers;
@@ -26,12 +31,16 @@ class AppStateProvider with ChangeNotifier {
 
   void setMapController(GoogleMapController controller) {
       _mapController = controller;
-      notifyListeners(); // Notify listeners if necessary (e.g., UI reacts to changes)
+      if (!_completeController.isCompleted) {
+        _completeController.complete(controller);
+      }
+      notifyListeners(); 
     }
 
-  void updateCurrentPosition(LatLng position) {
+  Future<void> updateCurrentPosition(LatLng position) async {
     _currentPosition = position;
-    mapController?.animateCamera(CameraUpdate.newLatLng(position));
+    await _completeController.future;
+    _mapController.animateCamera(CameraUpdate.newLatLng(position));
     notifyListeners();
   }
 

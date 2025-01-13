@@ -104,22 +104,22 @@ class FirebaseService {
     }
   }
 
-  Future<List<LocationModel>> getSavedLocations(User user) async {
-    try {
-      DocumentSnapshot userDoc = await db_.collection('Users').doc(user.uid).get();
-      List<dynamic> savedLocations = userDoc.get('saved_locations');
-      List<LocationModel> locations = [];
+  // Future<List<LocationModel>> getSavedLocations(User user) async {
+  //   try {
+  //     DocumentSnapshot userDoc = await db_.collection('Users').doc(user.uid).get();
+  //     List<dynamic> savedLocations = userDoc.get('saved_locations');
+  //     List<LocationModel> locations = [];
 
-      for (var location in savedLocations) {
-        locations.add(LocationModel.fromMap(location));
-      }
+  //     for (var location in savedLocations) {
+  //       locations.add(LocationModel.fromMap(location));
+  //     }
 
-      return locations;
-    } catch (e) {
-      print('Error getting saved locations: $e');
-      return [];
-    }
-  }
+  //     return locations;
+  //   } catch (e) {
+  //     print('Error getting saved locations: $e');
+  //     return [];
+  //   }
+  // }
 
   Future<void> storeLocation(LocationModel location) async {}
 
