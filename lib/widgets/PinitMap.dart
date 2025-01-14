@@ -7,8 +7,6 @@ import 'package:provider/provider.dart';
 class CustomGoogleMap extends StatelessWidget {
   static const double DEFAULT_LAT = 51.4988;
   static const double DEFAULT_LNG = -0.1749;
-  
-  final String mapStyle;
 
   const CustomGoogleMap({
     super.key,
@@ -16,7 +14,7 @@ class CustomGoogleMap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final appStateProvider = Provider.of<AppStateProvider>(context, listen: false);
+    final appStateProvider = Provider.of<AppStateProvider>(context, listen: true);
 
     return GoogleMap(
       style: MAPSTYLE,
