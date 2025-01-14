@@ -11,11 +11,12 @@ class LoginPage extends StatelessWidget {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   final ValueNotifier<bool> signInFailedNotifier = ValueNotifier<bool>(false);
+  final FirebaseService firebaseService = FirebaseService();
 
-  Future<void> signInUser(String email, String password) async {
+  Future<void> signInUser(String userEmail, String userPassword) async {
     try {
       // Simulate a sign-in attempt
-      bool signInSuccess = await attemptSignIn(email, password);
+      bool signInSuccess = await firebaseService.attemptSignIn(email: userEmail, password: userPassword);
       signInFailedNotifier.value = !signInSuccess;
     } catch (e) {
       signInFailedNotifier.value = true;

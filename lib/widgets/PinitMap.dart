@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:login/assets/constants.dart';
 import 'package:login/providers/app_data_provider.dart';
 import 'package:provider/provider.dart';
 
@@ -11,7 +12,6 @@ class CustomGoogleMap extends StatelessWidget {
 
   const CustomGoogleMap({
     super.key,
-    required this.mapStyle,
   });
 
   @override
@@ -19,7 +19,7 @@ class CustomGoogleMap extends StatelessWidget {
     final appStateProvider = Provider.of<AppStateProvider>(context, listen: false);
 
     return GoogleMap(
-      style: mapStyle,
+      style: MAPSTYLE,
       mapToolbarEnabled: false,
       myLocationButtonEnabled: false,
       compassEnabled: false,

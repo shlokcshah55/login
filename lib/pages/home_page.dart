@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -19,7 +21,6 @@ class _HomePageState extends State<HomePage> {
   GoogleMapController? controller;
   late final HomeController homeController_;
   late final AppStateProvider appStateProvider_;
-  String _mapStyle = '';
   
 
   @override
@@ -28,18 +29,19 @@ class _HomePageState extends State<HomePage> {
     print("home_page: api key: ${dotenv.env['GOOGLE_PLACE_API_KEY']}");
 
     // Loading map style from assets
-    DefaultAssetBundle.of(context).loadString('lib/assets/map_style.json').then((string) {
-      _mapStyle = string;
-    }).catchError((error) {
-      print(error.toString());
-    });
+    // _loadMapStyle();
 
     appStateProvider_ = Provider.of<AppStateProvider>(context, listen: false);
     homeController_ = HomeController(appStateProvider_);
-    homeController_.getUserLocation();
+    // homeController_.getUserLocation();
     // homeController_.plotKnownPins();
+    log("home controller initialized");
     homeController_.plotRecommendedPins();
   }
+
+  // Future<void> _loadMapStyle() async {
+  //   _mapStyle = await DefaultAssetBundle.of(context).loadString('assets/map_style.json');
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -51,8 +53,8 @@ class _HomePageState extends State<HomePage> {
           child: Stack(
             children: [
               // Google Map
-              Positioned.fill(
-                child: CustomGoogleMap(mapStyle: _mapStyle),
+              const Positioned.fill(
+                child: CustomGoogleMap(),
               ),
               // Draggable Carousel
               _buildDraggableSheet(),

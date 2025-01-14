@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -30,12 +31,12 @@ class AppStateProvider with ChangeNotifier {
 
 
   void setMapController(GoogleMapController controller) {
-      _mapController = controller;
-      if (!_completeController.isCompleted) {
-        _completeController.complete(controller);
-      }
-      notifyListeners(); 
+    _mapController = controller;
+    if (!_completeController.isCompleted) {
+      _completeController.complete(controller);
     }
+    notifyListeners(); 
+  }
 
   Future<void> updateCurrentPosition(LatLng position) async {
     _currentPosition = position;
@@ -63,7 +64,9 @@ class AppStateProvider with ChangeNotifier {
     } else if (location.preference == locationPreference.recommended) {
       _recommendedLocaitons.remove(location);
     }
+    log("AppStateProvider: Removing marker with id: ${location.id}, markers: $_markers");
     markers.removeWhere((marker) => marker.markerId.value == location.id);
+    
     notifyListeners();
   }
 
