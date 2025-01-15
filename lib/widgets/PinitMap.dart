@@ -1,36 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:login/assets/constants.dart';
+import 'package:login/providers/app_data_provider.dart';
+import 'package:provider/provider.dart';
 
 class CustomGoogleMap extends StatelessWidget {
-  final String mapStyle;
-  final LatLng? currentPosition;
-  final Set<Marker> markers;
-  final Function(GoogleMapController) onMapCreated;
+  static const double DEFAULT_LAT = 51.4988;
+  static const double DEFAULT_LNG = -0.1749;
 
   const CustomGoogleMap({
     super.key,
-    required this.mapStyle,
-    required this.currentPosition,
-    required this.markers,
-    required this.onMapCreated,
   });
 
   @override
   Widget build(BuildContext context) {
+    final appStateProvider = Provider.of<AppStateProvider>(context, listen: true);
+
     return GoogleMap(
-      style: mapStyle,
+      style: MAPSTYLE,
       mapToolbarEnabled: false,
       myLocationButtonEnabled: false,
       compassEnabled: false,
       zoomControlsEnabled: false,
       initialCameraPosition: CameraPosition(
-        target: currentPosition ?? const LatLng(51.4988, -0.1749),  // Default to Imperial 
+        target: appStateProvider.currentPosition ?? const LatLng(DEFAULT_LAT, DEFAULT_LNG),  // Default to Imperial 
         zoom: 15,
       ),
       onMapCreated: (controller) {
-        onMapCreated(controller);
+        appStateProvider.setMapController(controller);
       },
-      markers: markers,
+      markers: appStateProvider.markers,
     );
   }
 }
