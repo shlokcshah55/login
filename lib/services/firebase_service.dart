@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:login/models/location_model.dart';
@@ -18,17 +20,34 @@ class FirebaseService {
   // Get a user's data by userId
   Future<Map<String, dynamic>?> getUser(String userId) async {
     try {
-      DocumentSnapshot doc = await db_.collection("users").doc(userId).get();
-      if (doc.exists) {
-        return doc.data() as Map<String, dynamic>;
-      } else {
-        print('No such user found');
-        return null;
-      }
+      DocumentSnapshot userDoc = await db_.collection('Users').doc(userId).get();
+      return userDoc.data() as Map<String, dynamic>?;
     } catch (e) {
       print('Error getting user: $e');
       return null;
     }
+  }
+
+  Future<bool> attemptSignIn({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      UserCredential userCredential = await auth_.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      User? user = userCredential.user;
+      if (user != null) {
+        log('FirebaseService: User signed in: ${user.email}');
+        // Fetch additional user data from Firestore
+        await getUser(user.uid);
+        return true;
+      }
+    } catch (e) {
+      log('FirebaseService: Error signing in user: $e');
+    }
+    return false;
   }
 
   // Sign up a new user and save their data to Firestore
@@ -63,64 +82,52 @@ class FirebaseService {
     }
   }
 
-  // Attempt to sign in a user
-  Future<bool> attemptSignIn({
-    required String email,
-    required String password,
-  }) async {
+
+  // Future<List<LocationModel>> getSavedLocations(User user) async {}
+
+  Future<void> storeLocation(LocationModel location) async {
     try {
-      UserCredential userCredential = await auth_.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      // check if location in database already
+      DocumentSnapshot locationDoc = await db_.collection('Locations').doc(location.id).get();
+      if (!locationDoc.exists) {
+        await db_.collection('Locations').doc(location.id).set({
+        'name': location.name,
+        'location': GeoPoint(location.position!.latitude, location.position!.longitude),
+        'saved_count': 0,
+        'location_type': "restaurant", // TODO: Add location type to LocationModel
+      });
+      }
+      // add reference to location in user's saved locations
+      await db_.collection('Users').doc(auth_.currentUser!.uid).update({
+        'saved_locations': FieldValue.arrayUnion([location.id]),
+      });
+      updateLocationInfo(location.id);
+    } catch (e) {
+      log('Error storing location: $e');
+    }
+  }
 
-      User? user = userCredential.user;
+  /// Update the saved_count field in the Locations collection
+  /// In future will add more data regarding locations to aid recommendation engine
+  Future<void> updateLocationInfo(String id) {
+    return db_.collection('Locations').doc(id).update({
+      'saved_count': FieldValue.increment(1),
+    });
+  }
 
-      if (user != null) {
-        print('User signed in: ${user.email}');
-
-        // Fetch additional user data from Firestore
-        DocumentSnapshot userDoc = await db_.collection('Users').doc(user.uid).get();
-
-        if (userDoc.exists) {
-          print('User data: ${userDoc.data()}');
-        }
-        return true;
+  Future<List<LocationModel>> getSavedLocations() async {
+    List<LocationModel> savedLocations = [];
+    try {
+      DocumentSnapshot userDoc = await db_.collection('Users').doc(auth_.currentUser!.uid).get();
+      List<dynamic> savedLocationIds = userDoc.get('saved_locations');
+      for (String id in savedLocationIds) {
+        DocumentSnapshot locationDoc = await db_.collection('Locations').doc(id).get();
+        savedLocations.add(LocationModel.fromDocument(locationDoc));
       }
     } catch (e) {
-      print('Error signing in user: $e');
+      log('Error getting saved locations: $e');
     }
-    return false;
+    return savedLocations;
   }
-
-  // Get the current user's Firestore data
-  Future<DocumentSnapshot?> getCurrentUserData(User user) async {
-    try {
-      DocumentSnapshot userDoc = await db_.collection('Users').doc(user.uid).get();
-      return userDoc;
-    } catch (e) {
-      print('Error getting current user data: $e');
-      return null;
-    }
-  }
-
-  // Future<List<LocationModel>> getSavedLocations(User user) async {
-  //   try {
-  //     DocumentSnapshot userDoc = await db_.collection('Users').doc(user.uid).get();
-  //     List<dynamic> savedLocations = userDoc.get('saved_locations');
-  //     List<LocationModel> locations = [];
-
-  //     for (var location in savedLocations) {
-  //       locations.add(LocationModel.fromMap(location));
-  //     }
-
-  //     return locations;
-  //   } catch (e) {
-  //     print('Error getting saved locations: $e');
-  //     return [];
-  //   }
-  // }
-
-  Future<void> storeLocation(LocationModel location) async {}
 
 }

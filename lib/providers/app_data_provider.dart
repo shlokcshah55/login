@@ -1,18 +1,20 @@
 import 'dart:async';
 import 'dart:developer';
 
-import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:login/models/location_model.dart';
 import 'package:login/services/firebase_service.dart';
 
 class AppStateProvider with ChangeNotifier {
-  Completer<GoogleMapController> _completeController = Completer();
+  late String userId;
+  late Map<String, dynamic> _userData;
+  final Completer<GoogleMapController> _completeController = Completer();
   late GoogleMapController _mapController;
   LatLng? _currentPosition;
   List<LocationModel> _savedLocations = [];
-  List<LocationModel> _recommendedLocaitons = [];
+  List<LocationModel> _recommendedLocations = [];
 
   // Map data
   Set<Marker> _markers = {};
@@ -27,8 +29,28 @@ class AppStateProvider with ChangeNotifier {
   LatLng? get currentPosition => _currentPosition;
   Set<Marker> get markers => _markers;
   List<LocationModel> get savedLocations => _savedLocations;
-  List<LocationModel> get recommendedLocations => _recommendedLocaitons;
+  List<LocationModel> get recommendedLocations => _recommendedLocations;
+  Map<String, dynamic> get userData => _userData;
 
+  Future<void> fetchUserData() async {
+    try {
+      final Map<String, dynamic>? maybeUserData = await firebaseService.getUser(userId);
+      if (maybeUserData != null) {
+        _userData = maybeUserData;
+        _savedLocations = await firebaseService.getSavedLocations();
+        notifyListeners();
+      } 
+      else {
+        // Sign out - invalid user and return to login screen
+        log('No user data found for ID: $userId');
+        await FirebaseAuth.instance.signOut();
+        throw Exception('No user data found for $userId');
+      }
+    } catch (e) {
+      log('Error fetching user data: $e');
+      await FirebaseAuth.instance.signOut();
+    }
+  }
 
   void setMapController(GoogleMapController controller) {
     _mapController = controller;
@@ -51,7 +73,7 @@ class AppStateProvider with ChangeNotifier {
   }
 
   void addRecommendedLocations(List<LocationModel> locations) {
-    _recommendedLocaitons.addAll(locations);
+    _recommendedLocations.addAll(locations);
     notifyListeners();
   }
 
@@ -60,9 +82,10 @@ class AppStateProvider with ChangeNotifier {
       _savedLocations.remove(location);
 
       //TODO: Remove from Firestore
+      
 
     } else if (location.preference == locationPreference.recommended) {
-      _recommendedLocaitons.remove(location);
+      _recommendedLocations.remove(location);
     }
     log("AppStateProvider: Removing marker with id: ${location.id}, markers: $_markers");
     markers.removeWhere((marker) => marker.markerId.value == location.id);
@@ -74,7 +97,7 @@ class AppStateProvider with ChangeNotifier {
     if (location.preference == locationPreference.saved) {
       _savedLocations.add(location);
     } else if (location.preference == locationPreference.recommended) {
-      FirebaseService().storeLocation(location);
+      firebaseService.storeLocation(location);
     }
     notifyListeners();
   }

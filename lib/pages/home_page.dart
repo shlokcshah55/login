@@ -10,8 +10,7 @@ import 'package:provider/provider.dart';
 
 
 class HomePage extends StatefulWidget {
-  final Map<String, dynamic>? userData;
-  const HomePage({Key? key, required this.userData}) : super(key: key);
+  const HomePage({Key? key}) : super(key: key);
 
   @override
   _HomePageState createState() => _HomePageState();
@@ -87,7 +86,7 @@ class _HomePageState extends State<HomePage> {
                     style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                   ),
                   Text(
-                    widget.userData?["name"] ?? "User",
+                    appStateProvider_.userData["name"] ?? "User",
                     style: const TextStyle(fontSize: 16, color: Colors.grey),
                   ),
                 ],

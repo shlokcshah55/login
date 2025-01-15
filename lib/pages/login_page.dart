@@ -1,5 +1,3 @@
-// ignore_for_file: prefer_const_constructors
-
 import 'package:flutter/material.dart';
 import '../widgets/my_text_widget.dart';
 import '../services/firebase_service.dart';
@@ -22,7 +20,6 @@ class LoginPage extends StatelessWidget {
       signInFailedNotifier.value = true;
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -51,53 +48,57 @@ class LoginPage extends StatelessWidget {
               ),  
               
               const SizedBox(height: 20),
+              
               SleekTextInput(controller: emailController, hintText: "Email", prefixIcon: Icons.email_outlined),
               const SizedBox(height: 20),
-              SleekTextInput(controller: passwordController, hintText: "Password", prefixIcon: Icons.lock_outline, isPassword: true),
-              SizedBox(height: 10),
               
+              SleekTextInput(controller: passwordController, hintText: "Password", prefixIcon: Icons.lock_outline, isPassword: true),
+              const SizedBox(height: 10),
               // login button
-              GestureDetector(
-                onTap: () => signInUser(emailController.text, passwordController.text),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Color.fromARGB(255, 68, 66, 65),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-                  child: const Text(
-                    "Sign in",
-                    style: TextStyle(
-                      fontSize: 20,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ), 
-
-            SizedBox(height: 10),
-            // signin failure message
-            ValueListenableBuilder<bool>(
-              valueListenable: signInFailedNotifier,
-              builder: (context, signInFailed, child) {
-                if (signInFailed) {
-                  return const Text(
-                    'Incorrect email or password',
-                    style: TextStyle(
-                      color: Colors.red,
-                      fontSize: 16,
-                    ),
-                  );
-                } else {
-                  return Container();
-                }
-              },
-            )
-
+              buildLoginButton(),
+              const SizedBox(height: 10),
+              // signin failure message
+              
+              ValueListenableBuilder<bool>(
+                valueListenable: signInFailedNotifier,
+                builder: (context, signInFailed, child) {
+                  if (signInFailed) {
+                    return const Text(
+                      'Incorrect email or password',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontSize: 16,
+                      ),
+                    );
+                  } else {
+                    return Container();
+                  }
+                },
+              )
             ],
             ),
           ),
         ),
       );
+  }
+
+  Widget buildLoginButton() {
+    return GestureDetector(
+      onTap: () => signInUser(emailController.text, passwordController.text),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Color.fromARGB(255, 68, 66, 65),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+        child: const Text(
+          "Sign in",
+          style: TextStyle(
+            fontSize: 20,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    );
   }
 }
