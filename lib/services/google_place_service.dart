@@ -61,7 +61,7 @@ class GooglePlacesService {
       description: '',
       latitude: lat,
       longitude: lng,
-      preference: locationPreference.recommended,
+      preference: LocationPreference.recommended,
     );
   }
 }

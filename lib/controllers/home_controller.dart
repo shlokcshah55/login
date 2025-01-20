@@ -50,6 +50,7 @@ class HomeController {
   CarouselTile buildCarouselItem(LocationModel location) {
     return CarouselTile(
       item: location,
+      preference: location.preference,
       onRemove: () {
         appStateProvider.removeLocation(location);
       },

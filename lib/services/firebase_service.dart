@@ -130,4 +130,13 @@ class FirebaseService {
     return savedLocations;
   }
 
+  Future<void> removeSavedLocation(String id) async {
+    try {
+      await db_.collection('Users').doc(auth_.currentUser!.uid).update({
+        'saved_locations': FieldValue.arrayRemove([id]),
+      });
+    } catch (e) {
+      log('Error removing saved location: $e');
+    }
+  }
 }

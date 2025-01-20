@@ -78,25 +78,21 @@ class AppStateProvider with ChangeNotifier {
   }
 
   void removeLocation(LocationModel location) {
-    if (location.preference == locationPreference.saved) {
+    if (location.preference == LocationPreference.saved) {
       _savedLocations.remove(location);
-
-      //TODO: Remove from Firestore
-      
-
-    } else if (location.preference == locationPreference.recommended) {
+      firebaseService.removeSavedLocation(location.id);
+    } else if (location.preference == LocationPreference.recommended) {
       _recommendedLocations.remove(location);
     }
     log("AppStateProvider: Removing marker with id: ${location.id}, markers: $_markers");
     markers.removeWhere((marker) => marker.markerId.value == location.id);
-    
     notifyListeners();
   }
 
   void saveLocation(LocationModel location) {
-    if (location.preference == locationPreference.saved) {
+    if (location.preference == LocationPreference.saved) {
       _savedLocations.add(location);
-    } else if (location.preference == locationPreference.recommended) {
+    } else if (location.preference == LocationPreference.recommended) {
       firebaseService.storeLocation(location);
     }
     notifyListeners();
