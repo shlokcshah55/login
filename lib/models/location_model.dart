@@ -1,6 +1,7 @@
 import 'dart:developer';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class LocationModel {
@@ -10,7 +11,7 @@ class LocationModel {
   String description;
   double latitude;
   double longitude;
-  locationPreference preference;
+  LocationPreference preference;
 
   // CarouselItem Fields 
   String? title;
@@ -18,6 +19,7 @@ class LocationModel {
   
   // Marker fields 
   LatLng? position;
+  static BitmapDescriptor? _customMarkerIcon;
 
   LocationModel({
     required this.id,
@@ -33,10 +35,21 @@ class LocationModel {
     position = LatLng(latitude, longitude);
   }
 
+  static Future<void> initializeCustomMarker() async {
+    if (_customMarkerIcon == null) {
+      _customMarkerIcon = await BitmapDescriptor.asset(
+        const ImageConfiguration(size: Size(48, 48)),
+        'lib/assets/restaurant_pin.png',
+      );
+      log('LocationModel: Custom marker initialized');
+    }
+  }
+
   Marker toMarker() {
     return Marker(
       markerId: MarkerId(id),
       position: LatLng(latitude, longitude),
+      icon: _customMarkerIcon ?? BitmapDescriptor.defaultMarker,
       infoWindow: InfoWindow(
         title: title,
         snippet: subtitle,
@@ -54,23 +67,23 @@ class LocationModel {
       description: "",
       latitude: data["location"].latitude,
       longitude: data['location'].longitude,
-      preference: locationPreference.saved,
+      preference: LocationPreference.saved,
     );
   }
 }
 
-enum locationType { restaurant, hotel, museum, park, other }
-enum locationPreference { saved, recommended, visited }
+enum LocationType { restaurant, hotel, museum, park, other }
+enum LocationPreference { saved, recommended, visited }
 
-extension LocationTypeExtension on locationType {
+extension LocationTypeExtension on LocationType {
   String toShortString() {
-    return this.toString().split('.').last;
+    return toString().split('.').last;
   }
 }
 
-extension LocationPreferenceExtension on locationPreference {
+extension LocationPreferenceExtension on LocationPreference {
   String toShortString() {
-    return this.toString().split('.').last;
+    return toString().split('.').last;
   }
 }
 

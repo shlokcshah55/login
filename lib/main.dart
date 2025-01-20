@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:login/firebase_options.dart';
+import 'package:login/models/location_model.dart';
 import 'package:login/pages/auth_handler.dart';
 import 'package:login/providers/app_data_provider.dart';
 import 'package:provider/provider.dart';
@@ -13,6 +14,7 @@ import 'pages/home_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await LocationModel.initializeCustomMarker();
   await dotenv.load(); 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(

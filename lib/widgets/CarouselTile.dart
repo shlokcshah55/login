@@ -3,6 +3,7 @@ import 'package:login/models/location_model.dart';
 
 class CarouselTile extends StatelessWidget {
   final LocationModel item;
+  final LocationPreference preference;
   final VoidCallback onRemove;
   final VoidCallback onSave; // Action for swiping start-to-end
   final VoidCallback onTap;
@@ -13,6 +14,7 @@ class CarouselTile extends StatelessWidget {
     required this.onRemove,
     required this.onSave,
     required this.onTap,
+    required this.preference,
   });
 
   @override
@@ -41,6 +43,9 @@ class CarouselTile extends StatelessWidget {
       ),
       child: ListTile(
         leading: CircleAvatar(
+          backgroundColor: preference == LocationPreference.saved
+              ? Colors.green
+              : Colors.blue,
           child: Text(item.title![0]),
         ),
         title: Text(item.title!),
