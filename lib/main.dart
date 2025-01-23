@@ -1,15 +1,12 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:login/firebase_options.dart';
 import 'package:login/models/location_model.dart';
 import 'package:login/pages/auth_handler.dart';
+import 'package:login/pages/home_page.dart';
 import 'package:login/providers/app_data_provider.dart';
 import 'package:provider/provider.dart';
-import 'pages/home_page.dart'; 
-
 
 
 void main() async {
@@ -54,7 +51,6 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
-  Map<String, dynamic>? _userData;
 
   final List<Widget> _pages = [
         const HomePage(),

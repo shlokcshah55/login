@@ -44,24 +44,56 @@ class GooglePlacesService {
     }
   }
 
+  // LocationModel _processPlace(Map<String, dynamic> result) {
+  //   log('GooglePlaceService: Processing place $result');
+  //   var id = result['place_id'];
+  //   var name = result['name'];
+  //   var location = result['geometry']['location'];
+  //   var lat = location['lat'];  
+  //   var lng = location['lng'];
+
+  //   log('GooglePlaceService: Found place $name at $lat, $lng');
+
+  //   return LocationModel(
+  //     id: id,
+  //     name: name,
+  //     address: '',
+  //     description: '',
+  //     latitude: lat,
+  //     longitude: lng,
+  //     preference: LocationPreference.recommended,
+  //   );
+  // }
   LocationModel _processPlace(Map<String, dynamic> result) {
     log('GooglePlaceService: Processing place $result');
     var id = result['place_id'];
     var name = result['name'];
     var location = result['geometry']['location'];
-    var lat = location['lat'];  
+    var lat = location['lat'];
     var lng = location['lng'];
+    var vicinity = result['vicinity'];
+    var rating = result['rating']?.toDouble();
+    var userRatingsTotal = result['user_ratings_total'];
+    var priceLevel = result['price_level'];
+    var photoReference = result['photos']?.isNotEmpty == true
+        ? result['photos'][0]['photo_reference']
+        : null;
 
     log('GooglePlaceService: Found place $name at $lat, $lng');
 
     return LocationModel(
       id: id,
       name: name,
-      address: '',
+      address: vicinity ?? '',
       description: '',
       latitude: lat,
       longitude: lng,
       preference: LocationPreference.recommended,
+      rating: rating,
+      userRatingsTotal: userRatingsTotal,
+      priceLevel: priceLevel,
+      vicinity: vicinity,
+      photoReference: photoReference,
     );
   }
 }

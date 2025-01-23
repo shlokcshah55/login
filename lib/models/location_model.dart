@@ -12,6 +12,11 @@ class LocationModel {
   double latitude;
   double longitude;
   LocationPreference preference;
+  final double? rating;
+  final int? userRatingsTotal;
+  final int? priceLevel;
+  final String? vicinity;
+  final String? photoReference;
 
   // CarouselItem Fields 
   String? title;
@@ -29,6 +34,11 @@ class LocationModel {
     required this.latitude,
     required this.longitude,
     required this.preference,
+    this.rating,
+    this.userRatingsTotal,
+    this.priceLevel,
+    this.vicinity,
+    this.photoReference,
   }) {
     title = "${preference.toShortString()} Location - $name";
     subtitle = 'Location at ($latitude, $longitude)';
