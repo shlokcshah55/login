@@ -6,7 +6,9 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:login/firebase_options.dart';
 import 'package:login/models/location_model.dart';
 import 'package:login/notifications/notificationService.dart';
+import 'package:login/notifications/backgroundTaskService.dart';
 import 'package:login/pages/auth_handler.dart';
+import 'package:login/permissions/permissions.dart';
 import 'package:login/providers/app_data_provider.dart';
 import 'package:provider/provider.dart';
 import 'pages/home_page.dart'; 
@@ -19,6 +21,8 @@ void main() async {
   await dotenv.load(); 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await NotificationService().initialize();
+  await BackgroundTaskService().initialize();
+  
   runApp(
     MultiProvider(providers: [
       ChangeNotifierProvider(create: (_) => AppStateProvider()),
