@@ -4,7 +4,7 @@ import 'package:login/providers/app_data_provider.dart';
 import 'package:login/services/google_place_service.dart';
 
 import 'package:geolocator/geolocator.dart';
-import 'package:login/widgets/CarouselTile.dart';
+import 'package:login/widgets/carousel_tile.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class HomeController {
@@ -26,12 +26,6 @@ class HomeController {
     }
   }
 
-  Future<void> plotKnownPins() async {
-    for (var location in appStateProvider.savedLocations) {
-      appStateProvider.addMarker(location);
-    }
-  }
-
   Future<void> plotRecommendedPins() async {
     // stock recommendation data
     var recommendations = await googlePlacesService.fetchNearbyPlaces(
@@ -41,10 +35,8 @@ class HomeController {
     );
 
     appStateProvider.addRecommendedLocations(recommendations);
-
-    for (var location in recommendations) {
-      appStateProvider.addMarker(location);
-    }
+    // Set the carousel items 
+    appStateProvider.setCurrentItems('recommended');
   }
 
   CarouselTile buildCarouselItem(LocationModel location) {
@@ -64,12 +56,7 @@ class HomeController {
         appStateProvider.mapController.animateCamera(
           CameraUpdate.newLatLng(location.position!),
         );
-        for (Marker marker in appStateProvider.markers) {
-          if (marker.markerId.value == location.id) {
-            appStateProvider.mapController.showMarkerInfoWindow(marker.markerId);
-            break;
-          }
-        }
+        appStateProvider.mapController.showMarkerInfoWindow(appStateProvider.currentItems[location]!.markerId);
       },
     );
   }

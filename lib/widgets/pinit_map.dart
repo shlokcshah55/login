@@ -29,7 +29,7 @@ class CustomGoogleMap extends StatelessWidget {
       onMapCreated: (controller) {
         appStateProvider.setMapController(controller);
       },
-      markers: appStateProvider.markers,
+      markers: appStateProvider.currentItems.values.toSet(),
     );
   }
 }

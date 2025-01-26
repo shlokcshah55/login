@@ -6,7 +6,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:login/controllers/home_controller.dart';
 import 'package:login/providers/app_data_provider.dart';
-import 'package:login/widgets/PinitMap.dart';
+import 'package:login/widgets/pinit_map.dart';
 import 'package:provider/provider.dart';
 
 class HomePage extends StatefulWidget {
@@ -139,9 +139,9 @@ class _HomePageState extends State<HomePage> {
             controller: scrollController,
             shrinkWrap: true, // Ensures the list only takes up the space it needs
             physics: const ClampingScrollPhysics(), // Prevents over-scrolling
-            itemCount: appStateProvider_.recommendedLocations.length,
+            itemCount: appStateProvider_.currentItems.length,
             itemBuilder: (context, index) {
-              final location = appStateProvider_.recommendedLocations[index];
+              final location = appStateProvider_.currentItems.keys.toList()[index];
               return homeController_.buildCarouselItem(location);
             },
           ),

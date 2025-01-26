@@ -13,31 +13,42 @@ class AppStateProvider with ChangeNotifier {
   final Completer<GoogleMapController> _completeController = Completer();
   late GoogleMapController _mapController;
   LatLng? _currentPosition;
-  List<LocationModel> _savedLocations = [];
-  List<LocationModel> _recommendedLocations = [];
 
-  // Map data
-  Set<Marker> _markers = {};
+  // carousel items
+  Map<LocationModel, Marker> currentItems = {};
+  Map<LocationModel, Marker> _savedLocations = {};
+  Map<LocationModel, Marker> _recommendedLocations = {};
+  Map<LocationModel, Marker> _searchLocations = {};  // TODO: Magic search results
 
   // Carousel data
-
   final FirebaseService firebaseService = FirebaseService();
 
   Future<GoogleMapController> get controllerFuture => _completeController.future;
-  
   GoogleMapController get mapController => _mapController;
   LatLng? get currentPosition => _currentPosition;
-  Set<Marker> get markers => _markers;
-  List<LocationModel> get savedLocations => _savedLocations;
-  List<LocationModel> get recommendedLocations => _recommendedLocations;
+  Map<LocationModel, Marker> get savedLocations => _savedLocations;
+  Map<LocationModel, Marker> get recommendedLocations => _recommendedLocations;
   Map<String, dynamic> get userData => _userData;
+
+  void setCurrentItems(String preference) {
+    if (preference == 'saved') {
+      currentItems = _savedLocations;
+    } else if (preference == 'recommended') {
+      currentItems = _recommendedLocations;
+    }
+    notifyListeners();
+  }
 
   Future<void> fetchUserData() async {
     try {
       final Map<String, dynamic>? maybeUserData = await firebaseService.getUser(userId);
       if (maybeUserData != null) {
         _userData = maybeUserData;
-        _savedLocations = await firebaseService.getSavedLocations();
+        List<LocationModel> savedLocModels = await firebaseService.getSavedLocations();
+        _savedLocations = {
+          for (var location in savedLocModels) location: location.toMarker()
+        };
+        currentItems = _savedLocations;
         notifyListeners();
       } 
       else {
@@ -67,13 +78,11 @@ class AppStateProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  void addMarker(LocationModel marker) {
-    _markers.add(marker.toMarker());
-    notifyListeners();
-  }
-
   void addRecommendedLocations(List<LocationModel> locations) {
-    _recommendedLocations.addAll(locations);
+    final Map<LocationModel, Marker> newLocations = {
+      for (var location in locations) location: location.toMarker()
+    };
+    _recommendedLocations.addEntries(newLocations.entries);
     notifyListeners();
   }
 
@@ -84,14 +93,13 @@ class AppStateProvider with ChangeNotifier {
     } else if (location.preference == LocationPreference.recommended) {
       _recommendedLocations.remove(location);
     }
-    log("AppStateProvider: Removing marker with id: ${location.id}, markers: $_markers");
-    markers.removeWhere((marker) => marker.markerId.value == location.id);
     notifyListeners();
   }
 
   void saveLocation(LocationModel location) {
     if (location.preference == LocationPreference.saved) {
-      _savedLocations.add(location);
+      location.preference = LocationPreference.saved;
+      _savedLocations.putIfAbsent(location, () => location.toMarker());
     } else if (location.preference == LocationPreference.recommended) {
       firebaseService.storeLocation(location);
     }
