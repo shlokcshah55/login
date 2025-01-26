@@ -1,5 +1,5 @@
 import 'dart:developer';
-
+import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -34,6 +34,37 @@ class LocationModel {
     subtitle = 'Location at ($latitude, $longitude)';
     position = LatLng(latitude, longitude);
   }
+  
+  static double _degToRad(double deg) => deg * (math.pi / 180);
+
+  /// Static method to check if a location is within a given radius
+  bool isWithinRadius(int r, double currentLat, double currentLng) {
+    const double earthRadius = 6371; // Radius of the Earth in km
+
+    double calculateDistance(double lat1, double lng1, double lat2, double lng2) {
+      double dLat = _degToRad(lat2 - lat1);
+      double dLng = _degToRad(lng2 - lng1);
+
+      double a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+          math.cos(_degToRad(lat1)) * math.cos(_degToRad(lat2)) * math.sin(dLng / 2) * math.sin(dLng / 2);
+      double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+      return earthRadius * c;
+    }
+
+
+    // Calculate the distance from the current point to the location
+    double distance = calculateDistance(
+      latitude,
+      longitude,
+      currentLat,
+      currentLng,
+    );
+
+    // Check if the distance is within the radius
+    return distance <= r;
+  }
+
+  
 
   static Future<void> initializeCustomMarker() async {
     if (_customMarkerIcon == null) {
@@ -86,4 +117,7 @@ extension LocationPreferenceExtension on LocationPreference {
     return toString().split('.').last;
   }
 }
+
+
+
 
