@@ -1,12 +1,15 @@
 import 'dart:developer';
+import 'dart:ffi';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:login/models/location_model.dart';
+import 'package:provider/provider.dart';
 
 class FirebaseService {
   final FirebaseAuth auth_ = FirebaseAuth.instance;
   final FirebaseFirestore db_ = FirebaseFirestore.instance;
+  static final Timestamp arbitary_past_point = Timestamp.fromDate(DateTime(2025,1,1,12,00,0));
 
   // Singleton pattern
   static final FirebaseService _instance = FirebaseService._internal();
@@ -73,7 +76,7 @@ class FirebaseService {
           'uid': user.uid, // Use uid as the unique identifier
           'followers': [],
           'following': [],
-          'saved_locations': [],
+          'saved_locations': {},
         });
         print('User signed up successfully');
       }
@@ -99,8 +102,9 @@ class FirebaseService {
       }
       // add reference to location in user's saved locations
       await db_.collection('Users').doc(auth_.currentUser!.uid).update({
-        'saved_locations': FieldValue.arrayUnion([location.id]),
+        'saved_locations.${location.id}': arbitary_past_point,
       });
+
       updateLocationInfo(location.id);
     } catch (e) {
       log('Error storing location: $e');
@@ -115,28 +119,76 @@ class FirebaseService {
     });
   }
 
-  Future<List<LocationModel>> getSavedLocations() async {
-    List<LocationModel> savedLocations = [];
+  Future<Map<LocationModel, Timestamp>> getSavedLocationsMap() async {
+    Map<LocationModel, Timestamp> savedLocationsWithTimestamps = {};
     try {
       DocumentSnapshot userDoc = await db_.collection('Users').doc(auth_.currentUser!.uid).get();
-      List<dynamic> savedLocationIds = userDoc.get('saved_locations');
-      for (String id in savedLocationIds) {
-        DocumentSnapshot locationDoc = await db_.collection('Locations').doc(id).get();
-        savedLocations.add(LocationModel.fromDocument(locationDoc));
+      Map<String, dynamic> savedLocationsMap = userDoc.get('saved_locations'); 
+
+      for (String locationId in savedLocationsMap.keys) {
+        DocumentSnapshot locationDoc = await db_.collection('Locations').doc(locationId).get();
+        LocationModel loc = LocationModel.fromDocument(locationDoc);
+        Timestamp timestamp = savedLocationsMap[locationId];
+        savedLocationsWithTimestamps[loc] = timestamp;
       }
+  } catch (e) {
+    log('Error getting saved locations: $e');
+  }
+  return savedLocationsWithTimestamps;
+}
+
+Future<Timestamp?> getLocationTimestamp(String locationId) async {
+  try {
+    // Get the user's document
+    DocumentSnapshot userDoc = await db_.collection('Users').doc(auth_.currentUser!.uid).get();
+
+    // Retrieve the saved_locations map
+    Map<String, dynamic> savedLocationsMap = userDoc.get('saved_locations');
+
+    // Check if the locationId exists in the map
+    if (savedLocationsMap.containsKey(locationId)) {
+      return savedLocationsMap[locationId] as Timestamp;
+    } else {
+      log('Location ID $locationId not found in saved locations.');
+      return null; // Return null if locationId is not in the map
+    }
+  } catch (e) {
+    log('Error getting timestamp for location ID $locationId: $e');
+    return null; // Return null in case of an error
+  }
+}
+
+
+Future<void> updateUserLocationTimestamp(String locationId) async {
+  try {
+     await db_.collection('Users').doc(auth_.currentUser!.uid).update({
+        'saved_locations.$locationId': Timestamp.now(),
+      });
+  } catch (e) {
+    log('Error getting saved locations');
+  }
+}
+
+Future<List<LocationModel>> getSavedLocations() async {
+    List<LocationModel> locTimestamps = [];
+    try {
+      Map<LocationModel, Timestamp> locTimestamp = await getSavedLocationsMap();
+      locTimestamps = locTimestamp.keys.toList();
     } catch (e) {
       log('Error getting saved locations: $e');
     }
-    return savedLocations;
+    return locTimestamps;
+
   }
 
   Future<void> removeSavedLocation(String id) async {
     try {
       await db_.collection('Users').doc(auth_.currentUser!.uid).update({
-        'saved_locations': FieldValue.arrayRemove([id]),
+        'saved_locations.$id': FieldValue.delete(),
       });
     } catch (e) {
       log('Error removing saved location: $e');
     }
   }
 }
+
