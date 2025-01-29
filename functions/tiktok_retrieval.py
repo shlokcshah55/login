@@ -19,6 +19,9 @@ import os
 import json
 from cleantext import clean
 from gpt_utils import start_gpt_session, find_location
+from dotenv import load_dotenv
+
+load_dotenv()
 
 ms_token = os.environ.get(
     "ms_token", None

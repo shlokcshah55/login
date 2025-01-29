@@ -9,6 +9,10 @@ import 'package:login/models/location_model.dart';
 class GooglePlacesService {
   final String apiKey = dotenv.env["GOOGLE_PLACE_API_KEY"] ?? 'NOT_SET';
 
+  Future<List<LocationModel>> handleMagicSearchQuery(String url) {
+    return processApiCall(url, LocationPreference.search);
+  } 
+
   Future<List<LocationModel>> fetchNearbyPlaces({
     required double latitude,
     required double longitude,
@@ -22,7 +26,10 @@ class GooglePlacesService {
     final String url =
         'https://maps.googleapis.com/maps/api/place/nearbysearch/json?'
         'location=$latitude,$longitude&radius=$radius&type=$placeType&key=$apiKey';
+    return processApiCall(url, LocationPreference.recommended);
+  }
 
+  Future<List<LocationModel>> processApiCall(String url, LocationPreference preference) async {
     final response = await http.get(Uri.parse(url));
 
     if (response.statusCode == 200) {
@@ -31,7 +38,7 @@ class GooglePlacesService {
       if (results != null && results.isNotEmpty) {
         List<LocationModel> places = [];
         for (var result in results) {
-          LocationModel place = _processPlace(result);
+          LocationModel place = _processPlace(result, preference);
           places.add(place);
         }
         log('GooglePlaceService: Found ${places.length} places');
@@ -44,27 +51,9 @@ class GooglePlacesService {
     }
   }
 
-  // LocationModel _processPlace(Map<String, dynamic> result) {
-  //   log('GooglePlaceService: Processing place $result');
-  //   var id = result['place_id'];
-  //   var name = result['name'];
-  //   var location = result['geometry']['location'];
-  //   var lat = location['lat'];  
-  //   var lng = location['lng'];
+  
 
-  //   log('GooglePlaceService: Found place $name at $lat, $lng');
-
-  //   return LocationModel(
-  //     id: id,
-  //     name: name,
-  //     address: '',
-  //     description: '',
-  //     latitude: lat,
-  //     longitude: lng,
-  //     preference: LocationPreference.recommended,
-  //   );
-  // }
-  LocationModel _processPlace(Map<String, dynamic> result) {
+  LocationModel _processPlace(Map<String, dynamic> result, LocationPreference locationPreference) {
     log('GooglePlaceService: Processing place $result');
     var id = result['place_id'];
     var name = result['name'];
@@ -84,11 +73,10 @@ class GooglePlacesService {
     return LocationModel(
       id: id,
       name: name,
-      address: vicinity ?? '',
       description: '',
       latitude: lat,
       longitude: lng,
-      preference: LocationPreference.recommended,
+      preference: locationPreference,
       rating: rating,
       userRatingsTotal: userRatingsTotal,
       priceLevel: priceLevel,

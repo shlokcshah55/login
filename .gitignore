@@ -42,3 +42,16 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# python related
+functions/venv/      
+functions/__pycache__/        
+*.pyc
+*.pyo
+*.pyd
+*.p~       
+
+# OS-specific
+.DS_Store           
+
+pubspec.lock        

@@ -1,0 +1,6 @@
+firebase_functions~=0.1.0
+google-generativeai
+googlemaps
+python-dotenv
+geopy
+flask

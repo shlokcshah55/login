@@ -7,7 +7,6 @@ import 'package:login/notifications/notificationService.dart';
 import 'package:login/notifications/backgroundTaskService.dart';
 import 'package:login/pages/auth_handler.dart';
 import 'package:login/pages/home_page.dart';
-import 'package:login/permissions/permissions.dart';
 import 'package:login/providers/app_data_provider.dart';
 import 'package:provider/provider.dart';
 
@@ -64,11 +63,6 @@ class _MainScreenState extends State<MainScreen> {
         const Center(child: Text('Notifications')),
         const Center(child: Text('Profile')),
       ];
-
-  @override
-  void initState() {
-    super.initState();
-  }
 
   @override
   Widget build(BuildContext context) {

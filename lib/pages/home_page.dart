@@ -1,6 +1,4 @@
 import 'dart:developer';
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -21,6 +19,7 @@ class _HomePageState extends State<HomePage> {
   late final HomeController homeController_;
   late final AppStateProvider appStateProvider_;
   bool showSearchOverlay = false; // State for the search overlay
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -30,7 +29,7 @@ class _HomePageState extends State<HomePage> {
     appStateProvider_ = Provider.of<AppStateProvider>(context, listen: false);
     homeController_ = HomeController(appStateProvider_);
     log("home controller initialized");
-    homeController_.plotRecommendedPins();
+    // homeController_.plotRecommendedPins();
   }
 
   @override
@@ -45,30 +44,10 @@ class _HomePageState extends State<HomePage> {
             Expanded(
               child: Stack(
                 children: [
-                  // Google Map
                   const Positioned.fill(
                     child: CustomGoogleMap(),
                   ),
-                  // Floating Button on Map
-                  Positioned(
-                    top: 16.0, // Below the header
-                    right: 16.0,
-                    child: FloatingActionButton(
-                      heroTag: "magicButton",
-                      onPressed: () {
-                        setState(() {
-                          showSearchOverlay = true;
-                        });
-                      },
-                      backgroundColor: Colors.deepPurpleAccent,
-                      child: const Icon(
-                        Icons.auto_awesome, // Magic icon
-                        size: 28.0,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                  // Draggable Carousel
+                  _buildMagicSearchButton(),
                   _buildDraggableSheet(),
                 ],
               ),
@@ -78,6 +57,27 @@ class _HomePageState extends State<HomePage> {
         // Search Overlay
         if (showSearchOverlay) _buildSearchOverlay(),
       ],
+    );
+  }
+
+  Widget _buildMagicSearchButton() {
+    return Positioned(
+      top: 16.0, // Below the header
+      right: 16.0,
+      child: FloatingActionButton(
+        heroTag: "magicButton",
+        onPressed: () {
+          setState(() {
+            showSearchOverlay = true;
+          });
+        },
+        backgroundColor: Colors.deepPurpleAccent,
+        child: const Icon(
+          Icons.auto_awesome, // Magic icon
+          size: 28.0,
+          color: Colors.white,
+        ),
+      ),
     );
   }
 
@@ -152,80 +152,145 @@ class _HomePageState extends State<HomePage> {
 
 
   Widget _buildSearchOverlay() {
-    return Stack(
-      children: [
-        // Blurred Background
-        Positioned.fill(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+    return GestureDetector(
+      onTap: () {
+        // Close the overlay when tapping outside the search area
+        setState(() {
+          showSearchOverlay = false;
+        });
+      },
+      child: Stack(
+        children: [
+          // Dimmed Background
+          Positioned.fill(
             child: Container(
               color: Colors.black.withOpacity(0.5),
             ),
           ),
-        ),
-        // Search Widget
-        Center(
-          child: Container(
-            padding: const EdgeInsets.all(16.0),
-            margin: const EdgeInsets.symmetric(horizontal: 32.0),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16.0),
-              boxShadow: const [
-                BoxShadow(color: Colors.black26, blurRadius: 10.0, spreadRadius: 0.5),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  "Search Location",
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.deepPurple,
+          // Search Box with Tags
+          Center(
+            child: Container(
+              width: MediaQuery.of(context).size.width * 0.85,
+              height: 200,
+              padding: const EdgeInsets.all(16.0),
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.circular(25),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 10,
+                    offset: Offset(0, 4),
                   ),
-                ),
-                const SizedBox(height: 16.0),
-                TextField(
-                  decoration: InputDecoration(
-                    hintText: "Enter a location...",
-                    prefixIcon: const Icon(Icons.search, color: Colors.deepPurple),
-                    filled: true,
-                    fillColor: Colors.grey[100],
-                    contentPadding: const EdgeInsets.symmetric(vertical: 16.0),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12.0),
-                      borderSide: BorderSide.none,
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Search Field with Enter Button
+                  Row(
+                    children: [
+                      // Search Icon
+                      Icon(Icons.search, color: Colors.grey[600]),
+                      const SizedBox(width: 10),
+                      // Search Input
+                      Expanded(
+                        child: TextField(
+                          controller: _searchController,
+                          decoration: const InputDecoration(
+                            hintText: "Your next adventure...",
+                            border: InputBorder.none,
+                          ),
+                          onChanged: (value) {
+                            // Optionally handle live input changes
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      // Enter Button
+                      ElevatedButton(
+                        onPressed: () {
+                          String value = _searchController.text.trim();
+                          log("Searching for: $value");
+                          appStateProvider_.magicSearch(value);
+                          setState(() {
+                            showSearchOverlay = false;
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.deepPurple,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 8.0,
+                            horizontal: 16.0,
+                          ),
+                        ),
+                        child: const Text(
+                          "Enter",
+                          style: TextStyle(
+                            fontSize: 14.0,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  // Tags Label
+                  const Text(
+                    "Popular Cuisines",
+                    style: TextStyle(
+                      fontSize: 16.0,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
                     ),
                   ),
-                  onChanged: (value) {
-                    // Handle search input
-                  },
-                ),
-                const SizedBox(height: 16.0),
-                ElevatedButton(
-                  onPressed: () {
-                    setState(() {
-                      showSearchOverlay = false;
-                    });
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurpleAccent,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8.0),
+                  const SizedBox(height: 10),
+                  // Scrollable Tags
+                  Expanded(
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        _buildTag("Italian 🍕"),
+                        _buildTag("Chinese 🥡"),
+                        _buildTag("Mexican 🌮"),
+                        _buildTag("Indian 🍛"),
+                        _buildTag("Japanese 🍣"),
+                        _buildTag("French 🥖"),
+                        _buildTag("Thai 🍜"),
+                        _buildTag("Korean 🍲"),
+                      ],
                     ),
                   ),
-                  child: const Text(
-                    "Close",
-                    style: TextStyle(fontSize: 16.0, color: Colors.white),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  // Helper Method to Create a Tag
+  Widget _buildTag(String label) {
+    return Container(
+      margin: const EdgeInsets.only(right: 12.0),
+      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+      decoration: BoxDecoration(
+        color: Colors.grey[300],
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 14.0,
+          color: Colors.black87,
+          fontWeight: FontWeight.w500,
         ),
-      ],
+      ),
     );
   }
 }
