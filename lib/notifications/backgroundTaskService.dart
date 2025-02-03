@@ -13,7 +13,6 @@ import 'package:location/location.dart';
 class BackgroundTaskService {
   // Singleton pattern to ensure only one instance
   static final BackgroundTaskService _instance = BackgroundTaskService._internal();
-  static final AppStateProvider _appStateProvider = AppStateProvider();
   static final FirebaseService _firebaseService = FirebaseService();
 
   factory BackgroundTaskService() {
