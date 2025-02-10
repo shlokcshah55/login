@@ -18,15 +18,10 @@ import asyncio
 import os
 import json
 from cleantext import clean
-from gpt_utils import start_gpt_session, find_location
+from gpt_utils import start_gpt_session, find_locations
 from dotenv import load_dotenv
 
 load_dotenv()
-
-ms_token = os.environ.get(
-    "ms_token", None
-)  # set your own ms_token, go to tiktok.com and inspect and then go to cookies within the application tab
-
 
 async def get_video_info(url: str):
     '''
@@ -45,7 +40,7 @@ async def get_video_info(url: str):
             return d
 
     async with TikTokApi() as api:
-        await api.create_sessions(ms_tokens=[ms_token], num_sessions=1, sleep_after=3)
+        await api.create_sessions(ms_tokens=[], num_sessions=1, sleep_after=3)
         video = api.video(
             url=url
         )
@@ -59,9 +54,6 @@ async def get_video_info(url: str):
         # for key, value in video_info.items():
         #     print(f"{key}: {value}")
 
-        # print("========== res dictionary =========")
-        # for key, value in res.items():
-        #     print(f"{key}: {value}")
 
         # video_bytes = await video.bytes()
         # with open("video.mp4", "wb") as f:
@@ -90,9 +82,10 @@ if __name__ == "__main__":
     # print(no_location_metadata)
 
     session = start_gpt_session()
-    print(find_location(session, cutie_pies_metadata))
+    print(find_locations(session, cutie_pies_metadata))
     # print(find_location(session, city_metadata))
     # print(find_location(session, no_location_metadata))
     # print(find_location(session, more_obscure))
     # print(find_location(session, might_work))
+
 
