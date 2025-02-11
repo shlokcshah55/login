@@ -14,6 +14,7 @@ import 'package:provider/provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await requestLocationPermission();
   await LocationModel.initializeCustomMarker();
   await dotenv.load(); 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);

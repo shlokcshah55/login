@@ -18,6 +18,7 @@ class LocationModel {
   final int? priceLevel;
   final String? vicinity;
   final String? photoReference;
+  int savedCount;
 
   // CarouselItem Fields 
   String? title;
@@ -41,6 +42,7 @@ class LocationModel {
     this.priceLevel,
     this.vicinity,
     this.photoReference,
+    required this.savedCount
   }) {
     title = "${preference.toShortString()} Location - $name";
     subtitle = 'Location at ($latitude, $longitude)';
@@ -111,6 +113,7 @@ class LocationModel {
       latitude: data["location"].latitude,
       longitude: data['location'].longitude,
       preference: LocationPreference.saved,
+      savedCount: data['saved_count']
     );
   }
 }
