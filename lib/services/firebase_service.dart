@@ -53,6 +53,14 @@ class FirebaseService {
     return false;
   }
 
+  Future<void> signOut() async {
+    try {
+      await auth_.signOut();
+    } catch (e) {
+      log('Error signing out: $e');
+    }
+  }
+
   // Sign up a new user and save their data to Firestore
   Future<void> signUpUser({
     required String email,

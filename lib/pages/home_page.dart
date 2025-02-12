@@ -29,38 +29,39 @@ class _HomePageState extends State<HomePage> {
     appStateProvider_ = Provider.of<AppStateProvider>(context, listen: false);
     homeController_ = HomeController(appStateProvider_);
     log("home controller initialized");
-    // homeController_.plotRecommendedPins();
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context); // Access the theme
+
     return Stack(
       children: [
         // Main UI
         Column(
           children: [
             // Welcome Header
-            _buildHeader(),
+            _buildHeader(theme),
             Expanded(
               child: Stack(
                 children: [
                   const Positioned.fill(
                     child: CustomGoogleMap(),
                   ),
-                  _buildMagicSearchButton(),
-                  _buildDraggableSheet(),
+                  _buildMagicSearchButton(theme),
+                  _buildDraggableSheet(theme),
                 ],
               ),
             ),
           ],
         ),
         // Search Overlay
-        if (showSearchOverlay) _buildSearchOverlay(),
+        if (showSearchOverlay) _buildSearchOverlay(theme),
       ],
     );
   }
 
-  Widget _buildMagicSearchButton() {
+  Widget _buildMagicSearchButton(ThemeData theme) {
     return Positioned(
       top: 16.0, // Below the header
       right: 16.0,
@@ -71,19 +72,19 @@ class _HomePageState extends State<HomePage> {
             showSearchOverlay = true;
           });
         },
-        backgroundColor: Colors.deepPurpleAccent,
-        child: const Icon(
+        backgroundColor: theme.floatingActionButtonTheme.backgroundColor, 
+        child: Icon(
           Icons.auto_awesome, // Magic icon
           size: 28.0,
-          color: Colors.white,
+          color: theme.floatingActionButtonTheme.foregroundColor, 
         ),
       ),
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(ThemeData theme) {
     return Container(
-      color: Colors.white,
+      color: theme.scaffoldBackgroundColor, // Use theme background color
       padding: EdgeInsets.only(
         top: MediaQuery.of(context).padding.top + 16.0,
         bottom: 16.0,
@@ -96,13 +97,17 @@ class _HomePageState extends State<HomePage> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Welcome Back!',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ), // Use theme text color
               ),
               Text(
                 appStateProvider_.userData["name"] ?? "User",
-                style: const TextStyle(fontSize: 16, color: Colors.grey),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7), // Use theme text color
+                ),
               ),
             ],
           ),
@@ -110,14 +115,18 @@ class _HomePageState extends State<HomePage> {
             onPressed: () {
               // Handle pin action
             },
-            icon: const Icon(Icons.push_pin, size: 28, color: Colors.black),
+            icon: Icon(
+              Icons.push_pin,
+              size: 28,
+              color: theme.textTheme.bodyLarge?.color, // Use theme text color
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildDraggableSheet() {
+  Widget _buildDraggableSheet(ThemeData theme) {
     AppStateProvider appStateProvider_ = Provider.of<AppStateProvider>(context, listen: true);
     return DraggableScrollableSheet(
       initialChildSize: 0.1, // Initial height as a fraction of the screen height
@@ -125,14 +134,18 @@ class _HomePageState extends State<HomePage> {
       maxChildSize: 0.6, // Maximum height
       builder: (context, scrollController) {
         return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.only(
+          decoration: BoxDecoration(
+            color: theme.cardTheme.color, // Use theme card color
+            borderRadius: const BorderRadius.only(
               topLeft: Radius.circular(16.0),
               topRight: Radius.circular(16.0),
             ),
             boxShadow: [
-              BoxShadow(color: Colors.black26, blurRadius: 10.0, spreadRadius: 0.5),
+              BoxShadow(
+                color: Colors.black26,
+                blurRadius: 10.0,
+                spreadRadius: 0.5,
+              ),
             ],
           ),
           child: ListView.builder(
@@ -150,8 +163,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-
-  Widget _buildSearchOverlay() {
+  Widget _buildSearchOverlay(ThemeData theme) {
     return GestureDetector(
       onTap: () {
         // Close the overlay when tapping outside the search area
@@ -174,7 +186,7 @@ class _HomePageState extends State<HomePage> {
               height: 200,
               padding: const EdgeInsets.all(16.0),
               decoration: BoxDecoration(
-                color: Colors.grey[200],
+                color: theme.cardTheme.color, // Use theme card color
                 borderRadius: BorderRadius.circular(25),
                 boxShadow: const [
                   BoxShadow(
@@ -191,15 +203,21 @@ class _HomePageState extends State<HomePage> {
                   Row(
                     children: [
                       // Search Icon
-                      Icon(Icons.search, color: Colors.grey[600]),
+                      Icon(Icons.search, color: theme.textTheme.bodyMedium?.color),
                       const SizedBox(width: 10),
                       // Search Input
                       Expanded(
                         child: TextField(
                           controller: _searchController,
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             hintText: "Your next adventure...",
+                            hintStyle: TextStyle(
+                              color: theme.textTheme.bodyMedium?.color?.withOpacity(0.5),
+                            ),
                             border: InputBorder.none,
+                          ),
+                          style: TextStyle(
+                            color: theme.textTheme.bodyMedium?.color,
                           ),
                           onChanged: (value) {
                             // Optionally handle live input changes
@@ -218,7 +236,7 @@ class _HomePageState extends State<HomePage> {
                           });
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.deepPurple,
+                          backgroundColor: theme.primaryColor, // Use theme primary color
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(20),
                           ),
@@ -227,11 +245,11 @@ class _HomePageState extends State<HomePage> {
                             horizontal: 16.0,
                           ),
                         ),
-                        child: const Text(
+                        child: Text(
                           "Enter",
                           style: TextStyle(
                             fontSize: 14.0,
-                            color: Colors.white,
+                            color: theme.textTheme.bodyMedium?.color, // Use theme text color
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -240,13 +258,11 @@ class _HomePageState extends State<HomePage> {
                   ),
                   const SizedBox(height: 20),
                   // Tags Label
-                  const Text(
+                  Text(
                     "Popular Cuisines",
-                    style: TextStyle(
-                      fontSize: 16.0,
+                    style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
+                    ), // Use theme text color
                   ),
                   const SizedBox(height: 10),
                   // Scrollable Tags
@@ -254,14 +270,14 @@ class _HomePageState extends State<HomePage> {
                     child: ListView(
                       scrollDirection: Axis.horizontal,
                       children: [
-                        _buildTag("Italian 🍕"),
-                        _buildTag("Chinese 🥡"),
-                        _buildTag("Mexican 🌮"),
-                        _buildTag("Indian 🍛"),
-                        _buildTag("Japanese 🍣"),
-                        _buildTag("French 🥖"),
-                        _buildTag("Thai 🍜"),
-                        _buildTag("Korean 🍲"),
+                        _buildTag("Italian 🍕", theme),
+                        _buildTag("Chinese 🥡", theme),
+                        _buildTag("Mexican 🌮", theme),
+                        _buildTag("Indian 🍛", theme),
+                        _buildTag("Japanese 🍣", theme),
+                        _buildTag("French 🥖", theme),
+                        _buildTag("Thai 🍜", theme),
+                        _buildTag("Korean 🍲", theme),
                       ],
                     ),
                   ),
@@ -275,21 +291,19 @@ class _HomePageState extends State<HomePage> {
   }
 
   // Helper Method to Create a Tag
-  Widget _buildTag(String label) {
+  Widget _buildTag(String label, ThemeData theme) {
     return Container(
       margin: const EdgeInsets.only(right: 12.0),
       padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
       decoration: BoxDecoration(
-        color: Colors.grey[300],
+        color: theme.cardTheme.color?.withOpacity(0.8), // Use theme card color
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         label,
-        style: const TextStyle(
-          fontSize: 14.0,
-          color: Colors.black87,
+        style: theme.textTheme.bodyMedium?.copyWith(
           fontWeight: FontWeight.w500,
-        ),
+        ), // Use theme text color
       ),
     );
   }
