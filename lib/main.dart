@@ -1,16 +1,21 @@
+import 'dart:async';
+import 'dart:developer';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:login/assets/constants.dart';
 import 'package:login/firebase_options.dart';
 import 'package:login/models/location_model.dart';
 import 'package:login/notifications/notificationService.dart';
 import 'package:login/notifications/backgroundTaskService.dart';
 import 'package:login/pages/auth_handler.dart';
 import 'package:login/pages/home_page.dart';
-import 'package:login/permissions/permissions.dart';
+import 'package:login/pages/profile_page.dart';
 import 'package:login/providers/app_data_provider.dart';
 import 'package:provider/provider.dart';
-
+import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,28 +29,92 @@ void main() async {
     MultiProvider(providers: [
       ChangeNotifierProvider(create: (_) => AppStateProvider()),
     ],
-    child: const MyApp(),
+    child: MyApp(),
     ),
   );
 }
 
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
+  @override
+  _MyAppState createState() => _MyAppState();
+}
 
-  const MyApp({super.key});
+class _MyAppState extends State<MyApp> {
+  String? _sharedLink;
+  late StreamSubscription _intentSub;
+  final _sharedFiles = <SharedMediaFile>[];
+
+  @override
+  void initState() {
+    super.initState();
+    log("main init state");
+
+    // Listen to media sharing coming from outside the app while the app is in the memory.
+    _intentSub = ReceiveSharingIntent.instance.getMediaStream().listen((value) {
+      setState(() {
+        _sharedFiles.clear();
+        _sharedFiles.addAll(value);
+        print("found shared files 1");
+        print(_sharedFiles.map((f) => f.toMap()));
+      });
+    }, onError: (err) {
+      print("getIntentDataStream error: $err");
+    });
+
+    // Get the media sharing coming from outside the app while the app is closed.
+    ReceiveSharingIntent.instance.getInitialMedia().then((List<SharedMediaFile> value) {
+      setState(() {
+        _sharedFiles.clear();
+        _sharedFiles.addAll(value);
+
+        print("found shared files when app was closed: ${_sharedFiles.length}");
+        print("files: ${_sharedFiles.map((f) => (f.message, f.mimeType, f.path))}");
+        
+        addFilesToProcess(_sharedFiles);
+
+        // Tell the library that we are done processing the intent.
+        ReceiveSharingIntent.instance.reset();
+      });
+    }); 
+  }
+
+  Future<void> addFilesToProcess(List<SharedMediaFile> sharedFiles) async {
+    print("Background Task Service: Processing shared files");
+    List<String> urls = sharedFiles.map((f) => f.path).toList();
+    FirebaseFirestore db = FirebaseFirestore.instance;
+
+    for (String url in urls) {
+      if (url.contains("tiktok.com")) {
+        print("Background Task Service: Processing TikTok link: $url");
+        await db.collection('incoming_tiktok_links').add({
+          'url': url,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+        print("TikTok link stored successfully: $url");
+      }
+    }
+
+  }
+
+
+  @override
+  void dispose() {
+    _intentSub.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Pinit',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
+      theme: themeData,
       home: const AuthHandler(),
     );
   }
 }
+
 
 class MainScreen extends StatefulWidget {
 
@@ -62,13 +131,8 @@ class _MainScreenState extends State<MainScreen> {
         const HomePage(),
         const Center(child: Text('Search')),
         const Center(child: Text('Notifications')),
-        const Center(child: Text('Profile')),
+        ProfilePage(),
       ];
-
-  @override
-  void initState() {
-    super.initState();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -76,6 +140,7 @@ class _MainScreenState extends State<MainScreen> {
     return Scaffold(
       body: _pages[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
+        backgroundColor: Theme.of(context).bottomAppBarTheme.color,
         currentIndex: _currentIndex,
         onTap: (index) {
           setState(() {

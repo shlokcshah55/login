@@ -1,17 +1,15 @@
+import 'dart:developer';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:login/models/location_model.dart';
-import 'package:login/notifications/notificationService.dart';
-import 'package:login/providers/app_data_provider.dart';
-import 'package:login/services/firebase_service.dart';
-import 'package:workmanager/workmanager.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:provider/provider.dart';
-import 'package:workmanager/workmanager.dart';
 import 'package:location/location.dart';
+import 'package:login/models/location_model.dart';
+import 'package:receive_sharing_intent/receive_sharing_intent.dart';
+import 'package:workmanager/workmanager.dart';
+import 'package:login/notifications/notificationService.dart';
+import 'package:login/services/firebase_service.dart';
+
 
 class BackgroundTaskService {
-  // Singleton pattern to ensure only one instance
   static final BackgroundTaskService _instance = BackgroundTaskService._internal();
   static final FirebaseService _firebaseService = FirebaseService();
 
@@ -28,66 +26,90 @@ class BackgroundTaskService {
       isInDebugMode: true, // Set to false in production
     );
 
+    // Register location checker task
     await Workmanager().registerPeriodicTask(
       'LocationChecker',
-      'LocationChecker', // Task identifier
+      'LocationChecker',
       frequency: const Duration(minutes: 15),
     );
-  
   }
 
-   static void callbackDispatcher() {
+  @pragma('vm:entry-point') 
+  static void callbackDispatcher() {
     Workmanager().executeTask((task, inputData) async {
       try {
-        Location location = Location();
-
-        // Ensure permissions and services are enabled
-        bool serviceEnabled = await location.serviceEnabled();
-        if (!serviceEnabled) {
-          serviceEnabled = await location.requestService();
-          if (!serviceEnabled) {
-            return Future.value(false); // Location service not available
-          }
+        switch (task) {
+          case 'LocationChecker':
+            await _handleLocationTask();
+            break;
+          // case 'ProcessTikTokShare':
+          //   await _handleTikTokProcessing();
+          //   break;
+          default:
+            print('Background Task service: Unknown task: $task');
         }
-
-        PermissionStatus permissionGranted = await location.hasPermission();
-        if (permissionGranted == PermissionStatus.denied) {
-          permissionGranted = await location.requestPermission();
-          if (permissionGranted != PermissionStatus.granted) {
-            return Future.value(false); // Location permission not granted
-          }
-        }
-        // Get the user's location
-        LocationData currentLocation = await location.getLocation();
-        
-        try {
-          Map<LocationModel,Timestamp> locations = await _firebaseService.getSavedLocationsMap();
-            for (var pair in locations.entries) {
-              if (pair.key.isWithinRadius(1, currentLocation.latitude ?? 0, currentLocation.longitude?? 0) && 
-                  pair.value.toDate().isBefore(DateTime.now().subtract(Duration(hours: 24)))) {
-                String name = pair.key.name;
-                await NotificationService().showNotification(
-                title: 'Hungry? You are so close to $name',
-                body: 'You pinned this place recently, Check it out.', 
-                id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-              );
-            _firebaseService.updateUserLocationTimestamp(pair.key.id);
-            }
-          }
-        } catch (e) {
-          return Future.value(false); // Indicate failure
-        }
-    } catch (e) {
-      print('Error in background task: $e');
-      return Future.value(false); // Task failed
-    }
-  return Future.value(true);
-  });
+      } catch (e) {
+        print('Error in background task: $e');
+        return Future.value(false);
+      }
+      return Future.value(true);
+    });
   }
 
+  /// Processes location-based notifications
+  static Future<void> _handleLocationTask() async {
+    Location location = Location();
+    bool serviceEnabled = await location.serviceEnabled();
+    if (!serviceEnabled) {
+      serviceEnabled = await location.requestService();
+      if (!serviceEnabled) return;
+    }
+
+    PermissionStatus permissionGranted = await location.hasPermission();
+    if (permissionGranted == PermissionStatus.denied) {
+      permissionGranted = await location.requestPermission();
+      if (permissionGranted != PermissionStatus.granted) return;
+    }
+
+    LocationData currentLocation = await location.getLocation();
+    Map<LocationModel, Timestamp> locations = await _firebaseService.getSavedLocationsMap();
+
+    for (var pair in locations.entries) {
+      if (pair.key.isWithinRadius(1, currentLocation.latitude ?? 0, currentLocation.longitude ?? 0) &&
+          pair.value.toDate().isBefore(DateTime.now().subtract(const Duration(hours: 24)))) {
+        String name = pair.key.name;
+        await NotificationService().showNotification(
+          title: 'Hungry? You are so close to $name',
+          body: 'You pinned this place recently, Check it out.',
+          id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        );
+        _firebaseService.updateUserLocationTimestamp(pair.key.id);
+      }
+    }
+  }
+
+  /// Processes TikTok links and stores them in Firestore
+  /// user shares tiktok link -> app recieves tiktok 
+  /// mainActivity.kt captures it and saves in shared preferences
+  /// flutter can then read it and create a task
+  /// add to firestore which triggers a firebase function to handle processing on server
+  Future<void> addFilesToProcess(List<SharedMediaFile> sharedFiles) async {
+    log("Background Task Service: Processing shared files");
+    List<String> urls = sharedFiles.map((f) => f.path).toList();
+    FirebaseFirestore db = FirebaseFirestore.instance;
+
+    for (String url in urls) {
+      if (url.contains("tiktok.com")) {
+        log("Background Task Service: Processing TikTok link: $url");
+        await db.collection('incoming_tiktok_links').add({
+          'url': url,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+        log("TikTok link stored successfully: $url");
+      }
+    }
+
+
+  }
 }
-
-
-
-
 

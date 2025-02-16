@@ -7,7 +7,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 class LocationModel {
   String id;
   String name;
-  String address;
+  String vicinity;
   String description;
   double latitude;
   double longitude;
@@ -16,7 +16,6 @@ class LocationModel {
   final double? rating;
   final int? userRatingsTotal;
   final int? priceLevel;
-  final String? vicinity;
   final String? photoReference;
 
   // CarouselItem Fields 
@@ -30,7 +29,7 @@ class LocationModel {
   LocationModel({
     required this.id,
     required this.name,
-    required this.address,
+    required this.vicinity,
     required this.description,
     required this.latitude,
     required this.longitude,
@@ -39,7 +38,6 @@ class LocationModel {
     this.rating,
     this.userRatingsTotal,
     this.priceLevel,
-    this.vicinity,
     this.photoReference,
   }) {
     title = "${preference.toShortString()} Location - $name";
@@ -106,17 +104,20 @@ class LocationModel {
     return LocationModel(
       id: doc.id,
       name: data['name'],
-      address: "",
+      vicinity: data['address'],
       description: "",
       latitude: data["location"].latitude,
       longitude: data['location'].longitude,
       preference: LocationPreference.saved,
+      rating: data['rating']?.toDouble(),
+      photoReference: data['photo_reference'],
+      
     );
   }
 }
 
 enum LocationType { restaurant, hotel, museum, park, other }
-enum LocationPreference { saved, recommended, visited }
+enum LocationPreference { saved, recommended, search }
 
 extension LocationTypeExtension on LocationType {
   String toShortString() {
