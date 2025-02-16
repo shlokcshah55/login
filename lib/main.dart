@@ -1,6 +1,11 @@
+import 'dart:async';
+import 'dart:developer';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:login/assets/constants.dart';
 import 'package:login/firebase_options.dart';
 import 'package:login/models/location_model.dart';
 import 'package:login/notifications/notificationService.dart';
@@ -10,7 +15,7 @@ import 'package:login/pages/home_page.dart';
 import 'package:login/pages/profile_page.dart';
 import 'package:login/providers/app_data_provider.dart';
 import 'package:provider/provider.dart';
-
+import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,79 +29,90 @@ void main() async {
     MultiProvider(providers: [
       ChangeNotifierProvider(create: (_) => AppStateProvider()),
     ],
-    child: const MyApp(),
+    child: MyApp(),
     ),
   );
 }
 
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class MyApp extends StatefulWidget {
+  @override
+  _MyAppState createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  String? _sharedLink;
+  late StreamSubscription _intentSub;
+  final _sharedFiles = <SharedMediaFile>[];
+
+  @override
+  void initState() {
+    super.initState();
+    log("main init state");
+
+    // Listen to media sharing coming from outside the app while the app is in the memory.
+    _intentSub = ReceiveSharingIntent.instance.getMediaStream().listen((value) {
+      setState(() {
+        _sharedFiles.clear();
+        _sharedFiles.addAll(value);
+        print("found shared files 1");
+        print(_sharedFiles.map((f) => f.toMap()));
+      });
+    }, onError: (err) {
+      print("getIntentDataStream error: $err");
+    });
+
+    // Get the media sharing coming from outside the app while the app is closed.
+    ReceiveSharingIntent.instance.getInitialMedia().then((List<SharedMediaFile> value) {
+      setState(() {
+        _sharedFiles.clear();
+        _sharedFiles.addAll(value);
+
+        print("found shared files when app was closed: ${_sharedFiles.length}");
+        print("files: ${_sharedFiles.map((f) => (f.message, f.mimeType, f.path))}");
+        
+        addFilesToProcess(_sharedFiles);
+
+        // Tell the library that we are done processing the intent.
+        ReceiveSharingIntent.instance.reset();
+      });
+    }); 
+  }
+
+  Future<void> addFilesToProcess(List<SharedMediaFile> sharedFiles) async {
+    print("Background Task Service: Processing shared files");
+    List<String> urls = sharedFiles.map((f) => f.path).toList();
+    FirebaseFirestore db = FirebaseFirestore.instance;
+
+    for (String url in urls) {
+      if (url.contains("tiktok.com")) {
+        print("Background Task Service: Processing TikTok link: $url");
+        await db.collection('incoming_tiktok_links').add({
+          'url': url,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+        print("TikTok link stored successfully: $url");
+      }
+    }
+
+  }
+
+
+  @override
+  void dispose() {
+    _intentSub.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Pinit',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        // Primary color swatch
-        primarySwatch: createMaterialColor(Color(0xFFE09132)), // Using #E09132 as the primary color
-        // Background color
-        scaffoldBackgroundColor: Color(0xFFFFEFCD), // #FFEFCD as the background color
-        // Text theme
-        textTheme: const TextTheme(
-          bodyLarge: TextStyle(color: Color(0xFF424520)), // #424520 as the primary text color
-          bodyMedium: TextStyle(color: Color(0xFF424520)),
-          titleLarge: TextStyle(color: Color(0xFF424520)),
-          titleMedium: TextStyle(color: Color(0xFF424520)),
-        ),
-        // Button theme
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Color(0xFFA58E74), // #A58E74 as the button background color
-            foregroundColor: Color(0xFFFFEFCD), // #FFEFCD as the button text color
-          ),
-        ),
-        // Floating action button theme
-        floatingActionButtonTheme: FloatingActionButtonThemeData(
-          backgroundColor: Color(0xFFE09132), // #E09132 as the FAB background color
-          foregroundColor: Color(0xFFFFEFCD), // #FFEFCD as the FAB icon color
-        ),
-        // Card theme
-        cardTheme: CardTheme(
-          color: Color.fromARGB(255, 241, 231, 219), // #A58E74 as the card background color
-          elevation: 2,
-          margin: EdgeInsets.all(8),
-        ),
-
-        bottomAppBarTheme: BottomAppBarTheme(
-          color: Color(0xFFE09132), // #E09132 as the bottom app bar color
-        ),
-      ),
+      theme: themeData,
       home: const AuthHandler(),
     );
   }
-}
-
-// Helper function to create a MaterialColor from a single color
-MaterialColor createMaterialColor(Color color) {
-  List strengths = <double>[.05];
-  Map<int, Color> swatch = {};
-  final int r = color.red, g = color.green, b = color.blue;
-
-  for (int i = 1; i < 10; i++) {
-    strengths.add(0.1 * i);
-  }
-  strengths.forEach((strength) {
-    final double ds = 0.5 - strength;
-    swatch[(strength * 1000).round()] = Color.fromRGBO(
-      r + ((ds < 0 ? r : (255 - r)) * ds).round(),
-      g + ((ds < 0 ? g : (255 - g)) * ds).round(),
-      b + ((ds < 0 ? b : (255 - b)) * ds).round(),
-      1,
-    );
-  });
-  return MaterialColor(color.value, swatch);
 }
 
 

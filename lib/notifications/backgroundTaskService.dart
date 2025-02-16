@@ -1,10 +1,13 @@
+import 'dart:developer';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:location/location.dart';
 import 'package:login/models/location_model.dart';
+import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:login/notifications/notificationService.dart';
 import 'package:login/services/firebase_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
 
 class BackgroundTaskService {
   static final BackgroundTaskService _instance = BackgroundTaskService._internal();
@@ -29,12 +32,6 @@ class BackgroundTaskService {
       'LocationChecker',
       frequency: const Duration(minutes: 15),
     );
-
-    // Register TikTok processing task
-    await Workmanager().registerOneOffTask(
-      'ProcessTikTokShare',
-      'ProcessTikTokShare',
-    );
   }
 
   @pragma('vm:entry-point') 
@@ -45,9 +42,9 @@ class BackgroundTaskService {
           case 'LocationChecker':
             await _handleLocationTask();
             break;
-          case 'ProcessTikTokShare':
-            await _handleTikTokProcessing();
-            break;
+          // case 'ProcessTikTokShare':
+          //   await _handleTikTokProcessing();
+          //   break;
           default:
             print('Background Task service: Unknown task: $task');
         }
@@ -96,24 +93,23 @@ class BackgroundTaskService {
   /// mainActivity.kt captures it and saves in shared preferences
   /// flutter can then read it and create a task
   /// add to firestore which triggers a firebase function to handle processing on server
-  static Future<void> _handleTikTokProcessing() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    String? sharedUrl = prefs.getString('flutter.shared_url');
-    print("Background service: Saved link: ${prefs.getString('flutter.shared_url')}");
+  Future<void> addFilesToProcess(List<SharedMediaFile> sharedFiles) async {
+    log("Background Task Service: Processing shared files");
+    List<String> urls = sharedFiles.map((f) => f.path).toList();
+    FirebaseFirestore db = FirebaseFirestore.instance;
 
-    if (sharedUrl != null && sharedUrl.isNotEmpty) {
-      FirebaseFirestore db = FirebaseFirestore.instance;
-
-      // Create a new document in Firestore with the shared URL
-      await db.collection('incoming_tiktok_links').add({
-        'url': sharedUrl,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
-
-      // Clear the shared URL after processing
-      await prefs.remove('flutter.shared_url');
-
-      print("TikTok link stored successfully: $sharedUrl");
+    for (String url in urls) {
+      if (url.contains("tiktok.com")) {
+        log("Background Task Service: Processing TikTok link: $url");
+        await db.collection('incoming_tiktok_links').add({
+          'url': url,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+        log("TikTok link stored successfully: $url");
+      }
     }
+
+
   }
 }
+
