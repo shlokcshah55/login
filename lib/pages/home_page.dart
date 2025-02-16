@@ -24,7 +24,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    print("home_page: api key: ${dotenv.env['GOOGLE_PLACE_API_KEY']}");
+    print("home_page: api key: \${dotenv.env['GOOGLE_PLACE_API_KEY']}");
 
     appStateProvider_ = Provider.of<AppStateProvider>(context, listen: false);
     homeController_ = HomeController(appStateProvider_);
@@ -126,42 +126,43 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildDraggableSheet(ThemeData theme) {
-    AppStateProvider appStateProvider_ = Provider.of<AppStateProvider>(context, listen: true);
-    return DraggableScrollableSheet(
-      initialChildSize: 0.1, // Initial height as a fraction of the screen height
-      minChildSize: 0.1, // Minimum height
-      maxChildSize: 0.6, // Maximum height
-      builder: (context, scrollController) {
-        return Container(
-          decoration: BoxDecoration(
-            color: theme.cardTheme.color, // Use theme card color
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(16.0),
-              topRight: Radius.circular(16.0),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black26,
-                blurRadius: 10.0,
-                spreadRadius: 0.5,
-              ),
-            ],
+Widget _buildDraggableSheet() {
+  AppStateProvider appStateProvider_ = Provider.of<AppStateProvider>(context, listen: true);
+  return DraggableScrollableSheet(
+    initialChildSize: 0.1, // Initial height as a fraction of the screen height
+    minChildSize: 0.1, // Minimum height
+    maxChildSize: 0.6, // Maximum height
+    builder: (context, scrollController) {
+      return Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(16.0),
+            topRight: Radius.circular(16.0),
           ),
-          child: ListView.builder(
-            controller: scrollController,
-            shrinkWrap: true, // Ensures the list only takes up the space it needs
-            physics: const ClampingScrollPhysics(), // Prevents over-scrolling
-            itemCount: appStateProvider_.currentItems.length,
-            itemBuilder: (context, index) {
-              final location = appStateProvider_.currentItems.keys.toList()[index];
-              return homeController_.buildCarouselItem(location);
-            },
+          boxShadow: [
+            BoxShadow(color: Colors.black26, blurRadius: 10.0, spreadRadius: 0.5),
+          ],
+        ),
+        child: GridView.builder(
+          controller: scrollController,
+          padding: const EdgeInsets.all(8.0),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3, // Number of items per row
+            crossAxisSpacing: 20.0,
+            mainAxisSpacing: 20.0,
+            childAspectRatio: 0.8, // Adjust height vs width ratio
           ),
-        );
-      },
-    );
-  }
+          itemCount: appStateProvider_.currentItems.length,
+          itemBuilder: (context, index) {
+            final location = appStateProvider_.currentItems.keys.toList()[index];
+            return homeController_.buildGridItem(location); // Updated method
+          },
+        ),
+      );
+    },
+  );
+}
 
   Widget _buildSearchOverlay(ThemeData theme) {
     return GestureDetector(

@@ -11,6 +11,7 @@ class LocationModel {
   String description;
   double latitude;
   double longitude;
+  String? cuisine;
   LocationPreference preference;
   final double? rating;
   final int? userRatingsTotal;
@@ -32,6 +33,7 @@ class LocationModel {
     required this.description,
     required this.latitude,
     required this.longitude,
+    this.cuisine,
     required this.preference,
     this.rating,
     this.userRatingsTotal,

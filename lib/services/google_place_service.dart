@@ -67,6 +67,8 @@ class GooglePlacesService {
     var photoReference = result['photos']?.isNotEmpty == true
         ? result['photos'][0]['photo_reference']
         : null;
+    var types = result['types'] as List<dynamic> ? ?? [];
+    String? cuisine = _extractCuisine(types, name);
 
     log('GooglePlaceService: Found place $name at $lat, $lng');
 
@@ -76,7 +78,8 @@ class GooglePlacesService {
       description: '',
       latitude: lat,
       longitude: lng,
-      preference: locationPreference,
+      cuisine: cuisine,
+      preference: LocationPreference.recommended,
       rating: rating,
       userRatingsTotal: userRatingsTotal,
       priceLevel: priceLevel,
@@ -85,6 +88,76 @@ class GooglePlacesService {
     );
   }
 }
+
+String? _extractCuisine(List<dynamic> types, String name) {
+  const Map<String, String> cuisineFlags = {
+    'italian': '🇮🇹',  // Italy
+    'pizza': '🇮🇹',  // Italy
+    'pasta': '🇮🇹',
+    'sushi': '🇯🇵',  // Japan
+    'ramen': '🇯🇵',  // Japan
+    'taco': '🇲🇽',  // Mexico
+    'mexican': '🇲🇽',  // Mexico
+    'thai': '🇹🇭',  // Thailand
+    'indian': '🇮🇳',  // India
+    'curry': '🇮🇳',
+    'piri-piri': '🇵🇹',
+    'gyros':'🇬🇷',
+    'dosa':'🇮🇳',
+    'burger': '🇺🇸',  // USA
+    'steak': '🇦🇷',  // Argentina (famous for steaks)
+    'barbecue': '🇺🇸',  // USA
+    'bbq': '🇺🇸',  // USA
+    'kebab': '🇹🇷',  // Turkey
+    'chinese': '🇨🇳',  // China
+    'cafe': '🇫🇷',  // France
+    'coffee': '🇮🇹',  // Italy (Espresso culture)
+    'bakery': '🇫🇷',  // France
+    'french': '🇫🇷',  // France
+    'korean': '🇰🇷',  // Korea
+    'vietnamese': '🇻🇳',  // Vietnam
+    'seafood': '🇪🇸',  // Spain (Paella, seafood culture)
+    'middle_eastern': '🇱🇧',  // Lebanon
+    'turkish': '🇹🇷',  // Turkey
+    'greek': '🇬🇷',  // Greece
+    'japanese': '🇯🇵',  // Japan
+    'spanish': '🇪🇸',  // Spain
+    'german': '🇩🇪',  // Germany
+    'brazilian': '🇧🇷',  // Brazil
+    'argentinian': '🇦🇷',  // Argentina
+    'portuguese': '🇵🇹',  // Portugal
+    'lebanese': '🇱🇧',  // Lebanon
+    'moroccan': '🇲🇦',  // Morocco
+    'ethiopian': '🇪🇹',  // Ethiopia
+    'russian': '🇷🇺',  // Russia
+    'british': '🇬🇧',  // United Kingdom
+    'american': '🇺🇸',  // USA
+    'canadian': '🇨🇦',  // Canada
+    'australian': '🇦🇺',  // Australia
+    'south_african': '🇿🇦',  // South Africa
+    'indonesian': '🇮🇩',  // Indonesia
+    'malaysian': '🇲🇾',  // Malaysia
+    'filipino': '🇵🇭',  // Philippines
+    'polish': '🇵🇱',  // Poland
+  };
+
+  // Check if the place types contain any known cuisines
+  for (var type in types) {
+    if (cuisineFlags.containsKey(type)) {
+      return cuisineFlags[type];
+    }
+  }
+
+  // Check if the name contains a cuisine-related keyword
+  for (var keyword in cuisineFlags.keys) {
+    if (name.toLowerCase().contains(keyword)) {
+      return cuisineFlags[keyword];
+    }
+  }
+
+  return '🌎';  // Default to a neutral flag emoji if no match
+}
+
 
 
 // example response from Google Places API

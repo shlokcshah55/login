@@ -45,11 +45,20 @@ const String MAPSTYLE = '''
     ]
   },
   {
-    "featureType": "administrative.land_parcel",
-    "elementType": "labels",
+    "featureType": "administrative.country",
+    "elementType": "geometry.fill",
     "stylers": [
       {
-        "visibility": "off"
+        "color": "#d7d5c6"
+      }
+    ]
+  },
+  {
+    "featureType": "administrative.country",
+    "elementType": "geometry.stroke",
+    "stylers": [
+      {
+        "color": "#4b6878"
       }
     ]
   },
@@ -215,7 +224,7 @@ const String MAPSTYLE = '''
   },
   {
     "featureType": "transit.line",
-    "elementType": "geometry",
+    "elementType": "geometry.fill",
     "stylers": [
       {
         "color": "#dfd2ae"
