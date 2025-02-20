@@ -6,6 +6,7 @@ import 'package:login/controllers/home_controller.dart';
 import 'package:login/providers/app_data_provider.dart';
 import 'package:login/widgets/pinit_map.dart';
 import 'package:provider/provider.dart';
+import 'package:login/pages/carousel/cards.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -19,6 +20,9 @@ class _HomePageState extends State<HomePage> {
   late final HomeController homeController_;
   late final AppStateProvider appStateProvider_;
   bool showSearchOverlay = false; // State for the search overlay
+  final DraggableScrollableController _draggableScrollableController = DraggableScrollableController();
+  double currentDraggableSize = 10.0;
+
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -29,6 +33,20 @@ class _HomePageState extends State<HomePage> {
     appStateProvider_ = Provider.of<AppStateProvider>(context, listen: false);
     homeController_ = HomeController(appStateProvider_);
     log("home controller initialized");
+    homeController_.plotRecommendedPins();
+
+    appStateProvider_.startLocationUpdates();
+
+    _draggableScrollableController.addListener(() {
+      setState(() {
+      double currentDraggableSize = _draggableScrollableController.size;
+      });
+    });
+  }
+  @override
+  void dispose() {
+    appStateProvider_.stopLocationUpdates();
+    super.dispose();
   }
 
   @override
@@ -126,12 +144,12 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-Widget _buildDraggableSheet() {
+Widget _buildDraggableSheet(ThemeData theme) {
   AppStateProvider appStateProvider_ = Provider.of<AppStateProvider>(context, listen: true);
   return DraggableScrollableSheet(
     initialChildSize: 0.1, // Initial height as a fraction of the screen height
     minChildSize: 0.1, // Minimum height
-    maxChildSize: 0.6, // Maximum height
+    maxChildSize: 0.5, // Maximum height
     builder: (context, scrollController) {
       return Container(
         decoration: const BoxDecoration(
@@ -156,7 +174,12 @@ Widget _buildDraggableSheet() {
           itemCount: appStateProvider_.currentItems.length,
           itemBuilder: (context, index) {
             final location = appStateProvider_.currentItems.keys.toList()[index];
-            return homeController_.buildGridItem(location); // Updated method
+            return GridItemWidget(
+              location: location,
+              appStateProvider: appStateProvider_,
+              screenSize: currentDraggableSize
+            );
+            //return homeController_.buildGridItem(location); // Updated method
           },
         ),
       );

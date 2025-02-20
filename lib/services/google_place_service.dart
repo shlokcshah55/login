@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:ffi';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'dart:developer';
 
@@ -85,9 +87,73 @@ class GooglePlacesService {
       priceLevel: priceLevel,
       vicinity: vicinity,
       photoReference: photoReference,
+      savedCount: 0
     );
   }
+
+
+Future<String> getWalkingDuration({
+  required LatLng? originLatLng,
+  required String destinationPlaceId,
+}) async {
+  if (originLatLng == Null) {
+    return '';
+  }
+  print('got here ok');
+  
+ 
+
+
+
+  try {
+  print(originLatLng);
+  double lat = originLatLng!.latitude;
+  double lng = originLatLng!.longitude;
+  final String url =
+      "https://maps.googleapis.com/maps/api/distancematrix/json?"
+      "origins=$lat,$lng"
+      "&destinations=place_id:$destinationPlaceId"
+      "&mode=walking"
+      "&key=$apiKey";
+    final response = await http.get(Uri.parse(url));
+
+    if (response.statusCode == 200) {
+      print('response ok');
+      final data = json.decode(response.body);
+      print(data);
+      if (data["status"] == "OK") {
+        final duration = data["rows"][0]["elements"][0]["duration"]["text"];
+        return '${_convertDurationToMinutes(duration)} mins';
+
+      } else {
+        return '';
+      }
+    } else {
+      print("⚠️ HTTP Error: ${response.statusCode}");
+      return 'null';
+    }
+  } catch (e) {
+    print("❌ Exception: $e");
+    return 'null';
+  }
 }
+
+int _convertDurationToMinutes(String duration) {
+  final regex = RegExp(r'(\d+)\s*hours?|\s*(\d+)\s*mins?');
+  int totalMinutes = 0;
+
+  for (var match in regex.allMatches(duration)) {
+    if (match.group(1) != null) {
+      totalMinutes += int.parse(match.group(1)!) * 60; // Convert hours to minutes
+    }
+    if (match.group(2) != null) {
+      totalMinutes += int.parse(match.group(2)!); // Add minutes
+    }
+  }
+  
+  return totalMinutes;
+}
+
 
 String? _extractCuisine(List<dynamic> types, String name) {
   const Map<String, String> cuisineFlags = {
@@ -206,3 +272,4 @@ String? _extractCuisine(List<dynamic> types, String name) {
 // "user_ratings_total": 1269,
 // "vicinity": "Level 1, 2 and 3, Overseas Passenger Terminal, Circular Quay W, The Rocks",
 // },
+}

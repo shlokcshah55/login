@@ -16,9 +16,11 @@ import 'package:login/pages/profile_page.dart';
 import 'package:login/providers/app_data_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
+import 'package:login/permissions/permissions.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await requestLocationPermission();
   await LocationModel.initializeCustomMarker();
   await dotenv.load(); 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);

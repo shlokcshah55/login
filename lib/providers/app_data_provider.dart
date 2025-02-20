@@ -1,13 +1,13 @@
 import 'dart:async';
 import 'dart:developer';
-
-
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:login/models/location_model.dart';
 import 'package:login/services/firebase_service.dart';
 import 'package:login/services/google_place_service.dart';
+import 'package:login/services/location_service.dart';
 
 class AppStateProvider with ChangeNotifier {
   late String userId;
@@ -15,24 +15,28 @@ class AppStateProvider with ChangeNotifier {
   final Completer<GoogleMapController> _completeController = Completer();
   late GoogleMapController _mapController;
   LatLng? _currentPosition;
+  StreamSubscription<Position>? _positionStream;
+  final LocationService _locationService = LocationService();
 
-  // carousel items
+  // Carousel items
   Map<LocationModel, Marker> currentItems = {};
   Map<LocationModel, Marker> _savedLocations = {};
   Map<LocationModel, Marker> _recommendedLocations = {};
-  Map<LocationModel, Marker> _searchLocations = {};  // TODO: Magic search results
+  Map<LocationModel, Marker> _searchLocations = {}; // TODO: Magic search results
 
-  // Carousel data
+  // Firebase service instance
   final FirebaseService firebaseService = FirebaseService();
   final GooglePlacesService googlePlacesService = GooglePlacesService();
 
+  // Getters
   Future<GoogleMapController> get controllerFuture => _completeController.future;
   GoogleMapController get mapController => _mapController;
   LatLng? get currentPosition => _currentPosition;
   Map<LocationModel, Marker> get savedLocations => _savedLocations;
   Map<LocationModel, Marker> get recommendedLocations => _recommendedLocations;
   Map<String, dynamic> get userData => _userData;
-
+  Set<Polyline> polylines = {};
+  /// Sets the currently displayed locations in the carousel
   void setCurrentItems(String preference) {
     if (preference == 'saved') {
       currentItems = _savedLocations;
@@ -42,6 +46,7 @@ class AppStateProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Fetches user data from Firebase and populates saved locations
   Future<void> fetchUserData() async {
     
     try {
@@ -59,9 +64,7 @@ class AppStateProvider with ChangeNotifier {
         currentItems = _savedLocations;
       
         notifyListeners();
-      } 
-      else {
-        // Sign out - invalid user and return to login screen
+      } else {
         log('No user data found for ID: $userId');
         await FirebaseAuth.instance.signOut();
         throw Exception('No user data found for $userId');
@@ -72,14 +75,16 @@ class AppStateProvider with ChangeNotifier {
     }
   }
 
+  /// Assigns the Google Map controller
   void setMapController(GoogleMapController controller) {
     _mapController = controller;
     if (!_completeController.isCompleted) {
       _completeController.complete(controller);
     }
-    notifyListeners(); 
+    notifyListeners();
   }
 
+  /// Updates the user's current position and moves the map camera
   Future<void> updateCurrentPosition(LatLng position) async {
     _currentPosition = position;
     await _completeController.future;
@@ -87,6 +92,20 @@ class AppStateProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Starts tracking the user's live location
+  void startLocationUpdates() {
+    _positionStream = _locationService.getPositionStream().listen((Position position) {
+      _currentPosition = LatLng(position.latitude, position.longitude);
+      notifyListeners(); // Notify UI about the location change
+    });
+  }
+
+  /// Stops live location tracking
+  void stopLocationUpdates() {
+    _positionStream?.cancel();
+  }
+
+  /// Adds recommended locations to the map
   void addRecommendedLocations(List<LocationModel> locations) {
     final Map<LocationModel, Marker> newLocations = {
       for (var location in locations) location: location.toMarker()
@@ -95,6 +114,7 @@ class AppStateProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Removes a location from saved/recommended lists
   void removeLocation(LocationModel location) {
     currentItems.remove(location);
     if (location.preference == LocationPreference.saved) {
@@ -108,6 +128,7 @@ class AppStateProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Saves a location to Firebase and the local state
   void saveLocation(LocationModel location) {
     if (location.preference == LocationPreference.saved) {
       _savedLocations.putIfAbsent(location, () => location.toMarker());
@@ -117,6 +138,35 @@ class AppStateProvider with ChangeNotifier {
     }
     notifyListeners();
   }
+
+  /// Cleans up resources to prevent memory leaks
+  @override
+  void dispose() {
+    _positionStream?.cancel();
+    super.dispose();
+  }
+
+  void setPolyline(Polyline polyline) {
+    polylines.clear();
+    polylines.add(polyline);
+    notifyListeners();
+  }
+
+  void removePolyline() {
+    polylines.clear();
+    notifyListeners();
+  }
+
+  Future<void> focusOnUserLocation() async {
+  if (_currentPosition != null && _mapController != null) {
+    _mapController.animateCamera(
+      CameraUpdate.newLatLngZoom(_currentPosition!, 15), // Zoom level 15 for user focus
+    );
+    log("Camera focused on user location: $_currentPosition");
+  } else {
+    log("User location is not available");
+  }
+}
 
   /// Handles the magic search feature 
   void magicSearch(String query) async {
