@@ -6,6 +6,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:login/models/location_model.dart';
 import 'package:login/services/firebase_service.dart';
+import 'package:login/services/google_place_service.dart';
 import 'package:login/services/location_service.dart';
 
 class AppStateProvider with ChangeNotifier {
@@ -25,6 +26,7 @@ class AppStateProvider with ChangeNotifier {
 
   // Firebase service instance
   final FirebaseService firebaseService = FirebaseService();
+  final GooglePlacesService googlePlacesService = GooglePlacesService();
 
   // Getters
   Future<GoogleMapController> get controllerFuture => _completeController.future;
@@ -46,15 +48,21 @@ class AppStateProvider with ChangeNotifier {
 
   /// Fetches user data from Firebase and populates saved locations
   Future<void> fetchUserData() async {
+    
     try {
       final Map<String, dynamic>? maybeUserData = await firebaseService.getUser(userId);
       if (maybeUserData != null) {
         _userData = maybeUserData;
+        print("fetchUserData: $_userData");
         List<LocationModel> savedLocModels = await firebaseService.getSavedLocations();
         _savedLocations = {
           for (var location in savedLocModels) location: location.toMarker()
         };
+        for (var location in _savedLocations.keys) {
+          print("fetchUserData: ${location.name}");
+        }
         currentItems = _savedLocations;
+      
         notifyListeners();
       } else {
         log('No user data found for ID: $userId');
@@ -108,11 +116,14 @@ class AppStateProvider with ChangeNotifier {
 
   /// Removes a location from saved/recommended lists
   void removeLocation(LocationModel location) {
+    currentItems.remove(location);
     if (location.preference == LocationPreference.saved) {
       _savedLocations.remove(location);
       firebaseService.removeSavedLocation(location.id);
     } else if (location.preference == LocationPreference.recommended) {
       _recommendedLocations.remove(location);
+    } else if (location.preference == LocationPreference.search) {
+      _searchLocations.remove(location);
     }
     notifyListeners();
   }
@@ -121,7 +132,8 @@ class AppStateProvider with ChangeNotifier {
   void saveLocation(LocationModel location) {
     if (location.preference == LocationPreference.saved) {
       _savedLocations.putIfAbsent(location, () => location.toMarker());
-    } else if (location.preference == LocationPreference.recommended) {
+    } else if (location.preference == LocationPreference.recommended || location.preference == LocationPreference.search) {
+      location.preference = LocationPreference.saved;
       firebaseService.storeLocation(location);
     }
     notifyListeners();
@@ -155,4 +167,16 @@ class AppStateProvider with ChangeNotifier {
     log("User location is not available");
   }
 }
+
+  /// Handles the magic search feature 
+  void magicSearch(String query) async {
+    final url = 'https://search-places-endpoint-lqmy33nkaa-nw.a.run.app?query=$query';
+    var searchModels = await googlePlacesService.handleMagicSearchQuery(url) ;
+    _searchLocations = {
+      for (var location in searchModels) location: location.toMarker()
+    };
+    currentItems = _searchLocations;
+    notifyListeners();
+  }
+
 }

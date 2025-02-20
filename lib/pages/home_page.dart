@@ -1,6 +1,4 @@
 import 'dart:developer';
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -25,6 +23,7 @@ class _HomePageState extends State<HomePage> {
   final DraggableScrollableController _draggableScrollableController = DraggableScrollableController();
   double currentDraggableSize = 10.0;
 
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -52,55 +51,58 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context); // Access the theme
+
     return Stack(
       children: [
         // Main UI
         Column(
           children: [
             // Welcome Header
-            _buildHeader(),
+            _buildHeader(theme),
             Expanded(
               child: Stack(
                 children: [
-                  // Google Map
                   const Positioned.fill(
                     child: CustomGoogleMap(),
                   ),
-                  // Floating Button on Map
-                  Positioned(
-                    top: 16.0, // Below the header
-                    right: 16.0,
-                    child: FloatingActionButton(
-                      heroTag: "magicButton",
-                      onPressed: () {
-                        setState(() {
-                          showSearchOverlay = true;
-                        });
-                      },
-                      backgroundColor: Colors.deepPurpleAccent,
-                      child: const Icon(
-                        Icons.auto_awesome, // Magic icon
-                        size: 28.0,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                  // Draggable Scrollable Carousel
-                  _buildDraggableSheet(),
+                  _buildMagicSearchButton(theme),
+                  _buildDraggableSheet(theme),
                 ],
               ),
             ),
           ],
         ),
         // Search Overlay
-        if (showSearchOverlay) _buildSearchOverlay(),
+        if (showSearchOverlay) _buildSearchOverlay(theme),
       ],
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildMagicSearchButton(ThemeData theme) {
+    return Positioned(
+      top: 16.0, // Below the header
+      right: 16.0,
+      child: FloatingActionButton(
+        heroTag: "magicButton",
+        onPressed: () {
+          setState(() {
+            showSearchOverlay = true;
+          });
+        },
+        backgroundColor: theme.floatingActionButtonTheme.backgroundColor, 
+        child: Icon(
+          Icons.auto_awesome, // Magic icon
+          size: 28.0,
+          color: theme.floatingActionButtonTheme.foregroundColor, 
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(ThemeData theme) {
     return Container(
-      color: Colors.white,
+      color: theme.scaffoldBackgroundColor, // Use theme background color
       padding: EdgeInsets.only(
         top: MediaQuery.of(context).padding.top + 16.0,
         bottom: 16.0,
@@ -113,13 +115,17 @@ class _HomePageState extends State<HomePage> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Welcome Back!',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ), // Use theme text color
               ),
               Text(
                 appStateProvider_.userData["name"] ?? "User",
-                style: const TextStyle(fontSize: 16, color: Colors.grey),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7), // Use theme text color
+                ),
               ),
             ],
           ),
@@ -127,14 +133,18 @@ class _HomePageState extends State<HomePage> {
             onPressed: () {
               // Handle pin action
             },
-            icon: const Icon(Icons.push_pin, size: 28, color: Colors.black),
+            icon: Icon(
+              Icons.push_pin,
+              size: 28,
+              color: theme.textTheme.bodyLarge?.color, // Use theme text color
+            ),
           ),
         ],
       ),
     );
   }
 
-Widget _buildDraggableSheet() {
+Widget _buildDraggableSheet(ThemeData theme) {
   AppStateProvider appStateProvider_ = Provider.of<AppStateProvider>(context, listen: true);
   return DraggableScrollableSheet(
     initialChildSize: 0.1, // Initial height as a fraction of the screen height
@@ -177,82 +187,148 @@ Widget _buildDraggableSheet() {
   );
 }
 
-
-  Widget _buildSearchOverlay() {
-    return Stack(
-      children: [
-        // Blurred Background
-        Positioned.fill(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+  Widget _buildSearchOverlay(ThemeData theme) {
+    return GestureDetector(
+      onTap: () {
+        // Close the overlay when tapping outside the search area
+        setState(() {
+          showSearchOverlay = false;
+        });
+      },
+      child: Stack(
+        children: [
+          // Dimmed Background
+          Positioned.fill(
             child: Container(
               color: Colors.black.withOpacity(0.5),
             ),
           ),
-        ),
-        // Search Widget
-        Center(
-          child: Container(
-            padding: const EdgeInsets.all(16.0),
-            margin: const EdgeInsets.symmetric(horizontal: 32.0),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16.0),
-              boxShadow: const [
-                BoxShadow(color: Colors.black26, blurRadius: 10.0, spreadRadius: 0.5),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  "Search Location",
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.deepPurple,
+          // Search Box with Tags
+          Center(
+            child: Container(
+              width: MediaQuery.of(context).size.width * 0.85,
+              height: 200,
+              padding: const EdgeInsets.all(16.0),
+              decoration: BoxDecoration(
+                color: theme.cardTheme.color, // Use theme card color
+                borderRadius: BorderRadius.circular(25),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 10,
+                    offset: Offset(0, 4),
                   ),
-                ),
-                const SizedBox(height: 16.0),
-                TextField(
-                  decoration: InputDecoration(
-                    hintText: "Enter a location...",
-                    prefixIcon: const Icon(Icons.search, color: Colors.deepPurple),
-                    filled: true,
-                    fillColor: Colors.grey[100],
-                    contentPadding: const EdgeInsets.symmetric(vertical: 16.0),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12.0),
-                      borderSide: BorderSide.none,
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Search Field with Enter Button
+                  Row(
+                    children: [
+                      // Search Icon
+                      Icon(Icons.search, color: theme.textTheme.bodyMedium?.color),
+                      const SizedBox(width: 10),
+                      // Search Input
+                      Expanded(
+                        child: TextField(
+                          controller: _searchController,
+                          decoration: InputDecoration(
+                            hintText: "Your next adventure...",
+                            hintStyle: TextStyle(
+                              color: theme.textTheme.bodyMedium?.color?.withOpacity(0.5),
+                            ),
+                            border: InputBorder.none,
+                          ),
+                          style: TextStyle(
+                            color: theme.textTheme.bodyMedium?.color,
+                          ),
+                          onChanged: (value) {
+                            // Optionally handle live input changes
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      // Enter Button
+                      ElevatedButton(
+                        onPressed: () {
+                          String value = _searchController.text.trim();
+                          log("Searching for: $value");
+                          appStateProvider_.magicSearch(value);
+                          setState(() {
+                            showSearchOverlay = false;
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: theme.primaryColor, // Use theme primary color
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 8.0,
+                            horizontal: 16.0,
+                          ),
+                        ),
+                        child: Text(
+                          "Enter",
+                          style: TextStyle(
+                            fontSize: 14.0,
+                            color: theme.textTheme.bodyMedium?.color, // Use theme text color
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  // Tags Label
+                  Text(
+                    "Popular Cuisines",
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ), // Use theme text color
+                  ),
+                  const SizedBox(height: 10),
+                  // Scrollable Tags
+                  Expanded(
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        _buildTag("Italian 🍕", theme),
+                        _buildTag("Chinese 🥡", theme),
+                        _buildTag("Mexican 🌮", theme),
+                        _buildTag("Indian 🍛", theme),
+                        _buildTag("Japanese 🍣", theme),
+                        _buildTag("French 🥖", theme),
+                        _buildTag("Thai 🍜", theme),
+                        _buildTag("Korean 🍲", theme),
+                      ],
                     ),
                   ),
-                  onChanged: (value) {
-                    // Handle search input
-                  },
-                ),
-                const SizedBox(height: 16.0),
-                ElevatedButton(
-                  onPressed: () {
-                    setState(() {
-                      showSearchOverlay = false;
-                    });
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurpleAccent,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8.0),
-                    ),
-                  ),
-                  child: const Text(
-                    "Close",
-                    style: TextStyle(fontSize: 16.0, color: Colors.white),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
+    );
+  }
+
+  // Helper Method to Create a Tag
+  Widget _buildTag(String label, ThemeData theme) {
+    return Container(
+      margin: const EdgeInsets.only(right: 12.0),
+      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+      decoration: BoxDecoration(
+        color: theme.cardTheme.color?.withOpacity(0.8), // Use theme card color
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: theme.textTheme.bodyMedium?.copyWith(
+          fontWeight: FontWeight.w500,
+        ), // Use theme text color
+      ),
     );
   }
 }

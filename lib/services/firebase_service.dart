@@ -53,6 +53,14 @@ class FirebaseService {
     return false;
   }
 
+  Future<void> signOut() async {
+    try {
+      await auth_.signOut();
+    } catch (e) {
+      log('Error signing out: $e');
+    }
+  }
+
   // Sign up a new user and save their data to Firestore
   Future<void> signUpUser({
     required String email,
@@ -85,24 +93,25 @@ class FirebaseService {
     }
   }
 
-
-  // Future<List<LocationModel>> getSavedLocations(User user) async {}
-
   Future<void> storeLocation(LocationModel location) async {
     try {
       // check if location in database already
       DocumentSnapshot locationDoc = await db_.collection('Locations').doc(location.id).get();
       if (!locationDoc.exists) {
         await db_.collection('Locations').doc(location.id).set({
-        'name': location.name,
-        'location': GeoPoint(location.position!.latitude, location.position!.longitude),
-        'saved_count': 0,
-        'location_type': "restaurant", // TODO: Add location type to LocationModel
-      });
+          'name': location.name,
+          'location': GeoPoint(location.position!.latitude, location.position!.longitude),
+          'saved_count': 0,
+          'location_type': "restaurant", // TODO: Add location type to LocationModel
+          'address': location.vicinity,
+          'description': location.description,
+          'rating': location.rating,
+          'photo_reference': location.photoReference ?? '',
+        });
       }
       // add reference to location in user's saved locations
       await db_.collection('Users').doc(auth_.currentUser!.uid).update({
-        'saved_locations.${location.id}': arbitary_past_point,
+        'saved_locations.${location.id}': Timestamp.now(),
       });
 
       updateLocationInfo(location.id);
@@ -123,10 +132,11 @@ class FirebaseService {
     Map<LocationModel, Timestamp> savedLocationsWithTimestamps = {};
     try {
       DocumentSnapshot userDoc = await db_.collection('Users').doc(auth_.currentUser!.uid).get();
-      Map<String, dynamic> savedLocationsMap = userDoc.get('saved_locations'); 
-
+      Map<String, dynamic> savedLocationsMap = userDoc.get('saved_locations'); ;
+      print("getSavedLocationsMap: $savedLocationsMap");
       for (String locationId in savedLocationsMap.keys) {
         DocumentSnapshot locationDoc = await db_.collection('Locations').doc(locationId).get();
+        
         LocationModel loc = LocationModel.fromDocument(locationDoc);
         Timestamp timestamp = savedLocationsMap[locationId];
         savedLocationsWithTimestamps[loc] = timestamp;
@@ -174,6 +184,7 @@ Future<List<LocationModel>> getSavedLocations() async {
     try {
       Map<LocationModel, Timestamp> locTimestamp = await getSavedLocationsMap();
       locTimestamps = locTimestamp.keys.toList();
+      print("getSavedLocations: $locTimestamps");
     } catch (e) {
       log('Error getting saved locations: $e');
     }
