@@ -15,7 +15,7 @@ class LocationFinder:
 
         # Initialize APIs
         genai.configure(api_key=gemini_key)
-        self.gemini = genai.GenerativeModel('gemini-pro')
+        self.gemini = genai.GenerativeModel('gemini-2.0-flash-lite')
         self.gmaps = googlemaps.Client(key=gmaps_key)
         self.geolocator = Nominatim(user_agent="location_finder")
         self.DEFAULT_LOCATION = (51.5074, -0.1278)  # Default to London for demo
