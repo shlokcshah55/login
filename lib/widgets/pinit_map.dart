@@ -61,10 +61,23 @@ class _CustomGoogleMapState extends State<CustomGoogleMap> {
     // Listen to providers needed for map display
     final locationListManager = context.watch<LocationListManager>();
     final deviceLocationProvider = context.watch<DeviceLocationProvider>();
-    final mapStateProvider = context.watch<MapStateProvider>(); // Watch for polyline changes
+    final mapStateProvider = context.watch<MapStateProvider>(); // Watch for polyline/selection changes
+    final mapStateReader = context.read<MapStateProvider>(); // Use read for onTap callback
 
-    // Get markers from the current list in LocationListManager
-    final Set<Marker> markers = {...locationListManager.currentItems.values.toSet()};
+    // Create markers with onTap handlers
+    final Set<Marker> markers = locationListManager.currentItems.entries.map((entry) {
+      final location = entry.key; // LocationModel
+      final originalMarker = entry.value; // Original Marker
+
+      // Create a new marker with the onTap handler
+      return originalMarker.copyWith(
+        onTapParam: () {
+          print("Marker tapped: ${originalMarker.markerId.value}"); // Debug log
+          mapStateReader.setSelectedMarkerId(originalMarker.markerId);
+        },
+      );
+    }).toSet();
+
 
     // Get current position from DeviceLocationProvider
     final currentPosition = deviceLocationProvider.currentPosition;

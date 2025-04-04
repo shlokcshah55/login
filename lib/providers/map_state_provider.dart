@@ -8,11 +8,13 @@ class MapStateProvider with ChangeNotifier {
   GoogleMapController? _mapController; // Make nullable initially
   Set<Polyline> _polylines = {};
   LatLng? _lastFocusedUserLocation; // To track where the user was last centered
+  MarkerId? _selectedMarkerId; // To track the currently selected marker
 
   // Getters
   Future<GoogleMapController> get controllerFuture => _completeController.future;
   GoogleMapController? get mapController => _mapController; // Allow null check
   Set<Polyline> get polylines => _polylines;
+  MarkerId? get selectedMarkerId => _selectedMarkerId; // Getter for selected marker
 
   /// Assigns the Google Map controller when the map is created.
   void setMapController(GoogleMapController controller) {
@@ -89,7 +91,16 @@ class MapStateProvider with ChangeNotifier {
   }
 
 
-  // Optional: Add methods for map bounds, selected markers etc. if needed later
+  /// Sets the currently selected marker ID and notifies listeners.
+  void setSelectedMarkerId(MarkerId? markerId, {bool triggeredByCarousel = false}) {
+    if (_selectedMarkerId != markerId) {
+      _selectedMarkerId = markerId;
+      log("MapStateProvider: Selected marker changed to: ${markerId?.value}");
+      notifyListeners();
+    }
+  }
+
+  // Optional: Add methods for map bounds, etc. if needed later
 
   @override
   void dispose() {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart'; // Import Google Fonts
 
 const String MAPSTYLE = '''
 [
@@ -279,39 +280,97 @@ const String MAPSTYLE = '''
 ]
 ''';
 
+// Define new colors
+const Color primaryTeal = Color(0xFF008080); // Teal
+const Color accentCoral = Color(0xFFFF7F50); // Coral
+const Color backgroundLinen = Color(0xFFFAF0E6); // Linen (Off-white)
+const Color textDarkGrey = Color(0xFF333333); // Dark Grey for text
+const Color cardBackground = Colors.white; // White for cards for contrast
+
 final themeData = ThemeData(
-  // Primary color swatch
-  primarySwatch: createMaterialColor(const Color(0xFFE09132)), // Using #E09132 as the primary color
-  // Background color
-  scaffoldBackgroundColor: const Color(0xFFFFEFCD), // #FFEFCD as the background color
-  // Text theme
-  textTheme: const TextTheme(
-    bodyLarge: TextStyle(color: Color(0xFF424520)), // #424520 as the primary text color
-    bodyMedium: TextStyle(color: Color(0xFF424520)),
-    titleLarge: TextStyle(color: Color(0xFF424520)),
-    titleMedium: TextStyle(color: Color(0xFF424520)),
-  ),
-  // Button theme
-  elevatedButtonTheme: ElevatedButtonThemeData(
-    style: ElevatedButton.styleFrom(
-      backgroundColor: const Color(0xFFA58E74), // #A58E74 as the button background color
-      foregroundColor: const Color(0xFFFFEFCD), // #FFEFCD as the button text color
-    ),
-  ),
-  // Floating action button theme
-  floatingActionButtonTheme: const FloatingActionButtonThemeData(
-    backgroundColor: Color(0xFFE09132), // #E09132 as the FAB background color
-    foregroundColor: Color(0xFFFFEFCD), // #FFEFCD as the FAB icon color
-  ),
-  // Card theme
-  cardTheme: const CardTheme(
-    color: Color.fromARGB(255, 241, 231, 219), // #A58E74 as the card background color
-    elevation: 2,
-    margin: EdgeInsets.all(8),
+  // Use colorScheme for modern theming
+  colorScheme: ColorScheme.fromSwatch(
+    primarySwatch: createMaterialColor(primaryTeal), // Generate swatch from Teal
+    accentColor: accentCoral, // Coral as accent
+    backgroundColor: backgroundLinen, // Linen background
+    cardColor: cardBackground, // White cards
+    brightness: Brightness.light, // Assuming a light theme
+  ).copyWith(
+    secondary: accentCoral, // Explicitly set secondary (used by FAB by default)
+    onPrimary: Colors.white, // Text/icon color on primary color
+    onSecondary: Colors.white, // Text/icon color on secondary color
+    onBackground: textDarkGrey, // Text color on background
+    onSurface: textDarkGrey, // Text color on surfaces like cards
   ),
 
-  bottomAppBarTheme: const BottomAppBarTheme(
-    color: Color(0xFFE09132), // #E09132 as the bottom app bar color
+  // Apply Poppins font globally
+  textTheme: GoogleFonts.poppinsTextTheme(
+    const TextTheme(
+      // Define specific styles if needed, otherwise Poppins will be default
+      bodyLarge: TextStyle(color: textDarkGrey),
+      bodyMedium: TextStyle(color: textDarkGrey),
+      titleLarge: TextStyle(color: textDarkGrey, fontWeight: FontWeight.w600), // Slightly bolder titles
+      titleMedium: TextStyle(color: textDarkGrey, fontWeight: FontWeight.w600),
+      labelLarge: TextStyle(color: Colors.white), // For text on buttons
+    ),
+  ),
+
+  // Background color
+  scaffoldBackgroundColor: backgroundLinen,
+
+  // Button theme using ColorScheme
+  elevatedButtonTheme: ElevatedButtonThemeData(
+    style: ElevatedButton.styleFrom(
+      backgroundColor: primaryTeal, // Use primary color
+      foregroundColor: Colors.white, // Use text color defined in colorScheme.onPrimary
+      textStyle: GoogleFonts.poppins(fontWeight: FontWeight.w600), // Ensure button text is Poppins bold
+    ),
+  ),
+
+  // Floating action button theme using ColorScheme
+  floatingActionButtonTheme: const FloatingActionButtonThemeData(
+    backgroundColor: accentCoral, // Use accent color
+    foregroundColor: Colors.white, // Use text color defined in colorScheme.onSecondary
+  ),
+
+  // Card theme
+  cardTheme: CardTheme(
+    color: cardBackground,
+    elevation: 4, // Slightly more pronounced shadow
+    margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4), // Adjust margin
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), // Rounded corners
+    shadowColor: Colors.grey.withOpacity(0.3), // Softer shadow color
+  ),
+
+  // Bottom Navigation Bar Theme
+  bottomNavigationBarTheme: BottomNavigationBarThemeData(
+    backgroundColor: Colors.white, // White background for nav bar
+    selectedItemColor: primaryTeal, // Teal for selected icon/label
+    unselectedItemColor: Colors.grey[400], // Lighter grey for unselected
+    showSelectedLabels: false, // Hide labels if desired
+    showUnselectedLabels: false,
+    type: BottomNavigationBarType.fixed, // Ensures items don't shift
+    elevation: 8, // Add some elevation
+  ),
+
+  // AppBar Theme (Optional, if you add AppBars later)
+  appBarTheme: AppBarTheme(
+    backgroundColor: primaryTeal,
+    foregroundColor: Colors.white, // Text/icons on AppBar
+    elevation: 0, // Flat AppBar
+    titleTextStyle: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w600),
+  ),
+
+  // Input Decoration Theme (for TextFields)
+  inputDecorationTheme: InputDecorationTheme(
+    filled: true,
+    fillColor: Colors.white.withOpacity(0.8),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(25.0),
+      borderSide: BorderSide.none, // No border
+    ),
+    hintStyle: GoogleFonts.poppins(color: Colors.grey[600]),
+    contentPadding: const EdgeInsets.symmetric(vertical: 15.0, horizontal: 20.0),
   ),
 );
 
