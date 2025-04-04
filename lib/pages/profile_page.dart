@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:login/providers/location_list_manager.dart';
+import 'package:login/providers/user_data_provider.dart';
 import 'package:login/services/firebase_service.dart';
 import 'package:provider/provider.dart';
-import 'package:login/providers/app_data_provider.dart'; // Import the AppStateProvider
 
 class ProfilePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final appStateProvider = Provider.of<AppStateProvider>(context);
+    final userDataProvider = Provider.of<UserDataProvider>(context);
+    final locationListManager = Provider.of<LocationListManager>(context);
 
-    // Extract user data from AppStateProvider
-    final username = appStateProvider.userData['username'] ?? "Trollmaster";
-    final bio = appStateProvider.userData['bio'] ?? "Tell us more about you! Tap the dot menu to edit your profile 😊";
-    final fullName = appStateProvider.userData['fullname'] ?? "No Name";
-    final tags = appStateProvider.userData['tags'] ?? ["London", "Brighton"];
-    final locations = appStateProvider.userData['locations'] ?? [
+    // Extract user data from userDataProvider
+    final username = userDataProvider.userData!['username'] ?? "Trollmaster";
+    final bio = userDataProvider.userData!['bio'] ?? "Tell us more about you! Tap the dot menu to edit your profile 😊";
+    final fullName = userDataProvider.userData!['fullname'] ?? "No Name";
+    final tags = userDataProvider.userData!['tags'] ?? ["London", "Brighton"];
+    final locations = userDataProvider.userData!['locations'] ?? [
       {"name": "London", "pins": 2, "image": "assets/london.jpg"},
       {"name": "Brighton", "pins": 1, "image": "assets/brighton.jpg"},
     ];
@@ -56,9 +58,9 @@ class ProfilePage extends StatelessWidget {
                     backgroundColor: Colors.grey[300],
                     child: const Icon(Icons.person, size: 40),
                   ),
-                  _statColumn(appStateProvider.savedLocations.length.toString(), "Pins"),
-                  _statColumn(appStateProvider.userData["followers"].length.toString(), "Followers"),
-                  _statColumn(appStateProvider.userData["following"].length.toString(), "Following"),
+                  _statColumn(locationListManager.savedLocations.length.toString(), "Pins"),
+                  _statColumn(userDataProvider.userData!["followers"].length.toString(), "Followers"),
+                  _statColumn(userDataProvider.userData!["following"].length.toString(), "Following"),
                 ],
               ),
               const SizedBox(height: 20),

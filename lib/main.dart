@@ -13,25 +13,48 @@ import 'package:login/notifications/backgroundTaskService.dart';
 import 'package:login/pages/auth_handler.dart';
 import 'package:login/pages/home_page.dart';
 import 'package:login/pages/profile_page.dart';
-import 'package:login/providers/app_data_provider.dart';
+// import 'package:login/providers/app_data_provider.dart'; // Remove old provider
+import 'package:login/providers/device_location_provider.dart'; // Import new providers
+import 'package:login/providers/location_list_manager.dart';
+import 'package:login/providers/map_state_provider.dart';
+import 'package:login/providers/user_data_provider.dart';
+import 'package:login/services/firebase_service.dart'; // Import services
+import 'package:login/services/google_place_service.dart';
+import 'package:login/services/location_service.dart';
 import 'package:provider/provider.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:login/permissions/permissions.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await requestLocationPermission();
+  // Permission request might be better handled within DeviceLocationProvider or on first use
+  // await requestLocationPermission();
   await LocationModel.initializeCustomMarker();
   await dotenv.load(); 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await NotificationService().initialize();
   await BackgroundTaskService().initialize();
-  
+
+  // Instantiate services
+  final firebaseService = FirebaseService();
+  final googlePlacesService = GooglePlacesService();
+  final locationService = LocationService();
+
   runApp(
-    MultiProvider(providers: [
-      ChangeNotifierProvider(create: (_) => AppStateProvider()),
-    ],
-    child: MyApp(),
+    MultiProvider(
+      providers: [
+        // Provide the services themselves if needed directly by widgets (less common)
+        // Provider.value(value: firebaseService),
+        // Provider.value(value: googlePlacesService),
+        // Provider.value(value: locationService),
+
+        // Provide the new ChangeNotifiers, injecting services
+        ChangeNotifierProvider(create: (_) => UserDataProvider(firebaseService)),
+        ChangeNotifierProvider(create: (_) => LocationListManager(firebaseService, googlePlacesService)),
+        ChangeNotifierProvider(create: (_) => MapStateProvider()), // No service dependencies currently
+        ChangeNotifierProvider(create: (_) => DeviceLocationProvider(locationService)),
+      ],
+      child: MyApp(),
     ),
   );
 }
@@ -159,4 +182,3 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 }
-

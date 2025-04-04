@@ -1,12 +1,16 @@
 import 'dart:developer';
+import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:login/controllers/home_controller.dart';
-import 'package:login/providers/app_data_provider.dart';
+import 'package:login/providers/device_location_provider.dart'; // Import new providers
+import 'package:login/providers/location_list_manager.dart';
+import 'package:login/providers/map_state_provider.dart';
+import 'package:login/providers/user_data_provider.dart';
 import 'package:login/widgets/pinit_map.dart';
 import 'package:provider/provider.dart';
-import 'package:login/pages/carousel/cards.dart';
+import 'package:login/pages/carousel/cards.dart'; // Keep GridItemWidget import
 
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -16,36 +20,65 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  GoogleMapController? controller;
+  // GoogleMapController? controller; // Controller managed by MapStateProvider now
   late final HomeController homeController_;
-  late final AppStateProvider appStateProvider_;
+  // late final AppStateProvider appStateProvider_; // Remove old provider reference
+  late final UserDataProvider userDataProvider_; // Add references for new providers if needed directly
+  late final LocationListManager locationListManager_;
+  late final DeviceLocationProvider deviceLocationProvider_;
+  late final MapStateProvider mapStateProvider_;
+
   bool showSearchOverlay = false; // State for the search overlay
   final DraggableScrollableController _draggableScrollableController = DraggableScrollableController();
-  double currentDraggableSize = 10.0;
+  double currentDraggableSize = 0.1; // Default draggable size
 
   final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    print("home_page: api key: \${dotenv.env['GOOGLE_PLACE_API_KEY']}");
+    log("HomePage initState: Initializing providers and controller.");
+    // print("home_page: api key: ${dotenv.env['GOOGLE_PLACE_API_KEY']}"); // Keep if needed
 
-    appStateProvider_ = Provider.of<AppStateProvider>(context, listen: false);
-    homeController_ = HomeController(appStateProvider_);
-    log("home controller initialized");
-    homeController_.plotRecommendedPins();
+    // Get providers using listen: false as we are calling methods/passing them
+    userDataProvider_ = Provider.of<UserDataProvider>(context, listen: false);
+    locationListManager_ = Provider.of<LocationListManager>(context, listen: false);
+    deviceLocationProvider_ = Provider.of<DeviceLocationProvider>(context, listen: false);
+    mapStateProvider_ = Provider.of<MapStateProvider>(context, listen: false);
 
-    appStateProvider_.startLocationUpdates();
+    // Instantiate HomeController with the required providers
+    homeController_ = HomeController(
+      locationListManager: locationListManager_,
+      mapStateProvider: mapStateProvider_,
+      deviceLocationProvider: deviceLocationProvider_,
+      // userDataProvider: userDataProvider_, // Pass if needed by controller
+    );
+    log("HomeController initialized");
 
+    // Fetch initial data - recommendations and start location updates
+    // Use the new method name
+    homeController_.fetchAndPlotRecommendedPins();
+
+    // Start location updates using the dedicated provider
+    deviceLocationProvider_.startLocationUpdates();
+
+    // Listener for draggable sheet size
     _draggableScrollableController.addListener(() {
-      setState(() {
-      double currentDraggableSize = _draggableScrollableController.size;
-      });
-    });
+      // Check if mounted before calling setState
+      if (mounted) {
+        setState(() {
+          currentDraggableSize = _draggableScrollableController.size;
+        });
+      }
+    }); // End of addListener callback
   }
+
   @override
   void dispose() {
-    appStateProvider_.stopLocationUpdates();
+    log("HomePage dispose: Stopping location updates.");
+    // Stop location updates using the dedicated provider
+    deviceLocationProvider_.stopLocationUpdates();
+    _draggableScrollableController.dispose(); // Dispose controller
     super.dispose();
   }
 
@@ -119,13 +152,18 @@ class _HomePageState extends State<HomePage> {
                 'Welcome Back!',
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
-                ), // Use theme text color
-              ),
-              Text(
-                appStateProvider_.userData["name"] ?? "User",
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7), // Use theme text color
                 ),
+              ),
+              // Use UserDataProvider to get user name, listen for changes
+              Consumer<UserDataProvider>(
+                builder: (context, userProvider, child) {
+                  return Text(
+                    userProvider.userData?["name"] ?? "User", // Access name safely
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                    ),
+                  );
+                }
               ),
             ],
           ),
@@ -145,15 +183,21 @@ class _HomePageState extends State<HomePage> {
   }
 
 Widget _buildDraggableSheet(ThemeData theme) {
-  AppStateProvider appStateProvider_ = Provider.of<AppStateProvider>(context, listen: true);
-  return DraggableScrollableSheet(
-    initialChildSize: 0.1, // Initial height as a fraction of the screen height
-    minChildSize: 0.1, // Minimum height
-    maxChildSize: 0.5, // Maximum height
-    builder: (context, scrollController) {
-      return Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
+  // Listen to LocationListManager for changes in currentItems
+  return Consumer<LocationListManager>(
+    builder: (context, locationManager, child) {
+      final locations = locationManager.currentItems.keys.toList();
+      final markers = locationManager.currentItems; // Get the map of locations to markers
+
+      return DraggableScrollableSheet(
+        controller: _draggableScrollableController, // Assign controller
+        initialChildSize: 0.1, // Initial height
+        minChildSize: 0.1, // Minimum height
+        maxChildSize: 0.5, // Maximum height
+        builder: (context, scrollController) {
+          return Container(
+            decoration: const BoxDecoration(
+              color: Colors.white, // Consider using theme.cardColor or similar
           borderRadius: BorderRadius.only(
             topLeft: Radius.circular(16.0),
             topRight: Radius.circular(16.0),
@@ -171,21 +215,31 @@ Widget _buildDraggableSheet(ThemeData theme) {
             mainAxisSpacing: 20.0,
             childAspectRatio: 0.8, // Adjust height vs width ratio
           ),
-          itemCount: appStateProvider_.currentItems.length,
+          itemCount: locations.length, // Use length from listened provider
           itemBuilder: (context, index) {
-            final location = appStateProvider_.currentItems.keys.toList()[index];
+            final location = locations[index];
+            final marker = markers[location]; // Get the corresponding marker
+
+            // Pass necessary data to GridItemWidget
+            // It might need LocationListManager, MapStateProvider etc. or specific data points
+            // For now, just passing location and size. GridItemWidget might need refactoring too.
             return GridItemWidget(
               location: location,
-              appStateProvider: appStateProvider_,
-              screenSize: currentDraggableSize
+              // Pass providers or specific data needed by GridItemWidget
+              // e.g., locationListManager: locationListManager, mapStateProvider: mapStateProvider, etc.
+              screenSize: currentDraggableSize,
+              // Pass marker if needed by GridItemWidget for interactions
+              marker: marker,
             );
-            //return homeController_.buildGridItem(location); // Updated method
           },
         ),
       );
-    },
+      },
+    );
+   }
   );
 }
+
 
   Widget _buildSearchOverlay(ThemeData theme) {
     return GestureDetector(
@@ -252,12 +306,17 @@ Widget _buildDraggableSheet(ThemeData theme) {
                       // Enter Button
                       ElevatedButton(
                         onPressed: () {
-                          String value = _searchController.text.trim();
-                          log("Searching for: $value");
-                          appStateProvider_.magicSearch(value);
-                          setState(() {
-                            showSearchOverlay = false;
-                          });
+                          String query = _searchController.text.trim();
+                          if (query.isNotEmpty) {
+                            log("HomePage: Triggering magic search for: $query");
+                            // Use LocationListManager for magic search
+                            locationListManager_.magicSearch(query);
+                            // Close overlay
+                            setState(() {
+                              showSearchOverlay = false;
+                            });
+                            _searchController.clear(); // Clear field after search
+                          }
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: theme.primaryColor, // Use theme primary color

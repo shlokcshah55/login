@@ -1,19 +1,29 @@
-import 'dart:math';
+import 'dart:developer';
+import 'dart:math' hide log; // Hide log from dart:math
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:login/models/location_model.dart';
-import 'package:login/providers/app_data_provider.dart';
+import 'package:login/providers/device_location_provider.dart'; 
+import 'package:login/providers/location_list_manager.dart';
+import 'package:login/providers/map_state_provider.dart';
 import 'package:login/services/google_place_service.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:provider/provider.dart'; 
 
 
 class GridItemWidget extends StatefulWidget {
   final LocationModel location;
-  final AppStateProvider appStateProvider;
   final double screenSize;
+  final Marker? marker; // Add marker for info window interaction
 
-  const GridItemWidget({Key? key, required this.location, required this.appStateProvider, required this.screenSize})
-      : super(key: key);
+  // Remove appStateProvider, add required providers
+  const GridItemWidget({
+    Key? key,
+    required this.location,
+    required this.screenSize,
+    this.marker, // Make marker optional
+    // We will access providers via context inside the state
+  }) : super(key: key);
 
   @override
   _GridItemWidgetState createState() => _GridItemWidgetState();
@@ -22,49 +32,114 @@ class GridItemWidget extends StatefulWidget {
 class _GridItemWidgetState extends State<GridItemWidget> {
   bool isFlipped = false;
 
+  // Access providers via context within methods
+  late final LocationListManager locationListManager;
+  late final MapStateProvider mapStateProvider;
+  late final DeviceLocationProvider deviceLocationProvider;
+  // Instantiate GooglePlacesService - consider injecting via Provider if used elsewhere
+  final GooglePlacesService googlePlacesService = GooglePlacesService();
+
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Initialize providers here, where context is available safely
+    locationListManager = Provider.of<LocationListManager>(context, listen: false);
+    mapStateProvider = Provider.of<MapStateProvider>(context, listen: false);
+    deviceLocationProvider = Provider.of<DeviceLocationProvider>(context, listen: false);
+  }
+
+
   void _flipCard() async {
+    final currentPosition = deviceLocationProvider.currentPosition; // Get current position
+
+    // Check if position is available before flipping
+    if (currentPosition == null || widget.location.position == null) {
+       log("Cannot flip card: Missing current or location position.");
+       // Optionally show a message to the user
+       ScaffoldMessenger.of(context).showSnackBar(
+         const SnackBar(content: Text("Cannot show route, location unknown.")),
+       );
+       return;
+    }
+
     setState(() {
       isFlipped = !isFlipped;
     });
 
     if (isFlipped) {
-      _adjustCameraToFit(widget.appStateProvider.currentPosition!, widget.location.position!);
-      _drawRoute(widget.appStateProvider.currentPosition!, widget.location.position!);
+      _adjustCameraToFit(currentPosition, widget.location.position!);
+      _drawRoute(currentPosition, widget.location.position!); // Corrected method name
     } else {
-      widget.appStateProvider.removePolyline();
-      widget.appStateProvider.focusOnUserLocation();
+      mapStateProvider.clearPolylines(); // Use MapStateProvider
+      // Focus back on user location if available
+      mapStateProvider.focusOnUserLocation(currentPosition);
     }
   }
 
+  void _handleTap() async {
+     log("GridItem tapped: ${widget.location.name}");
+     // Animate camera using MapStateProvider
+     if (widget.location.position != null) {
+       await mapStateProvider.animateCamera(
+         CameraUpdate.newLatLng(widget.location.position!),
+       );
+       // Showing marker info window might need direct controller access or a new MapStateProvider method
+       final controller = mapStateProvider.mapController;
+       // Use the marker passed via the constructor
+       final marker = widget.marker;
+       if (controller != null && marker != null) {
+          log("Showing info window for marker: ${marker.markerId.value}");
+          controller.showMarkerInfoWindow(marker.markerId);
+       } else {
+          log("Cannot show info window: Controller or marker is null.");
+       }
+     } else {
+        log("Cannot animate camera: Location position is null.");
+     }
+  }
+
+
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onLongPress: _flipCard,
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 500),
-        transitionBuilder: (Widget child, Animation<double> animation) {
-          final rotate = Tween(begin: pi, end: 0.0).animate(animation);
-          return AnimatedBuilder(
-            animation: rotate,
-            child: child,
-            builder: (context, child) {
-              return Transform(
-                transform: Matrix4.rotationY(rotate.value),
-                alignment: Alignment.center,
-                child: child,
-              );
-            },
-          );
-        },
-        child: isFlipped ? _buildBackSide() : _buildFrontSide(),
-      ),
+    // Use InkWell for tap effect and GestureDetector for long press
+    return InkWell(
+       key: ValueKey(widget.location.id), // Use a stable key
+       onTap: _handleTap,
+       child: GestureDetector(
+         onLongPress: _flipCard,
+         child: AnimatedSwitcher(
+           duration: const Duration(milliseconds: 500),
+           transitionBuilder: (Widget child, Animation<double> animation) {
+             // Use a more robust flip animation like in HomeController example
+             final rotate = Tween(begin: pi, end: 0.0).animate(animation);
+             return AnimatedBuilder(
+               animation: rotate,
+               child: child,
+               builder: (context, animatedChild) {
+                 final isFront = animatedChild?.key == const ValueKey(false);
+                 final rotationValue = isFront ? rotate.value : (pi - rotate.value);
+                 return Transform(
+                   transform: Matrix4.identity()
+                     ..setEntry(3, 2, 0.001) // Perspective
+                     ..rotateY(rotationValue),
+                   alignment: Alignment.center,
+                   child: animatedChild,
+                 );
+               },
+             );
+           },
+           // Pass keys to children for AnimatedSwitcher to work correctly
+           child: isFlipped ? _buildBackSide() : _buildFrontSide(),
+         ),
+       ),
     );
   }
 
   /// Builds the front side of the card
   Widget _buildFrontSide() {
     return Container(
-      key: const ValueKey(false), // Ensure key is non-null
+      key: const ValueKey(false), // Key for front side
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12.0),
         color: Colors.white,
@@ -130,9 +205,12 @@ class _GridItemWidgetState extends State<GridItemWidget> {
   }
 
   /// Builds the back side of the card
+  /// Builds the back side of the card
   Widget _buildBackSide() {
+    final currentPosition = deviceLocationProvider.currentPosition; // Get current position for FutureBuilder
+
     return Container(
-      key: const ValueKey(true), // Ensure key is non-null
+      key: const ValueKey(true), // Key for back side
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12.0),
         color: Colors.blueGrey[50],
@@ -146,9 +224,11 @@ class _GridItemWidgetState extends State<GridItemWidget> {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           // Walking Distance
-          FutureBuilder<String>(
-            future: GooglePlacesService().getWalkingDuration(
-              originLatLng: widget.appStateProvider.currentPosition,
+          // Use the locally available currentPosition
+          currentPosition != null ? FutureBuilder<String>(
+            // Use the instantiated service
+            future: googlePlacesService.getWalkingDuration(
+              originLatLng: currentPosition,
               destinationPlaceId: widget.location.id,
             ),
             builder: (context, snapshot) {
@@ -184,10 +264,17 @@ class _GridItemWidgetState extends State<GridItemWidget> {
                 );
               }
             },
-          ),
+          ) : const Row( // Placeholder if current location is null
+               mainAxisAlignment: MainAxisAlignment.center,
+               children: [
+                 Icon(Icons.directions_walk, size: 14, color: Colors.black54),
+                 SizedBox(width: 6),
+                 Text("...", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                ],
+              ),
           const SizedBox(height: 8),
 
-          // How many people saved it
+          // How many people saved it (Data comes from widget.location)
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -218,35 +305,52 @@ class _GridItemWidgetState extends State<GridItemWidget> {
     );
   }
 
- // Adjusts the camera to fit both the user's location and the target location
+  /// Adjusts the camera using MapStateProvider
   void _adjustCameraToFit(LatLng userLocation, LatLng targetLocation) {
-
-    double southWestLat = min(userLocation.latitude, targetLocation.latitude);
-    double southWestLng = min(userLocation.longitude, targetLocation.longitude);
-    double northeastLat = max(userLocation.latitude, targetLocation.latitude);
-    double northeastLng = max(userLocation.longitude, targetLocation.longitude);
-    
-    double deltaLat = (northeastLat - southWestLat);
-    double finalSouthWestLat = southWestLat - deltaLat;
-    widget.appStateProvider.mapController.animateCamera(
-      CameraUpdate.newLatLngBounds(
-        LatLngBounds(
-          southwest: LatLng(
-            finalSouthWestLat,
-            southWestLng
-         ),
-          northeast: LatLng(
-            northeastLat,
-            northeastLng
-          ),
-        ),
-        100
-      ),
-    );
+     mapStateProvider.focusOnBounds(userLocation, targetLocation); // Use provider method
   }
 
-
+  // Remove the commented out _adjustCameraToFit method
+/*
 // void _adjustCameraToFit(LatLng userLocation, LatLng targetLocation) async {
+//   if (widget.appStateProvider.mapController == null) return;
+
+//   // Get screen size
+//   final screenHeight = MediaQuery.of(context).size.height;
+//   print(screenHeight);
+//   // Get the height of the draggable sheet (percentage of screen height)
+//   double draggableSheetHeightRatio = widget.screenSize.clamp(0.1, 0.5); // Between 0.1 and 0.5
+
+//   // Calculate the visible map ratio
+//   double visibleMapRatio = 1.0 - draggableSheetHeightRatio; // Remaining portion of the screen used for the map
+
+//   // Compute the new bounds to ensure both locations are visible
+//   LatLngBounds targetBounds = LatLngBounds(
+//     southwest: LatLng(
+//       min(userLocation.latitude, targetLocation.latitude),
+//       min(userLocation.longitude, targetLocation.longitude),
+//     ),
+//     northeast: LatLng(
+//       max(userLocation.latitude, targetLocation.latitude),
+//       max(userLocation.longitude, targetLocation.longitude),
+//     ),
+//   );
+
+//   // Base padding
+//   double basePadding = 100;
+
+//   // Adjust padding dynamically based on visible map area
+//   double adjustedPadding = basePadding / visibleMapRatio; // If less of the map is visible, increase padding
+//   log(adjustedPadding);
+//   // Ensure padding stays within reasonable limits
+//   double finalPadding = adjustedPadding.clamp(50, 300); // Prevent too much zoom-in or zoom-out
+
+//   // Animate camera update with dynamic padding
+//   widget.appStateProvider.mapController.animateCamera(
+//     CameraUpdate.newLatLngBounds(targetBounds, finalPadding),
+//   );
+// }
+*/ // Terminate comment correctly
 //   if (widget.appStateProvider.mapController == null) return;
 
 //   // Get screen size
@@ -288,16 +392,16 @@ class _GridItemWidgetState extends State<GridItemWidget> {
 
 
 
-  /// Draws a polyline route between two points with a dotted effect
+  /// Draws a polyline route using MapStateProvider
   void _drawRoute(LatLng start, LatLng end) {
     final polyline = Polyline(
-      polylineId: const PolylineId("dotted_route"),
+      polylineId: const PolylineId("dotted_route"), // Consider a more unique ID if needed
       points: [start, end],
       color: Colors.blue,
       width: 4,
-      patterns: [PatternItem.dot, PatternItem.gap(10)],
+      patterns: [PatternItem.dot, PatternItem.gap(10)], // Can be const now
     );
 
-    widget.appStateProvider.setPolyline(polyline);
+    mapStateProvider.setPolyline(polyline); // Use provider method
   }
 }

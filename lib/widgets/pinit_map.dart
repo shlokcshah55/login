@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:login/assets/constants.dart';
-import 'package:login/providers/app_data_provider.dart';
+// import 'package:login/providers/app_data_provider.dart'; // Remove old
+import 'package:login/providers/device_location_provider.dart'; // Add new
+import 'package:login/providers/location_list_manager.dart';
+import 'package:login/providers/map_state_provider.dart';
 import 'package:provider/provider.dart';
 
 class CustomGoogleMap extends StatefulWidget {
@@ -55,15 +58,24 @@ class _CustomGoogleMapState extends State<CustomGoogleMap> {
 
   @override
   Widget build(BuildContext context) {
-    final appStateProvider = Provider.of<AppStateProvider>(context, listen: true);
-    final Set<Marker> markers = {...appStateProvider.currentItems.values.toSet()};
+    // Listen to providers needed for map display
+    final locationListManager = context.watch<LocationListManager>();
+    final deviceLocationProvider = context.watch<DeviceLocationProvider>();
+    final mapStateProvider = context.watch<MapStateProvider>(); // Watch for polyline changes
 
-    if (appStateProvider.currentPosition != null && _customMarkerIcon != null) {
-      print('here');
+    // Get markers from the current list in LocationListManager
+    final Set<Marker> markers = {...locationListManager.currentItems.values.toSet()};
+
+    // Get current position from DeviceLocationProvider
+    final currentPosition = deviceLocationProvider.currentPosition;
+
+    // Add user's current location marker if available
+    if (currentPosition != null && _customMarkerIcon != null) {
+      // print('Adding current location marker'); // Keep for debugging if needed
       markers.add(
         Marker(
           markerId: const MarkerId('current_location'),
-          position: appStateProvider.currentPosition!,
+          position: currentPosition,
           icon: _customMarkerIcon!, // Use the custom marker icon
           infoWindow: const InfoWindow(title: 'Your Location'),
         ),
@@ -73,18 +85,22 @@ class _CustomGoogleMapState extends State<CustomGoogleMap> {
     return GoogleMap(
       style: MAPSTYLE,
       mapToolbarEnabled: false,
-      myLocationButtonEnabled: false,
+      myLocationButtonEnabled: false, // We add our own marker
       compassEnabled: false,
       zoomControlsEnabled: false,
       initialCameraPosition: CameraPosition(
-        target: appStateProvider.currentPosition ?? const LatLng(CustomGoogleMap.DEFAULT_LAT, CustomGoogleMap.DEFAULT_LNG),
+        // Use current position from DeviceLocationProvider for initial target
+        target: currentPosition ?? const LatLng(CustomGoogleMap.DEFAULT_LAT, CustomGoogleMap.DEFAULT_LNG),
         zoom: 15,
       ),
       onMapCreated: (controller) {
-        appStateProvider.setMapController(controller);
+        // Set the controller in the MapStateProvider
+        // Use context.read as this is a one-time action
+        context.read<MapStateProvider>().setMapController(controller);
       },
       markers: markers,
-      polylines: appStateProvider.polylines,
+      // Get polylines from MapStateProvider
+      polylines: mapStateProvider.polylines,
     );
   }
 }
