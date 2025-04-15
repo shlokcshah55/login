@@ -232,6 +232,125 @@ class FirestoreClient:
                 "video_info": video_info,
                 "locations": locations
             }
+    
+    # --- New Location-related methods ---
+    
+    def get_location_by_place_id(self, place_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve a location document by its Google Place ID.
+        
+        Args:
+            place_id: The Google Place ID
+            
+        Returns:
+            The location document data or None if not found
+        """
+        try:
+            if not self.is_connected():
+                logger.error("Cannot get location: Firestore client not initialized")
+                return None
+                
+            # Query the Locations collection by place_id
+            locations_ref = self.db.collection("Locations")
+            query = locations_ref.where(filter=FieldFilter("place_id", "==", place_id)).limit(1)
+            
+            docs = list(query.stream())
+            if docs:
+                loc_data = docs[0].to_dict()
+                loc_data["id"] = docs[0].id  # Add the Firestore document ID
+                return loc_data
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error retrieving location with place_id {place_id}: {e}")
+            return None
+
+    def store_location(self, place_data: Dict[str, Any]) -> Optional[str]:
+        """
+        Store or update location data in the Locations collection.
+        
+        Args:
+            place_data: The location data from Google Places API
+            
+        Returns:
+            The Firestore document ID or None if operation failed
+        """
+        try:
+            if not self.is_connected():
+                logger.error("Cannot store location: Firestore client not initialized")
+                return None
+                
+            # Check if the place_id is provided
+            place_id = place_data.get("place_id")
+            if not place_id:
+                logger.error("Cannot store location: No place_id provided")
+                return None
+                
+            # Add timestamp fields
+            place_data["updated_at"] = firestore.SERVER_TIMESTAMP
+            
+            # Check if the location already exists
+            existing_location = self.get_location_by_place_id(place_id)
+            
+            if existing_location:
+                # Update existing document
+                location_id = existing_location["id"]
+                locations_ref = self.db.collection("Locations").document(location_id)
+                locations_ref.update(place_data)
+                logger.info(f"Updated location with place_id {place_id}, doc_id: {location_id}")
+                return location_id
+            else:
+                # Create new document with place_id as document ID
+                # Add creation timestamp
+                place_data["created_at"] = firestore.SERVER_TIMESTAMP
+                
+                # Store in Firestore
+                locations_ref = self.db.collection("Locations").document(place_id)
+                locations_ref.set(place_data)
+                logger.info(f"Created new location with place_id {place_id}")
+                return place_id
+                
+        except Exception as e:
+            logger.error(f"Error storing location data: {e}")
+            return None
+
+    def link_post_to_location(self, post_id: str, place_id: str) -> bool:
+        """
+        Create or update a link between a post and a location.
+        
+        Args:
+            post_id: The post document ID
+            place_id: The location's Google Place ID
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            if not self.is_connected() or not post_id or not place_id:
+                return False
+                
+            # Get the post document
+            post_ref = self.db.collection("Posts").document(post_id)
+            post_doc = post_ref.get()
+            
+            if not post_doc.exists:
+                logger.warning(f"Cannot link location: Post {post_id} does not exist")
+                return False
+                
+            # Update the post with the place_id
+            update_data = {
+                "place_ids": firestore.ArrayUnion([place_id]),
+                "updated_at": firestore.SERVER_TIMESTAMP
+            }
+            
+            post_ref.update(update_data)
+            logger.info(f"Linked post {post_id} to location {place_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error linking post {post_id} to location {place_id}: {e}")
+            return False
 
 # Create a singleton instance
 _firestore_client = None

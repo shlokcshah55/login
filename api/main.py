@@ -19,6 +19,7 @@ from tiktok_retrieval import get_cleaned_video_info
 from gpt_utils import start_gpt_session, find_locations
 
 from firestore_db import get_firestore_client
+from places_api import get_places_api
 
 # Load environment variables
 load_dotenv()
@@ -196,12 +197,24 @@ async def process_tiktok_url(url: str, user_id: Optional[str] = None, doc_id: Op
         
         # Extract locations with Gemini if API key is available
         locations = []
+        place_ids = []
         if GEMINI_API_KEY:
             try:
                 logging.info(f"Extracting locations for {url}")
                 session = start_gpt_session(GEMINI_API_KEY)
                 locations = find_locations(session, video_info)
                 logging.info(f"Found locations: {locations}")
+                
+                # Process each location with Google Places API
+                if locations:
+                    for location in locations:
+                        # Process location in Google Places API
+                        place_id = await process_location(location)
+                        if place_id:
+                            # Add place_id to the location information
+                            location["place_id"] = place_id
+                            place_ids.append(place_id)
+                
             except Exception as e:
                 logging.error(f"Error extracting locations: {e}")
                 # Continue processing even if location extraction fails
@@ -213,23 +226,33 @@ async def process_tiktok_url(url: str, user_id: Optional[str] = None, doc_id: Op
                 "status": "success",
                 "message": "TikTok data processed successfully (database storage skipped)",
                 "video_info": video_info,
-                "locations": locations
+                "locations": locations,
+                "place_ids": place_ids
             }
         
         # Store the processed data in database
         result = db_client.store_processed_tiktok(video_info, url, locations, user_id)
+        
+        # Add place_ids to the post document if available
+        post_doc_id = result.get("post_doc_id")
+        if post_doc_id and place_ids:
+            for place_id in place_ids:
+                db_client.link_post_to_location(post_doc_id, place_id)
         
         # Update the original document if we have a document ID
         if db_client and doc_id and not result.get("error"):
             # Prepare additional data for the update
             additional_data = {
                 "postDocId": result.get("post_doc_id"),
-                "locations": locations
+                "locations": locations,
+                "place_ids": place_ids
             }
             
             # Update the document status
             db_client.update_tiktok_status(doc_id, "completed", additional_data=additional_data)
-            
+        
+        # Add place_ids to the result
+        result["place_ids"] = place_ids
         return result
             
     except Exception as e:
@@ -246,6 +269,59 @@ async def process_tiktok_url(url: str, user_id: Optional[str] = None, doc_id: Op
                 logging.error(f"Failed to update error status: {update_error}")
         
         return {"error": error_msg, "url": url}
+
+async def process_location(location_info: Dict[str, str]) -> Optional[str]:
+    """
+    Process a location by searching for it in Google Places API and storing in Firestore.
+    
+    Args:
+        location_info: Dictionary with "landmark" and "location" keys
+        
+    Returns:
+        The Google Place ID if successful, None otherwise
+    """
+    if not location_info or "landmark" not in location_info or "location" not in location_info:
+        return None
+        
+    # Create search query from location info
+    landmark = location_info.get("landmark", "").strip()
+    location = location_info.get("location", "").strip()
+    
+    if not landmark or landmark.lower() == "not found":
+        return None
+        
+    # Combine landmark and location for search
+    query = landmark
+    if location and location.lower() != "not found":
+        query = f"{landmark}, {location}"
+    
+    try:
+        # Get Places API client
+        places_api = get_places_api()
+        if not places_api:
+            logging.error("Places API client not available")
+            return None
+        
+        # Search for the place
+        place_data = places_api.search_place(query)
+        if not place_data:
+            logging.warning(f"No place data found for query: {query}")
+            return None
+        
+        # Get database client
+        db_client = get_firestore_client()
+        if not db_client or not db_client.is_connected():
+            logging.warning("Database connection not available, not storing location data")
+            return place_data.get("place_id")
+        
+        # Store the location data in Firestore
+        location_id = db_client.store_location(place_data)
+        
+        return place_data.get("place_id")
+        
+    except Exception as e:
+        logging.error(f"Error processing location {query}: {e}")
+        return None
 
 if __name__ == "__main__":
     # For local development, use Flask's built-in server

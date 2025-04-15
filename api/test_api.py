@@ -21,10 +21,11 @@ def test_process_tiktok(url, server_url="http://localhost:8080"):
     """
     endpoint = f"{server_url}/process-tiktok"
     
+
     # Prepare request data
     data = {
         "url": url,
-        "userId": "test-user"  # Optional test user ID
+        "userId": "test-user"  # Optional test user ID - use oCyiXu6gT1ccAydnCZ5VXxugl5F3 for my userid
     }
     
     logging.info(f"Sending request to {endpoint} with URL: {url}")
