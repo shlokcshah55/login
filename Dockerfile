@@ -1,46 +1,35 @@
-# Use the Playwright base image (includes browser dependencies)
-FROM mcr.microsoft.com/playwright:focal
+# Use the Playwright Python image which already includes both Python and browser dependencies
+FROM mcr.microsoft.com/playwright/python:v1.42.0-jammy
 
-# Set environment variables to use system browsers and disable headless warnings
+# Set environment variables for Playwright
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 ENV PLAYWRIGHT_HEADLESS=true
 
 # Set the working directory inside the container
 WORKDIR /functions
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    software-properties-common \
-    && add-apt-repository -y ppa:deadsnakes/ppa \
-    && apt-get update \
-    && apt-get install -y \
-       python3.12 \
-       python3.12-venv \
-       python3.12-dev \
-       python3-pip \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+# Copy requirements first to leverage Docker caching
+COPY functions/requirements.txt .
 
-# Set Python 3.12 as default
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
-
-# Ensure venv is available
-RUN python3 -m ensurepip
-
-# Copy project files (functions folder)
-COPY . /functions
-
-EXPOSE 8080
-
-# Create and activate a virtual environment inside the functions directory
-RUN python3 -m venv venv
+# Add required packages to requirements.txt
+RUN printf "\nplaywright>=1.40.0\nfunctions-framework>=3.0.0\n" >> requirements.txt
 
 # Install Python dependencies
-RUN venv/bin/pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright Python package and connect to system browsers
-RUN venv/bin/pip install playwright==1.42.0
+# Install Playwright browsers explicitly to ensure they're available
+RUN playwright install chromium
 
+# Copy only the functions directory content
+COPY functions/ .
 
-# Set the default command to run your Firebase function script
-CMD ["venv/bin/python3", "main.py"]
+# Create and chmod the cache directory for playwright
+# This is crucial for the Firebase Functions environment
+RUN mkdir -p /www-data-home/.cache
+RUN chmod -R 777 /www-data-home
+
+# Expose the port used by Firebase Functions
+EXPOSE 8080
+
+# Use functions-framework to run the Firebase Functions service
+CMD ["python", "-m", "functions_framework", "--target=process_tiktok_link", "--signature-type=http"]
