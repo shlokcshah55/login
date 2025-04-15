@@ -12,6 +12,7 @@ import time
 
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
+from asgiref.sync import async_to_sync
 
 # Import TikTok processing utilities
 from tiktok_retrieval import get_cleaned_video_info
@@ -52,7 +53,7 @@ def health_check():
     }), 200
 
 @app.route("/process-tiktok", methods=["POST"])
-async def process_tiktok_link():
+def process_tiktok_link():
     """
     Process a single TikTok link provided directly in the request
     
@@ -74,8 +75,9 @@ async def process_tiktok_link():
         
         logging.info(f"Processing TikTok URL: {tiktok_url} for user: {user_id}")
         
-        # Process the TikTok URL
-        result = await process_tiktok_url(tiktok_url, user_id, document_id)
+        # Use async_to_sync to call our async function from a sync context
+        process_url = async_to_sync(process_tiktok_url)
+        result = process_url(tiktok_url, user_id, document_id)
         
         if result.get("error"):
             return jsonify(result), 500
@@ -102,8 +104,9 @@ def process_pending_links():
         limit = data.get("limit", 10)  # Default to 10 links
         user_id = data.get("userId")  # Optional user ID filter
         
-        # Start asynchronous batch processing
-        asyncio.run(process_pending_batch(limit, user_id))
+        # Use async_to_sync to run the async function
+        process_batch = async_to_sync(process_pending_batch)
+        process_batch(limit, user_id)
         
         return jsonify({
             "status": "success", 
@@ -245,23 +248,7 @@ async def process_tiktok_url(url: str, user_id: Optional[str] = None, doc_id: Op
         return {"error": error_msg, "url": url}
 
 if __name__ == "__main__":
-    # For local development, use the werkzeug server with asyncio support
+    # For local development, use Flask's built-in server
     port = int(os.environ.get("PORT", 8080))
-    
-    # Configure async support for Flask
-    import nest_asyncio
-    from hypercorn.asyncio import serve
-    from hypercorn.config import Config
-    
-    # Apply patch to allow nested asyncio loops
-    nest_asyncio.apply()
-    
-    # Run with asyncio support
-    if os.environ.get("DEBUG", "False").lower() == "true":
-        # If in debug mode, use Flask's built-in server with an asyncio patch
-        app.run(host="0.0.0.0", port=port, debug=True)
-    else:
-        # Use hypercorn for production-like local testing
-        config = Config()
-        config.bind = [f"0.0.0.0:{port}"]
-        asyncio.run(serve(app, config))
+    debug = os.environ.get("DEBUG", "False").lower() == "true"
+    app.run(host="0.0.0.0", port=port, debug=debug)

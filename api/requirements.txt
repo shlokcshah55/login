@@ -1,12 +1,14 @@
-flask==3.1.0
+flask[async]==3.1.0
 gunicorn==20.1.0
 firebase-admin==6.2.0
 TikTokApi==6.2.0
 python-dotenv==1.0.0
-cleantext==1.1.4
+clean-text
 playwright==1.37.0
 requests==2.31.0
 google-cloud-logging==3.5.0
 hypercorn==0.14.3
 nest-asyncio==1.5.7
 google-generativeai==0.3.1
+google-cloud-firestore==2.11.1
+asgiref==3.7.2
