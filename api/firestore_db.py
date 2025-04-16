@@ -16,6 +16,8 @@ from google.cloud.firestore_v1.base_query import FieldFilter
 load_dotenv()
 
 # Configure logging
+logging.basicConfig(level=logging.DEBUG)
+logging.getLogger("google.cloud.firestore").setLevel(logging.DEBUG)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -30,7 +32,11 @@ class FirestoreClient:
                 logger.info("Using Firestore emulator")
                 # The FIRESTORE_EMULATOR_HOST environment variable will be used automatically
             
+            # credentials = service_account.Credentials.from_service_account_file(
+            #             os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"))
             # Initialize Firestore client
+            # self.db = firestore.Client(project=os.environ.get("FIREBASE_PROJECT_ID"),
+            #                            credentials=credentials)
             self.db = firestore.Client()
             logger.info("Firestore client initialized successfully")
         except Exception as e:
@@ -351,6 +357,30 @@ class FirestoreClient:
         except Exception as e:
             logger.error(f"Error linking post {post_id} to location {place_id}: {e}")
             return False
+    
+    def retrieve_users(self) -> List[Dict[str, Any]]:
+        """
+        Retrieve all users from the Users collection.
+        
+        Returns:
+            List of user documents
+        """
+        try:
+            if not self.is_connected():
+                logger.error("Cannot retrieve users: Firestore client not initialized")
+                return []
+            logger.info(f"{self.db.project} - Retrieving users from Firestore")
+            users_ref = self.db.collection("Users")
+            logger.info(f"Querying Users collection: {users_ref._path}")
+            users = [doc.to_dict() for doc in users_ref.stream()]
+            logger.info(f"Retrieved {len(users)} users")
+            return users
+            
+        except Exception as e:
+            logger.error(f"Error retrieving users: {e}")
+            return []
+        
+
 
 # Create a singleton instance
 _firestore_client = None
