@@ -59,7 +59,7 @@ def test_process_tiktok(url, server_url="http://localhost:8080", http2=False, ma
     # Prepare request data
     data = {
         "url": url,
-        "userId": "test-user"  # Optional test user ID
+        "userId": "oCyiXu6gT1ccAydnCZ5VXxugl5F3"  # Optional test user ID
     }
     
     logging.info(f"Sending request to {endpoint} with URL: {url}")

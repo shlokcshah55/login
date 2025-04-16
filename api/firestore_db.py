@@ -268,12 +268,14 @@ class FirestoreClient:
             logger.error(f"Error retrieving location with place_id {place_id}: {e}")
             return None
 
-    def store_location(self, place_data: Dict[str, Any]) -> Optional[str]:
+    def store_location(self, place_data: Dict[str, Any], tiktok_id: Optional[str] = None, user_id: Optional[str] = None) -> Optional[str]:
         """
         Store or update location data in the Locations collection.
         
         Args:
             place_data: The location data from Google Places API
+            tiktok_id: Optional TikTok video ID to associate with this location
+            user_id: Optional user ID to update saved_posts for
             
         Returns:
             The Firestore document ID or None if operation failed
@@ -299,24 +301,108 @@ class FirestoreClient:
                 # Update existing document
                 location_id = existing_location["id"]
                 locations_ref = self.db.collection("Locations").document(location_id)
+                
+                # If tiktok_id is provided, update associated_post_ids
+                if tiktok_id:
+                    # Check if associated_post_ids exists
+                    if "associated_post_ids" in existing_location:
+                        # Only add if not already in the array
+                        if tiktok_id not in existing_location["associated_post_ids"]:
+                            locations_ref.update({
+                                "associated_post_ids": firestore.ArrayUnion([tiktok_id])
+                            })
+                            logger.info(f"Added tiktok_id {tiktok_id} to location {place_id}")
+                    else:
+                        # Create the array with the first tiktok_id
+                        locations_ref.update({
+                            "associated_post_ids": [tiktok_id]
+                        })
+                        logger.info(f"Created associated_post_ids with tiktok_id {tiktok_id} for location {place_id}")
+                
+                # Update the rest of the document
                 locations_ref.update(place_data)
                 logger.info(f"Updated location with place_id {place_id}, doc_id: {location_id}")
+                
+                # If user_id is provided, update the user's saved_posts
+                if user_id and tiktok_id:
+                    self.add_location_to_user_saved_posts(user_id, location_id, tiktok_id)
+                
                 return location_id
             else:
                 # Create new document with place_id as document ID
                 # Add creation timestamp
                 place_data["created_at"] = firestore.SERVER_TIMESTAMP
                 
+                # If tiktok_id is provided, add it to associated_post_ids
+                if tiktok_id:
+                    place_data["associated_post_ids"] = [tiktok_id]
+                
                 # Store in Firestore
                 locations_ref = self.db.collection("Locations").document(place_id)
                 locations_ref.set(place_data)
                 logger.info(f"Created new location with place_id {place_id}")
+                
+                # If user_id is provided, update the user's saved_posts
+                if user_id and tiktok_id:
+                    self.add_location_to_user_saved_posts(user_id, place_id, tiktok_id)
+                
                 return place_id
                 
         except Exception as e:
             logger.error(f"Error storing location data: {e}")
             return None
-
+    
+    def add_location_to_user_saved_posts(self, user_id: str, location_id: str, tiktok_id: str) -> bool:
+        """
+        Add a location to a user's saved_posts and saved_locations fields.
+        
+        Args:
+            user_id: The user's ID
+            location_id: The location's document ID
+            tiktok_id: The TikTok video ID
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            if not self.is_connected():
+                logger.error("Cannot update user: Firestore client not initialized")
+                return False
+            
+            # Get reference to user document
+            user_ref = self.db.collection("Users").document(user_id)
+            
+            # Check if user exists
+            user_doc = user_ref.get()
+            if not user_doc.exists:
+                logger.warning(f"User {user_id} does not exist")
+                return False
+            
+            # Current timestamp (will be replaced with server timestamp)
+            timestamp = firestore.SERVER_TIMESTAMP
+            
+            # Update data for both fields
+            update_data = {
+                # Update the saved_posts field
+                # Format: { location_id: { timestamp: server_timestamp, tiktok_id: tiktok_id } }
+                f"saved_posts.{location_id}": {
+                    "timestamp": timestamp,
+                    "tiktok_id": tiktok_id
+                },
+                
+                # Update the saved_locations field 
+                # Format: { location_id: timestamp }
+                f"saved_locations.{location_id}": timestamp
+            }
+            
+            user_ref.update(update_data)
+            logger.info(f"Added location {location_id} to user {user_id}'s saved_posts and saved_locations")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error adding location to user's saved fields: {e}")
+            return False
+    
     def link_post_to_location(self, post_id: str, place_id: str) -> bool:
         """
         Create or update a link between a post and a location.

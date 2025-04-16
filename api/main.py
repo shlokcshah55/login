@@ -207,9 +207,13 @@ async def process_tiktok_url(url: str, user_id: Optional[str] = None, doc_id: Op
                 
                 # Process each location with Google Places API
                 if locations:
+                    # Get TikTok video ID from the video_info
+                    tiktok_id = video_info.get("id")
+                    logging.info(f"Processing locations with TikTok ID: {tiktok_id}")
+                    
                     for location in locations:
                         # Process location in Google Places API
-                        place_id = await process_location(location)
+                        place_id = await process_location(location, tiktok_id, user_id)
                         if place_id:
                             # Add place_id to the location information
                             location["place_id"] = place_id
@@ -270,12 +274,14 @@ async def process_tiktok_url(url: str, user_id: Optional[str] = None, doc_id: Op
         
         return {"error": error_msg, "url": url}
 
-async def process_location(location_info: Dict[str, str]) -> Optional[str]:
+async def process_location(location_info: Dict[str, str], tiktok_id: Optional[str] = None, user_id: Optional[str] = None) -> Optional[str]:
     """
     Process a location by searching for it in Google Places API and storing in Firestore.
     
     Args:
         location_info: Dictionary with "landmark" and "location" keys
+        tiktok_id: Optional TikTok video ID to associate with this location
+        user_id: Optional user ID to associate with saved posts
         
     Returns:
         The Google Place ID if successful, None otherwise
@@ -314,8 +320,8 @@ async def process_location(location_info: Dict[str, str]) -> Optional[str]:
             logging.warning("Database connection not available, not storing location data")
             return place_data.get("place_id")
         
-        # Store the location data in Firestore
-        location_id = db_client.store_location(place_data)
+        # Store the location data in Firestore with the TikTok ID and user ID
+        location_id = db_client.store_location(place_data, tiktok_id, user_id)
         
         return place_data.get("place_id")
         
