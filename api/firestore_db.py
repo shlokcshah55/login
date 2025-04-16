@@ -31,12 +31,8 @@ class FirestoreClient:
             if os.environ.get("USE_FIREBASE_EMULATOR", "false").lower() == "true":
                 logger.info("Using Firestore emulator")
                 # The FIRESTORE_EMULATOR_HOST environment variable will be used automatically
-            
-            # credentials = service_account.Credentials.from_service_account_file(
-            #             os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"))
+            os.environ.pop("FIRESTORE_EMULATOR_HOST", None)
             # Initialize Firestore client
-            # self.db = firestore.Client(project=os.environ.get("FIREBASE_PROJECT_ID"),
-            #                            credentials=credentials)
             self.db = firestore.Client()
             logger.info("Firestore client initialized successfully")
         except Exception as e:
