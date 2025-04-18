@@ -7,25 +7,48 @@ import os
 import json
 import asyncio
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import time
+import uuid
+from datetime import datetime, timedelta
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
+from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
 from asgiref.sync import async_to_sync
 
 # Import TikTok processing utilities
 from tiktok_retrieval import get_cleaned_video_info
-from gpt_utils import start_gpt_session, find_locations
+import sys
+sys.path.append("..")  # Adjust the path to import local modules
+from api.utils.gpt_utils import start_gpt_session, find_locations
 
 from firestore_db import get_firestore_client
 from places_api import get_places_api
+from utils.metrics import track_api_request, track_error
+from utils.request_validation import validate_tiktok_url
 
 # Load environment variables
 load_dotenv()
 
 # Initialize Flask app
 app = Flask(__name__)
+
+# Enable CORS for all routes with proper configuration
+CORS(app, resources={r"/*": {"origins": os.environ.get("ALLOWED_ORIGINS", "*").split(","),
+                             "methods": ["GET", "POST", "OPTIONS"],
+                             "allow_headers": ["Content-Type", "Authorization"]}})
+
+# Configure rate limiting
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri=os.environ.get("REDIS_URL", "memory://"),
+    strategy="fixed-window"
+)
 
 # Configure logging
 if os.environ.get("ENVIRONMENT") == "production":
@@ -39,21 +62,59 @@ else:
 
 # Get secrets from environment
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+SERVICE_NAME = os.environ.get("SERVICE_NAME", "tiktok-processing-api")
+API_VERSION = os.environ.get("API_VERSION", "v1")
 
+@app.errorhandler(429)
+def handle_rate_limit_error(error):
+    """Handle rate limit exceeded errors"""
+    track_error("rate_limit_exceeded", str(error))
+    return jsonify({
+        "error": "Rate limit exceeded", 
+        "message": str(error.description)
+    }), 429
+
+@app.errorhandler(500)
+def handle_server_error(error):
+    """Handle internal server errors"""
+    error_id = str(uuid.uuid4())
+    track_error("server_error", error_id)
+    return jsonify({
+        "error": "Internal server error",
+        "error_id": error_id,
+        "message": "An unexpected error occurred. Please try again later."
+    }), 500
+
+# Health endpoint not limited by rate limits
 @app.route("/health", methods=["GET"])
+@limiter.exempt
 def health_check():
     """Simple health check endpoint to verify the service is running"""
     # Also check database connection
     db_client = get_firestore_client()
     db_connected = db_client is not None and db_client.is_connected()
     
-    return jsonify({
-        "status": "ok", 
-        "timestamp": time.time(),
-        "database_connected": db_connected
-    }), 200
+    # Check Places API connectivity
+    places_api_client = get_places_api()
+    places_api_connected = places_api_client is not None
+    
+    # Get system information
+    system_info = {
+        "api_version": API_VERSION,
+        "service_name": SERVICE_NAME,
+        "environment": os.environ.get("ENVIRONMENT", "development"),
+        "database_connected": db_connected,
+        "places_api_connected": places_api_connected,
+        "gemini_api_configured": bool(GEMINI_API_KEY),
+        "timestamp": datetime.utcnow().isoformat()
+    }
+    
+    status_code = 200 if db_connected and places_api_connected else 503
+    
+    return jsonify(system_info), status_code
 
-@app.route("/process-tiktok", methods=["POST"])
+@app.route(f"/{API_VERSION}/process-tiktok", methods=["POST"])
+@limiter.limit("20 per minute")
 def process_tiktok_link():
     """
     Process a single TikTok link provided directly in the request
@@ -65,14 +126,24 @@ def process_tiktok_link():
         "documentId": "doc123"  # Optional Firestore document ID
     }
     """
+    # Track API request
+    track_api_request("process_tiktok")
+    
     try:
+        # Validate request body
         data = request.json
         if not data or not data.get("url"):
+            track_error("missing_field", "url")
             return jsonify({"error": "Missing required field: url"}), 400
         
         tiktok_url = data.get("url")
         user_id = data.get("userId")
         document_id = data.get("documentId")
+        
+        # Validate TikTok URL
+        if not validate_tiktok_url(tiktok_url):
+            track_error("invalid_url", tiktok_url)
+            return jsonify({"error": "Invalid TikTok URL format"}), 400
         
         logging.info(f"Processing TikTok URL: {tiktok_url} for user: {user_id}")
         
@@ -81,15 +152,25 @@ def process_tiktok_link():
         result = process_url(tiktok_url, user_id, document_id)
         
         if result.get("error"):
-            return jsonify(result), 500
+            status_code = result.get("status_code", 500)
+            # Track specific errors
+            track_error("process_error", result.get("error"))
+            return jsonify(result), status_code
         
         return jsonify(result), 200
         
     except Exception as e:
-        logging.exception(f"Error processing TikTok link: {e}")
-        return jsonify({"error": f"Server error: {str(e)}"}), 500
+        error_id = str(uuid.uuid4())
+        logging.exception(f"Error processing TikTok link (ID: {error_id}): {e}")
+        track_error("unhandled_exception", f"{error_id}: {str(e)}")
+        return jsonify({
+            "error": "Failed to process TikTok link",
+            "error_id": error_id,
+            "message": "An unexpected error occurred while processing the TikTok link"
+        }), 500
 
-@app.route("/process-pending", methods=["POST"])
+@app.route(f"/{API_VERSION}/process-pending", methods=["POST"])
+@limiter.limit("5 per minute")
 def process_pending_links():
     """
     Process all pending TikTok links in the incoming_tiktok_links collection
@@ -100,23 +181,34 @@ def process_pending_links():
         "userId": "user123"  # Optional filter by user ID
     }
     """
+    # Track API request
+    track_api_request("process_pending")
+    
     try:
         data = request.json or {}
-        limit = data.get("limit", 10)  # Default to 10 links
+        limit = min(int(data.get("limit", 10)), 20)  # Default to 10, max 20
         user_id = data.get("userId")  # Optional user ID filter
         
         # Use async_to_sync to run the async function
         process_batch = async_to_sync(process_pending_batch)
-        process_batch(limit, user_id)
+        result = process_batch(limit, user_id)
         
         return jsonify({
             "status": "success", 
-            "message": f"Processing up to {limit} pending TikTok links"
+            "request_id": str(uuid.uuid4()),
+            "message": f"Processing up to {limit} pending TikTok links",
+            "details": result
         }), 202  # 202 Accepted to indicate processing has started
         
     except Exception as e:
-        logging.exception(f"Error initiating batch processing: {e}")
-        return jsonify({"error": f"Server error: {str(e)}"}), 500
+        error_id = str(uuid.uuid4())
+        logging.exception(f"Error initiating batch processing (ID: {error_id}): {e}")
+        track_error("batch_process_error", f"{error_id}: {str(e)}")
+        return jsonify({
+            "error": "Failed to initiate batch processing",
+            "error_id": error_id,
+            "message": "An unexpected error occurred while initiating batch processing"
+        }), 500
 
 # --- Async Processing Functions ---
 
@@ -127,14 +219,14 @@ async def process_pending_batch(limit: int, user_id: Optional[str] = None):
         db_client = get_firestore_client()
         if not db_client or not db_client.is_connected():
             logging.error("Cannot process pending links: Database connection not available")
-            return
+            return {"processed": 0, "error": "Database connection not available"}
         
         # Get pending links from database
         pending_links = db_client.get_pending_tiktok_links(limit, user_id)
         
         if not pending_links:
             logging.info("No pending TikTok links found to process")
-            return
+            return {"processed": 0, "status": "no_pending_links"}
             
         # Process each link
         processing_tasks = []
@@ -153,13 +245,32 @@ async def process_pending_batch(limit: int, user_id: Optional[str] = None):
             link_user_id = link_data.get("userId")
             processing_tasks.append(process_tiktok_url(tiktok_url, link_user_id, doc_id))
         
-        # Wait for all tasks to complete
+        # Wait for all tasks to complete with timeout
+        results = []
         if processing_tasks:
-            results = await asyncio.gather(*processing_tasks, return_exceptions=True)
-            logging.info(f"Processed {len(results)} TikTok links")
+            # Set timeout to prevent hanging
+            try:
+                results = await asyncio.gather(*processing_tasks, return_exceptions=True)
+            except asyncio.TimeoutError:
+                logging.error("Timeout while processing batch of TikTok links")
+                return {"processed": 0, "error": "Processing timeout"}
+                
+            # Log summary of processing results
+            success_count = sum(1 for r in results if isinstance(r, dict) and not r.get("error"))
+            error_count = len(results) - success_count
+            
+            logging.info(f"Processed {len(results)} TikTok links: {success_count} successful, {error_count} failed")
+            return {
+                "processed": len(results),
+                "successful": success_count,
+                "failed": error_count
+            }
+        
+        return {"processed": 0, "status": "no_valid_links"}
             
     except Exception as e:
         logging.exception(f"Error in batch processing: {e}")
+        return {"processed": 0, "error": str(e)}
 
 async def process_tiktok_url(url: str, user_id: Optional[str] = None, doc_id: Optional[str] = None) -> Dict[str, Any]:
     """

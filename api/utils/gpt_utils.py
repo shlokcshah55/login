@@ -15,7 +15,7 @@ def start_gpt_session(gemini_api_key=None):
     """
     Creates a new chat session with the configured Gemini AI model to extract multiple location information
     from TikTok metadata. The model is instructed to produce a JSON output.
-    
+
     Expected output format:
     {
       "locations": [

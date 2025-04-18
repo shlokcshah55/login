@@ -15,6 +15,9 @@ import sys
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+# API version - should match the version in main.py
+API_VERSION = os.environ.get("API_VERSION", "v1")
+
 def create_session(http2=False):
     """
     Create a requests session with HTTP/2 support if needed.
@@ -54,7 +57,7 @@ def test_process_tiktok(url, server_url="http://localhost:8080", http2=False, ma
         max_retries: Maximum number of connection retries
         retry_delay: Delay between retries in seconds
     """
-    endpoint = f"{server_url}/process-tiktok"
+    endpoint = f"{server_url}/{API_VERSION}/process-tiktok"
     
     # Prepare request data
     data = {

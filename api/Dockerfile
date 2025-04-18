@@ -1,45 +1,37 @@
-FROM python:3.10-slim
+# Use the latest Playwright Python image which already includes both Python and browser dependencies
+FROM mcr.microsoft.com/playwright/python:v1.42.0-jammy
 
+# Set environment variables for Playwright and Python
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+ENV PLAYWRIGHT_HEADLESS=true
+ENV PYTHONUNBUFFERED=1
+ENV PORT=8080
+ENV HOST=0.0.0.0
+
+# Set working directory
 WORKDIR /app
 
-# Install Playwright and browsers
-RUN apt-get update && apt-get install -y \
-    curl \
-    wget \
-    gnupg \
-    libgconf-2-4 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libdbus-1-3 \
-    libatspi2.0-0 \
-    libx11-6 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libxkbcommon0 \
-    libpango-1.0-0 \
-    libcairo2 \
-    libasound2 \
-    libnspr4 \
-    libnss3 \
-    fonts-liberation \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements first to leverage Docker caching
+# Copy requirements first for better caching
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-RUN python -m playwright install
 
-# Copy the source code
+# Install dependencies
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install hypercorn
+
+# Copy the rest of the application
 COPY . .
 
-# Expose port for the API
+# Install additional Playwright dependencies (specifically for TikTok-Api)
+RUN playwright install chromium
+
+# Create and chmod the cache directory for playwright
+# This is crucial for the TikTok-Api to function correctly
+RUN mkdir -p /root/.cache
+RUN chmod -R 777 /root/.cache
+
+# Expose the port for the API
 EXPOSE 8080
 
-# Command to run the server
-CMD ["python", "main.py"]
+# Run with Hypercorn (ASGI server)
+CMD ["python", "run_hypercorn.py"]
+

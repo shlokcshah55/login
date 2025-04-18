@@ -1,6 +1,10 @@
 """
 Hypercorn runner for the TikTok Processing API.
 This script runs the API server with Hypercorn to support HTTP/2.0.
+
+creates an Asyncronous server gateway interface (ASGI) server using Hypercorn.
+This allows asynchronous web frameworks like Flask to run in an asynchronous environment.
+It uses the Hypercorn server to serve the Flask application defined in main.py.
 """
 import os
 import asyncio
