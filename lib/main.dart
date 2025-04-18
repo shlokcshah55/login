@@ -172,11 +172,12 @@ class _MainScreenState extends State<MainScreen> {
             _currentIndex = index;
           });
         },
+        // Items now use theme colors defined in bottomNavigationBarTheme
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home, color: Colors.black), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.search, color: Colors.black), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.notifications, color: Colors.black), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.person, color: Colors.black), label: ''),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: ''), // Label is optional, theme handles color
+          BottomNavigationBarItem(icon: Icon(Icons.search), label: ''),
+          BottomNavigationBarItem(icon: Icon(Icons.notifications), label: ''),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: ''),
         ],
       ),
     );
