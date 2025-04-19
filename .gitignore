@@ -10,6 +10,8 @@
 .history
 .svn/
 migrate_working_dir/
+pinit_service_account.json
+/venv/
 
 # IntelliJ related
 *.iml

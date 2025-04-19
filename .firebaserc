@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "pinit-10b36"
-  }
+    "default": "pinit-10b36",
+    "pinit": "pinit-10b36"
+  },
+  "targets": {},
+  "etags": {}
 }

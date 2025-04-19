@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:developer';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:http/http.dart' as http;
 import 'package:login/assets/constants.dart';
 import 'package:login/firebase_options.dart';
 import 'package:login/models/location_model.dart';
@@ -30,7 +32,7 @@ void main() async {
   // Permission request might be better handled within DeviceLocationProvider or on first use
   // await requestLocationPermission();
   await LocationModel.initializeCustomMarker();
-  await dotenv.load(); 
+  await dotenv.load();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await NotificationService().initialize();
   await BackgroundTaskService().initialize();
@@ -49,16 +51,21 @@ void main() async {
         // Provider.value(value: locationService),
 
         // Provide the new ChangeNotifiers, injecting services
-        ChangeNotifierProvider(create: (_) => UserDataProvider(firebaseService)),
-        ChangeNotifierProvider(create: (_) => LocationListManager(firebaseService, googlePlacesService)),
-        ChangeNotifierProvider(create: (_) => MapStateProvider()), // No service dependencies currently
-        ChangeNotifierProvider(create: (_) => DeviceLocationProvider(locationService)),
+        ChangeNotifierProvider(
+            create: (_) => UserDataProvider(firebaseService)),
+        ChangeNotifierProvider(
+            create: (_) =>
+                LocationListManager(firebaseService, googlePlacesService)),
+        ChangeNotifierProvider(
+            create: (_) =>
+                MapStateProvider()), // No service dependencies currently
+        ChangeNotifierProvider(
+            create: (_) => DeviceLocationProvider(locationService)),
       ],
       child: MyApp(),
     ),
   );
 }
-
 
 class MyApp extends StatefulWidget {
   @override
@@ -88,40 +95,115 @@ class _MyAppState extends State<MyApp> {
     });
 
     // Get the media sharing coming from outside the app while the app is closed.
-    ReceiveSharingIntent.instance.getInitialMedia().then((List<SharedMediaFile> value) {
+    ReceiveSharingIntent.instance
+        .getInitialMedia()
+        .then((List<SharedMediaFile> value) {
       setState(() {
         _sharedFiles.clear();
         _sharedFiles.addAll(value);
 
         print("found shared files when app was closed: ${_sharedFiles.length}");
-        print("files: ${_sharedFiles.map((f) => (f.message, f.mimeType, f.path))}");
-        
+        print("files: ${_sharedFiles.map((f) => (
+              f.message,
+              f.mimeType,
+              f.path
+            ))}");
+
         addFilesToProcess(_sharedFiles);
 
         // Tell the library that we are done processing the intent.
         ReceiveSharingIntent.instance.reset();
       });
-    }); 
+    });
   }
 
   Future<void> addFilesToProcess(List<SharedMediaFile> sharedFiles) async {
     print("Background Task Service: Processing shared files");
     List<String> urls = sharedFiles.map((f) => f.path).toList();
-    FirebaseFirestore db = FirebaseFirestore.instance;
+
+    // Get current user ID
+    final firebaseService = FirebaseService();
+    final userId = firebaseService.auth_.currentUser?.uid;
+    if (userId == null) {
+      log("Error: User not logged in. Cannot process TikTok links.");
+      return;
+    }
+
+    // Cloud Run API endpoint for publishing to Pub/Sub
+    final apiUrl = 'https://process-tiktok-711637650309.europe-west1.run.app';
 
     for (String url in urls) {
       if (url.contains("tiktok.com")) {
-        print("Background Task Service: Processing TikTok link: $url");
-        await db.collection('incoming_tiktok_links').add({
-          'url': url,
-          'timestamp': FieldValue.serverTimestamp(),
-        });
-        print("TikTok link stored successfully: $url");
+        log("Background Task Service: Processing TikTok link: $url");
+
+        try {
+          // Send request to Cloud Run service, which will publish to PubSub
+          final response = await http.post(
+            Uri.parse(apiUrl),
+            headers: <String, String>{
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode(<String, String>{
+              'url': url,
+              'userId': userId,
+            }),
+          );
+
+          if (response.statusCode == 200 || response.statusCode == 202) {
+            log("TikTok link sent to Cloud Run API successfully: $url");
+          } else {
+            log("Failed to send TikTok link to Cloud Run API: ${response.body}");
+          }
+        } catch (e) {
+          log("Error sending TikTok link to Cloud Run API: $e");
+        }
       }
     }
-
   }
 
+  // Future<void> addFilesToProcess(List<SharedMediaFile> sharedFiles) async {
+  //   print("Background Task Service: Processing shared files");
+  //   List<String> urls = sharedFiles.map((f) => f.path).toList();
+
+  //   // Get current user ID
+  //   final firebaseService = FirebaseService();
+  //   final userId = firebaseService.auth_.currentUser?.uid;
+  //   if (userId == null) {
+  //     log("Error: User not logged in. Cannot process TikTok links.");
+  //     return;
+  //   }
+
+  //   // API endpoint for our service
+  //   //final apiUrl = '${dotenv.env['API_BASE_URL'] ?? 'http://localhost:8080'}/v1/process-tiktok';
+  //   final apiUrl = 'https://tiktok-api-711637650309.europe-west1.run.app';
+  //   for (String url in urls) {
+  //     if (url.contains("tiktok.com")) {
+  //       log("Background Task Service: Processing TikTok link: $url");
+
+  //       try {
+  //         // Send request to API service, which will publish to PubSub
+  //         final response = await http.post(
+  //           Uri.parse(apiUrl),
+  //           headers: <String, String>{
+  //             'Content-Type': 'application/json',
+  //           },
+  //           body: jsonEncode(<String, String>{
+  //             'url': url,
+  //             'userId': userId,
+  //           }),
+  //         );
+
+  //         if (response.statusCode == 200 || response.statusCode == 202) {
+  //           log("TikTok link sent to API successfully: $url");
+  //         } else {
+  //           log("Failed to send TikTok link to API: ${response.body}");
+  //         }
+  //       } catch (e) {
+  //         log("Error sending TikTok link to API: $e");
+  //       }
+  //     }
+  //   }
+  // }
 
   @override
   void dispose() {
@@ -140,9 +222,7 @@ class _MyAppState extends State<MyApp> {
   }
 }
 
-
 class MainScreen extends StatefulWidget {
-
   const MainScreen({Key? key}) : super(key: key);
 
   @override
@@ -153,15 +233,14 @@ class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
   final List<Widget> _pages = [
-        const HomePage(),
-        const Center(child: Text('Search')),
-        const Center(child: Text('Notifications')),
-        ProfilePage(),
-      ];
+    const HomePage(),
+    const Center(child: Text('Search')),
+    const Center(child: Text('Notifications')),
+    ProfilePage(),
+  ];
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       body: _pages[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
@@ -174,7 +253,17 @@ class _MainScreenState extends State<MainScreen> {
         },
         // Items now use theme colors defined in bottomNavigationBarTheme
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: ''), // Label is optional, theme handles color
+          BottomNavigationBarItem(
+              icon: Icon(Icons.home, color: Colors.black), label: ''),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.search, color: Colors.black), label: ''),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.notifications, color: Colors.black), label: ''),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.person, color: Colors.black), label: ''),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.home),
+              label: ''), // Label is optional, theme handles color
           BottomNavigationBarItem(icon: Icon(Icons.search), label: ''),
           BottomNavigationBarItem(icon: Icon(Icons.notifications), label: ''),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: ''),
