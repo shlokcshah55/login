@@ -31,6 +31,9 @@
     {
       "source": "functions",
       "codebase": "default",
+      "docker": {
+        "image": "gcr.io/pinit-10b36/tiktokapi-firebase"
+      },
       "ignore": [
         "venv",
         ".git",

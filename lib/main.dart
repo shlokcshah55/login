@@ -26,6 +26,8 @@ import 'package:login/services/location_service.dart';
 import 'package:provider/provider.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:login/permissions/permissions.dart';
+import 'package:http/http.dart' as http;
+import 'package:firebase_auth/firebase_auth.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -117,7 +119,30 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
+  // Future<void> addFilesToProcess(List<SharedMediaFile> sharedFiles) async {
+
+  //   print("Background Task Service: Processing shared files");
+  //   List<String> urls = sharedFiles.map((f) => f.path).toList();
+  //   FirebaseFirestore db = FirebaseFirestore.instance;
+
+  //   for (String url in urls) {
+  //     if (url.contains("tiktok.com")) {
+  //       print("Background Task Service: Processing TikTok link: $url");
+  //       await db.collection('incoming_tiktok_links').add({
+  //         'url': url,
+  //         'timestamp': FieldValue.serverTimestamp(),
+  //       });
+  //       print("TikTok link stored successfully: $url");
+  //     }
+  //   }
+
+  // }
+
   Future<void> addFilesToProcess(List<SharedMediaFile> sharedFiles) async {
+    final user = FirebaseAuth.instance.currentUser;
+    final userId = user?.uid ??
+        'unknown_user'; // Fallback to 'unknown_user' if no user is logged in
+
     print("Background Task Service: Processing shared files");
     List<String> urls = sharedFiles.map((f) => f.path).toList();
 

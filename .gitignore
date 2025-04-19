@@ -47,8 +47,10 @@ app.*.map.json
 /android/build
 
 # python related
-functions/venv/      
-functions/__pycache__/        
+functions/venv/   
+api/venv/   
+functions/__pycache__/  
+api/__pycache__/      
 *.pyc
 *.pyo
 *.pyd

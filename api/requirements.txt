@@ -1,0 +1,33 @@
+# Core API dependencies
+flask==3.1.0
+flask-cors==4.0.0
+flask-limiter==3.3.1
+python-dotenv==1.0.0
+asgiref==3.7.2
+
+# TikTok processing dependencies
+TikTokApi==6.2.0
+playwright==1.37.0
+clean-text
+
+# Google Cloud dependencies
+firebase-admin==6.2.0
+google-cloud-logging==3.5.0
+google-cloud-firestore==2.11.1
+google-generativeai==0.3.1
+google-cloud-monitoring==2.17.0
+
+# HTTP and request handling
+requests==2.31.0
+hypercorn==0.14.3
+
+# Async support
+nest-asyncio==1.5.7
+
+# Monitoring and error reporting
+prometheus-client==0.17.1
+google-cloud-error-reporting==1.9.1
+sentry-sdk==1.32.0
+
+# For production deployment caching
+redis==4.6.0
