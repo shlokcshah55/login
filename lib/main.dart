@@ -139,10 +139,6 @@ class _MyAppState extends State<MyApp> {
   // }
 
   Future<void> addFilesToProcess(List<SharedMediaFile> sharedFiles) async {
-    final user = FirebaseAuth.instance.currentUser;
-    final userId = user?.uid ??
-        'unknown_user'; // Fallback to 'unknown_user' if no user is logged in
-
     print("Background Task Service: Processing shared files");
     List<String> urls = sharedFiles.map((f) => f.path).toList();
 
@@ -185,50 +181,6 @@ class _MyAppState extends State<MyApp> {
       }
     }
   }
-
-  // Future<void> addFilesToProcess(List<SharedMediaFile> sharedFiles) async {
-  //   print("Background Task Service: Processing shared files");
-  //   List<String> urls = sharedFiles.map((f) => f.path).toList();
-
-  //   // Get current user ID
-  //   final firebaseService = FirebaseService();
-  //   final userId = firebaseService.auth_.currentUser?.uid;
-  //   if (userId == null) {
-  //     log("Error: User not logged in. Cannot process TikTok links.");
-  //     return;
-  //   }
-
-  //   // API endpoint for our service
-  //   //final apiUrl = '${dotenv.env['API_BASE_URL'] ?? 'http://localhost:8080'}/v1/process-tiktok';
-  //   final apiUrl = 'https://tiktok-api-711637650309.europe-west1.run.app';
-  //   for (String url in urls) {
-  //     if (url.contains("tiktok.com")) {
-  //       log("Background Task Service: Processing TikTok link: $url");
-
-  //       try {
-  //         // Send request to API service, which will publish to PubSub
-  //         final response = await http.post(
-  //           Uri.parse(apiUrl),
-  //           headers: <String, String>{
-  //             'Content-Type': 'application/json',
-  //           },
-  //           body: jsonEncode(<String, String>{
-  //             'url': url,
-  //             'userId': userId,
-  //           }),
-  //         );
-
-  //         if (response.statusCode == 200 || response.statusCode == 202) {
-  //           log("TikTok link sent to API successfully: $url");
-  //         } else {
-  //           log("Failed to send TikTok link to API: ${response.body}");
-  //         }
-  //       } catch (e) {
-  //         log("Error sending TikTok link to API: $e");
-  //       }
-  //     }
-  //   }
-  // }
 
   @override
   void dispose() {
@@ -286,12 +238,6 @@ class _MainScreenState extends State<MainScreen> {
               icon: Icon(Icons.notifications, color: Colors.black), label: ''),
           BottomNavigationBarItem(
               icon: Icon(Icons.person, color: Colors.black), label: ''),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.home),
-              label: ''), // Label is optional, theme handles color
-          BottomNavigationBarItem(icon: Icon(Icons.search), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.notifications), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: ''),
         ],
       ),
     );
