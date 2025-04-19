@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:developer';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -24,13 +25,15 @@ import 'package:login/services/location_service.dart';
 import 'package:provider/provider.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:login/permissions/permissions.dart';
+import 'package:http/http.dart' as http;
+import 'package:firebase_auth/firebase_auth.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Permission request might be better handled within DeviceLocationProvider or on first use
   // await requestLocationPermission();
   await LocationModel.initializeCustomMarker();
-  await dotenv.load(); 
+  await dotenv.load();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await NotificationService().initialize();
   await BackgroundTaskService().initialize();
@@ -49,16 +52,21 @@ void main() async {
         // Provider.value(value: locationService),
 
         // Provide the new ChangeNotifiers, injecting services
-        ChangeNotifierProvider(create: (_) => UserDataProvider(firebaseService)),
-        ChangeNotifierProvider(create: (_) => LocationListManager(firebaseService, googlePlacesService)),
-        ChangeNotifierProvider(create: (_) => MapStateProvider()), // No service dependencies currently
-        ChangeNotifierProvider(create: (_) => DeviceLocationProvider(locationService)),
+        ChangeNotifierProvider(
+            create: (_) => UserDataProvider(firebaseService)),
+        ChangeNotifierProvider(
+            create: (_) =>
+                LocationListManager(firebaseService, googlePlacesService)),
+        ChangeNotifierProvider(
+            create: (_) =>
+                MapStateProvider()), // No service dependencies currently
+        ChangeNotifierProvider(
+            create: (_) => DeviceLocationProvider(locationService)),
       ],
       child: MyApp(),
     ),
   );
 }
-
 
 class MyApp extends StatefulWidget {
   @override
@@ -88,40 +96,88 @@ class _MyAppState extends State<MyApp> {
     });
 
     // Get the media sharing coming from outside the app while the app is closed.
-    ReceiveSharingIntent.instance.getInitialMedia().then((List<SharedMediaFile> value) {
+    ReceiveSharingIntent.instance
+        .getInitialMedia()
+        .then((List<SharedMediaFile> value) {
       setState(() {
         _sharedFiles.clear();
         _sharedFiles.addAll(value);
 
         print("found shared files when app was closed: ${_sharedFiles.length}");
-        print("files: ${_sharedFiles.map((f) => (f.message, f.mimeType, f.path))}");
-        
+        print("files: ${_sharedFiles.map((f) => (
+              f.message,
+              f.mimeType,
+              f.path
+            ))}");
+
         addFilesToProcess(_sharedFiles);
 
         // Tell the library that we are done processing the intent.
         ReceiveSharingIntent.instance.reset();
       });
-    }); 
+    });
   }
 
+  // Future<void> addFilesToProcess(List<SharedMediaFile> sharedFiles) async {
+
+  //   print("Background Task Service: Processing shared files");
+  //   List<String> urls = sharedFiles.map((f) => f.path).toList();
+  //   FirebaseFirestore db = FirebaseFirestore.instance;
+
+  //   for (String url in urls) {
+  //     if (url.contains("tiktok.com")) {
+  //       print("Background Task Service: Processing TikTok link: $url");
+  //       await db.collection('incoming_tiktok_links').add({
+  //         'url': url,
+  //         'timestamp': FieldValue.serverTimestamp(),
+  //       });
+  //       print("TikTok link stored successfully: $url");
+  //     }
+  //   }
+
+  // }
+
   Future<void> addFilesToProcess(List<SharedMediaFile> sharedFiles) async {
+    final user = FirebaseAuth.instance.currentUser;
+    final userId = user?.uid ??
+        'unknown_user'; // Fallback to 'unknown_user' if no user is logged in
+
     print("Background Task Service: Processing shared files");
     List<String> urls = sharedFiles.map((f) => f.path).toList();
-    FirebaseFirestore db = FirebaseFirestore.instance;
 
     for (String url in urls) {
       if (url.contains("tiktok.com")) {
         print("Background Task Service: Processing TikTok link: $url");
-        await db.collection('incoming_tiktok_links').add({
+
+        // Prepare the payload
+        final payload = {
           'url': url,
-          'timestamp': FieldValue.serverTimestamp(),
-        });
-        print("TikTok link stored successfully: $url");
+          'userId': 'user123', // Replace with the actual user ID if available
+        };
+
+        try {
+          // Send the POST request
+          final response = await http.post(
+            Uri.parse(
+                'https://process-tiktok-711637650309.europe-west1.run.app/v1/publish'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(payload),
+          );
+
+          // Check the response status
+          if (response.statusCode == 200) {
+            print("TikTok link processed successfully: $url");
+          } else {
+            print(
+                "Failed to process TikTok link: $url. Status code: ${response.statusCode}");
+            print("Response body: ${response.body}");
+          }
+        } catch (e) {
+          print("Error while processing TikTok link: $url. Error: $e");
+        }
       }
     }
-
   }
-
 
   @override
   void dispose() {
@@ -140,9 +196,7 @@ class _MyAppState extends State<MyApp> {
   }
 }
 
-
 class MainScreen extends StatefulWidget {
-
   const MainScreen({Key? key}) : super(key: key);
 
   @override
@@ -153,15 +207,14 @@ class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
   final List<Widget> _pages = [
-        const HomePage(),
-        const Center(child: Text('Search')),
-        const Center(child: Text('Notifications')),
-        ProfilePage(),
-      ];
+    const HomePage(),
+    const Center(child: Text('Search')),
+    const Center(child: Text('Notifications')),
+    ProfilePage(),
+  ];
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       body: _pages[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
@@ -173,10 +226,14 @@ class _MainScreenState extends State<MainScreen> {
           });
         },
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home, color: Colors.black), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.search, color: Colors.black), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.notifications, color: Colors.black), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.person, color: Colors.black), label: ''),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.home, color: Colors.black), label: ''),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.search, color: Colors.black), label: ''),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.notifications, color: Colors.black), label: ''),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.person, color: Colors.black), label: ''),
         ],
       ),
     );

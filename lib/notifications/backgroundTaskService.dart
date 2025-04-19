@@ -9,6 +9,25 @@ import 'package:login/notifications/notificationService.dart';
 import 'package:login/services/firebase_service.dart';
 
 
+@pragma('vm:entry-point')
+void callbackDispatcher() {
+  Workmanager().executeTask((task, inputData) async {
+    try {
+      switch (task) {
+        case 'LocationChecker':
+          await BackgroundTaskService._handleLocationTask();
+          break;
+        default:
+          print('Background Task service: Unknown task: $task');
+      }
+    } catch (e) {
+      print('Error in background task: $e');
+      return Future.value(false);
+    }
+    return Future.value(true);
+  });
+}
+
 class BackgroundTaskService {
   static final BackgroundTaskService _instance = BackgroundTaskService._internal();
   static final FirebaseService _firebaseService = FirebaseService();
@@ -32,28 +51,6 @@ class BackgroundTaskService {
       'LocationChecker',
       frequency: const Duration(minutes: 15),
     );
-  }
-
-  @pragma('vm:entry-point') 
-  static void callbackDispatcher() {
-    Workmanager().executeTask((task, inputData) async {
-      try {
-        switch (task) {
-          case 'LocationChecker':
-            await _handleLocationTask();
-            break;
-          // case 'ProcessTikTokShare':
-          //   await _handleTikTokProcessing();
-          //   break;
-          default:
-            print('Background Task service: Unknown task: $task');
-        }
-      } catch (e) {
-        print('Error in background task: $e');
-        return Future.value(false);
-      }
-      return Future.value(true);
-    });
   }
 
   /// Processes location-based notifications
@@ -108,8 +105,6 @@ class BackgroundTaskService {
         log("TikTok link stored successfully: $url");
       }
     }
-
-
   }
 }
 
