@@ -1,0 +1,5 @@
+Flask==2.3.2
+Flask-Cors==3.0.10
+Flask-Limiter==2.9.2
+google-cloud-pubsub==2.17.0
+python-dotenv==1.0.0

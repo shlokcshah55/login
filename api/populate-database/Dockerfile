@@ -18,8 +18,13 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt && \
     pip install hypercorn
 
-# Copy the rest of the application
-COPY . .
+# Create directory for credentials (will be mounted at runtime)
+RUN mkdir -p /secrets
+
+# Copy only the application code - NOT credentials
+COPY *.py .
+COPY .env.template .env.template
+COPY utils/ utils/
 
 # Install additional Playwright dependencies (specifically for TikTok-Api)
 RUN playwright install chromium

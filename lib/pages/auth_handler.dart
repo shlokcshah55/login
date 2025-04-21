@@ -35,39 +35,29 @@ class AuthHandler extends StatelessWidget {
             final user = snapshot.data!;
             log("AuthHandler: User logged in: ${user.uid}");
 
-            // Trigger data fetching via UserDataProvider.
-            // LocationListManager will be updated via its own listener or triggered by UserDataProvider if needed.
-            // We pass the userId to both.
-            locationListManager.setUserId(user.uid); // Fetches saved locations internally
+            // Trigger data fetching via UserDataProvider outside of the build method
+            // and LocationListManager operations to avoid setState during build
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              locationListManager.setUserId(user.uid);
+              userDataProvider.setUserIdAndFetchData(user.uid);
+            });
 
-            return FutureBuilder<void>(
-              // Use the future from setUserIdAndFetchData to track loading
-              future: userDataProvider.setUserIdAndFetchData(user.uid),
-              builder: (context, futureSnapshot) {
-                if (futureSnapshot.connectionState == ConnectionState.waiting) {
-                   log("AuthHandler: Fetching user data...");
-                  // Show loading indicator while fetching data
-                  return const Center(child: CircularProgressIndicator());
-                } else if (futureSnapshot.hasError) {
-                  // Handle error during data fetching (e.g., user deleted in backend)
-                  log("AuthHandler: Error fetching user data: ${futureSnapshot.error}");
-                  // Optionally clear data again and redirect
-                  // userDataProvider.clearUserData();
-                  // locationListManager.setUserId(null);
-                  return LoginPage(); // Redirect to LoginPage or show an error screen
-                } else {
-                   log("AuthHandler: User data fetched, showing MainScreen.");
-                  // Data fetched successfully, show the main app screen
-                  return MainScreen();
-                }
-              },
-            );
+            // Check if user data is already loaded
+            if (userDataProvider.isLoading) {
+              return const Center(child: CircularProgressIndicator());
+            } else if (userDataProvider.error != null) {
+              return LoginPage();
+            } else {
+              return MainScreen();
+            }
           } else {
             // User is logged out
             log("AuthHandler: User logged out.");
             // Clear user-specific data in providers
-            userDataProvider.clearUserData();
-            locationListManager.setUserId(null);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              userDataProvider.clearUserData();
+              locationListManager.setUserId(null);
+            });
             return LoginPage();
           }
         },

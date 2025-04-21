@@ -82,15 +82,19 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    log("main init state");
-
+    print("main init state");
     // Listen to media sharing coming from outside the app while the app is in the memory.
     _intentSub = ReceiveSharingIntent.instance.getMediaStream().listen((value) {
       setState(() {
         _sharedFiles.clear();
         _sharedFiles.addAll(value);
-        print("found shared files 1");
+        print("found shared files while app is open");
         print(_sharedFiles.map((f) => f.toMap()));
+
+        // Process files when app is open
+        if (_sharedFiles.isNotEmpty) {
+          addFilesToProcess(_sharedFiles);
+        }
       });
     }, onError: (err) {
       print("getIntentDataStream error: $err");
@@ -141,7 +145,7 @@ class _MyAppState extends State<MyApp> {
   Future<void> addFilesToProcess(List<SharedMediaFile> sharedFiles) async {
     print("Background Task Service: Processing shared files");
     List<String> urls = sharedFiles.map((f) => f.path).toList();
-
+    print("These are the urls, $urls");
     // Get current user ID
     final firebaseService = FirebaseService();
     final userId = firebaseService.auth_.currentUser?.uid;
@@ -151,13 +155,15 @@ class _MyAppState extends State<MyApp> {
     }
 
     // Cloud Run API endpoint for publishing to Pub/Sub
-    final apiUrl = 'https://process-tiktok-711637650309.europe-west1.run.app';
+    final apiUrl =
+        'https://process-tiktok-711637650309.europe-west1.run.app/v1/publish';
 
     for (String url in urls) {
       if (url.contains("tiktok.com")) {
         log("Background Task Service: Processing TikTok link: $url");
 
         try {
+          log('get into here');
           // Send request to Cloud Run service, which will publish to PubSub
           final response = await http.post(
             Uri.parse(apiUrl),
@@ -171,6 +177,7 @@ class _MyAppState extends State<MyApp> {
           );
 
           if (response.statusCode == 200 || response.statusCode == 202) {
+            print("Sent tiktok to pubsub");
             log("TikTok link sent to Cloud Run API successfully: $url");
           } else {
             log("Failed to send TikTok link to Cloud Run API: ${response.body}");
