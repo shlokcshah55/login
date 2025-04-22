@@ -31,7 +31,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   bool showSearchOverlay = false;
   final TextEditingController _searchController = TextEditingController();
-  final PageController _pageController = PageController();
+  final PageController _pageController = PageController(viewportFraction: 0.80);
   MarkerId? _lastSelectedMarkerId;
   Timer? _debounce;
 
@@ -125,9 +125,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ],
         ),
         
-        // Carousel positioned above bottom bar
+        // Carousel positioned higher above bottom bar
         Positioned(
-          bottom: 80, // Position above floating navigation bar
+          bottom: 110, // Lift it higher above the floating navigation bar (which has 24px margin)
           left: 0,
           right: 0,
           child: LocationCarousel(
