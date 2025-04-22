@@ -123,25 +123,6 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
-  // Future<void> addFilesToProcess(List<SharedMediaFile> sharedFiles) async {
-
-  //   print("Background Task Service: Processing shared files");
-  //   List<String> urls = sharedFiles.map((f) => f.path).toList();
-  //   FirebaseFirestore db = FirebaseFirestore.instance;
-
-  //   for (String url in urls) {
-  //     if (url.contains("tiktok.com")) {
-  //       print("Background Task Service: Processing TikTok link: $url");
-  //       await db.collection('incoming_tiktok_links').add({
-  //         'url': url,
-  //         'timestamp': FieldValue.serverTimestamp(),
-  //       });
-  //       print("TikTok link stored successfully: $url");
-  //     }
-  //   }
-
-  // }
-
   Future<void> addFilesToProcess(List<SharedMediaFile> sharedFiles) async {
     print("Background Task Service: Processing shared files");
     List<String> urls = sharedFiles.map((f) => f.path).toList();
@@ -227,25 +208,57 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: _pages[_currentIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: Theme.of(context).bottomAppBarTheme.color,
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        // Items now use theme colors defined in bottomNavigationBarTheme
-        items: const [
-          BottomNavigationBarItem(
-              icon: Icon(Icons.home, color: Colors.black), label: ''),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.search, color: Colors.black), label: ''),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.notifications, color: Colors.black), label: ''),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.person, color: Colors.black), label: ''),
-        ],
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        height: 64,
+        margin: const EdgeInsets.symmetric(horizontal: 24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(32),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              spreadRadius: 1,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _buildNavItem(Icons.home, 0),
+            _buildNavItem(Icons.search, 1),
+            _buildNavItem(Icons.notifications, 2),
+            _buildNavItem(Icons.person, 3),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildNavItem(IconData icon, int index) {
+    final isSelected = _currentIndex == index;
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _currentIndex = index;
+        });
+      },
+      borderRadius: BorderRadius.circular(50),
+      child: Container(
+        height: 48,
+        width: 48,
+        decoration: BoxDecoration(
+          color: isSelected ? primaryTeal : Colors.transparent,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Icon(
+          icon,
+          color: isSelected ? Colors.white : Colors.grey[700],
+          size: 24,
+        ),
       ),
     );
   }

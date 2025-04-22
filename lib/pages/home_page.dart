@@ -3,16 +3,17 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart'; // Import for TickerProvider
 import 'package:login/controllers/home_controller.dart';
-// import 'package:login/pages/home/carousel/cards.dart'; // Remove unused GridItemWidget import
 import 'package:login/providers/device_location_provider.dart';
 import 'package:login/providers/location_list_manager.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
+import 'package:login/assets/constants.dart'; // Import for theme colors
 import 'package:login/widgets/LocationCarousel/filter_bar.dart';
-import 'package:login/widgets/LocationCarousel/location_carousel.dart'; // Import the new carousel
+import 'package:login/widgets/LocationCarousel/location_carousel.dart';
 import 'package:login/widgets/pinit_map.dart';
 import 'package:provider/provider.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart'; // Import for MarkerId
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -21,26 +22,24 @@ class HomePage extends StatefulWidget {
   _HomePageState createState() => _HomePageState();
 }
 
-// Add TickerProviderStateMixin for PageController listener debouncing
 class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   late final HomeController homeController_;
-  late final UserDataProvider userDataProvider_; // Add references for new providers if needed directly
+  late final UserDataProvider userDataProvider_;
   late final LocationListManager locationListManager_;
   late final DeviceLocationProvider deviceLocationProvider_;
   late final MapStateProvider mapStateProvider_;
 
   bool showSearchOverlay = false;
   final TextEditingController _searchController = TextEditingController();
-  final PageController _pageController = PageController(); // Controller for the carousel
-  MarkerId? _lastSelectedMarkerId; // Track last selected marker to avoid redundant scrolls
-  Timer? _debounce; // Timer for debouncing marker selection updates
+  final PageController _pageController = PageController();
+  MarkerId? _lastSelectedMarkerId;
+  Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
     log("HomePage initState: Initializing providers and controller.");
 
-    // Use read for initialization
     userDataProvider_ = context.read<UserDataProvider>();
     locationListManager_ = context.read<LocationListManager>();
     deviceLocationProvider_ = context.read<DeviceLocationProvider>();
@@ -56,15 +55,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     homeController_.fetchAndPlotRecommendedPins();
     deviceLocationProvider_.startLocationUpdates();
 
-    // Add listener for MapStateProvider's selectedMarkerId AFTER the first frame
     SchedulerBinding.instance.addPostFrameCallback((_) {
       mapStateProvider_.addListener(_onSelectedMarkerChanged);
-      // Initialize last selected marker ID
       _lastSelectedMarkerId = mapStateProvider_.selectedMarkerId;
     });
   }
 
-  // Listener method to scroll carousel when selected marker changes
   void _onSelectedMarkerChanged() {
     final newSelectedMarkerId = mapStateProvider_.selectedMarkerId;
     if (newSelectedMarkerId != _lastSelectedMarkerId) {
@@ -72,7 +68,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
       // Debounce the scroll action
       if (_debounce?.isActive ?? false) _debounce!.cancel();
-      _debounce = Timer(const Duration(milliseconds: 100), () { // Adjust delay as needed
+      _debounce = Timer(const Duration(milliseconds: 100), () {
         if (mounted && newSelectedMarkerId != null) {
           final locations = locationListManager_.currentItems.keys.toList();
           final index = locations.indexWhere((loc) => loc.id == newSelectedMarkerId.value);
@@ -94,17 +90,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void dispose() {
     log("HomePage dispose: Stopping location updates and disposing controllers.");
     deviceLocationProvider_.stopLocationUpdates();
-    mapStateProvider_.removeListener(_onSelectedMarkerChanged); // Remove listener
-    _pageController.dispose(); // Dispose PageController
+    mapStateProvider_.removeListener(_onSelectedMarkerChanged);
+    _pageController.dispose();
     _searchController.dispose();
-    _debounce?.cancel(); // Cancel any pending debounce timer
+    _debounce?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // Watch LocationListManager to get locations for the carousel
     final locations = context.watch<LocationListManager>().currentItems.keys.toList();
 
     return Stack(
@@ -112,11 +107,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         // Main UI
         Column(
           children: [
-            _buildHeader(theme),
+            _buildSearchBar(theme), // New search bar replacing header
             FilterBar(
-              // Provide the current type from the manager
               currentListType: locationListManager_.currentListType,
-              // Pass the manager's method directly as the callback
               onListTypeChanged: locationListManager_.setCurrentListType,
             ),
             Expanded(
@@ -126,25 +119,104 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     child: CustomGoogleMap(),
                   ),
                   _buildMagicSearchButton(theme),
-                  // Add the LocationCarousel
-                  LocationCarousel(
-                    pageController: _pageController,
-                    locations: locations,
-                  ),
                 ],
               ),
             ),
           ],
         ),
+        
+        // Carousel positioned above bottom bar
+        Positioned(
+          bottom: 80, // Position above floating navigation bar
+          left: 0,
+          right: 0,
+          child: LocationCarousel(
+            pageController: _pageController,
+            locations: locations,
+          ),
+        ),
+        
         // Search Overlay
         if (showSearchOverlay) _buildSearchOverlay(theme),
       ],
     );
   }
 
+  Widget _buildSearchBar(ThemeData theme) {
+    return Container(
+      padding: EdgeInsets.only(
+        top: MediaQuery.of(context).padding.top + 16.0,
+        bottom: 16.0,
+        left: 16.0,
+        right: 16.0,
+      ),
+      color: theme.scaffoldBackgroundColor,
+      child: Container(
+        height: 50,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(25),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 5,
+              spreadRadius: 1,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            const SizedBox(width: 16),
+            Icon(
+              Icons.search,
+              color: Colors.grey[600],
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                onTap: () {
+                  setState(() {
+                    showSearchOverlay = true;
+                  });
+                },
+                decoration: InputDecoration(
+                  hintText: "Search locations...",
+                  hintStyle: GoogleFonts.poppins(
+                    color: Colors.grey[500],
+                    fontSize: 14,
+                  ),
+                  border: InputBorder.none,
+                ),
+                readOnly: true, // Make it non-editable to show search overlay instead
+              ),
+            ),
+            Container(
+              margin: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: primaryTeal,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: IconButton(
+                icon: const Icon(
+                  Icons.filter_list,
+                  size: 20,
+                  color: Colors.white,
+                ),
+                onPressed: () {
+                  // Show filter options
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildMagicSearchButton(ThemeData theme) {
     return Positioned(
-      top: 16.0, // Below the header
+      top: 16.0,
       right: 16.0,
       child: FloatingActionButton(
         heroTag: "magicButton",
@@ -153,72 +225,20 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             showSearchOverlay = true;
           });
         },
-        backgroundColor: theme.floatingActionButtonTheme.backgroundColor, 
-        child: Icon(
-          Icons.auto_awesome, // Magic icon
+        backgroundColor: accentCoral, // Using your app's accent color
+        child: const Icon(
+          Icons.auto_awesome,
           size: 28.0,
-          color: theme.floatingActionButtonTheme.foregroundColor, 
+          color: Colors.white,
         ),
       ),
     );
   }
 
-  Widget _buildHeader(ThemeData theme) {
-    return Container(
-      color: theme.scaffoldBackgroundColor, // Use theme background color
-      padding: EdgeInsets.only(
-        top: MediaQuery.of(context).padding.top + 16.0,
-        bottom: 16.0,
-        left: 16.0,
-        right: 16.0,
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Welcome Back!',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              // Use UserDataProvider to get user name, listen for changes
-              Consumer<UserDataProvider>(
-                builder: (context, userProvider, child) {
-                  return Text(
-                    userProvider.userData?["name"] ?? "User", // Access name safely
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
-                    ),
-                  );
-                }
-              ),
-            ],
-          ),
-          IconButton(
-            onPressed: () {
-              // Handle pin action
-            },
-            icon: Icon(
-              Icons.push_pin,
-              size: 28,
-              color: theme.textTheme.bodyLarge?.color, // Use theme text color
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-
   Widget _buildSearchOverlay(ThemeData theme) {
-    // Use read here as it's triggered by user action (setState)
     final locationListManagerReader = context.read<LocationListManager>();
     return GestureDetector(
       onTap: () {
-        // Close the overlay when tapping outside the search area
         setState(() {
           showSearchOverlay = false;
         });
@@ -238,7 +258,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               height: 200,
               padding: const EdgeInsets.all(16.0),
               decoration: BoxDecoration(
-                color: theme.cardTheme.color, // Use theme card color
+                color: theme.cardTheme.color,
                 borderRadius: BorderRadius.circular(25),
                 boxShadow: const [
                   BoxShadow(
@@ -283,17 +303,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           String query = _searchController.text.trim();
                           if (query.isNotEmpty) {
                             log("HomePage: Triggering magic search for: $query");
-                            // Use the reader instance for magic search
                             locationListManagerReader.magicSearch(query);
-                            // Close overlay
                             setState(() {
                               showSearchOverlay = false;
                             });
-                            _searchController.clear(); // Clear field after search
+                            _searchController.clear();
                           }
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: theme.primaryColor, // Use theme primary color
+                          backgroundColor: primaryTeal,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(20),
                           ),
@@ -304,9 +322,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         ),
                         child: Text(
                           "Enter",
-                          style: TextStyle(
+                          style: GoogleFonts.poppins(
                             fontSize: 14.0,
-                            color: theme.textTheme.bodyMedium?.color, // Use theme text color
+                            color: Colors.white,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -317,9 +335,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   // Tags Label
                   Text(
                     "Popular Cuisines",
-                    style: theme.textTheme.titleMedium?.copyWith(
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
-                    ), // Use theme text color
+                      color: textDarkGrey,
+                    ),
                   ),
                   const SizedBox(height: 10),
                   // Scrollable Tags
@@ -347,20 +367,21 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  // Helper Method to Create a Tag
   Widget _buildTag(String label, ThemeData theme) {
     return Container(
       margin: const EdgeInsets.only(right: 12.0),
       padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
       decoration: BoxDecoration(
-        color: theme.cardTheme.color?.withOpacity(0.8), // Use theme card color
+        color: primaryTeal.withOpacity(0.1),
+        border: Border.all(color: primaryTeal.withOpacity(0.3)),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         label,
-        style: theme.textTheme.bodyMedium?.copyWith(
+        style: GoogleFonts.poppins(
           fontWeight: FontWeight.w500,
-        ), // Use theme text color
+          color: primaryTeal,
+        ),
       ),
     );
   }
