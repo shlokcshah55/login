@@ -54,6 +54,7 @@ dependencies:
   flutter_local_notifications: ^18.0.1
   receive_sharing_intent: ^1.8.1
   google_fonts: ^4.0.4
+  supabase_flutter: ^2.9.0
 dev_dependencies:
   workmanager:
     git:

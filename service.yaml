@@ -1,0 +1,58 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  annotations:
+    run.googleapis.com/build-enable-automatic-updates: "false"
+    run.googleapis.com/build-id: 6c29306f-39e8-47ac-8ad5-a0ffff0b1f99
+    run.googleapis.com/build-image-uri: europe-west1-docker.pkg.dev/pinit-10b36/cloud-run-source-deploy/tiktok-api
+    run.googleapis.com/build-name: projects/711637650309/locations/europe-west1/builds/6c29306f-39e8-47ac-8ad5-a0ffff0b1f99
+    run.googleapis.com/build-source-location: gs://run-sources-pinit-10b36-europe-west1/services/tiktok-api/1745163660.949358-675544fd88cb44c39861e74ba401cc1f.zip#1745163661088309
+    run.googleapis.com/ingress: all
+    run.googleapis.com/ingress-status: all
+    run.googleapis.com/launch-stage: BETA
+    run.googleapis.com/manualInstanceCount: "0"
+    run.googleapis.com/scalingMode: manual
+    run.googleapis.com/urls: '["https://tiktok-api-711637650309.europe-west1.run.app","https://tiktok-api-lqmy33nkaa-ew.a.run.app"]'
+  labels:
+    cloud.googleapis.com/location: europe-west1
+  name: tiktok-api
+  namespace: "711637650309"
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/maxScale: "3"
+        run.googleapis.com/client-name: gcloud
+        run.googleapis.com/client-version: 518.0.0
+        run.googleapis.com/startup-cpu-boost: "true"
+        run.googleapis.com/maxRetries: "0"
+      labels:
+        client.knative.dev/nonce: enevtzqovp
+        run.googleapis.com/startupProbeType: Default
+    spec:
+      containerConcurrency: 80
+      containers:
+        - env:
+            - name: ENVIRONMENT
+              value: production
+            - name: DEBUG
+              value: "false"
+          image: gcr.io/pinit-10b36/tiktok-api
+          ports:
+            - containerPort: 8080
+              name: http1
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          startupProbe:
+            failureThreshold: 1
+            periodSeconds: 240
+            tcpSocket:
+              port: 8080
+            timeoutSeconds: 240
+      serviceAccountName: 711637650309-compute@developer.gserviceaccount.com
+      timeoutSeconds: 300
+  traffic:
+    - latestRevision: true
+      percent: 100

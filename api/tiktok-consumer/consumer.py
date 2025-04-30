@@ -72,6 +72,7 @@ def consume_pubsub_message():
             "url": data["url"],
             "userId": data["userId"],
         }
+        logging.info(f"Forwarding message to target API: {payload}")
 
         # Include optional documentId if present
         if "documentId" in data:
@@ -84,7 +85,7 @@ def consume_pubsub_message():
                 json=payload,
                 timeout=30  # 30-second timeout
             )
-
+            logging.info(f"Response from target API: {response.status_code} - {response.text}")
             # Check if the request was successful
             response.raise_for_status()
 

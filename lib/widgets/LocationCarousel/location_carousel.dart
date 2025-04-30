@@ -88,21 +88,7 @@ class LocationCarousel extends StatelessWidget {
       onTap: () {
         log("Tapped card for: ${location.name} (ID: ${location.id})");
         mapState.setSelectedMarkerId(MarkerId(location.id));
-        if (location.position != null) {
-          mapState.animateCamera(
-            CameraUpdate.newLatLngZoom(location.position!, 15.5),
-          );
-        }
-        int index = locations.indexWhere((loc) => loc.id == location.id);
-        if (index != -1 &&
-            pageController.hasClients &&
-            pageController.page?.round() != index) {
-          pageController.animateToPage(
-            index,
-            duration: const Duration(milliseconds: 400),
-            curve: Curves.easeInOut,
-          );
-        }
+   
       },
       child: Card(
         clipBehavior: Clip.antiAlias,
