@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/user_model.dart';
 import '../services/supabase_auth_service.dart';
+import '../supabase_client.dart';
 
 /// Repository for user-related operations
 class UserRepository {
@@ -96,4 +97,47 @@ class UserRepository {
 
   /// Get auth state changes stream
   Stream<AuthState> get onAuthStateChange => _authService.onAuthStateChange;
+  
+  /// Get user profile data
+  Future<UserModel?> getUserProfile() async {
+    try {
+      final user = _authService.currentUser;
+      if (user == null) return null;
+      
+      final response = await SupabaseClientManager().client
+          .from('users')
+          .select()
+          .eq('supabase_id', user.id)
+          .single();
+      
+      return UserModel.fromJson(response);
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in UserRepository.getUserProfile: $e');
+      }
+      return null;
+    }
+  }
+  
+  /// Update user profile data
+  Future<UserModel?> updateUserProfile(Map<String, dynamic> userData) async {
+    try {
+      final user = _authService.currentUser;
+      if (user == null) return null;
+      
+      final response = await SupabaseClientManager().client
+          .from('users')
+          .update(userData)
+          .eq('supabase_id', user.id)
+          .select()
+          .single();
+      
+      return UserModel.fromJson(response);
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in UserRepository.updateUserProfile: $e');
+      }
+      return null;
+    }
+  }
 }

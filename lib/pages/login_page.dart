@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../widgets/my_text_widget.dart';
 import '../services/firebase_service.dart';
+import '../supabase_flutter/supabase_provider.dart';
 
 
 class LoginPage extends StatelessWidget {
@@ -9,13 +11,29 @@ class LoginPage extends StatelessWidget {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   final ValueNotifier<bool> signInFailedNotifier = ValueNotifier<bool>(false);
+  
+  // Keep Firebase service for now during migration
   final FirebaseService firebaseService = FirebaseService();
 
-  Future<void> signInUser(String userEmail, String userPassword) async {
+  Future<void> signInUser(BuildContext context, String userEmail, String userPassword) async {
     try {
-      // Simulate a sign-in attempt
-      bool signInSuccess = await firebaseService.attemptSignIn(email: userEmail, password: userPassword);
-      signInFailedNotifier.value = !signInSuccess;
+      // Get Supabase provider
+      final supabaseProvider = Provider.of<SupabaseProvider>(context, listen: false);
+      
+      // Attempt sign in with Supabase
+      bool supabaseSignInSuccess = await supabaseProvider.signIn(userEmail, userPassword);
+      
+      if (supabaseSignInSuccess) {
+        // Supabase sign-in successful
+        signInFailedNotifier.value = false;
+      } else {
+        // Fall back to Firebase during migration
+        bool firebaseSignInSuccess = await firebaseService.attemptSignIn(
+          email: userEmail, 
+          password: userPassword
+        );
+        signInFailedNotifier.value = !firebaseSignInSuccess;
+      }
     } catch (e) {
       signInFailedNotifier.value = true;
     }
@@ -83,22 +101,26 @@ class LoginPage extends StatelessWidget {
   }
 
   Widget buildLoginButton() {
-    return GestureDetector(
-      onTap: () => signInUser(emailController.text, passwordController.text),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Color.fromARGB(255, 68, 66, 65),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-        child: const Text(
-          "Sign in",
-          style: TextStyle(
-            fontSize: 20,
-            color: Colors.white,
+    return Builder(
+      builder: (context) {
+        return GestureDetector(
+          onTap: () => signInUser(context, emailController.text, passwordController.text),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Color.fromARGB(255, 68, 66, 65),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+            child: const Text(
+              "Sign in",
+              style: TextStyle(
+                fontSize: 20,
+                color: Colors.white,
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      }
     );
   }
 }

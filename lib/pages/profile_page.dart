@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:login/providers/location_list_manager.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:login/services/firebase_service.dart';
+import 'package:login/supabase_flutter/supabase_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:login/assets/constants.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -11,13 +12,31 @@ class ProfilePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final userDataProvider = Provider.of<UserDataProvider>(context);
     final locationListManager = Provider.of<LocationListManager>(context);
+    final supabaseProvider = Provider.of<SupabaseProvider>(context, listen: false);
 
-    // Extract user data from userDataProvider
-    final username = userDataProvider.userData!['username'] ?? "Trollmaster";
-    final bio = userDataProvider.userData!['bio'] ?? "Tell us more about you! Tap the dot menu to edit your profile 😊";
-    final fullName = userDataProvider.userData!['fullname'] ?? "No Name";
-    final tags = userDataProvider.userData!['tags'] ?? ["Restaurant", "Sightseeing", "Café"];
-    final locations = userDataProvider.userData!['locations'] ?? [
+    // Try to get user data from Supabase first
+    String username, fullName, bio;
+    
+    if (userDataProvider.supabaseUserData != null) {
+      // Use Supabase data
+      username = userDataProvider.supabaseUserData!.name ?? "Pinit User";
+      fullName = userDataProvider.supabaseUserData!.name ?? "No Name";
+      bio = "Pinit User"; // Not directly available in Supabase model
+    } else if (userDataProvider.userData != null) {
+      // Fall back to Firebase data
+      username = userDataProvider.userData!['username'] ?? "Trollmaster";
+      bio = userDataProvider.userData!['bio'] ?? "Tell us more about you! Tap the dot menu to edit your profile 😊";
+      fullName = userDataProvider.userData!['fullname'] ?? "No Name";
+    } else {
+      // Default values if no data is available
+      username = "Pinit User";
+      bio = "Tell us more about you! Tap the dot menu to edit your profile 😊";
+      fullName = "No Name";
+    }
+    
+    // These could be fetched from Supabase in the future
+    final tags = userDataProvider.userData?['tags'] ?? ["Restaurant", "Sightseeing", "Café"];
+    final locations = userDataProvider.userData?['locations'] ?? [
       {"name": "London", "pins": 2, "image": "lib/assets/pinitLogo.png"},
       {"name": "Brighton", "pins": 1, "image": "lib/assets/pinitLogo.png"},
     ];

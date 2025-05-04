@@ -9,7 +9,9 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:login/assets/constants.dart';
 import 'package:login/firebase_options.dart';
-import 'package:login/models/location_model.dart';
+import 'package:login/supabase_flutter/models/location_model.dart';
+import 'package:login/supabase_flutter/supabase_client.dart';
+import 'package:login/supabase_flutter/supabase_provider.dart';
 import 'package:login/notifications/notificationService.dart';
 import 'package:login/notifications/backgroundTaskService.dart';
 import 'package:login/pages/auth_handler.dart';
@@ -35,7 +37,13 @@ void main() async {
   // await requestLocationPermission();
   await LocationModel.initializeCustomMarker();
   await dotenv.load();
+  
+  // Initialize Firebase
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  
+  // Initialize Supabase
+  await SupabaseClientManager.initialize();
+  
   await NotificationService().initialize();
   await BackgroundTaskService().initialize();
 
@@ -44,32 +52,35 @@ void main() async {
   final googlePlacesService = GooglePlacesService();
   final locationService = LocationService();
 
+  // Initialize Supabase Provider
+  final supabaseProvider = SupabaseProvider();
+  await supabaseProvider.initialize();
+
   runApp(
     MultiProvider(
       providers: [
-        // Provide the services themselves if needed directly by widgets (less common)
-        // Provider.value(value: firebaseService),
-        // Provider.value(value: googlePlacesService),
-        // Provider.value(value: locationService),
-
-        // Provide the new ChangeNotifiers, injecting services
+        // Supabase Provider
+        ChangeNotifierProvider.value(value: supabaseProvider),
+        
+        // Legacy Firebase providers for gradual migration
         ChangeNotifierProvider(
             create: (_) => UserDataProvider(firebaseService)),
         ChangeNotifierProvider(
             create: (_) =>
                 LocationListManager(firebaseService, googlePlacesService)),
         ChangeNotifierProvider(
-            create: (_) =>
-                MapStateProvider()), // No service dependencies currently
+            create: (_) => MapStateProvider()),
         ChangeNotifierProvider(
             create: (_) => DeviceLocationProvider(locationService)),
       ],
-      child: MyApp(),
+      child: const MyApp(),
     ),
   );
 }
 
 class MyApp extends StatefulWidget {
+  const MyApp({Key? key}) : super(key: key);
+  
   @override
   _MyAppState createState() => _MyAppState();
 }

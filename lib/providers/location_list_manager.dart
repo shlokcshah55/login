@@ -4,13 +4,19 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:login/supabase_flutter/models/location_model.dart';
 import 'package:login/services/firebase_service.dart';
 import 'package:login/services/google_place_service.dart';
+import 'package:login/supabase_flutter/repositories/location_repository.dart';
 
 // Enum to represent the different types of location lists
 enum LocationListType { saved, recommended, search }
 
 class LocationListManager with ChangeNotifier {
+  // Keep Firebase service for backward compatibility
   final FirebaseService _firebaseService;
   final GooglePlacesService _googlePlacesService;
+  
+  // Add Supabase repository
+  final LocationRepository _locationRepository = LocationRepository();
+  
   String? _userId; // Needed for saving/fetching user-specific data
 
   LocationListManager(this._firebaseService, this._googlePlacesService);
@@ -63,18 +69,32 @@ class LocationListManager with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Fetches saved locations from Firebase
+  /// Fetches saved locations from Supabase and falls back to Firebase if needed
   Future<void> fetchSavedLocations() async {
     if (_userId == null) {
       log("Cannot fetch saved locations: userId is null.");
       return;
     }
+    
     try {
-      List<LocationModel> savedLocModels = await _firebaseService.getSavedLocations(); // Assumes getSavedLocations uses the logged-in user context internally
-      _savedLocations = {
-        for (var location in savedLocModels) location: location.toMarker()
-      };
-      log("Fetched ${savedLocModels.length} saved locations.");
+      // Try Supabase first
+      List<LocationModel> supabaseSavedLocations = await _locationRepository.getSavedLocations();
+      
+      if (supabaseSavedLocations.isNotEmpty) {
+        // Use Supabase data if available
+        _savedLocations = {
+          for (var location in supabaseSavedLocations) location: location.toMarker()
+        };
+        log("Fetched ${supabaseSavedLocations.length} saved locations from Supabase.");
+      } else {
+        // Fall back to Firebase during migration
+        List<LocationModel> firebaseSavedLocations = await _firebaseService.getSavedLocations();
+        _savedLocations = {
+          for (var location in firebaseSavedLocations) location: location.toMarker()
+        };
+        log("Fetched ${firebaseSavedLocations.length} saved locations from Firebase.");
+      }
+      
       // If the current type is saved, update currentItems
       if (_currentListType == LocationListType.saved) {
         _currentItems = _savedLocations;
@@ -82,28 +102,74 @@ class LocationListManager with ChangeNotifier {
       notifyListeners();
     } catch (e) {
       log('Error fetching saved locations: $e');
-      // Handle error appropriately
+      // Attempt to fetch from Firebase as a fallback
+      try {
+        List<LocationModel> firebaseSavedLocations = await _firebaseService.getSavedLocations();
+        _savedLocations = {
+          for (var location in firebaseSavedLocations) location: location.toMarker()
+        };
+        if (_currentListType == LocationListType.saved) {
+          _currentItems = _savedLocations;
+        }
+        notifyListeners();
+        log("Fallback: Fetched ${firebaseSavedLocations.length} saved locations from Firebase.");
+      } catch (fallbackError) {
+        log('Error in Firebase fallback: $fallbackError');
+      }
     }
   }
 
-   /// Fetches recommended locations (example implementation)
+   /// Fetches recommended locations from Supabase and falls back to Google Places API
   Future<void> fetchRecommendedLocations({required double latitude, required double longitude}) async {
-     try {
+    try {
+      // Try getting nearby locations from Supabase first
+      List<LocationModel> nearbyLocations = await _locationRepository.getLocationsNearby(
+        latitude,
+        longitude,
+        radiusMeters: 5000, // 5km radius
+      );
+      
+      if (nearbyLocations.isNotEmpty) {
+        // Use Supabase data if available
+        _recommendedLocations = {
+          for (var location in nearbyLocations) location: location.toMarker()
+        };
+        log("Fetched ${nearbyLocations.length} nearby locations from Supabase.");
+      } else {
+        // Fall back to Google Places API during migration
         var recommendations = await _googlePlacesService.fetchNearbyPlaces(
-          latitude: latitude, // Example coordinates
+          latitude: latitude,
           longitude: longitude,
           placeType: "restaurant",
         );
         _recommendedLocations = {
           for (var location in recommendations) location: location.toMarker()
         };
-         log("Fetched ${recommendations.length} recommended locations.");
-        // Optionally set as current list
-        // setCurrentListType(LocationListType.recommended);
+        log("Fetched ${recommendations.length} recommended locations from Google Places.");
+      }
+      
+      // Optionally set as current list
+      // setCurrentListType(LocationListType.recommended);
+      notifyListeners();
+    } catch (e) {
+      log('Error fetching recommended locations from Supabase: $e');
+      
+      // Fall back to Google Places API
+      try {
+        var recommendations = await _googlePlacesService.fetchNearbyPlaces(
+          latitude: latitude,
+          longitude: longitude,
+          placeType: "restaurant",
+        );
+        _recommendedLocations = {
+          for (var location in recommendations) location: location.toMarker()
+        };
+        log("Fallback: Fetched ${recommendations.length} recommended locations from Google Places.");
         notifyListeners();
-     } catch (e) {
-        log('Error fetching recommended locations: $e');
-     }
+      } catch (fallbackError) {
+        log('Error in Google Places fallback: $fallbackError');
+      }
+    }
   }
 
 
@@ -119,70 +185,106 @@ class LocationListManager with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Removes a location from the appropriate list and Firebase if saved
-  void removeLocation(LocationModel location) {
-     bool removed = false;
+  /// Removes a location from the appropriate list and from Supabase/Firebase
+  Future<void> removeLocation(LocationModel location) async {
+    bool removed = false;
+    int locationId = location.locationId;
+    
     // Determine which list based on the current list type for UI consistency
     if (_currentListType == LocationListType.saved) {
-       if (_savedLocations.containsKey(location)) {
-         _savedLocations.remove(location);
-         _firebaseService.removeSavedLocation(location.locationId.toString()); // Assumes uses logged-in user context
-         removed = true;
-         log("Removed saved location: ${location.name}");
-       }
+      if (_savedLocations.containsKey(location)) {
+        _savedLocations.remove(location);
+        
+        // Try to remove from Supabase first
+        bool supabaseSuccess = await _locationRepository.unsaveLocation(locationId);
+        
+        if (!supabaseSuccess) {
+          // Fall back to Firebase
+          _firebaseService.removeSavedLocation(locationId.toString());
+        }
+        
+        removed = true;
+        log("Removed saved location: ${location.name}");
+      }
     }
+    
     if (_currentListType == LocationListType.recommended) {
-       if (_recommendedLocations.containsKey(location)) {
-         _recommendedLocations.remove(location);
-         removed = true;
-          log("Removed recommended location: ${location.name}");
-       }
+      if (_recommendedLocations.containsKey(location)) {
+        _recommendedLocations.remove(location);
+        removed = true;
+        log("Removed recommended location: ${location.name}");
+      }
     }
-     if (_currentListType == LocationListType.search) {
-       if (_searchLocations.containsKey(location)) {
-         _searchLocations.remove(location);
-         removed = true;
-          log("Removed search location: ${location.name}");
-       }
+    
+    if (_currentListType == LocationListType.search) {
+      if (_searchLocations.containsKey(location)) {
+        _searchLocations.remove(location);
+        removed = true;
+        log("Removed search location: ${location.name}");
+      }
     }
 
     // Update currentItems if the removed item was in the currently displayed list
     if (removed && _currentItems.containsKey(location)) {
-        _currentItems.remove(location);
+      _currentItems.remove(location);
     }
 
     notifyListeners();
   }
 
-  /// Saves a location to Firebase and adds it to the local saved state
-  void saveLocation(LocationModel location) {
+  /// Saves a location to Supabase/Firebase and adds it to the local saved state
+  Future<void> saveLocation(LocationModel location) async {
     if (_userId == null) {
       log("Cannot save location: userId is null.");
       return; // Or handle appropriately, maybe prompt login
     }
     
-    _firebaseService.storeLocation(location); // Assumes uses logged-in user context
+    // Add location to local state
     _savedLocations.putIfAbsent(location, () => location.toMarker());
-    log("Saved location: ${location.name}");
-
+    
+    // Try to save in Supabase first
+    try {
+      bool supabaseSuccess = await _locationRepository.saveLocation(
+        location.locationId, 
+        savedMethod: 'in-app'
+      );
+      
+      if (supabaseSuccess) {
+        log("Saved location to Supabase: ${location.name}");
+      } else {
+        // Fall back to Firebase if Supabase fails
+        _firebaseService.storeLocation(location);
+        log("Saved location to Firebase: ${location.name}");
+      }
+    } catch (e) {
+      // Fall back to Firebase if Supabase throws an error
+      _firebaseService.storeLocation(location);
+      log("Exception with Supabase, saved to Firebase: ${location.name}");
+    }
+    
     // If the user is currently viewing saved locations, update the view
     if (_currentListType == LocationListType.saved) {
       _currentItems = _savedLocations;
     }
+    
     // Optionally remove from recommended/search if it was there
-     _recommendedLocations.remove(location);
-     _searchLocations.remove(location);
+    _recommendedLocations.remove(location);
+    _searchLocations.remove(location);
 
     notifyListeners();
   }
 
-  /// Handles the magic search feature
+  /// Handles the magic search feature - could be enhanced with Supabase PostgreSQL full-text search
   Future<void> magicSearch(String query) async {
-     if (_userId == null) {
+    if (_userId == null) {
       log("Cannot perform magic search: userId is null.");
       return;
     }
-    // TODO: Update endpoint URL if necessary
+    
+    // TODO: Implement Supabase full-text search for locations
+    // This would use the Supabase PostgreSQL full-text search capabilities
+    // For now, we'll continue to use the existing search service
+    
     final url = 'https://search-places-endpoint-lqmy33nkaa-nw.a.run.app?query=$query';
     try {
       var searchModels = await _googlePlacesService.handleMagicSearchQuery(url);
@@ -192,11 +294,45 @@ class LocationListManager with ChangeNotifier {
       log("Magic search returned ${searchModels.length} results for '$query'.");
       setCurrentListType(LocationListType.search); // Automatically switch view to search results
     } catch (e) {
-       log('Error during magic search: $e');
-       _searchLocations = {}; // Clear previous search results on error
-       // Optionally notify the user of the error
-       setCurrentListType(LocationListType.search); // Still update UI to show empty results
+      log('Error during magic search: $e');
+      _searchLocations = {}; // Clear previous search results on error
+      // Optionally notify the user of the error
+      setCurrentListType(LocationListType.search); // Still update UI to show empty results
     }
     // No need for notifyListeners() here as setCurrentListType calls it
+  }
+  
+  /// Adds a new location to Supabase
+  Future<LocationModel?> addNewLocation(LocationModel location) async {
+    try {
+      // Add location to Supabase
+      LocationModel? addedLocation = await _locationRepository.addLocation(location);
+      if (addedLocation != null) {
+        log("Added new location to Supabase: ${location.name}");
+        
+        // Also save it for the current user
+        await saveLocation(addedLocation);
+        
+        return addedLocation;
+      } else {
+        // If Supabase addition fails, fall back to Firebase
+        _firebaseService.storeLocation(location);
+        log("Added new location to Firebase: ${location.name}");
+        return location;
+      }
+    } catch (e) {
+      log('Error adding new location: $e');
+      return null;
+    }
+  }
+  
+  /// Check if location is saved by current user
+  Future<bool> isLocationSaved(LocationModel location) async {
+    try {
+      return await _locationRepository.isLocationSaved(location.locationId);
+    } catch (e) {
+      log('Error checking if location is saved: $e');
+      return false;
+    }
   }
 }
