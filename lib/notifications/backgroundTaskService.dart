@@ -2,12 +2,11 @@ import 'dart:developer';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:location/location.dart';
-import 'package:login/models/location_model.dart';
+import 'package:login/supabase_flutter/models/location_model.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:login/notifications/notificationService.dart';
 import 'package:login/services/firebase_service.dart';
-
 
 @pragma('vm:entry-point')
 void callbackDispatcher() {
@@ -29,7 +28,8 @@ void callbackDispatcher() {
 }
 
 class BackgroundTaskService {
-  static final BackgroundTaskService _instance = BackgroundTaskService._internal();
+  static final BackgroundTaskService _instance =
+      BackgroundTaskService._internal();
   static final FirebaseService _firebaseService = FirebaseService();
 
   factory BackgroundTaskService() {
@@ -69,24 +69,29 @@ class BackgroundTaskService {
     }
 
     LocationData currentLocation = await location.getLocation();
-    Map<LocationModel, Timestamp> locations = await _firebaseService.getSavedLocationsMap();
+    Map<LocationModel, Timestamp> locations =
+        await _firebaseService.getSavedLocationsMap();
 
     for (var pair in locations.entries) {
-      if (pair.key.isWithinRadius(1, currentLocation.latitude ?? 0, currentLocation.longitude ?? 0) &&
-          pair.value.toDate().isBefore(DateTime.now().subtract(const Duration(hours: 24)))) {
+      if (pair.key.isWithinRadius(1, currentLocation.latitude ?? 0,
+              currentLocation.longitude ?? 0) &&
+          pair.value
+              .toDate()
+              .isBefore(DateTime.now().subtract(const Duration(hours: 24)))) {
         String name = pair.key.name;
         await NotificationService().showNotification(
           title: 'Hungry? You are so close to $name',
           body: 'You pinned this place recently, Check it out.',
           id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
         );
-        _firebaseService.updateUserLocationTimestamp(pair.key.id);
+        _firebaseService
+            .updateUserLocationTimestamp(pair.key.locationId.toString());
       }
     }
   }
 
   /// Processes TikTok links and stores them in Firestore
-  /// user shares tiktok link -> app recieves tiktok 
+  /// user shares tiktok link -> app recieves tiktok
   /// mainActivity.kt captures it and saves in shared preferences
   /// flutter can then read it and create a task
   /// add to firestore which triggers a firebase function to handle processing on server
@@ -107,4 +112,3 @@ class BackgroundTaskService {
     }
   }
 }
-

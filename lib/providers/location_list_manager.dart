@@ -1,7 +1,7 @@
 import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:login/models/location_model.dart';
+import 'package:login/supabase_flutter/models/location_model.dart';
 import 'package:login/services/firebase_service.dart';
 import 'package:login/services/google_place_service.dart';
 
@@ -122,24 +122,23 @@ class LocationListManager with ChangeNotifier {
   /// Removes a location from the appropriate list and Firebase if saved
   void removeLocation(LocationModel location) {
      bool removed = false;
-    // Determine which list it *might* be in based on its preference,
-    // but also check the current list type for UI consistency.
-    if (_currentListType == LocationListType.saved || location.preference == LocationPreference.saved) {
+    // Determine which list based on the current list type for UI consistency
+    if (_currentListType == LocationListType.saved) {
        if (_savedLocations.containsKey(location)) {
          _savedLocations.remove(location);
-         _firebaseService.removeSavedLocation(location.id); // Assumes uses logged-in user context
+         _firebaseService.removeSavedLocation(location.locationId.toString()); // Assumes uses logged-in user context
          removed = true;
          log("Removed saved location: ${location.name}");
        }
     }
-    if (_currentListType == LocationListType.recommended || location.preference == LocationPreference.recommended) {
+    if (_currentListType == LocationListType.recommended) {
        if (_recommendedLocations.containsKey(location)) {
          _recommendedLocations.remove(location);
          removed = true;
           log("Removed recommended location: ${location.name}");
        }
     }
-     if (_currentListType == LocationListType.search || location.preference == LocationPreference.search) {
+     if (_currentListType == LocationListType.search) {
        if (_searchLocations.containsKey(location)) {
          _searchLocations.remove(location);
          removed = true;
@@ -161,8 +160,7 @@ class LocationListManager with ChangeNotifier {
       log("Cannot save location: userId is null.");
       return; // Or handle appropriately, maybe prompt login
     }
-    // Ensure preference is set correctly before saving
-    location.preference = LocationPreference.saved;
+    
     _firebaseService.storeLocation(location); // Assumes uses logged-in user context
     _savedLocations.putIfAbsent(location, () => location.toMarker());
     log("Saved location: ${location.name}");

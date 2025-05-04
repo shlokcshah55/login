@@ -3,7 +3,7 @@ import 'dart:ffi';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:login/models/location_model.dart';
+import 'package:login/supabase_flutter/models/location_model.dart';
 import 'package:provider/provider.dart';
 
 class FirebaseService {
@@ -95,26 +95,27 @@ class FirebaseService {
 
   Future<void> storeLocation(LocationModel location) async {
     try {
+      String locationId = location.locationId.toString();
       // check if location in database already
-      DocumentSnapshot locationDoc = await db_.collection('Locations').doc(location.id).get();
+      DocumentSnapshot locationDoc = await db_.collection('Locations').doc(locationId).get();
       if (!locationDoc.exists) {
-        await db_.collection('Locations').doc(location.id).set({
+        await db_.collection('Locations').doc(locationId).set({
           'name': location.name,
-          'location': GeoPoint(location.position!.latitude, location.position!.longitude),
-          'saved_count': 0,
-          'location_type': "restaurant", // TODO: Add location type to LocationModel
+          'location': GeoPoint(location.lat, location.lng),
+          'saved_count': location.savedCount ?? 0,
+          'location_type': "restaurant", // Default type
           'address': location.vicinity,
-          'description': location.description,
+          'description': "", // Supabase model doesn't have description
           'rating': location.rating,
           'photo_reference': location.photoReference ?? '',
         });
       }
       // add reference to location in user's saved locations
       await db_.collection('Users').doc(auth_.currentUser!.uid).update({
-        'saved_locations.${location.id}': Timestamp.now(),
+        'saved_locations.$locationId': Timestamp.now(),
       });
 
-      updateLocationInfo(location.id);
+      updateLocationInfo(locationId);
     } catch (e) {
       log('Error storing location: $e');
     }
@@ -137,7 +138,21 @@ class FirebaseService {
       for (String locationId in savedLocationsMap.keys) {
         DocumentSnapshot locationDoc = await db_.collection('Locations').doc(locationId).get();
         
-        LocationModel loc = LocationModel.fromDocument(locationDoc);
+        Map<String, dynamic> data = locationDoc.data() as Map<String, dynamic>;
+        GeoPoint geoPoint = data['location'] as GeoPoint;
+        
+        LocationModel loc = LocationModel(
+          locationId: int.tryParse(locationId) ?? 0,
+          name: data['name'],
+          vicinity: data['address'],
+          lat: geoPoint.latitude,
+          lng: geoPoint.longitude,
+          createdAt: DateTime.now(), // We don't have this in Firebase
+          savedCount: data['saved_count'],
+          rating: data['rating']?.toDouble(),
+          photoReference: data['photo_reference'],
+        );
+        
         Timestamp timestamp = savedLocationsMap[locationId];
         savedLocationsWithTimestamps[loc] = timestamp;
       }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:login/models/location_model.dart';
 import 'package:login/providers/map_state_provider.dart';
+import 'package:login/supabase_flutter/models/location_model.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:developer';
@@ -29,7 +29,8 @@ class LocationCarousel extends StatelessWidget {
       right: 0,
       child: Container(
         height: 160.0, // Reduced height to match smaller card content
-        padding: const EdgeInsets.symmetric(horizontal: 0), // Ensure no horizontal padding
+        padding: const EdgeInsets.symmetric(
+            horizontal: 0), // Ensure no horizontal padding
         child: PageView.builder(
           controller: pageController,
           itemCount: locations.length,
@@ -40,7 +41,8 @@ class LocationCarousel extends StatelessWidget {
           ),
           itemBuilder: (context, index) {
             final location = locations[index];
-            final isSelected = mapState.selectedMarkerId?.value == location.id;
+            final isSelected =
+                mapState.selectedMarkerId?.value == location.locationId;
             return AnimatedContainer(
               duration: const Duration(milliseconds: 300),
               curve: Curves.easeOutQuint,
@@ -53,14 +55,16 @@ class LocationCarousel extends StatelessWidget {
               ),
               transform: isSelected
                   ? Matrix4.identity()
-                  : (Matrix4.identity()..scale(0.95)), // Subtle scale down for non-selected
-              child: _buildCarouselCard(context, theme, location, isSelected, mapState),
+                  : (Matrix4.identity()
+                    ..scale(0.95)), // Subtle scale down for non-selected
+              child: _buildCarouselCard(
+                  context, theme, location, isSelected, mapState),
             );
           },
           onPageChanged: (index) {
             final location = locations[index];
             mapState.setSelectedMarkerId(
-              MarkerId(location.id),
+              MarkerId(location.locationId.toString()),
               triggeredByCarousel: true,
             );
             if (location.position != null) {
@@ -86,16 +90,17 @@ class LocationCarousel extends StatelessWidget {
 
     return InkWell(
       onTap: () {
-        log("Tapped card for: ${location.name} (ID: ${location.id})");
-        mapState.setSelectedMarkerId(MarkerId(location.id));
-   
+        log("Tapped card for: ${location.name} (ID: ${location.locationId})");
+        mapState.setSelectedMarkerId(MarkerId(location.locationId.toString()));
       },
       child: Card(
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20), // Increased corner radius
           side: isSelected
-              ? BorderSide(color: colorScheme.primary, width: 3.0) // Thicker border when selected
+              ? BorderSide(
+                  color: colorScheme.primary,
+                  width: 3.0) // Thicker border when selected
               : BorderSide.none,
         ),
         elevation: isSelected ? 8.0 : 4.0, // Higher elevation when selected
@@ -126,7 +131,8 @@ class LocationCarousel extends StatelessWidget {
                       Row(
                         children: [
                           Icon(Icons.star_rounded,
-                              size: 14, color: Colors.amber[700]), // Smaller icon
+                              size: 14,
+                              color: Colors.amber[700]), // Smaller icon
                           const SizedBox(width: 2), // Reduced spacing
                           Text(
                             location.rating?.toStringAsFixed(1) ?? 'N/A',
@@ -150,7 +156,8 @@ class LocationCarousel extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 6.0), // Reduced spacing
-                      if (location.priceLevel != null && location.priceLevel! > 0)
+                      if (location.priceLevel != null &&
+                          location.priceLevel! > 0)
                         Text(
                           '\$' * location.priceLevel!,
                           style: textTheme.bodyMedium?.copyWith(
@@ -161,13 +168,17 @@ class LocationCarousel extends StatelessWidget {
                           ),
                         ),
                       const SizedBox(height: 6.0), // Reduced spacing
-                      if (location.cuisine != null && location.cuisine!.isNotEmpty)
+                      if (location.cuisine != null &&
+                          location.cuisine!.isNotEmpty)
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 6.0, vertical: 2.0), // Reduced padding
+                              horizontal: 6.0,
+                              vertical: 2.0), // Reduced padding
                           decoration: BoxDecoration(
-                            color: colorScheme.secondaryContainer.withOpacity(0.7),
-                            borderRadius: BorderRadius.circular(10.0), // Smaller radius
+                            color:
+                                colorScheme.secondaryContainer.withOpacity(0.7),
+                            borderRadius:
+                                BorderRadius.circular(10.0), // Smaller radius
                           ),
                           child: Text(
                             location.cuisine!,
@@ -215,22 +226,25 @@ class LocationCarousel extends StatelessWidget {
                       child: _buildTypeIndicator(location.preference, theme),
                     ),
                     // Saved count badge on the top-right if applicable
-                    if (location.savedCount > 0)
+                    if (location.savedCount! > 0)
                       Positioned(
                         top: 6, // Reduced position
                         right: 6, // Reduced position
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 5.0, vertical: 2.0), // Smaller padding
+                              horizontal: 5.0,
+                              vertical: 2.0), // Smaller padding
                           decoration: BoxDecoration(
                             color: Colors.black.withOpacity(0.5),
-                            borderRadius: BorderRadius.circular(8.0), // Smaller radius
+                            borderRadius:
+                                BorderRadius.circular(8.0), // Smaller radius
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(Icons.bookmark_rounded,
-                                  size: 10, color: colorScheme.primary), // Smaller icon
+                                  size: 10,
+                                  color: colorScheme.primary), // Smaller icon
                               const SizedBox(width: 2), // Smaller spacing
                               Text(
                                 location.savedCount.toString(),
@@ -327,7 +341,8 @@ class LocationCarousel extends StatelessWidget {
                     child: Center(
                       child: CircularProgressIndicator(
                         strokeWidth: 1.5, // Thinner stroke
-                        valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(colorScheme.primary),
                       ),
                     ),
                   );
