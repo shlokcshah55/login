@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:flutter/foundation.dart';
 
 import '../models/location_model.dart';
@@ -24,15 +26,18 @@ class LocationRepository {
       double latitude, double longitude,
       {double radiusMeters = 5000}) async {
     try {
+      print('Brev are we here?');
       return await _locationService.getLocationsNearby(
         latitude,
         longitude,
         radiusMeters: radiusMeters,
       );
     } catch (e) {
+      print('Are we bloody catching it');
       if (kDebugMode) {
         print('Error in LocationRepository.getLocationsNearby: $e');
       }
+      print('Brev are we here?');
       return [];
     }
   }

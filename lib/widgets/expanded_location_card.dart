@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:login/models/location_model.dart';
+
+import '../supabase_flutter/models/location_model.dart';
 
 class ExpandedLocationCard extends StatelessWidget {
   final LocationModel location;
@@ -14,7 +15,7 @@ class ExpandedLocationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    
+
     return GestureDetector(
       onTap: onClose, // Close when tapping outside
       child: Container(

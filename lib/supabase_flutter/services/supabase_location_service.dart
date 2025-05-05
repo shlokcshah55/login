@@ -129,6 +129,10 @@ class SupabaseLocationService {
           .eq(SupabaseConstants.columnUserId, user.id)
           .eq(SupabaseConstants.columnAction, SupabaseConstants.actionSave);
 
+      if (savedActions.isEmpty) {
+        return [];
+      }
+
       // Extract location IDs
       final locationIds = (savedActions as List)
           .map((action) => action[SupabaseConstants.columnLocationId] as int)

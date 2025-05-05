@@ -25,7 +25,7 @@ class LocationModel {
   final int? priceLevel;
   final String? photoReference;
   final int? savedCount;
-  final LocationPreference? preference;
+  LocationPreference? preference;
 
   LocationModel(
       {required this.locationId,
@@ -170,6 +170,11 @@ class LocationModel {
 
     // Check if the distance is within the radius
     return distance <= r;
+  }
+
+  LocationModel setPreference(LocationPreference preference) {
+    this.preference = preference;
+    return this;
   }
 
   /// Creates a map marker from this location

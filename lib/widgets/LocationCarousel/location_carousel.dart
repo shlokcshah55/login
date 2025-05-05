@@ -18,6 +18,7 @@ class LocationCarousel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    print("Building LocationCarousel with ${locations.length} locations");
     final theme = Theme.of(context);
     final mapState = context.watch<MapStateProvider>();
 
@@ -223,7 +224,7 @@ class LocationCarousel extends StatelessWidget {
                     Positioned(
                       top: 6, // Reduced position
                       left: 6, // Reduced position
-                      child: _buildTypeIndicator(location.preference, theme),
+                      child: _buildTypeIndicator(location.preference!, theme),
                     ),
                     // Saved count badge on the top-right if applicable
                     if (location.savedCount! > 0)
