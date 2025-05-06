@@ -1,21 +1,16 @@
 import 'dart:developer';
-import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:flutter/material.dart';
-import 'package:login/services/firebase_service.dart';
 import 'package:login/supabase_flutter/models/user_model.dart';
 import 'package:login/supabase_flutter/repositories/user_repository.dart';
 import 'package:login/supabase_flutter/supabase_client.dart';
 
 class UserDataProvider with ChangeNotifier {
   // Keep Firebase service for backward compatibility during migration
-  final FirebaseService _firebaseService;
-  final firebase_auth.FirebaseAuth _firebaseAuth =
-      firebase_auth.FirebaseAuth.instance;
 
   // Add Supabase repository
   final UserRepository _userRepository = UserRepository();
 
-  UserDataProvider(this._firebaseService);
+  UserDataProvider();
 
   String? _userId;
   Map<String, dynamic>? _userData;

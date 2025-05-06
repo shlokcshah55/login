@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../widgets/my_text_widget.dart';
-import '../services/firebase_service.dart';
 import '../supabase_flutter/supabase_provider.dart';
 
 class LoginPage extends StatelessWidget {
@@ -10,9 +9,6 @@ class LoginPage extends StatelessWidget {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   final ValueNotifier<bool> signInFailedNotifier = ValueNotifier<bool>(false);
-
-  // Keep Firebase service for now during migration
-  final FirebaseService firebaseService = FirebaseService();
 
   Future<void> signInUser(
       BuildContext context, String userEmail, String userPassword) async {
@@ -28,13 +24,6 @@ class LoginPage extends StatelessWidget {
       if (supabaseSignInSuccess) {
         // Supabase sign-in successful
         signInFailedNotifier.value = false;
-      } else {
-        // // Fall back to Firebase during migration
-        // bool firebaseSignInSuccess = await firebaseService.attemptSignIn(
-        //   email: userEmail,
-        //   password: userPassword
-        // );
-        // signInFailedNotifier.value = !firebaseSignInSuccess;
       }
     } catch (e) {
       signInFailedNotifier.value = true;

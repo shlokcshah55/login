@@ -2,13 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:login/assets/constants.dart';
-import 'package:login/firebase_options.dart';
 import 'package:login/supabase_flutter/models/location_model.dart';
 import 'package:login/supabase_flutter/supabase_client.dart';
 import 'package:login/supabase_flutter/supabase_provider.dart';
@@ -22,14 +19,10 @@ import 'package:login/providers/device_location_provider.dart'; // Import new pr
 import 'package:login/providers/location_list_manager.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
-import 'package:login/services/firebase_service.dart'; // Import services
 import 'package:login/services/google_place_service.dart';
 import 'package:login/services/location_service.dart';
 import 'package:provider/provider.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
-import 'package:login/permissions/permissions.dart';
-import 'package:http/http.dart' as http;
-import 'package:firebase_auth/firebase_auth.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,18 +30,18 @@ void main() async {
   // await requestLocationPermission();
   await LocationModel.initializeCustomMarker();
   await dotenv.load();
-  
+
   // Initialize Firebase
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  
+
   // Initialize Supabase
   await SupabaseClientManager.initialize();
-  
-  await NotificationService().initialize();
-  await BackgroundTaskService().initialize();
+
+  //TODO: Uncomment when migrating the notification service to Supabase
+
+  // await NotificationService().initialize();
+  // await BackgroundTaskService().initialize();
 
   // Instantiate services
-  final firebaseService = FirebaseService();
   final googlePlacesService = GooglePlacesService();
   final locationService = LocationService();
 
@@ -61,15 +54,12 @@ void main() async {
       providers: [
         // Supabase Provider
         ChangeNotifierProvider.value(value: supabaseProvider),
-        
+
         // Legacy Firebase providers for gradual migration
+        ChangeNotifierProvider(create: (_) => UserDataProvider()),
         ChangeNotifierProvider(
-            create: (_) => UserDataProvider(firebaseService)),
-        ChangeNotifierProvider(
-            create: (_) =>
-                LocationListManager(firebaseService, googlePlacesService)),
-        ChangeNotifierProvider(
-            create: (_) => MapStateProvider()),
+            create: (_) => LocationListManager(googlePlacesService)),
+        ChangeNotifierProvider(create: (_) => MapStateProvider()),
         ChangeNotifierProvider(
             create: (_) => DeviceLocationProvider(locationService)),
       ],
@@ -80,7 +70,7 @@ void main() async {
 
 class MyApp extends StatefulWidget {
   const MyApp({Key? key}) : super(key: key);
-  
+
   @override
   _MyAppState createState() => _MyAppState();
 }
@@ -139,8 +129,7 @@ class _MyAppState extends State<MyApp> {
     List<String> urls = sharedFiles.map((f) => f.path).toList();
     print("These are the urls, $urls");
     // Get current user ID
-    final firebaseService = FirebaseService();
-    final userId = firebaseService.auth_.currentUser?.uid;
+    final userId = SupabaseClientManager().currentUser?.id;
     if (userId == null) {
       log("Error: User not logged in. Cannot process TikTok links.");
       return;
@@ -248,7 +237,7 @@ class _MainScreenState extends State<MainScreen> {
       ),
     );
   }
-  
+
   Widget _buildNavItem(IconData icon, int index) {
     final isSelected = _currentIndex == index;
     return InkWell(

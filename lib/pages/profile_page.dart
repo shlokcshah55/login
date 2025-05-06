@@ -1,22 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:login/providers/location_list_manager.dart';
 import 'package:login/providers/user_data_provider.dart';
-import 'package:login/services/firebase_service.dart';
 import 'package:login/supabase_flutter/supabase_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:login/assets/constants.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class ProfilePage extends StatelessWidget {
+  late final UserDataProvider userDataProvider;
+  late final LocationListManager locationListManager;
+  late final SupabaseProvider supabaseProvider;
   @override
   Widget build(BuildContext context) {
-    final userDataProvider = Provider.of<UserDataProvider>(context);
-    final locationListManager = Provider.of<LocationListManager>(context);
-    final supabaseProvider = Provider.of<SupabaseProvider>(context, listen: false);
+    userDataProvider = Provider.of<UserDataProvider>(context);
+    locationListManager = Provider.of<LocationListManager>(context);
+    supabaseProvider = Provider.of<SupabaseProvider>(context, listen: false);
 
     // Try to get user data from Supabase first
     String username, fullName, bio;
-    
+
     if (userDataProvider.supabaseUserData != null) {
       // Use Supabase data
       username = userDataProvider.supabaseUserData!.name ?? "Pinit User";
@@ -25,7 +27,8 @@ class ProfilePage extends StatelessWidget {
     } else if (userDataProvider.userData != null) {
       // Fall back to Firebase data
       username = userDataProvider.userData!['username'] ?? "Trollmaster";
-      bio = userDataProvider.userData!['bio'] ?? "Tell us more about you! Tap the dot menu to edit your profile 😊";
+      bio = userDataProvider.userData!['bio'] ??
+          "Tell us more about you! Tap the dot menu to edit your profile 😊";
       fullName = userDataProvider.userData!['fullname'] ?? "No Name";
     } else {
       // Default values if no data is available
@@ -33,21 +36,24 @@ class ProfilePage extends StatelessWidget {
       bio = "Tell us more about you! Tap the dot menu to edit your profile 😊";
       fullName = "No Name";
     }
-    
+
     // These could be fetched from Supabase in the future
-    final tags = userDataProvider.userData?['tags'] ?? ["Restaurant", "Sightseeing", "Café"];
-    final locations = userDataProvider.userData?['locations'] ?? [
-      {"name": "London", "pins": 2, "image": "lib/assets/pinitLogo.png"},
-      {"name": "Brighton", "pins": 1, "image": "lib/assets/pinitLogo.png"},
-    ];
+    final tags = userDataProvider.userData?['tags'] ??
+        ["Restaurant", "Sightseeing", "Café"];
+    final locations = userDataProvider.userData?['locations'] ??
+        [
+          {"name": "London", "pins": 2, "image": "lib/assets/pinitLogo.png"},
+          {"name": "Brighton", "pins": 1, "image": "lib/assets/pinitLogo.png"},
+        ];
 
     // Get a recommended place for Pinit's Choice
-    final recommendedPlace = userDataProvider.userData!['recommended'] ?? {
-      "name": "The Grove Restaurant",
-      "address": "123 Main Street, London",
-      "rating": 4.8,
-      "image": "lib/assets/pinitLogo.png"
-    };
+    final recommendedPlace = userDataProvider.userData!['recommended'] ??
+        {
+          "name": "The Grove Restaurant",
+          "address": "123 Main Street, London",
+          "rating": 4.8,
+          "image": "lib/assets/pinitLogo.png"
+        };
 
     return Scaffold(
       backgroundColor: backgroundLinen,
@@ -86,7 +92,8 @@ class ProfilePage extends StatelessWidget {
                             child: CircleAvatar(
                               radius: 48,
                               backgroundColor: Colors.grey[300],
-                              child: const Icon(Icons.person, size: 48, color: primaryTeal),
+                              child: const Icon(Icons.person,
+                                  size: 48, color: primaryTeal),
                             ),
                           ),
                         ),
@@ -118,7 +125,7 @@ class ProfilePage extends StatelessWidget {
                   Text(
                     fullName,
                     style: GoogleFonts.poppins(
-                      fontSize: 20, 
+                      fontSize: 20,
                       fontWeight: FontWeight.bold,
                       color: textDarkGrey,
                     ),
@@ -148,19 +155,21 @@ class ProfilePage extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       _statColumn(
-                        locationListManager.savedLocations.length.toString(), 
+                        locationListManager.savedLocations.length.toString(),
                         "Pins",
                         Icons.place,
                       ),
                       _verticalDivider(),
                       _statColumn(
-                        userDataProvider.userData!["followers"].length.toString(), 
+                        userDataProvider.userData!["followers"].length
+                            .toString(),
                         "Followers",
                         Icons.people,
                       ),
                       _verticalDivider(),
                       _statColumn(
-                        userDataProvider.userData!["following"].length.toString(), 
+                        userDataProvider.userData!["following"].length
+                            .toString(),
                         "Following",
                         Icons.person_add,
                       ),
@@ -284,10 +293,7 @@ class ProfilePage extends StatelessWidget {
                   }
                   final location = locations[index];
                   return _locationCard(
-                    location["image"]!, 
-                    location["name"]!, 
-                    location["pins"]!
-                  );
+                      location["image"]!, location["name"]!, location["pins"]!);
                 },
                 childCount: locations.length + 1,
               ),
@@ -304,15 +310,15 @@ class ProfilePage extends StatelessWidget {
         Icon(icon, color: primaryTeal),
         const SizedBox(height: 4),
         Text(
-          count, 
+          count,
           style: GoogleFonts.poppins(
-            fontSize: 18, 
+            fontSize: 18,
             fontWeight: FontWeight.bold,
             color: textDarkGrey,
           ),
         ),
         Text(
-          label, 
+          label,
           style: GoogleFonts.poppins(color: Colors.grey),
         ),
       ],
@@ -356,7 +362,7 @@ class ProfilePage extends StatelessWidget {
         border: Border.all(color: primaryTeal.withOpacity(0.3)),
       ),
       child: Text(
-        tag, 
+        tag,
         style: GoogleFonts.poppins(
           color: primaryTeal,
           fontWeight: FontWeight.w500,
@@ -389,7 +395,8 @@ class ProfilePage extends StatelessWidget {
                   top: 10,
                   right: 10,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.8),
                       borderRadius: BorderRadius.circular(20),
@@ -411,7 +418,7 @@ class ProfilePage extends StatelessWidget {
               ],
             ),
           ),
-          
+
           // Content section
           Padding(
             padding: const EdgeInsets.all(12.0),
@@ -476,7 +483,8 @@ class ProfilePage extends StatelessWidget {
           // Image section
           Expanded(
             child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(15)),
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -507,7 +515,7 @@ class ProfilePage extends StatelessWidget {
               ),
             ),
           ),
-          
+
           // Content section
           Padding(
             padding: const EdgeInsets.all(12.0),
@@ -640,7 +648,7 @@ class ProfilePage extends StatelessWidget {
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text(
-            "Logout", 
+            "Logout",
             style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
           ),
           content: Text(
@@ -656,20 +664,20 @@ class ProfilePage extends StatelessWidget {
                 Navigator.of(context).pop(); // Close the dialog
               },
               child: Text(
-                "Cancel", 
+                "Cancel",
                 style: GoogleFonts.poppins(color: Colors.grey),
               ),
             ),
             ElevatedButton(
               onPressed: () async {
                 // Log out the user
-                FirebaseService().signOut();
+                supabaseProvider.signOut();
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
               ),
               child: Text(
-                "Logout", 
+                "Logout",
                 style: GoogleFonts.poppins(color: Colors.white),
               ),
             ),

@@ -2,7 +2,6 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:login/supabase_flutter/models/location_model.dart';
-import 'package:login/services/firebase_service.dart';
 import 'package:login/services/google_place_service.dart';
 import 'package:login/supabase_flutter/repositories/location_repository.dart';
 
@@ -11,7 +10,6 @@ enum LocationListType { saved, recommended, search }
 
 class LocationListManager with ChangeNotifier {
   // Keep Firebase service for backward compatibility
-  final FirebaseService _firebaseService;
   final GooglePlacesService _googlePlacesService;
 
   // Add Supabase repository
@@ -19,7 +17,7 @@ class LocationListManager with ChangeNotifier {
 
   String? _userId; // Needed for saving/fetching user-specific data
 
-  LocationListManager(this._firebaseService, this._googlePlacesService);
+  LocationListManager(this._googlePlacesService);
 
   // Location lists
   Map<LocationModel, Marker> _savedLocations = {};
@@ -220,13 +218,8 @@ class LocationListManager with ChangeNotifier {
         _savedLocations.remove(location);
 
         // Try to remove from Supabase first
-        bool supabaseSuccess =
-            await _locationRepository.unsaveLocation(locationId);
 
-        if (!supabaseSuccess) {
-          // Fall back to Firebase
-          _firebaseService.removeSavedLocation(locationId.toString());
-        }
+        await _locationRepository.unsaveLocation(locationId);
 
         removed = true;
         log("Removed saved location: ${location.name}");
@@ -269,21 +262,12 @@ class LocationListManager with ChangeNotifier {
         () => location.setPreference(LocationPreference.saved).toMarker());
 
     // Try to save in Supabase first
-    try {
-      bool supabaseSuccess = await _locationRepository
-          .saveLocation(location.locationId, savedMethod: 'in-app');
 
-      if (supabaseSuccess) {
-        log("Saved location to Supabase: ${location.name}");
-      } else {
-        // Fall back to Firebase if Supabase fails
-        _firebaseService.storeLocation(location);
-        log("Saved location to Firebase: ${location.name}");
-      }
-    } catch (e) {
-      // Fall back to Firebase if Supabase throws an error
-      _firebaseService.storeLocation(location);
-      log("Exception with Supabase, saved to Firebase: ${location.name}");
+    bool supabaseSuccess = await _locationRepository
+        .saveLocation(location.locationId, savedMethod: 'in-app');
+
+    if (supabaseSuccess) {
+      log("Saved location to Supabase: ${location.name}");
     }
 
     // If the user is currently viewing saved locations, update the view
@@ -343,11 +327,6 @@ class LocationListManager with ChangeNotifier {
         await saveLocation(addedLocation);
 
         return addedLocation;
-      } else {
-        // If Supabase addition fails, fall back to Firebase
-        _firebaseService.storeLocation(location);
-        log("Added new location to Firebase: ${location.name}");
-        return location;
       }
     } catch (e) {
       log('Error adding new location: $e');
