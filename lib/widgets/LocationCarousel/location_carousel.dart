@@ -7,7 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:developer';
 
-class LocationCarousel extends StatelessWidget {
+class LocationCarousel extends StatefulWidget {
   final PageController pageController;
   final List<LocationModel> locations;
 
@@ -18,12 +18,26 @@ class LocationCarousel extends StatelessWidget {
   }) : super(key: key);
 
   @override
+  State<LocationCarousel> createState() => _LocationCarouselState();
+}
+
+class _LocationCarouselState extends State<LocationCarousel> {
+  @override
+  void initState() {
+    super.initState();
+    // Provide the PageController to the MapStateProvider on initialization
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<MapStateProvider>().setCarouselPageController(widget.pageController);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    print("Building LocationCarousel with ${locations.length} locations");
+    print("Building LocationCarousel with ${widget.locations.length} locations");
     final theme = Theme.of(context);
     final mapState = context.watch<MapStateProvider>();
 
-    if (locations.isEmpty) return const SizedBox.shrink();
+    if (widget.locations.isEmpty) return const SizedBox.shrink();
 
     return Positioned(
       bottom: 90.0, // Position above bottom navigation bar
@@ -34,15 +48,15 @@ class LocationCarousel extends StatelessWidget {
         padding: const EdgeInsets.symmetric(
             horizontal: 0), // Ensure no horizontal padding
         child: PageView.builder(
-          controller: pageController,
-          itemCount: locations.length,
+          controller: widget.pageController,
+          itemCount: widget.locations.length,
           pageSnapping: true,
           // Add better scrolling physics
           physics: const BouncingScrollPhysics(
             parent: AlwaysScrollableScrollPhysics(),
           ),
           itemBuilder: (context, index) {
-            final location = locations[index];
+            final location = widget.locations[index];
             final isSelected =
                 mapState.selectedMarkerId?.value == location.locationId;
             return AnimatedContainer(
@@ -64,7 +78,7 @@ class LocationCarousel extends StatelessWidget {
             );
           },
           onPageChanged: (index) {
-            final location = locations[index];
+            final location = widget.locations[index];
             mapState.setSelectedMarkerId(
               MarkerId(location.locationId.toString()),
               triggeredByCarousel: true,
