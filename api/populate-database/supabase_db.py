@@ -126,7 +126,7 @@ class SupabaseClient:
             location_vicinity = place_data.get(SupabaseColumns.VICINITY)
             
             existing_location = None
-            logger.info(f"mummmt google_place_id: {google_place_id}")
+            logger.info(f"google_place_id: {google_place_id}")
             
             if google_place_id:
                 # Try to find by place_id first

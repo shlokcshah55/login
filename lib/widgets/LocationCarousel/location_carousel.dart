@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:login/supabase_flutter/models/location_model.dart';
+import 'package:login/widgets/expanded_location_card.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:developer';
@@ -93,6 +94,15 @@ class LocationCarousel extends StatelessWidget {
       onTap: () {
         log("Tapped card for: ${location.name} (ID: ${location.locationId})");
         mapState.setSelectedMarkerId(MarkerId(location.locationId.toString()));
+
+        // Show the expanded location card
+        showDialog(
+          context: context,
+          builder: (context) => ExpandedLocationCard(
+            location: location,
+            onClose: () => Navigator.of(context).pop(),
+          ),
+        );
       },
       child: Card(
         clipBehavior: Clip.antiAlias,

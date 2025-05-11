@@ -76,7 +76,6 @@ class LocationListManager with ChangeNotifier {
     }
 
     try {
-      // Try Supabase first
       List<LocationModel> supabaseSavedLocations =
           await _locationRepository.getSavedLocations();
 
@@ -88,16 +87,6 @@ class LocationListManager with ChangeNotifier {
                 location.setPreference(LocationPreference.saved).toMarker()
         };
         log("Fetched ${supabaseSavedLocations.length} saved locations from Supabase.");
-      } else {
-        // Fall back to Firebase during migration
-        // List<LocationModel> firebaseSavedLocations =
-        //     await _firebaseService.getSavedLocations();
-        // _savedLocations = {
-        //   for (var location in firebaseSavedLocations)
-        //     location:
-        //         location.setPreference(LocationPreference.saved).toMarker()
-        // };
-        // log("Fetched ${firebaseSavedLocations.length} saved locations from Firebase.");
       }
 
       // If the current type is saved, update currentItems
@@ -107,23 +96,6 @@ class LocationListManager with ChangeNotifier {
       notifyListeners();
     } catch (e) {
       log('Error fetching saved locations: $e');
-      // Attempt to fetch from Firebase as a fallback
-      try {
-        // List<LocationModel> firebaseSavedLocations =
-        //     await _firebaseService.getSavedLocations();
-        // _savedLocations = {
-        //   for (var location in firebaseSavedLocations)
-        //     location:
-        //         location.setPreference(LocationPreference.saved).toMarker()
-        // };
-        // if (_currentListType == LocationListType.saved) {
-        //   _currentItems = _savedLocations;
-        // }
-        // notifyListeners();
-        // log("Fallback: Fetched ${firebaseSavedLocations.length} saved locations from Firebase.");
-      } catch (fallbackError) {
-        log('Error in Firebase fallback: $fallbackError');
-      }
     }
   }
 
@@ -263,8 +235,8 @@ class LocationListManager with ChangeNotifier {
 
     // Try to save in Supabase first
 
-    bool supabaseSuccess = await _locationRepository
-        .saveLocation(location.locationId, savedMethod: 'in-app');
+    bool supabaseSuccess =
+        await _locationRepository.saveLocation(location, savedMethod: 'in-app');
 
     if (supabaseSuccess) {
       log("Saved location to Supabase: ${location.name}");

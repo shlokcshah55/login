@@ -55,9 +55,10 @@ class LocationRepository {
   }
 
   /// Save a location for current user
-  Future<bool> saveLocation(int locationId, {String? savedMethod}) async {
+  Future<bool> saveLocation(LocationModel location,
+      {String? savedMethod}) async {
     try {
-      return await _locationService.saveLocation(locationId,
+      return await _locationService.saveLocation(location,
           savedMethod: savedMethod);
     } catch (e) {
       if (kDebugMode) {
@@ -86,6 +87,30 @@ class LocationRepository {
     } catch (e) {
       if (kDebugMode) {
         print('Error in LocationRepository.likeLocation: $e');
+      }
+      return false;
+    }
+  }
+
+  /// Unlike a location for current user
+  Future<bool> unlikeLocation(int locationId) async {
+    try {
+      return await _locationService.unlikeLocation(locationId);
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in LocationRepository.unlikeLocation: $e');
+      }
+      return false;
+    }
+  }
+
+  /// Check if a location is liked by current user
+  Future<bool> isLocationLiked(int locationId) async {
+    try {
+      return await _locationService.isLocationLiked(locationId);
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in LocationRepository.isLocationLiked: $e');
       }
       return false;
     }
