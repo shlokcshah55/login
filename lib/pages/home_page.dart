@@ -52,7 +52,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
     log("HomeController initialized");
 
-    homeController_.fetchAndPlotRecommendedPins();
+    homeController_.fetchAndPlotRecommendedPins(null);
     deviceLocationProvider_.startLocationUpdates();
 
     SchedulerBinding.instance.addPostFrameCallback((_) {
