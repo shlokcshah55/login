@@ -3,6 +3,7 @@ import json
 import logging
 import google.generativeai as genai
 from dotenv import load_dotenv
+import time
 
 # Load environment variables
 load_dotenv()
@@ -71,6 +72,7 @@ def start_gpt_session(gemini_api_key=None):
         5. Ignore generic shop names or common place types unless they have a specific proper name.
         """
         
+        logger.info("Starting Gemini session with the model")
         # Create chat session with history
         chat_session = model.start_chat(
             history=[
@@ -84,6 +86,7 @@ def start_gpt_session(gemini_api_key=None):
                 },
             ]
         )
+        time.sleep(100)  # Optional: slight delay to ensure session is ready
         
         return chat_session
         
@@ -111,6 +114,7 @@ def find_locations(chat_session, metadata):
             metadata_str = metadata
         
         # Send message and get response
+        logger.info("Sending metadata to Gemini model for location extraction") 
         response = chat_session.send_message(metadata_str)
         response_text = response.text.strip()
         

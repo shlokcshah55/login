@@ -71,9 +71,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       _debounce = Timer(const Duration(milliseconds: 100), () {
         if (mounted && newSelectedMarkerId != null) {
           final locations = locationListManager_.currentItems.keys.toList();
-          final index = locations.indexWhere((loc) => loc.id == newSelectedMarkerId.value);
+          final index = locations
+              .indexWhere((loc) => loc.locationId == newSelectedMarkerId.value);
 
-          if (index != -1 && _pageController.hasClients && _pageController.page?.round() != index) {
+          if (index != -1 &&
+              _pageController.hasClients &&
+              _pageController.page?.round() != index) {
             log("HomePage: Scrolling carousel to index $index for marker ${newSelectedMarkerId.value}");
             _pageController.animateToPage(
               index,
@@ -100,7 +103,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final locations = context.watch<LocationListManager>().currentItems.keys.toList();
+    final locations =
+        context.watch<LocationListManager>().currentItems.keys.toList();
 
     return Stack(
       children: [
@@ -124,10 +128,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ),
           ],
         ),
-        
+
         // Carousel positioned higher above bottom bar
         Positioned(
-          bottom: 110, // Lift it higher above the floating navigation bar (which has 24px margin)
+          bottom:
+              110, // Lift it higher above the floating navigation bar (which has 24px margin)
           left: 0,
           right: 0,
           child: LocationCarousel(
@@ -135,7 +140,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             locations: locations,
           ),
         ),
-        
+
         // Search Overlay
         if (showSearchOverlay) _buildSearchOverlay(theme),
       ],
@@ -188,7 +193,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   ),
                   border: InputBorder.none,
                 ),
-                readOnly: true, // Make it non-editable to show search overlay instead
+                readOnly:
+                    true, // Make it non-editable to show search overlay instead
               ),
             ),
             Container(
@@ -275,7 +281,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   Row(
                     children: [
                       // Search Icon
-                      Icon(Icons.search, color: theme.textTheme.bodyMedium?.color),
+                      Icon(Icons.search,
+                          color: theme.textTheme.bodyMedium?.color),
                       const SizedBox(width: 10),
                       // Search Input
                       Expanded(
@@ -284,7 +291,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           decoration: InputDecoration(
                             hintText: "Your next adventure...",
                             hintStyle: TextStyle(
-                              color: theme.textTheme.bodyMedium?.color?.withOpacity(0.5),
+                              color: theme.textTheme.bodyMedium?.color
+                                  ?.withOpacity(0.5),
                             ),
                             border: InputBorder.none,
                           ),

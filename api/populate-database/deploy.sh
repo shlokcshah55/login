@@ -16,6 +16,8 @@ function show_usage {
   echo "  --service-name NAME        Cloud Run service name (default: tiktok-processor)"
   echo "  --gemini-key KEY           Gemini API key (will be set as environment variable)"
   echo "  --places-key KEY           Google Places API key (will be set as environment variable)"
+  echo "  --supabase-url URL         Supabase project URL (will be set as environment variable)"
+  echo "  --supabase-key KEY         Supabase anonymous API key (will be set as environment variable)"
   echo "  --build-only               Build the Docker image but don't deploy"
   echo "  --help                     Show this help message"
   echo ""
@@ -29,6 +31,8 @@ REGION="europe-west1"
 SERVICE_NAME="process-tiktok-link"
 GEMINI_KEY="AIzaSyApUeW_QrlIPKMnYmUHneVjKdE69fJDJGs"
 PLACES_KEY="AIzaSyCgqkj-ZgZOZb6vJk55H8bQ8Z_szrhla5I"
+SUPABASE_URL=""
+SUPABASE_KEY=""
 BUILD_ONLY=false
 
 # Parse command line arguments
@@ -53,6 +57,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --places-key)
       PLACES_KEY="$2"
+      shift 2
+      ;;
+    --supabase-url)
+      SUPABASE_URL="$2"
+      shift 2
+      ;;
+    --supabase-key)
+      SUPABASE_KEY="$2"
       shift 2
       ;;
     --build-only)
@@ -111,7 +123,7 @@ gcloud run deploy "$SERVICE_NAME" \
   --region "$REGION" \
   --project "$PROJECT_ID" \
   $ENV_VARS \
-  --set-env-vars="ENVIRONMENT=production,DEBUG=false,USE_FIREBASE_EMULATOR=false" \
+  --set-env-vars="ENVIRONMENT=production,DEBUG=false,SUPABASE_URL=$SUPABASE_URL,SUPABASE_ANON_KEY=$SUPABASE_KEY" \
   --memory 1Gi \
   --cpu 1 \
   --concurrency 80 \

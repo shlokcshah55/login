@@ -1,67 +1,93 @@
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+
 import '../constants.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'dart:developer';
+
+enum LocationType { restaurant, hotel, museum, park, other }
+
+enum LocationPreference { saved, recommended, search }
 
 /// Model class for location data from Supabase
 class LocationModel {
-  final int? locationId;
+  final int locationId;
   final String name;
-  final String? address;
-  final double? lat;
-  final double? lng;
-  final DateTime? createdAt;
+  final String vicinity;
+  final double lat;
+  final double lng;
+  final DateTime createdAt;
   final String? phoneNumber;
-  
-  // Popularity metrics (optional, might be loaded separately)
-  final int? savesCount;
-  final int? likesCount;
-  final int? mentionCount;
+  final String? cuisine;
+  final double? rating;
+  final int? userRatingsTotal;
+  final int? priceLevel;
+  final String? photoReference;
+  final int? savedCount;
+  LocationPreference? preference;
 
-  LocationModel({
-    this.locationId,
-    required this.name,
-    this.address,
-    this.lat,
-    this.lng,
-    this.createdAt,
-    this.phoneNumber,
-    this.savesCount,
-    this.likesCount,
-    this.mentionCount,
-  });
+  LocationModel(
+      {required this.locationId,
+      required this.name,
+      required this.vicinity,
+      required this.lat,
+      required this.lng,
+      required this.createdAt,
+      this.phoneNumber,
+      this.cuisine,
+      this.rating,
+      this.userRatingsTotal,
+      this.priceLevel,
+      this.photoReference,
+      this.savedCount,
+      this.preference});
 
   /// Create a LocationModel from a JSON map
   factory LocationModel.fromJson(Map<String, dynamic> json) {
     return LocationModel(
       locationId: json[SupabaseConstants.columnLocationId],
       name: json[SupabaseConstants.columnName],
-      address: json[SupabaseConstants.columnAddress],
-      lat: json[SupabaseConstants.columnLat] != null 
-          ? double.parse(json[SupabaseConstants.columnLat].toString())
-          : null,
-      lng: json[SupabaseConstants.columnLng] != null 
-          ? double.parse(json[SupabaseConstants.columnLng].toString())
-          : null,
-      createdAt: json[SupabaseConstants.columnCreatedAt] != null 
-          ? DateTime.parse(json[SupabaseConstants.columnCreatedAt])
-          : null,
+      vicinity: json[SupabaseConstants.columnVicinity],
+      lat: double.parse(json[SupabaseConstants.columnLat].toString()),
+      lng: double.parse(json[SupabaseConstants.columnLng].toString()),
+      createdAt: DateTime.parse(json[SupabaseConstants.columnCreatedAt]),
       phoneNumber: json[SupabaseConstants.columnPhoneNumber],
-      savesCount: json[SupabaseConstants.columnSavesCount],
-      likesCount: json[SupabaseConstants.columnLikesCount],
-      mentionCount: json[SupabaseConstants.columnMentionCount],
+      cuisine: json[SupabaseConstants.columnCuisine],
+      rating: json[SupabaseConstants.columnRating] != null
+          ? double.parse(json[SupabaseConstants.columnRating].toString())
+          : null,
+      userRatingsTotal: json[SupabaseConstants.columnUserRatingsTotal],
+      priceLevel: json[SupabaseConstants.columnPriceLevel],
+      photoReference: json[SupabaseConstants.columnPhotoReference],
+      savedCount: json[SupabaseConstants.columnSavedCount],
     );
   }
 
   /// Convert LocationModel to a JSON map
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = {
+      SupabaseConstants.columnLocationId: locationId,
       SupabaseConstants.columnName: name,
+      SupabaseConstants.columnVicinity: vicinity,
+      SupabaseConstants.columnLat: lat,
+      SupabaseConstants.columnLng: lng,
+      SupabaseConstants.columnCreatedAt: createdAt.toIso8601String(),
     };
-    
-    if (locationId != null) data[SupabaseConstants.columnLocationId] = locationId;
-    if (address != null) data[SupabaseConstants.columnAddress] = address;
-    if (lat != null) data[SupabaseConstants.columnLat] = lat;
-    if (lng != null) data[SupabaseConstants.columnLng] = lng;
-    if (phoneNumber != null) data[SupabaseConstants.columnPhoneNumber] = phoneNumber;
-    
+
+    if (phoneNumber != null)
+      data[SupabaseConstants.columnPhoneNumber] = phoneNumber;
+    if (cuisine != null) data[SupabaseConstants.columnCuisine] = cuisine;
+    if (rating != null) data[SupabaseConstants.columnRating] = rating;
+    if (userRatingsTotal != null)
+      data[SupabaseConstants.columnUserRatingsTotal] = userRatingsTotal;
+    if (priceLevel != null)
+      data[SupabaseConstants.columnPriceLevel] = priceLevel;
+    if (photoReference != null)
+      data[SupabaseConstants.columnPhotoReference] = photoReference;
+    if (savedCount != null)
+      data[SupabaseConstants.columnSavedCount] = savedCount;
+
     return data;
   }
 
@@ -69,26 +95,98 @@ class LocationModel {
   LocationModel copyWith({
     int? locationId,
     String? name,
-    String? address,
+    String? vicinity,
     double? lat,
     double? lng,
     DateTime? createdAt,
     String? phoneNumber,
-    int? savesCount,
-    int? likesCount,
-    int? mentionCount,
+    String? cuisine,
+    double? rating,
+    int? userRatingsTotal,
+    int? priceLevel,
+    String? photoReference,
+    int? savedCount,
   }) {
     return LocationModel(
       locationId: locationId ?? this.locationId,
       name: name ?? this.name,
-      address: address ?? this.address,
+      vicinity: vicinity ?? this.vicinity,
       lat: lat ?? this.lat,
       lng: lng ?? this.lng,
       createdAt: createdAt ?? this.createdAt,
       phoneNumber: phoneNumber ?? this.phoneNumber,
-      savesCount: savesCount ?? this.savesCount,
-      likesCount: likesCount ?? this.likesCount,
-      mentionCount: mentionCount ?? this.mentionCount,
+      cuisine: cuisine ?? this.cuisine,
+      rating: rating ?? this.rating,
+      userRatingsTotal: userRatingsTotal ?? this.userRatingsTotal,
+      priceLevel: priceLevel ?? this.priceLevel,
+      photoReference: photoReference ?? this.photoReference,
+      savedCount: savedCount ?? this.savedCount,
+    );
+  }
+
+  // UI helper fields that make this model compatible with the UI
+  LatLng get position => LatLng(lat, lng);
+
+  // Static marker icon for all locations
+  static BitmapDescriptor? _customMarkerIcon;
+
+  static Future<void> initializeCustomMarker() async {
+    if (_customMarkerIcon == null) {
+      _customMarkerIcon = await BitmapDescriptor.asset(
+        const ImageConfiguration(size: Size(48, 48)),
+        'lib/assets/restaurant_pin.png',
+      );
+      log('LocationModel: Custom marker initialized');
+    }
+  }
+
+  static double _degToRad(double deg) => deg * (math.pi / 180);
+
+  /// Static method to check if a location is within a given radius
+  bool isWithinRadius(int r, double currentLat, double currentLng) {
+    const double earthRadius = 6371; // Radius of the Earth in km
+
+    double calculateDistance(
+        double lat1, double lng1, double lat2, double lng2) {
+      double dLat = _degToRad(lat2 - lat1);
+      double dLng = _degToRad(lng2 - lng1);
+
+      double a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+          math.cos(_degToRad(lat1)) *
+              math.cos(_degToRad(lat2)) *
+              math.sin(dLng / 2) *
+              math.sin(dLng / 2);
+      double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+      return earthRadius * c;
+    }
+
+    // Calculate the distance from the current point to the location
+    double distance = calculateDistance(
+      lat,
+      lng,
+      currentLat,
+      currentLng,
+    );
+
+    // Check if the distance is within the radius
+    return distance <= r;
+  }
+
+  LocationModel setPreference(LocationPreference preference) {
+    this.preference = preference;
+    return this;
+  }
+
+  /// Creates a map marker from this location
+  Marker toMarker() {
+    return Marker(
+      markerId: MarkerId(locationId.toString()),
+      position: LatLng(lat, lng),
+      icon: _customMarkerIcon ?? BitmapDescriptor.defaultMarker,
+      infoWindow: InfoWindow(
+        title: name,
+        snippet: vicinity,
+      ),
     );
   }
 }

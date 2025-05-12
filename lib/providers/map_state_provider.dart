@@ -9,12 +9,31 @@ class MapStateProvider with ChangeNotifier {
   Set<Polyline> _polylines = {};
   LatLng? _lastFocusedUserLocation; // To track where the user was last centered
   MarkerId? _selectedMarkerId; // To track the currently selected marker
+  PageController? _carouselPageController; // To control the carousel page view
 
   // Getters
   Future<GoogleMapController> get controllerFuture => _completeController.future;
   GoogleMapController? get mapController => _mapController; // Allow null check
   Set<Polyline> get polylines => _polylines;
   MarkerId? get selectedMarkerId => _selectedMarkerId; // Getter for selected marker
+
+  // Set the carousel page controller
+  void setCarouselPageController(PageController controller) {
+    _carouselPageController = controller;
+  }
+
+  // Animate to a specific item in the carousel
+  void animateToCarouselItem(int index) {
+    if (_carouselPageController != null) {
+      _carouselPageController!.animateToPage(
+        index,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut
+      );
+    } else {
+      log("Cannot animate carousel: pageController is null.");
+    }
+  }
 
   /// Assigns the Google Map controller when the map is created.
   void setMapController(GoogleMapController controller) {

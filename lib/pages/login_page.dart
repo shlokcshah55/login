@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../widgets/my_text_widget.dart';
-import '../services/firebase_service.dart';
-
+import '../supabase_flutter/supabase_provider.dart';
 
 class LoginPage extends StatelessWidget {
   LoginPage({super.key});
@@ -9,13 +9,22 @@ class LoginPage extends StatelessWidget {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   final ValueNotifier<bool> signInFailedNotifier = ValueNotifier<bool>(false);
-  final FirebaseService firebaseService = FirebaseService();
 
-  Future<void> signInUser(String userEmail, String userPassword) async {
+  Future<void> signInUser(
+      BuildContext context, String userEmail, String userPassword) async {
     try {
-      // Simulate a sign-in attempt
-      bool signInSuccess = await firebaseService.attemptSignIn(email: userEmail, password: userPassword);
-      signInFailedNotifier.value = !signInSuccess;
+      // Get Supabase provider
+      final supabaseProvider =
+          Provider.of<SupabaseProvider>(context, listen: false);
+
+      // Attempt sign in with Supabase
+      bool supabaseSignInSuccess =
+          await supabaseProvider.signIn(userEmail, userPassword);
+
+      if (supabaseSignInSuccess) {
+        // Supabase sign-in successful
+        signInFailedNotifier.value = false;
+      }
     } catch (e) {
       signInFailedNotifier.value = true;
     }
@@ -29,15 +38,15 @@ class LoginPage extends StatelessWidget {
         child: Center(
           child: Column(
             children: [
-              const SizedBox(height: 100),  
+              const SizedBox(height: 100),
               // Logo
               const Icon(
                 Icons.pin_drop,
                 size: 100,
                 color: Color.fromARGB(255, 68, 66, 65),
-              ), 
+              ),
               const SizedBox(height: 20),
-              
+
               const Text(
                 'Pinit',
                 style: TextStyle(
@@ -45,20 +54,27 @@ class LoginPage extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                   color: Color.fromARGB(255, 68, 66, 65),
                 ),
-              ),  
-              
+              ),
+
               const SizedBox(height: 20),
-              
-              SleekTextInput(controller: emailController, hintText: "Email", prefixIcon: Icons.email_outlined),
+
+              SleekTextInput(
+                  controller: emailController,
+                  hintText: "Email",
+                  prefixIcon: Icons.email_outlined),
               const SizedBox(height: 20),
-              
-              SleekTextInput(controller: passwordController, hintText: "Password", prefixIcon: Icons.lock_outline, isPassword: true),
+
+              SleekTextInput(
+                  controller: passwordController,
+                  hintText: "Password",
+                  prefixIcon: Icons.lock_outline,
+                  isPassword: true),
               const SizedBox(height: 10),
               // login button
               buildLoginButton(),
               const SizedBox(height: 10),
               // signin failure message
-              
+
               ValueListenableBuilder<bool>(
                 valueListenable: signInFailedNotifier,
                 builder: (context, signInFailed, child) {
@@ -76,29 +92,32 @@ class LoginPage extends StatelessWidget {
                 },
               )
             ],
-            ),
-          ),
-        ),
-      );
-  }
-
-  Widget buildLoginButton() {
-    return GestureDetector(
-      onTap: () => signInUser(emailController.text, passwordController.text),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Color.fromARGB(255, 68, 66, 65),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-        child: const Text(
-          "Sign in",
-          style: TextStyle(
-            fontSize: 20,
-            color: Colors.white,
           ),
         ),
       ),
     );
+  }
+
+  Widget buildLoginButton() {
+    return Builder(builder: (context) {
+      return GestureDetector(
+        onTap: () =>
+            signInUser(context, emailController.text, passwordController.text),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Color.fromARGB(255, 68, 66, 65),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+          child: const Text(
+            "Sign in",
+            style: TextStyle(
+              fontSize: 20,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      );
+    });
   }
 }

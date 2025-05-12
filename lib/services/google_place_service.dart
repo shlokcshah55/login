@@ -5,7 +5,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'dart:developer';
 
-import 'package:login/models/location_model.dart';
+import 'package:login/supabase_flutter/models/location_model.dart';
 
 
 class GooglePlacesService {
@@ -74,18 +74,18 @@ class GooglePlacesService {
 
     log('GooglePlaceService: Found place $name at $lat, $lng');
 
+    // Return the new Supabase LocationModel
     return LocationModel(
-      id: id,
+      locationId: id.hashCode, // Use hashCode of place_id as locationId
       name: name,
-      description: '',
-      latitude: lat,
-      longitude: lng,
+      vicinity: vicinity,
+      lat: lat.toDouble(),
+      lng: lng.toDouble(),
+      createdAt: DateTime.now(),
       cuisine: cuisine,
-      preference: LocationPreference.recommended,
       rating: rating,
       userRatingsTotal: userRatingsTotal,
       priceLevel: priceLevel,
-      vicinity: vicinity,
       photoReference: photoReference,
       savedCount: 0
     );
