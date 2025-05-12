@@ -47,21 +47,29 @@ class HomeController {
 
   /// Fetches recommended pins using the LocationListManager.
   /// Requires current location.
-  Future<void> fetchAndPlotRecommendedPins() async {
-    // Ensure we have a current location first
-    LatLng? currentLocation = deviceLocationProvider.currentPosition ??
-        await deviceLocationProvider.getCurrentLocation();
+  Future<void> fetchAndPlotRecommendedPins(LatLng? location) async {
+    if (location == null) {
+      // Ensure we have a current location first
+      LatLng? currentLocation = deviceLocationProvider.currentPosition ??
+          await deviceLocationProvider.getCurrentLocation();
 
-    if (currentLocation != null) {
-      await locationListManager.fetchRecommendedLocations(
-        latitude: currentLocation.latitude,
-        longitude: currentLocation.longitude,
-      );
-      // Set the carousel items to recommended
-      locationListManager.setCurrentListType(LocationListType.recommended);
+      if (currentLocation != null) {
+        await locationListManager.fetchRecommendedLocations(
+          latitude: currentLocation.latitude,
+          longitude: currentLocation.longitude,
+        );
+        // Set the carousel items to recommended
+        locationListManager.setCurrentListType(LocationListType.recommended);
+      } else {
+        log("HomeController: Cannot fetch recommendations without current location.");
+        // Handle error - maybe show a message to the user
+      }
     } else {
-      log("HomeController: Cannot fetch recommendations without current location.");
-      // Handle error - maybe show a message to the user
+      await locationListManager.fetchRecommendedLocations(
+        latitude: location.latitude,
+        longitude: location.longitude,
+      );
+      locationListManager.setCurrentListType(LocationListType.recommended);
     }
   }
 
