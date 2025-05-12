@@ -1,9 +1,6 @@
-from firebase_functions import https_fn, firestore_fn
-from firebase_admin import initialize_app, firestore, auth
+
 from flask import jsonify
 from functions.location_finder import LocationFinder
-from api.gpt_utils import start_gpt_session, find_locations
-from api.tiktok_retrieval import get_cleaned_video_info # Updated import
 import json
 import os
 import asyncio
@@ -15,7 +12,6 @@ import logging # Add logging import
 # from cleantext import clean # Likely no longer needed directly here
 from dotenv import load_dotenv
 
-initialize_app()
 load_dotenv()
 
 # Setup basic logging for Cloud Functions (adjust format as needed)

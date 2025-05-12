@@ -10,16 +10,18 @@ TikTokApi==6.2.0
 playwright==1.37.0
 clean-text
 
-# Google Cloud dependencies
-firebase-admin==6.2.0
+# Supabase dependencies
+supabase==1.0.3
+postgrest==0.10.6
+
+# Google Cloud dependencies (still needed for logging and monitoring)
 google-cloud-logging==3.5.0
-google-cloud-firestore==2.11.1
 google-generativeai==0.3.1
 google-cloud-monitoring==2.17.0
 
 # HTTP and request handling
 requests==2.31.0
-hypercorn==0.14.3
+# hypercorn==0.14.3
 
 # Async support
 nest-asyncio==1.5.7

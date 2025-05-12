@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:login/models/location_model.dart';
+import 'package:login/supabase_flutter/models/location_model.dart';
 
 class CarouselTile extends StatelessWidget {
   final LocationModel item;
@@ -21,7 +21,7 @@ class CarouselTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Dismissible(
-      key: Key(item.id),
+      key: Key(item.locationId.toString()),
       direction: DismissDirection.horizontal,
       onDismissed: (direction) {
         if (direction == DismissDirection.endToStart) {
@@ -48,7 +48,8 @@ class CarouselTile extends StatelessWidget {
           decoration: BoxDecoration(
             border: Border.all(color: Colors.transparent), // Invisible border
           ),
-          margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 12), // Adds spacing
+          margin: const EdgeInsets.symmetric(
+              vertical: 8, horizontal: 12), // Adds spacing
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

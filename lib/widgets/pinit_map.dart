@@ -69,12 +69,23 @@ class _CustomGoogleMapState extends State<CustomGoogleMap> {
       final location = entry.key; // LocationModel
       final originalMarker = entry.value; // Original Marker
 
-      // Create a new marker with the onTap handler
+      // Create a new marker with the onTap handler and no info window
       return originalMarker.copyWith(
         onTapParam: () {
           print("Marker tapped: ${originalMarker.markerId.value}"); // Debug log
           mapStateReader.setSelectedMarkerId(originalMarker.markerId);
+
+          // Find the index of the location in the current items list
+          final index = locationListManager.currentItems.keys.toList().indexWhere(
+            (loc) => loc.locationId.toString() == originalMarker.markerId.value
+          );
+
+          if (index != -1) {
+            // Animate to the corresponding item in the carousel
+            mapStateProvider.animateToCarouselItem(index);
+          }
         },
+        infoWindowParam: const InfoWindow(title: ""), // Empty info window to prevent popup
       );
     }).toSet();
 

@@ -7,7 +7,6 @@ import requests
 import json
 import argparse
 import logging
-import urllib3
 import os
 import time
 import sys
