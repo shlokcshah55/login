@@ -7,16 +7,14 @@ class VideoModel {
   final String platform;
   final String url;
   final int? extractedLocationId;
-  final DateTime postedAt;
   final DateTime? createdAt;
-  
+
   VideoModel({
     this.videoId,
     required this.userId,
     required this.platform,
     required this.url,
     this.extractedLocationId,
-    required this.postedAt,
     this.createdAt,
   });
 
@@ -28,8 +26,7 @@ class VideoModel {
       platform: json[SupabaseConstants.columnPlatform],
       url: json[SupabaseConstants.columnUrl],
       extractedLocationId: json[SupabaseConstants.columnExtractedLocationId],
-      postedAt: DateTime.parse(json[SupabaseConstants.columnPostedAt]),
-      createdAt: json[SupabaseConstants.columnCreatedAt] != null 
+      createdAt: json[SupabaseConstants.columnCreatedAt] != null
           ? DateTime.parse(json[SupabaseConstants.columnCreatedAt])
           : null,
     );
@@ -41,12 +38,12 @@ class VideoModel {
       SupabaseConstants.columnUserId: userId,
       SupabaseConstants.columnPlatform: platform,
       SupabaseConstants.columnUrl: url,
-      SupabaseConstants.columnPostedAt: postedAt.toIso8601String(),
     };
-    
+
     if (videoId != null) data[SupabaseConstants.columnVideoId] = videoId;
-    if (extractedLocationId != null) data[SupabaseConstants.columnExtractedLocationId] = extractedLocationId;
-    
+    if (extractedLocationId != null)
+      data[SupabaseConstants.columnExtractedLocationId] = extractedLocationId;
+
     return data;
   }
 
@@ -57,7 +54,6 @@ class VideoModel {
     String? platform,
     String? url,
     int? extractedLocationId,
-    DateTime? postedAt,
     DateTime? createdAt,
   }) {
     return VideoModel(
@@ -66,7 +62,6 @@ class VideoModel {
       platform: platform ?? this.platform,
       url: url ?? this.url,
       extractedLocationId: extractedLocationId ?? this.extractedLocationId,
-      postedAt: postedAt ?? this.postedAt,
       createdAt: createdAt ?? this.createdAt,
     );
   }

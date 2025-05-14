@@ -6,7 +6,8 @@ class SupabaseConstants {
   static const String tableUserFriends = 'user_friends';
   static const String tableUserLocationActions = 'user_location_actions';
   static const String tableLocationPopularityApp = 'location_popularity_app';
-  static const String tableLocationPopularitySocial = 'location_popularity_social';
+  static const String tableLocationPopularitySocial =
+      'location_popularity_social';
 
   // Column names - locations
   static const String columnLocationId = 'location_id';
@@ -29,7 +30,6 @@ class SupabaseConstants {
   static const String columnPlatform = 'platform';
   static const String columnUrl = 'url';
   static const String columnExtractedLocationId = 'extracted_location_id';
-  static const String columnPostedAt = 'posted_at';
 
   // Column names - user_friends
   static const String columnFriendId = 'friend_id';

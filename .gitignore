@@ -53,6 +53,7 @@ app.*.map.json
 functions/venv/   
 api/venv/   
 api/venv_py311
+api/myVenv311
 functions/__pycache__/  
 api/__pycache__/      
 *.pyc

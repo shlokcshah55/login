@@ -136,7 +136,8 @@ class LocationListManager with ChangeNotifier {
         };
         print(
             "Fetched ${recommendations.length} recommended locations from Google Places.");
-        print('recommendations: $recommendations');
+      
+        print('recommendations: $recommendations[0]');
       }
 
       // Optionally set as current list
