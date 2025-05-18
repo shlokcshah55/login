@@ -27,7 +27,7 @@ else:
                         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 # Target API endpoint configuration
-target_api = "https://process-tiktok-link-711637650309.europe-west1.run.app/v1/process-tiktok"
+target_api = "https://tiktok-processor-711637650309.europe-west2.run.app/v1/process-tiktok"
 
 @app.route("/", methods=["POST"])
 def consume_pubsub_message():

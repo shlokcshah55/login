@@ -44,7 +44,7 @@ else:
 
 # Pub/Sub configuration
 PROJECT_ID = "pinit-10b36"
-TOPIC_ID = "process-tiktok"
+TOPIC_ID = "tiktok-processor"
 publisher = pubsub_v1.PublisherClient()
 topic_path = publisher.topic_path(PROJECT_ID, TOPIC_ID)
 

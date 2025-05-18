@@ -37,7 +37,7 @@ class SupabaseConstants {
   // Column names - user_location_actions
   static const String columnActionId = 'action_id';
   static const String columnAction = 'action';
-  static const String columnSourceVideoId = 'source_video_id';
+  static const String columnSourceVideoUrl = 'source_video_url';
   static const String columnSavedMethod = 'saved_method';
 
   // Column names - location_popularity_app

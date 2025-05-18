@@ -27,13 +27,16 @@ class _LocationCarouselState extends State<LocationCarousel> {
     super.initState();
     // Provide the PageController to the MapStateProvider on initialization
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<MapStateProvider>().setCarouselPageController(widget.pageController);
+      context
+          .read<MapStateProvider>()
+          .setCarouselPageController(widget.pageController);
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    print("Building LocationCarousel with ${widget.locations.length} locations");
+    print(
+        "Building LocationCarousel with ${widget.locations.length} locations");
     final theme = Theme.of(context);
     final mapState = context.watch<MapStateProvider>();
 
@@ -251,7 +254,7 @@ class _LocationCarouselState extends State<LocationCarousel> {
                       child: _buildTypeIndicator(location.preference!, theme),
                     ),
                     // Saved count badge on the top-right if applicable
-                    if (location.savedCount! > 0)
+                    if (location.savedCount != null && location.savedCount! > 0)
                       Positioned(
                         top: 6, // Reduced position
                         right: 6, // Reduced position
