@@ -27,12 +27,12 @@ function show_usage {
 
 # Default values
 PROJECT_ID="pinit-10b36"
-REGION="europe-west1"
-SERVICE_NAME="process-tiktok-link"
+REGION="europe-west2"
+SERVICE_NAME="tiktok-processor"
 GEMINI_KEY="AIzaSyApUeW_QrlIPKMnYmUHneVjKdE69fJDJGs"
 PLACES_KEY="AIzaSyCgqkj-ZgZOZb6vJk55H8bQ8Z_szrhla5I"
-SUPABASE_URL=""
-SUPABASE_KEY=""
+SUPABASE_URL="https://umjoqvsfqhirysdjxnaf.supabase.co"
+SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtam9xdnNmcWhpcnlzZGp4bmFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU2NzgxNjAsImV4cCI6MjA2MTI1NDE2MH0.cpGRBaTnfqKLkPxq6Wv0e7boGGH_qZgeqYH55Xr1k90"
 BUILD_ONLY=false
 
 # Parse command line arguments
@@ -64,7 +64,7 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --supabase-key)
-      SUPABASE_KEY="$2"
+      SUPABASE_ANON_KEY="$2"
       shift 2
       ;;
     --build-only)
@@ -100,7 +100,7 @@ docker buildx inspect --bootstrap
 
 # Build and push in one step (required for multi-platform images)
 echo "===== Building and pushing multi-platform image to Google Container Registry ====="
-docker buildx build --platform linux/amd64 -t "$IMAGE_NAME" . --push
+docker buildx build --platform linux/amd64 -t "$IMAGE_NAME" -f Dockerfile . --push
 
 if [ "$BUILD_ONLY" = true ]; then
   echo "Build completed. Exiting without deployment."
@@ -108,22 +108,42 @@ if [ "$BUILD_ONLY" = true ]; then
 fi
 
 echo "===== Deploying to Cloud Run ====="
-ENV_VARS=""
-if [ -n "$GEMINI_KEY" ]; then
-  ENV_VARS="$ENV_VARS --set-env-vars=GEMINI_API_KEY=$GEMINI_KEY"
-fi
-if [ -n "$PLACES_KEY" ]; then
-  ENV_VARS="$ENV_VARS --set-env-vars=GOOGLE_PLACE_API_KEY=$PLACES_KEY"
+
+# Collect all environment variables
+MS_TOKENS=${MS_TOKENS:-""}
+FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID:-"pinit-10b36"}
+
+# Check for required environment variables
+if [ -z "$GEMINI_KEY" ]; then
+  echo "Warning: GEMINI_KEY is not set or empty"
 fi
 
-# Deploy to Cloud Run with appropriate service account
+if [ -z "$PLACES_KEY" ]; then
+  echo "Warning: PLACES_KEY is not set or empty"
+fi
+
+if [ -z "$SUPABASE_URL" ]; then
+  echo "Warning: SUPABASE_URL is not set or empty"
+fi
+
+if [ -z "$SUPABASE_ANON_KEY" ]; then
+  echo "Warning: SUPABASE_ANON_KEY is not set or empty"
+fi
+
+# Print environment variables for debugging
+echo "Deploying with environment variables:"
+echo "  GEMINI_API_KEY: [REDACTED]"
+echo "  GOOGLE_PLACE_API_KEY: [REDACTED]"
+echo "  SUPABASE_URL: $SUPABASE_URL"
+echo "  SUPABASE_ANON_KEY: [REDACTED]"
+
+# Deploy to Cloud Run with all environment variables
 gcloud run deploy "$SERVICE_NAME" \
   --image "$IMAGE_NAME" \
   --platform managed \
   --region "$REGION" \
   --project "$PROJECT_ID" \
-  $ENV_VARS \
-  --set-env-vars="ENVIRONMENT=production,DEBUG=false,SUPABASE_URL=$SUPABASE_URL,SUPABASE_ANON_KEY=$SUPABASE_KEY" \
+  --set-env-vars="ENVIRONMENT=production,DEBUG=false,GEMINI_API_KEY=$GEMINI_KEY,GOOGLE_PLACE_API_KEY=$PLACES_KEY,SUPABASE_URL=$SUPABASE_URL,SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY,MS_TOKENS=$MS_TOKENS,FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID" \
   --memory 1Gi \
   --cpu 1 \
   --concurrency 80 \

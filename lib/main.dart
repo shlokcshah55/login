@@ -31,12 +31,8 @@ void main() async {
   await LocationModel.initializeCustomMarker();
   await dotenv.load();
 
-  // Initialize Firebase
-
   // Initialize Supabase
   await SupabaseClientManager.initialize();
-
-  //TODO: Uncomment when migrating the notification service to Supabase
 
   // await NotificationService().initialize();
   // await BackgroundTaskService().initialize();
@@ -83,7 +79,6 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    print("main init state");
     // Listen to media sharing coming from outside the app while the app is in the memory.
     _intentSub = ReceiveSharingIntent.instance.getMediaStream().listen((value) {
       setState(() {
@@ -137,14 +132,13 @@ class _MyAppState extends State<MyApp> {
 
     // Cloud Run API endpoint for publishing to Pub/Sub
     final apiUrl =
-        'https://process-tiktok-711637650309.europe-west1.run.app/v1/publish';
+        'https://tiktok-producer-711637650309.europe-west2.run.app/v1/publish';
 
     for (String url in urls) {
       if (url.contains("tiktok.com")) {
-        log("Background Task Service: Processing TikTok link: $url");
+        print("Background Task Service: Processing TikTok link: $url");
 
         try {
-          log('get into here');
           // Send request to Cloud Run service, which will publish to PubSub
           final response = await http.post(
             Uri.parse(apiUrl),

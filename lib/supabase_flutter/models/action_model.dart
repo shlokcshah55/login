@@ -9,7 +9,7 @@ class UserLocationActionModel {
   final int? sourceVideoId;
   final DateTime? createdAt;
   final String? savedMethod; // 'tiktok', 'in-app'
-  
+
   UserLocationActionModel({
     this.actionId,
     required this.userId,
@@ -27,8 +27,8 @@ class UserLocationActionModel {
       userId: json[SupabaseConstants.columnUserId],
       locationId: json[SupabaseConstants.columnLocationId],
       action: json[SupabaseConstants.columnAction],
-      sourceVideoId: json[SupabaseConstants.columnSourceVideoId],
-      createdAt: json[SupabaseConstants.columnCreatedAt] != null 
+      sourceVideoId: json[SupabaseConstants.columnSourceVideoUrl],
+      createdAt: json[SupabaseConstants.columnCreatedAt] != null
           ? DateTime.parse(json[SupabaseConstants.columnCreatedAt])
           : null,
       savedMethod: json[SupabaseConstants.columnSavedMethod],
@@ -42,11 +42,13 @@ class UserLocationActionModel {
       SupabaseConstants.columnLocationId: locationId,
       SupabaseConstants.columnAction: action,
     };
-    
+
     if (actionId != null) data[SupabaseConstants.columnActionId] = actionId;
-    if (sourceVideoId != null) data[SupabaseConstants.columnSourceVideoId] = sourceVideoId;
-    if (savedMethod != null) data[SupabaseConstants.columnSavedMethod] = savedMethod;
-    
+    if (sourceVideoId != null)
+      data[SupabaseConstants.columnSourceVideoUrl] = sourceVideoId;
+    if (savedMethod != null)
+      data[SupabaseConstants.columnSavedMethod] = savedMethod;
+
     return data;
   }
 

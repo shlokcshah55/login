@@ -49,7 +49,7 @@ def start_gpt_session(gemini_api_key=None):
         
         # Use Gemini 1.5 Pro model which has better handling of structured data
         model = genai.GenerativeModel(
-            model_name="gemini-1.5-pro",  # Updated to a stable model version
+            model_name="gemini-1.5-flash-8b",  # Updated to a stable model version
             generation_config=generation_config,
         )
         
@@ -86,7 +86,7 @@ def start_gpt_session(gemini_api_key=None):
                 },
             ]
         )
-        time.sleep(100)  # Optional: slight delay to ensure session is ready
+        time.sleep(5)  # Optional: slight delay to ensure session is ready
         
         return chat_session
         
@@ -129,7 +129,7 @@ def _extract_locations(response_text):
     """
     Parses the model's response text and extracts the location information.
     Improved to handle various response formats more robustly.
-    
+
     :param response_text: The text returned by the model.
     :return: A list of dictionaries, each with "landmark" and "location" keys.
     """
@@ -138,11 +138,11 @@ def _extract_locations(response_text):
         # Look for JSON object patterns in the text
         json_start = response_text.find("{")
         json_end = response_text.rfind("}") + 1
-        
+
         if json_start >= 0 and json_end > json_start:
             json_text = response_text[json_start:json_end]
             result = json.loads(json_text)
-            
+
             if "locations" in result and isinstance(result["locations"], list):
                 # Validate each location has the required fields
                 valid_locations = []
@@ -153,13 +153,13 @@ def _extract_locations(response_text):
                             "location": loc["location"].strip()
                         })
                 return valid_locations
-        
+
         # If JSON parsing failed, try alternative parsing
         logger.warning("JSON parsing failed, attempting alternative parsing")
         locations = []
         lines = response_text.split("\n")
         current = {}
-        
+
         for line in lines:
             line = line.strip()
             if "landmark" in line.lower() and ":" in line:
@@ -172,13 +172,13 @@ def _extract_locations(response_text):
                 if "landmark" in current:  # If we have both fields, add to locations
                     locations.append(current.copy())
                     current = {}
-        
+
         # Add the last location if it's complete
         if current and "landmark" in current and "location" in current:
             locations.append(current)
-            
+
         return locations
-        
+
     except json.JSONDecodeError as e:
         logger.error(f"JSON parsing error: {e}")
         return []
@@ -186,9 +186,87 @@ def _extract_locations(response_text):
         logger.error(f"Error extracting locations: {e}")
         return []
 
+def filter_restaurant_locations(chat_session, locations):
+    """
+    Filter extracted locations to identify genuine restaurant locations.
+
+    This function takes the initially extracted locations and sends them to the AI model
+    to identify which ones are actual restaurants or food establishments, filtering out
+    generic areas or non-restaurant locations.
+
+    :param chat_session: Active chat session with the AI model
+    :param locations: List of location dictionaries with "landmark" and "location" keys
+    :return: List of filtered location dictionaries containing only restaurant locations
+    """
+    if not chat_session or not locations:
+        logger.warning("No chat session or locations provided for filtering")
+        return []
+
+    try:
+        # Create a simple JSON representation of the locations
+        locations_json = json.dumps({"locations": locations})
+
+        # Improved prompt specifically for filtering restaurant locations
+        prompt = """
+        Given this list of extracted locations from a TikTok video, identify which ones are actual restaurants, cafes,
+        bars, or specific food establishments that viewers could visit.
+
+        Filter out generic areas, neighborhoods, cities, bridges, parks, or vague locations that are not specific
+        dining establishments. Only keep locations where someone could actually eat or drink.
+
+        Return ONLY a valid JSON object in the following exact format:
+        {
+          "filtered_locations": [
+            {"landmark": "<name of restaurant/cafe/bar>", "location": "<address/location>", "is_restaurant": true}
+          ]
+        }
+
+        IMPORTANT RULES:
+        1. Include ONLY specific food establishments (restaurants, cafes, bakeries, etc.)
+        2. Exclude generic areas, neighborhoods, tourist spots, or landmarks that are not food establishments
+        3. If uncertain about whether something is a restaurant, mark it with "is_restaurant": false
+        4. Return ONLY the JSON object, no explanations or other text
+        5. If no valid restaurants are found, return: {"filtered_locations": []}
+        """
+
+        # Send the locations and prompt to the model
+        logger.info("Sending locations to Gemini model for restaurant filtering")
+        response = chat_session.send_message(f"{prompt}\n\nLocations to filter: {locations_json}")
+        response_text = response.text.strip()
+
+        # Extract and parse the filtered locations
+        filtered_locations = []
+        try:
+            # Find JSON in the response
+            json_start = response_text.find("{")
+            json_end = response_text.rfind("}") + 1
+
+            if json_start >= 0 and json_end > json_start:
+                json_text = response_text[json_start:json_end]
+                result = json.loads(json_text)
+
+                if "filtered_locations" in result and isinstance(result["filtered_locations"], list):
+                    for loc in result["filtered_locations"]:
+                        if isinstance(loc, dict) and "landmark" in loc and "location" in loc:
+                            # Only include locations marked as restaurants
+                            if loc.get("is_restaurant", False):
+                                filtered_locations.append({
+                                    "landmark": loc["landmark"].strip(),
+                                    "location": loc["location"].strip()
+                                })
+        except Exception as e:
+            logger.error(f"Error parsing filtered locations: {e}")
+
+        logger.info(f"Filtered {len(locations)} locations down to {len(filtered_locations)} restaurant locations")
+        return filtered_locations
+
+    except Exception as e:
+        logger.error(f"Error in filter_restaurant_locations: {e}")
+        return []
+
 # Test function when module is run directly
 if __name__ == "__main__":
-    TEST_INPUT = """ 
+    TEST_INPUT = """
     {
       "id": "7269735509210041632",
       "locationCreated": "GB",
@@ -266,17 +344,29 @@ if __name__ == "__main__":
       "description": "A weekend in Littlehampton with a visit to The Coffee Bar and a stroll at Seaside Diner."
     }
     """
-    
+
     session = start_gpt_session()
-    
+
     if not session:
         print("Failed to create Gemini session. Check your API key.")
         exit(1)
-    
+
+    # Test the initial location extraction
     locations1 = find_locations(session, TEST_INPUT)
     print("Test Input 1 Locations:")
     print(json.dumps(locations1, indent=2))
-    
+
+    # Test the restaurant location filtering
+    filtered_locations1 = filter_restaurant_locations(session, locations1)
+    print("Filtered Restaurant Locations:")
+    print(json.dumps(filtered_locations1, indent=2))
+
+    # Test with second input
     locations2 = find_locations(session, TEST_INPUT2)
     print("Test Input 2 Locations:")
     print(json.dumps(locations2, indent=2))
+
+    # Test the restaurant location filtering on second input
+    filtered_locations2 = filter_restaurant_locations(session, locations2)
+    print("Filtered Restaurant Locations:")
+    print(json.dumps(filtered_locations2, indent=2))

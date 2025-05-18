@@ -23,7 +23,7 @@ from asgiref.sync import async_to_sync
 from tiktok_retrieval import get_cleaned_video_info
 import sys
 sys.path.append("..")  # Adjust the path to import local modules
-from utils.gpt_utils import start_gpt_session, find_locations
+from utils.gpt_utils import start_gpt_session, find_locations, filter_restaurant_locations
 
 from supabase_db import get_supabase_client
 from places_api import get_places_api
@@ -132,7 +132,6 @@ def process_tiktok_link():
     try:
         # Validate request body
         data = request.json
-        print('this is data' , data)
         if not data or not data.get("url"):
             track_error("missing_field", "url")
             return jsonify({"error": "Missing required field: url"}), 400
@@ -146,7 +145,7 @@ def process_tiktok_link():
             return jsonify({"error": "Invalid TikTok URL format"}), 400
         
         logging.info(f"Processing TikTok URL: {tiktok_url} for user: {user_id}")
-        
+
         # Use async_to_sync to call our async function from a sync context
         process_url = async_to_sync(process_tiktok_url)
         result = process_url(tiktok_url, user_id)
@@ -175,51 +174,57 @@ async def process_tiktok_url(url: str, user_id: Optional[str] = None) -> Dict[st
         url: The TikTok URL to process
         user_id: Optional user ID associated with the request
         doc_id: Optional Supabase document ID to update
-        
+
     Returns:
         Dict with results or error information
     """
     try:
-        db_client = get_supabase_client()
         # Get database client if document ID was provided
+        db_client = get_supabase_client()
         if not db_client or not db_client.is_connected():
             logging.warning("Database connection not available, continuing without database updates")
 
-        db_client.store_video(url)
-    
         # Get TikTok data
         logging.info(f"Getting video info for {url}")
         video_info = await get_cleaned_video_info(url)
-    
-        
+
+
         # Extract locations with Gemini if API key is available
         locations = []
+        filtered_locations = []
         place_ids = []
         if GEMINI_API_KEY:
             try:
                 logging.info(f"Extracting locations for {url}")
                 session = start_gpt_session(GEMINI_API_KEY)
+
+                # First extract all potential locations
                 locations = find_locations(session, video_info)
-                logging.info(f"Found locations: {locations}")
-                
-                # Process each location with Google Places API
+                logging.info(f"Initially found locations: {locations}")
+
+                # Then filter to get only genuine restaurant locations
                 if locations:
+                    filtered_locations = filter_restaurant_locations(session, locations)
+                    logging.info(f"Filtered restaurant locations: {filtered_locations}")
+
+                # Process each filtered location with Google Places API
+                if filtered_locations:
                     # Get TikTok video ID from the video_info
                     tiktok_id = video_info.get("id")
-                    logging.info(f"Processing locations with TikTok ID: {tiktok_id}")
-                    
-                    for location in locations:
+                    logging.info(f"Processing filtered locations with TikTok ID: {tiktok_id}")
+
+                    for location in filtered_locations:
                         # Process location in Google Places API
-                        place_id = await process_location(location, tiktok_id, user_id)
+                        place_id = await process_location(location, tiktok_id, user_id, url)
                         if place_id:
                             # Add place_id to the location information
                             location["place_id"] = place_id
                             place_ids.append(place_id)
-                
+
             except Exception as e:
-                logging.error(f"Error extracting locations: {e}")
+                logging.error(f"Error extracting or filtering locations: {e}")
                 # Continue processing even if location extraction fails
-        
+
         # For local testing without database, return the video info directly
         if not db_client:
             logging.info("Database client not available, returning video info without storage")
@@ -227,22 +232,23 @@ async def process_tiktok_url(url: str, user_id: Optional[str] = None) -> Dict[st
                 "status": "success",
                 "message": "TikTok data processed successfully (database storage skipped)",
                 "video_info": video_info,
-                "locations": locations,
+                "all_locations": locations,
+                "restaurant_locations": filtered_locations,
                 "place_ids": place_ids
             }
-        
-        return locations
-            
+
+        return filtered_locations
+
     except Exception as e:
         error_msg = f"Error processing TikTok URL {url}: {str(e)}"
         logging.exception(error_msg)
-        
+
         # Update document status if we have the database connection
-    
-        
+
+
         return {"error": error_msg, "url": url}
 
-async def process_location(location_info: Dict[str, str], tiktok_id: Optional[str] = None, user_id: Optional[str] = None) -> Optional[str]:
+async def process_location(location_info: Dict[str, str], tiktok_id: Optional[str] = None, user_id: Optional[str] = None, url: Optional[str] = None) -> Optional[str]:
     """
     Process a location by searching for it in Google Places API and storing in Supabase.
     
@@ -287,9 +293,9 @@ async def process_location(location_info: Dict[str, str], tiktok_id: Optional[st
         if not db_client or not db_client.is_connected():
             logging.warning("Database connection not available, not storing location data")
             return place_data.get("place_id")
-
+        print('This is url', url)
         # Store the location data in Supabase with the TikTok ID and user ID
-        location_id = db_client.store_location(place_data, tiktok_id, user_id)
+        location_id = db_client.store_location(place_data, tiktok_id, user_id, url)
         print('stored location id', location_id)    
 
         

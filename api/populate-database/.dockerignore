@@ -31,8 +31,7 @@ wheels/
 .installed.cfg
 *.egg
 
-# Ignore Docker files (if any)
-Dockerfile*
+# Docker compose files
 docker-compose*
 
 # Ignore local dev files

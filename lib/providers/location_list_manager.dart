@@ -86,7 +86,8 @@ class LocationListManager with ChangeNotifier {
             location:
                 location.setPreference(LocationPreference.saved).toMarker()
         };
-        log("Fetched ${supabaseSavedLocations.length} saved locations from Supabase.");
+        print(
+            "Fetched ${supabaseSavedLocations.length} saved locations from Supabase.");
       }
 
       // If the current type is saved, update currentItems
@@ -136,7 +137,8 @@ class LocationListManager with ChangeNotifier {
         };
         print(
             "Fetched ${recommendations.length} recommended locations from Google Places.");
-        print('recommendations: $recommendations');
+
+        print('recommendations: $recommendations[0]');
       }
 
       // Optionally set as current list

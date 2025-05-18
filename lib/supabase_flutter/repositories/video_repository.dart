@@ -6,18 +6,15 @@ import '../services/supabase_video_service.dart';
 /// Repository for video-related operations
 class VideoRepository {
   final SupabaseVideoService _videoService = SupabaseVideoService();
-  
+
   /// Submit a new video
-  Future<VideoModel?> submitVideo(
-    String url, 
-    String platform, 
-    {DateTime? postedAt, int? extractedLocationId}
-  ) async {
+  Future<VideoModel?> submitVideo(String url, String platform,
+      {DateTime? createdAt, int? extractedLocationId}) async {
     try {
       return await _videoService.submitVideo(
-        url, 
+        url,
         platform,
-        postedAt: postedAt,
+        createdAt: createdAt,
         extractedLocationId: extractedLocationId,
       );
     } catch (e) {
@@ -53,9 +50,9 @@ class VideoRepository {
   }
 
   /// Share a video for a location
-  Future<bool> shareVideoForLocation(int videoId, int locationId) async {
+  Future<bool> shareVideoForLocation(String videoUrl, int locationId) async {
     try {
-      return await _videoService.shareVideoForLocation(videoId, locationId);
+      return await _videoService.shareVideoForLocation(videoUrl, locationId);
     } catch (e) {
       if (kDebugMode) {
         print('Error in VideoRepository.shareVideoForLocation: $e');

@@ -57,7 +57,7 @@ class SupabaseColumns:
     # Column names - user_location_actions
     ACTION_ID = 'action_id'
     ACTION = 'action'
-    SOURCE_VIDEO_ID = 'source_video_id'
+    SOURCE_VIDEO_URL = 'source_video_url'
     SAVED_METHOD = 'saved_method'
     
     # Column names - location_popularity_app
@@ -72,6 +72,18 @@ class SupabaseColumns:
     # Saved method types
     SAVED_METHOD_TIKTOK = 'tiktok'
     SAVED_METHOD_IN_APP = 'in-app'
+
+class GooglePlaceConstants:
+    name = 'name'
+    address = 'address'
+    google_maps_url = 'google_maps_url'
+    coordinates = 'coordinates'
+    lat = 'lat'
+    lng = 'lng'
+    editoral_summary = 'editoral_summary'
+    photos = 'photos'
+    price_level = 'price_level'
+    rating = 'rating'
 
 class SupabaseClient:
     """Supabase database client for TikTok processing operations."""
@@ -100,7 +112,7 @@ class SupabaseClient:
     
 
     # --- Location-related methods ---
-    def store_location(self, place_data: Dict[str, Any], tiktok_id: Optional[str] = None, user_id: Optional[str] = None) -> Optional[int]:
+    def store_location(self, place_data: Dict[str, Any], tiktok_id: Optional[str] = None, user_id: Optional[str] = None, url: Optional[str] = None) -> Optional[int]:
         """
         Store or update location data in the locations table.
         
@@ -118,7 +130,6 @@ class SupabaseClient:
                 return None
                 
             google_place_id = place_data.get("place_id")
-
             current_timestamp = datetime.utcnow().isoformat()
             
             # First try to look up the location by name and vicinity (as place_id might not be available)
@@ -126,15 +137,14 @@ class SupabaseClient:
             location_vicinity = place_data.get(SupabaseColumns.VICINITY)
             
             existing_location = None
-            logger.info(f"google_place_id: {google_place_id}")
             
+            # Try to find by place_id first
             if google_place_id:
-                # Try to find by place_id first
                 existing_location = self.get_location_by_place_id(google_place_id)
             
+            # Try to find by name and vicinity
             if not existing_location and location_name and location_vicinity:
-                # Try to find by name and vicinity
-                logger.info(f"trying somet  google_place_id: {google_place_id}")
+                logger.info(f"trying somet google_place_id: {google_place_id}")
 
                 result = self.client.table(SupabaseColumns.TABLE_LOCATIONS).select("*").eq(SupabaseColumns.NAME, location_name).eq(SupabaseColumns.VICINITY, location_vicinity).limit(1).execute()
                 
@@ -142,71 +152,63 @@ class SupabaseClient:
                     existing_location = result.data[0]
             
             if existing_location:
-                logger.info(f"Updating existing location: {existing_location}")
-                # Update existing location
-                location_id = existing_location.get(SupabaseColumns.LOCATION_ID)
-                
-                # Prepare update data
-                update_data = {
-                    
-                }
-                
-                # Update location data
-                for key, value in place_data.items():
-                    if key not in [SupabaseColumns.LOCATION_ID, SupabaseColumns.CREATED_AT] and value is not None:
-                        update_data[key] = value
-                
-                # Update the location
-                result = self.client.table(SupabaseColumns.TABLE_LOCATIONS).update(update_data).eq(SupabaseColumns.LOCATION_ID, location_id).execute()
-                
-                # If tiktok_id is provided and user_id is provided, create a user_location_action
+                # If its a tiktok, store the video and then add the location to the user saved posts
                 if tiktok_id and user_id:
-                    self.add_location_to_user_saved_posts(user_id, location_id, tiktok_id)
+                    print(url, 'url')
+                    self.store_video(url, existing_location['location_id'])
 
-                self.increment_location_popularity(location_id, SupabaseColumns.ACTION_SAVE)
+                    self.add_location_to_user_saved_posts(user_id, existing_location['location_id'], url)
+        
+                self.increment_location_popularity(existing_location['location_id'], SupabaseColumns.ACTION_SAVE)
                 
-                return location_id
+                return existing_location['location_id']
                 
             else:
-                logger.info('got here ')
                 # Create new location
                 # Prepare location data
                 location_id = self.getNextLocationId()
-
+                lat = 0
+                lng = 0
+                if place_data.get(GooglePlaceConstants.coordinates):
+                    lat = place_data.get(GooglePlaceConstants.coordinates)['lat']
+                    lng = place_data.get(GooglePlaceConstants.coordinates)['lng']
                 new_data = {
                     SupabaseColumns.LOCATION_ID: location_id,
                     SupabaseColumns.GOOGLE_PLACE_ID: google_place_id,
-                    SupabaseColumns.NAME: place_data.get(SupabaseColumns.NAME, "Unknown"),
-                    SupabaseColumns.VICINITY: place_data.get(SupabaseColumns.VICINITY, "Unknown"),
-                    SupabaseColumns.LAT: place_data.get(SupabaseColumns.LAT, 0),
-                    SupabaseColumns.LNG: place_data.get(SupabaseColumns.LNG, 0),
+                    SupabaseColumns.NAME: place_data.get(GooglePlaceConstants.name, "Unknown"),
+                    SupabaseColumns.VICINITY: place_data.get(GooglePlaceConstants.address, "Unknown"),
+                    SupabaseColumns.LAT: lat,
+                    SupabaseColumns.LNG: lng,
                     SupabaseColumns.CREATED_AT: current_timestamp,
+                    SupabaseColumns.PHOTO_REFERENCE: place_data.get(GooglePlaceConstants.photos[0], None),
+                    SupabaseColumns.PRICE_LEVEL: place_data.get(GooglePlaceConstants.price_level, None),
+                    SupabaseColumns.RATING: place_data.get(GooglePlaceConstants.rating, None),
                 }
                 
                 # Add optional fields
                 new_data[SupabaseColumns.LOCATION_ID] = location_id
                 
                 for key, value in place_data.items():
-                    if key not in [SupabaseColumns.NAME, SupabaseColumns.VICINITY, SupabaseColumns.LAT, 
+                    if key in [SupabaseColumns.NAME, SupabaseColumns.VICINITY, SupabaseColumns.LAT, 
                                    SupabaseColumns.LNG, SupabaseColumns.CREATED_AT,
-                                   SupabaseColumns.LOCATION_ID] and value is not None:
+                                   SupabaseColumns.LOCATION_ID, SupabaseColumns.PHOTO_REFERENCE, SupabaseColumns.PRICE_LEVEL, SupabaseColumns.RATING] and value is not None:
                         new_data[key] = value
-                
+             
                 # Create the location
                 result = self.client.table(SupabaseColumns.TABLE_LOCATIONS).insert(new_data).execute()
                 
                 if not (hasattr(result, 'data') and result.data):
-                    logger.error(f"Failed to create location")
                     return None
                 
+                self.store_video(url, location_id)
+
                 location_id = result.data[0].get(SupabaseColumns.LOCATION_ID)
-                
                 # Initialize location popularity
                 self._initialize_location_popularity(location_id)
                 
                 # If tiktok_id is provided and user_id is provided, create a user_location_action
                 if tiktok_id and user_id:
-                    self.add_location_to_user_saved_posts(user_id, location_id, tiktok_id)
+                    self.add_location_to_user_saved_posts(user_id, location_id, url)
                 
                 return location_id
                 
@@ -214,7 +216,7 @@ class SupabaseClient:
             logger.error(f"Error storing location data: {e}")
             return None
     
-    def store_video(self, url):
+    def store_video(self, url, extracted_location_id: Optional[str]=None):
         """
         Store a TikTok video URL in the database.
         
@@ -226,16 +228,20 @@ class SupabaseClient:
         """
         try:
             if not self.is_connected():
-                logger.error("Cannot store video: Supabase client not initialized")
                 return None
-                
+            
+            # Check if the URL is already in the database
+            existing_video = self.client.table(SupabaseColumns.TABLE_VIDEOS).select("*").eq(SupabaseColumns.URL, url).limit(1).execute()
+            if hasattr(existing_video, 'data') and existing_video.data:
+                return existing_video.data[0].get(SupabaseColumns.VIDEO_ID)
+
             # Prepare video data
             video_data = {
                 SupabaseColumns.VIDEO_ID: self.getNextVideoId(),
                 SupabaseColumns.URL: url,
                 SupabaseColumns.CREATED_AT: datetime.utcnow().isoformat(),
                 SupabaseColumns.PLATFORM: "tiktok",
-
+                SupabaseColumns.EXTRACTED_LOCATION_ID: extracted_location_id,
             }
             
             # Insert the video
@@ -348,7 +354,7 @@ class SupabaseClient:
             logger.error(f"Error initializing location popularity for {location_id}: {e}")
             return False
     
-    def add_location_to_user_saved_posts(self, user_id: str, location_id: int, tiktok_id: str) -> bool:
+    def add_location_to_user_saved_posts(self, user_id: str, location_id: int, url: str) -> bool:
         """
         Add a location to a user's saved posts by creating a user_location_action record.
         
@@ -360,11 +366,15 @@ class SupabaseClient:
         Returns:
             True if successful, False otherwise
         """
-        try:
-            
+        try:            
             if not self.is_connected():
                 logger.error("Cannot update user: Supabase client not initialized")
                 return False
+            
+            # Check if the user and url exists
+            user = self.client.table('user_location_actions').select("*").eq('user_id', user_id).eq('source_video_url', url).limit(1).execute()
+            if hasattr(user, 'data') and user.data:
+                return True
             
             # Create a user_location_action record
             action_data = {
@@ -372,10 +382,11 @@ class SupabaseClient:
                 SupabaseColumns.USER_ID: user_id,
                 SupabaseColumns.LOCATION_ID: location_id,
                 SupabaseColumns.ACTION: SupabaseColumns.ACTION_SAVE,
-                SupabaseColumns.SOURCE_VIDEO_ID: tiktok_id,
+                SupabaseColumns.SOURCE_VIDEO_URL: url,
                 SupabaseColumns.SAVED_METHOD: SupabaseColumns.SAVED_METHOD_TIKTOK,
                 SupabaseColumns.CREATED_AT: datetime.utcnow().isoformat()
             }
+
             
             # Insert the action
             result = self.client.table(SupabaseColumns.TABLE_USER_LOCATION_ACTIONS).insert(action_data).execute()

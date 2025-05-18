@@ -25,8 +25,8 @@ function show_usage {
 # Default values
 PROJECT_ID="pinit-10b36"
 REGION="europe-west1"
-SERVICE_NAME="tiktok-api"
-PUBSUB_TOPIC="tiktok-links"
+SERVICE_NAME="pubsub-consumer"
+PUBSUB_TOPIC="tiktok-processor"
 BUILD_ONLY=false
 
 # Parse command line arguments
