@@ -22,7 +22,7 @@ RUN pip install --no-cache-dir -r requirements.txt && \
 RUN mkdir -p /secrets
 
 # Copy only the application code - NOT credentials
-COPY *.py .
+COPY *.py ./
 COPY .env.template .env.template
 COPY utils/ utils/
 
@@ -37,6 +37,6 @@ RUN chmod -R 777 /root/.cache
 # Expose the port for the API
 EXPOSE 8080
 
-# Run with Hypercorn (ASGI server)
-CMD ["python", "run_hypercorn.py"]
+# Run the main application
+CMD ["python", "main.py"]
 
