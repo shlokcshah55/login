@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
+    
+
     <application
         android:label="login"
         android:name="${applicationName}"
@@ -51,7 +53,7 @@
         <!-- Add your Google Maps API Key -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyDAp_IYF82Oam_cuICYw4P843NweecWAfI" />
+            android:value="AIzaSyBMiIORXC3xMMFyL7FnRlmOIBJfw9wvPyg" />
     </application>
 
     <!-- Required for querying actions and activities -->
