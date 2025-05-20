@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:login/assets/constants.dart';
 import 'package:login/controllers/home_controller.dart';
-// import 'package:login/providers/app_data_provider.dart'; // Remove old
 import 'package:login/providers/device_location_provider.dart'; // Add new
 import 'package:login/providers/location_list_manager.dart';
 import 'package:login/providers/map_state_provider.dart';
@@ -156,6 +155,7 @@ class _CustomGoogleMapState extends State<CustomGoogleMap> {
           markers: markers,
           // Get polylines from MapStateProvider
           polylines: mapStateProvider.polylines,
+          
         ),
 
         // "Search this area" button - only show on recommended tab

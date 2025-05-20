@@ -14,7 +14,6 @@ import 'package:login/notifications/backgroundTaskService.dart';
 import 'package:login/pages/auth_handler.dart';
 import 'package:login/pages/home_page.dart';
 import 'package:login/pages/profile_page.dart';
-// import 'package:login/providers/app_data_provider.dart'; // Remove old provider
 import 'package:login/providers/device_location_provider.dart'; // Import new providers
 import 'package:login/providers/location_list_manager.dart';
 import 'package:login/providers/map_state_provider.dart';
@@ -119,6 +118,7 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
+  /// Process received shared links from social media and publish them to Pub/Sub
   Future<void> addFilesToProcess(List<SharedMediaFile> sharedFiles) async {
     print("Background Task Service: Processing shared files");
     List<String> urls = sharedFiles.map((f) => f.path).toList();
@@ -204,56 +204,82 @@ class _MainScreenState extends State<MainScreen> {
       body: _pages[_currentIndex],
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        height: 64,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        height: 68,
         margin: const EdgeInsets.symmetric(horizontal: 24),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(32),
+          borderRadius: BorderRadius.circular(34),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 10,
-              spreadRadius: 1,
-              offset: const Offset(0, 4),
+              color: Colors.black.withBlue(10),
+              blurRadius: 15,
+              spreadRadius: 0,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            _buildNavItem(Icons.home, 0),
-            _buildNavItem(Icons.search, 1),
-            _buildNavItem(Icons.notifications, 2),
-            _buildNavItem(Icons.person, 3),
+            _buildNavItem(Icons.home_rounded, 0, 'Home'),
+            _buildNavItem(Icons.search_rounded, 1, 'Search'),
+            _buildNavItem(Icons.notifications_rounded, 2, 'Alerts'),
+            _buildNavItem(Icons.person_rounded, 3, 'Profile'),
           ],
         ),
       ),
-    );
-  }
+      );
+    }
 
-  Widget _buildNavItem(IconData icon, int index) {
-    final isSelected = _currentIndex == index;
-    return InkWell(
-      onTap: () {
-        setState(() {
-          _currentIndex = index;
-        });
-      },
-      borderRadius: BorderRadius.circular(50),
-      child: Container(
-        height: 48,
-        width: 48,
-        decoration: BoxDecoration(
-          color: isSelected ? primaryTeal : Colors.transparent,
-          borderRadius: BorderRadius.circular(24),
+      // Improved nav item widget with animations and tooltip
+      Widget _buildNavItem(IconData icon, int index, String label) {
+      bool isSelected = _currentIndex == index;
+
+      return Tooltip(
+        message: label,
+        child: InkWell(
+          onTap: () => setState(() {
+            _currentIndex = index;
+          }),
+          customBorder: const CircleBorder(),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOutCubic,
+            padding: EdgeInsets.symmetric(
+              horizontal: isSelected ? 16 : 12,
+              vertical: 8,
+            ),
+            decoration: BoxDecoration(
+              color: isSelected ? Theme.of(context).primaryColor.withOpacity(0.1) : Colors.transparent,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  icon,
+                  color: isSelected 
+                    ? Theme.of(context).primaryColor 
+                    : Colors.grey.shade600,
+                  size: 26,
+                ),
+                if (isSelected) ...[
+                  const SizedBox(width: 6),
+                  AnimatedDefaultTextStyle(
+                    duration: const Duration(milliseconds: 300),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: Theme.of(context).primaryColor,
+                    ),
+                    child: Text(label),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
-        child: Icon(
-          icon,
-          color: isSelected ? Colors.white : Colors.grey[700],
-          size: 24,
-        ),
-      ),
-    );
-  }
+      );
+      }
 }

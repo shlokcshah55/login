@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../widgets/my_text_widget.dart';
 import '../supabase_flutter/supabase_provider.dart';
+import 'signup_page.dart';
 
 class LoginPage extends StatelessWidget {
   LoginPage({super.key});
@@ -36,66 +37,97 @@ class LoginPage extends StatelessWidget {
       backgroundColor: Colors.grey[300],
       body: SafeArea(
         child: Center(
-          child: Column(
-            children: [
-              const SizedBox(height: 100),
-              // Logo
-              const Icon(
-                Icons.pin_drop,
-                size: 100,
-                color: Color.fromARGB(255, 68, 66, 65),
-              ),
-              const SizedBox(height: 20),
-
-              const Text(
-                'Pinit',
-                style: TextStyle(
-                  fontSize: 30,
-                  fontWeight: FontWeight.bold,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const SizedBox(height: 40),
+                // Logo
+                const Icon(
+                  Icons.pin_drop,
+                  size: 100,
                   color: Color.fromARGB(255, 68, 66, 65),
                 ),
-              ),
-
-              const SizedBox(height: 20),
-
-              SleekTextInput(
-                  controller: emailController,
-                  hintText: "Email",
-                  prefixIcon: Icons.email_outlined),
-              const SizedBox(height: 20),
-
-              SleekTextInput(
-                  controller: passwordController,
-                  hintText: "Password",
-                  prefixIcon: Icons.lock_outline,
-                  isPassword: true),
-              const SizedBox(height: 10),
-              // login button
-              buildLoginButton(),
-              const SizedBox(height: 10),
-              // signin failure message
-
-              ValueListenableBuilder<bool>(
-                valueListenable: signInFailedNotifier,
-                builder: (context, signInFailed, child) {
-                  if (signInFailed) {
-                    return const Text(
-                      'Incorrect email or password',
-                      style: TextStyle(
-                        color: Colors.red,
-                        fontSize: 16,
+                const SizedBox(height: 20),
+    
+                const Text(
+                  'Pinit',
+                  style: TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.bold,
+                    color: Color.fromARGB(255, 68, 66, 65),
+                  ),
+                ),
+    
+                const SizedBox(height: 20),
+    
+                SleekTextInput(
+                    controller: emailController,
+                    hintText: "Email",
+                    prefixIcon: Icons.email_outlined),
+                const SizedBox(height: 20),
+    
+                SleekTextInput(
+                    controller: passwordController,
+                    hintText: "Password",
+                    prefixIcon: Icons.lock_outline,
+                    isPassword: true),
+                const SizedBox(height: 20),
+                // login button
+                buildLoginButton(),
+                const SizedBox(height: 20),
+                
+                // Sign up link
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      "Don't have an account?",
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                    const SizedBox(width: 4),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => const SignupPage(),
+                          ),
+                        );
+                      },
+                      child: const Text(
+                        'Sign up',
+                        style: TextStyle(
+                          color: Color.fromARGB(255, 68, 66, 65),
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    );
-                  } else {
-                    return Container();
-                  }
-                },
-              )
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                // signin failure message
+                ValueListenableBuilder<bool>(
+                  valueListenable: signInFailedNotifier,
+                  builder: (context, signInFailed, child) {
+                    if (signInFailed) {
+                      return const Text(
+                        'Incorrect email or password',
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontSize: 16,
+                        ),
+                      );
+                    } else {
+                      return Container();
+                    }
+                  },
+                ),
+                
             ],
           ),
         ),
       ),
-    );
+    ));
   }
 
   Widget buildLoginButton() {

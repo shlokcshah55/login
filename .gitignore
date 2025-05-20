@@ -48,6 +48,7 @@ app.*.map.json
 /android/app/release
 /android/build
 /android/gradle.properties
+android/app/.cxx/Debug/315c2q1e
 
 # python related
 functions/venv/   

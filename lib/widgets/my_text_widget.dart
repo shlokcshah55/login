@@ -5,6 +5,7 @@ class SleekTextInput extends StatelessWidget {
   final IconData prefixIcon;
   final bool isPassword;
   final TextEditingController controller;
+  final TextInputType keyboardType;
 
   const SleekTextInput({
     super.key,
@@ -12,6 +13,7 @@ class SleekTextInput extends StatelessWidget {
     required this.hintText,
     required this.prefixIcon,
     this.isPassword = false,
+    this.keyboardType = TextInputType.text,
   });
 
   @override
@@ -21,6 +23,7 @@ class SleekTextInput extends StatelessWidget {
       child: TextField(
         controller: controller,
         obscureText: isPassword,
+        keyboardType: keyboardType,
         decoration: InputDecoration(
           hintText: hintText,
           hintStyle: TextStyle(
