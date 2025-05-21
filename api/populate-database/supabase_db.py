@@ -170,9 +170,14 @@ class SupabaseClient:
                 lat = 0
                 lng = 0
                 if place_data.get(GooglePlaceConstants.coordinates):
+                    print('place_data.get(GooglePlaceConstants.coordinates)', place_data.get(GooglePlaceConstants.coordinates))
                     lat = place_data.get(GooglePlaceConstants.coordinates)['lat']
                     lng = place_data.get(GooglePlaceConstants.coordinates)['lng']
-                print(place_data, 'place_data')
+
+                if len(place_data.get(GooglePlaceConstants.photos)) > 0:
+                    photo_reference = place_data.get(GooglePlaceConstants.photos)[0]['reference']
+                else:
+                    photo_reference = None
                 new_data = {
                     SupabaseColumns.LOCATION_ID: location_id,
                     SupabaseColumns.GOOGLE_PLACE_ID: google_place_id,
@@ -181,14 +186,13 @@ class SupabaseClient:
                     SupabaseColumns.LAT: lat,
                     SupabaseColumns.LNG: lng,
                     SupabaseColumns.CREATED_AT: current_timestamp,
-                    SupabaseColumns.PHOTO_REFERENCE: place_data.get(GooglePlaceConstants.photos[0]['reference'], None),
+                    SupabaseColumns.PHOTO_REFERENCE: photo_reference,
                     SupabaseColumns.PRICE_LEVEL: place_data.get(GooglePlaceConstants.price_level, None),
                     SupabaseColumns.RATING: place_data.get(GooglePlaceConstants.rating, None),
                 }
                 
                 # Add optional fields
-                new_data[SupabaseColumns.LOCATION_ID] = location_id
-                
+                print('error here??')
                 for key, value in place_data.items():
                     if key in [SupabaseColumns.NAME, SupabaseColumns.VICINITY, SupabaseColumns.LAT, 
                                    SupabaseColumns.LNG, SupabaseColumns.CREATED_AT,
