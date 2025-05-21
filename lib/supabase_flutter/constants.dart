@@ -57,4 +57,9 @@ class SupabaseConstants {
   // Enum values - saved_method
   static const String savedMethodTikTok = 'tiktok';
   static const String savedMethodInApp = 'in-app';
+
+  // Enum values - relationship_status
+  static const String relationshipStatusAccepted = 'accepted';
+  static const String relationshipStatusPending = 'pending';
+  static const String relationshipStatusBlocked = 'blocked';
 }

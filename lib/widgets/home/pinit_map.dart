@@ -30,10 +30,9 @@ class _CustomGoogleMapState extends State<CustomGoogleMap> {
   }
 
   Future<void> _loadCustomMarker() async {
-    print('doing');
     final BitmapDescriptor bitmapDescriptor =
         await _getCustomMarker('lib/assets/pinitIcon.png');
-    print('fdsfok');
+    print('Pinit Map: Custom marker loaded');
     setState(() {
       _customMarkerIcon = bitmapDescriptor;
     });
@@ -41,7 +40,7 @@ class _CustomGoogleMapState extends State<CustomGoogleMap> {
 
   /// Convert an asset image to a BitmapDescriptor
   Future<BitmapDescriptor> _getCustomMarker(String assetPath) async {
-    print('doingfdsf');
+    print('Pinit Map: Loading custom marker');
     final ByteData data = await rootBundle.load(assetPath);
     print(data);
     final Uint8List bytes = data.buffer.asUint8List();
@@ -161,7 +160,7 @@ class _CustomGoogleMapState extends State<CustomGoogleMap> {
         // "Search this area" button - only show on recommended tab
         if (mapStateProvider.showSearchThisAreaButton && isRecommendedTab)
           Positioned(
-            top: 16.0,
+            top: 150,
             left: 0,
             right: 0,
             child: Center(
@@ -227,8 +226,8 @@ class _CustomGoogleMapState extends State<CustomGoogleMap> {
 
         // "My Location" button - always show at the top left
         Positioned(
-          top: 16.0,
-          left: 16.0,
+          top: 150,
+          left: 20,
           child: Container(
             decoration: BoxDecoration(
               color: Colors.white,

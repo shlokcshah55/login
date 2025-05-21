@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:login/themes/app_theme.dart';
-import 'package:login/providers/user_data_provider.dart';
-import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import 'package:login/providers/user_data_provider.dart';
+import 'package:login/providers/location_list_manager.dart';
+import 'package:login/supabase_flutter/models/user_model.dart';
+import 'package:login/supabase_flutter/models/location_model.dart';
+import 'package:login/themes/app_colors.dart'; // Import AppColors
+import 'package:login/widgets/profile/location_card.dart'; // Assuming you have a LocationCard widget
+import 'package:login/widgets/profile/user_card.dart';
+import 'package:login/supabase_flutter/repositories/user_repository.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({Key? key}) : super(key: key);
@@ -14,41 +20,44 @@ class ProfilePage extends StatefulWidget {
 class _PinitProfileScreenState extends State<ProfilePage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-
-  // Sample data - replace with your actual data models and sources
-  final String userName = "Jamie Rivers";
-  final String userHandle = "@jamierivers";
-  final String profileImageUrl = "https://via.placeholder.com/150/A9A9A9/FFFFFF?Text=JR"; // Placeholder
-  final int pinCount = 128;
-  final int collectionCount = 12;
-  final int guideCount = 5;
-
-  final List<Map<String, String>> pins = List.generate(
-    15,
-    (index) => {
-      "title": "Location ${index + 1}",
-      "category": index % 3 == 0
-          ? "Cafe"
-          : index % 3 == 1
-              ? "Park"
-              : "Viewpoint",
-      "imageUrl": "https://via.placeholder.com/300/C0C0C0/FFFFFF?Text=Pin${index + 1}", // Placeholder
-    },
-  );
-
-  // For filter tabs
-  final List<Map<String, dynamic>> _filterCategories = [
-    {"icon": Icons.push_pin_outlined, "text": "All Pins"},
-    {"icon": Icons.collections_bookmark_outlined, "text": "Collections"},
-    {"icon": Icons.favorite_border, "text": "Favorites"},
-  ];
-
-  int _selectedFilterIndex = 0;
+  List<UserModel> _suggestedUsers = [];
+  bool _isLoadingSuggestions = false;
+  final UserRepository _userRepository = UserRepository();
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this); // For Pins, Collections, Guides stats
+    _tabController = TabController(length: 3, vsync: this); // Tabs for "Friends", "Pins", "Maps"
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<LocationListManager>(context, listen: false)
+          .fetchSavedLocations();
+      _fetchSuggestedUsers();
+    });
+  }
+
+  Future<void> _fetchSuggestedUsers() async {
+    setState(() {
+      _isLoadingSuggestions = true;
+    });
+    try {
+      final users = await _userRepository.getSuggestedUsers();
+      if (mounted) { // Check if the widget is still in the tree
+        setState(() {
+          _suggestedUsers = users;
+        });
+      }
+    } catch (e) {
+      // Handle error appropriately, maybe show a snackbar
+      print("Error fetching suggested users: $e");
+      if (mounted) {
+         // Optionally show an error message to the user
+      }
+    }
+    if (mounted) {
+      setState(() {
+        _isLoadingSuggestions = false;
+      });
+    }
   }
 
   @override
@@ -59,352 +68,280 @@ class _PinitProfileScreenState extends State<ProfilePage>
 
   @override
   Widget build(BuildContext context) {
+    final userDataProvider = Provider.of<UserDataProvider>(context);
+    final locationListManager = Provider.of<LocationListManager>(context);
+    final UserModel? user = userDataProvider.supabaseUserData;
+    final theme = Theme.of(context);
+
+    if (userDataProvider.isLoading && user == null) { // Show loading only if user data is not yet available
+      return Scaffold(
+        appBar: AppBar(title: const Text('Profile')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (user == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Profile')),
+        body: Center(
+          child: Text(
+            'User data not available. Please log in.',
+            style: theme.textTheme.titleMedium,
+          ),
+        ),
+      );
+    }
+
+    final savedPins = locationListManager.savedLocations.keys.toList();
+
     return Scaffold(
-      // AppBar (optional, can be customized or removed if top elements are part of body)
+      backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
+        title: Text('Profile', style: theme.textTheme.headlineSmall?.copyWith(color: theme.colorScheme.onPrimary)),
+        backgroundColor: theme.colorScheme.primary,
         elevation: 0,
-        backgroundColor: Color(0xFFF2EBF9), // Match scaffold background
         actions: [
           IconButton(
-            icon: Icon(Icons.more_vert, color: Colors.grey[700]),
+            icon: Icon(Icons.settings, color: theme.colorScheme.onPrimary),
             onPressed: () {
-              // Handle more options
+              // Navigate to settings page or show settings dialog
             },
           ),
         ],
       ),
-      body: ListView(
-        padding: EdgeInsets.zero, // Remove top padding from ListView
-        children: <Widget>[
-          _buildProfileHeader(context),
-          _buildStatsSection(context),
-          _buildFilterTabs(context),
-          _buildPinsGrid(context),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Action to add a new Pin
+      body: NestedScrollView(
+        headerSliverBuilder: (context, innerBoxIsScrolled) {
+          return <Widget>[
+            SliverToBoxAdapter(
+              child: _buildProfileHeader(context, user, savedPins.length),
+            ),
+            SliverPersistentHeader(
+              delegate: _SliverAppBarDelegate(
+                TabBar(
+                  controller: _tabController,
+                  labelColor: theme.colorScheme.primary,
+                  unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+                  indicatorColor: theme.colorScheme.primary,
+                  tabs: const [
+                    Tab(text: 'Friends'), 
+                    Tab(text: 'Pins'),
+                    Tab(text: 'Maps'),
+                  ],
+                ),
+              ),
+              pinned: true,
+            ),
+          ];
         },
-        child: Icon(Icons.add, color: Colors.white),
-        backgroundColor: Color(0xFF008080), // Teal accent
-        tooltip: 'Add Pin',
+        body: TabBarView(
+          controller: _tabController,
+          children: [
+            _buildFriendsTab(context),
+            _buildPinsGrid(context, savedPins, locationListManager),
+            _buildMapsGrid(context), 
+          ],
+        ),
       ),
-      // Placeholder for BottomNavigationBar if this screen is part of a larger app structure
-      // bottomNavigationBar: BottomNavigationBar( ... ),
     );
   }
 
-  Widget _buildProfileHeader(BuildContext context) {
+  Widget _buildProfileHeader(BuildContext context, UserModel user, int savedPinsCount) {
+    final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.all(20.0),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+      ),
       child: Column(
         children: <Widget>[
-          Stack(
-            alignment: Alignment.topCenter,
+          CircleAvatar(
+            radius: 50,
+            backgroundImage: user.profileImageUrl != null && user.profileImageUrl!.isNotEmpty
+                ? NetworkImage(user.profileImageUrl!)
+                : const AssetImage('lib/assets/default_avatar.png') as ImageProvider,
+            backgroundColor: Colors.grey[300],
+          ),
+          const SizedBox(height: 15),
+          Text(
+            user.name ?? 'No Name',
+            style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            user.email, 
+            style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 10),
+          if (user.bio != null && user.bio!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0),
+              child: Text(
+                user.bio!,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurface),
+              ),
+            ),
+          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: <Widget>[
-              Container(
-                margin: EdgeInsets.only(top: 50), // Space for profile picture to overlap
-                padding: EdgeInsets.only(top: 60, left: 16, right: 16, bottom: 16), // Increased top padding
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20.0),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withOpacity(0.2),
-                      spreadRadius: 2,
-                      blurRadius: 8,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    SizedBox(height: 10), // Adjust spacing if CircleAvatar size changes
-                    Text(
-                      userName,
-                      style: GoogleFonts.montserrat(
-                        fontSize: 24.0,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[800],
-                      ),
-                    ),
-                    SizedBox(height: 4.0),
-                    Text(
-                      userHandle,
-                      style: GoogleFonts.lato(
-                        fontSize: 16.0,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                    SizedBox(height: 16.0),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: <Widget>[
-                        IconButton(
-                          icon: Icon(Icons.bookmark_border, color: Colors.grey[700], size: 28),
-                          onPressed: () { /* Saved items */ },
-                        ),
-                        IconButton(
-                          icon: Icon(Icons.grid_on_outlined, color: Colors.grey[700], size: 28),
-                          onPressed: () { /* View toggle */ },
-                        ),
-                        IconButton(
-                          icon: Icon(Icons.insights_outlined, color: Colors.grey[700], size: 28),
-                          onPressed: () { /* User activity/stats */ },
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              // Profile Picture
-              Positioned(
-                top: 0, // Position it at the very top of the Stack
-                child: CircleAvatar(
-                  radius: 55.0,
-                  backgroundColor: Colors.white, // Border for the avatar
-                  child: CircleAvatar(
-                    radius: 50.0,
-                    backgroundImage: NetworkImage(profileImageUrl),
-                    backgroundColor: Colors.grey[300],
-                  ),
-                ),
-              ),
+              _buildStatItem(context, 'Followers', user.followersCount.toString()),
+              _buildStatItem(context, 'Following', user.followingCount.toString()),
+              _buildStatItem(context, 'Saved Pins', savedPinsCount.toString()),
             ],
           ),
+          const SizedBox(height: 20),
+          ElevatedButton.icon(
+            icon: Icon(Icons.edit, size: 18),
+            label: const Text('Edit Profile'),
+            onPressed: () {
+              // Navigate to an edit profile page
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: theme.colorScheme.primary,
+              foregroundColor: theme.colorScheme.onPrimary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildStatsSection(BuildContext context) {
-    // This section replaces the original TabBar for "Items", "Outfits", "Lookbooks"
-    // with direct stat displays relevant to Pinit.
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: <Widget>[
-          _buildStatItem("Pins", pinCount),
-          _buildStatItem("Collections", collectionCount),
-          _buildStatItem("Guides", guideCount),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatItem(String label, int count) {
+  Widget _buildStatItem(BuildContext context, String label, String value) {
+    final theme = Theme.of(context);
     return Column(
       mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
       children: <Widget>[
         Text(
-          count.toString(),
-          style: GoogleFonts.montserrat(
-            fontSize: 18.0,
-            fontWeight: FontWeight.bold,
-            color: Colors.grey[800],
-          ),
+          value,
+          style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface),
         ),
-        SizedBox(height: 4.0),
+        const SizedBox(height: 4),
         Text(
           label,
-          style: GoogleFonts.lato(
-            fontSize: 14.0,
-            color: Colors.grey[600],
-          ),
+          style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
         ),
       ],
     );
   }
 
-  Widget _buildFilterTabs(BuildContext context) {
-    return Container(
-      height: 100, // Increased height for better touch targets and visual separation
-      padding: const EdgeInsets.symmetric(vertical: 10.0),
+  Widget _buildFriendsTab(BuildContext context) {
+    final theme = Theme.of(context);
+    if (_isLoadingSuggestions) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_suggestedUsers.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Text(
+            'No suggested users at the moment. Check back later!',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+        ),
+      );
+    }
+    return SizedBox(
+      height: 220, // Adjust height to fit the smaller UserCard + padding
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        itemCount: _filterCategories.length,
+        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+        itemCount: _suggestedUsers.length,
         itemBuilder: (context, index) {
-          final category = _filterCategories[index];
-          bool isSelected = _selectedFilterIndex == index;
-          return GestureDetector(
-            onTap: () {
-              setState(() {
-                _selectedFilterIndex = index;
-                // Add logic to filter content based on selected tab
-              });
-            },
-            child: Container(
-              width: 90, // Fixed width for each tab item
-              margin: EdgeInsets.only(left: index == 0 ? 16 : 8, right: index == _filterCategories.length -1 ? 16 : 8),
-              padding: EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: isSelected ? Color(0xFF008080).withOpacity(0.15) : Colors.transparent,
-                borderRadius: BorderRadius.circular(15),
-                border: Border.all(
-                  color: isSelected ? Color(0xFF008080) : Colors.grey[300]!,
-                  width: 1.5
-                )
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  Icon(
-                    category['icon'],
-                    color: isSelected ? Color(0xFF008080) : Colors.grey[600],
-                    size: 28,
-                  ),
-                  SizedBox(height: 6),
-                  Text(
-                    category['text'],
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.lato(
-                      fontSize: 12,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                      color: isSelected ? Color(0xFF008080) : Colors.grey[700],
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          final user = _suggestedUsers[index];
+          return SizedBox(
+            width: 180, // Adjust width for a smaller card
+            child: UserCard(user: user), 
           );
         },
       ),
     );
   }
 
+  Widget _buildPinsGrid(BuildContext context, List<LocationModel> pins, LocationListManager manager) {
+    final theme = Theme.of(context);
+    if (pins.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Text(
+            'No saved pins yet. Explore and save some amazing places!',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+        ),
+      );
+    }
 
-  Widget _buildPinsGrid(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Search your pins...',
-                    hintStyle: GoogleFonts.lato(color: Colors.grey[500]),
-                    prefixIcon: Icon(Icons.search, color: Colors.grey[500]),
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: EdgeInsets.symmetric(vertical: 0, horizontal: 16),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(30.0),
-                      borderSide: BorderSide.none,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(30.0),
-                      borderSide: BorderSide(color: Colors.grey[300]!, width: 1.0),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(30.0),
-                      borderSide: BorderSide(color: Color(0xFF008080), width: 1.5),
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(width: 8),
-              IconButton(
-                icon: Icon(Icons.favorite_border, color: Colors.grey[700]),
-                onPressed: () { /* Filter by favorites */ },
-                tooltip: "Favorites",
-              ),
-              IconButton(
-                icon: Icon(Icons.filter_list, color: Colors.grey[700]),
-                onPressed: () { /* Open sort/filter options */ },
-                tooltip: "Filter",
-              ),
-            ],
-          ),
-          SizedBox(height: 20),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: NeverScrollableScrollPhysics(), // To be used within ListView
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 12.0,
-              mainAxisSpacing: 12.0,
-              childAspectRatio: 0.8, // Adjust for desired item aspect ratio
-            ),
-            itemCount: pins.length,
-            itemBuilder: (context, index) {
-              final pin = pins[index];
-              return Card(
-                elevation: 2.0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12.0),
-                ),
-                clipBehavior: Clip.antiAlias, // Important for rounded corners on Image
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Expanded(
-                      child: Container(
-                        width: double.infinity,
-                        color: Colors.grey[200], // Placeholder background for image
-                        child: Image.network(
-                          pin['imageUrl']!,
-                          fit: BoxFit.cover,
-                           errorBuilder: (context, error, stackTrace) => Center(child: Icon(Icons.location_pin, color: Colors.grey, size: 40)),
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(10.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            pin['title']!,
-                            style: GoogleFonts.montserrat(
-                              fontSize: 15.0,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey[800],
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          SizedBox(height: 4.0),
-                          Text(
-                            pin['category']!,
-                            style: GoogleFonts.lato(
-                              fontSize: 12.0,
-                              color: Color(0xFF008080), // Accent color for category
-                            ),
-                             maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Example of "NEW" tag from reference image (conditional)
-                    // if (index < 2) // Just for demo
-                    //   Positioned(
-                    //     top: 8,
-                    //     left: 8,
-                    //     child: Chip(
-                    //       label: Text("NEW", style: GoogleFonts.lato(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-                    //       backgroundColor: Colors.greenAccent[700],
-                    //       padding: EdgeInsets.symmetric(horizontal: 4, vertical: 0),
-                    //       labelPadding: EdgeInsets.symmetric(horizontal: 2.0),
-                    //       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    //     ),
-                    //   )
-                  ],
-                ),
-              );
-            },
-          ),
-        ],
+    return GridView.builder(
+      padding: const EdgeInsets.all(10.0),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 10.0,
+        mainAxisSpacing: 10.0,
+        childAspectRatio: 0.8, 
+      ),
+      itemCount: pins.length,
+      itemBuilder: (context, index) {
+        final pin = pins[index];
+        return LocationCard(
+          location: pin,
+          isInitiallySaved: true, 
+          onSaveToggle: (isSaved) {
+            if (!isSaved) {
+              manager.removeLocation(pin);
+            } else {
+              // This case should ideally not happen if it's already saved and shown here
+              // but as a fallback, ensure it's saved.
+              manager.saveLocation(pin); 
+            }
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildMapsGrid(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Text(
+          'Your created maps and pins will appear here.', // Updated text
+          textAlign: TextAlign.center,
+          style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+        ),
       ),
     );
+  }
+}
+
+// Helper class for SliverPersistentHeader to make TabBar sticky
+class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
+  _SliverAppBarDelegate(this._tabBar);
+
+  final TabBar _tabBar;
+
+  @override
+  double get minExtent => _tabBar.preferredSize.height;
+  @override
+  double get maxExtent => _tabBar.preferredSize.height;
+
+  @override
+  Widget build(
+      BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Container(
+      color: Theme.of(context).colorScheme.surface, 
+      child: _tabBar,
+    );
+  }
+
+  @override
+  bool shouldRebuild(_SliverAppBarDelegate oldDelegate) {
+    return false; // TabBar itself doesn\'t change, so no need to rebuild
   }
 }

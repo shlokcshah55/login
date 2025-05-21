@@ -48,6 +48,7 @@ class UserDataProvider with ChangeNotifier {
             'email': userModel.email,
             'uid': userModel.supabaseId,
             'profile_image_url': userModel.profileImageUrl,
+            'bio': userModel.bio,
           };
 
           // Success with Supabase, exit early
@@ -57,15 +58,6 @@ class UserDataProvider with ChangeNotifier {
         }
       }
 
-      // // Fall back to Firebase if Supabase data not available
-      // final Map<String, dynamic>? maybeUserData = await _firebaseService.getUser(userId);
-      // if (maybeUserData != null) {
-      //   _userData = maybeUserData;
-      //   log("UserDataProvider: Fetched Firebase data for user $userId");
-      // } else {
-      //   log('UserDataProvider: No user data found for ID: $userId');
-      //   _error = 'No user data found.';
-      // }
     } catch (e) {
       log('UserDataProvider: Error fetching user data: $e');
       _error = 'Failed to fetch user data.';
@@ -142,23 +134,4 @@ class UserDataProvider with ChangeNotifier {
       notifyListeners();
     }
   }
-
-  // Example of how to update user data if needed (e.g., profile update)
-  // Future<void> updateUserName(String newName) async {
-  //   if (_userId == null) return;
-  //   _isLoading = true;
-  //   notifyListeners();
-  //   try {
-  //     // Assume firebaseService has an updateUser method
-  //     await _firebaseService.updateUser(_userId!, {'name': newName});
-  //     _userData?['name'] = newName; // Update local state optimistically or after confirmation
-  //     _error = null;
-  //   } catch (e) {
-  //     _error = "Failed to update name.";
-  //     log("Error updating user name: $e");
-  //   } finally {
-  //     _isLoading = false;
-  //     notifyListeners();
-  //   }
-  // }
 }

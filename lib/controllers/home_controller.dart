@@ -1,7 +1,6 @@
 import 'dart:developer'; // Added for logging
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:login/supabase_flutter/models/location_model.dart';
-// import 'package:login/providers/app_data_provider.dart'; // Remove old provider
 import 'package:login/providers/device_location_provider.dart'; // Import new providers
 import 'package:login/providers/location_list_manager.dart';
 import 'package:login/providers/map_state_provider.dart';
@@ -9,8 +8,6 @@ import 'package:login/services/google_place_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:math' hide log; // Hide log from dart:math
-import 'package:geolocator/geolocator.dart';
-// import 'package:login/widgets/carousel_tile.dart'; // This widget seems unused now, replaced by GridItemWidget in home_page
 // import 'package:permission_handler/permission_handler.dart'; // Permission handled by DeviceLocationProvider
 
 class HomeController {

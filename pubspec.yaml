@@ -87,6 +87,7 @@ flutter:
     - lib/assets/restaurant_pin.png
     - lib/assets/pinitIcon.png
     - lib/assets/icons/home.png
+    - lib/assets/default_avatar.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware

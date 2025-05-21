@@ -6,7 +6,7 @@ import 'package:login/providers/location_list_manager.dart';
 import 'package:login/supabase_flutter/supabase_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../supabase_flutter/models/location_model.dart';
+import '../../supabase_flutter/models/location_model.dart';
 
 class ExpandedLocationCard extends StatefulWidget {
   final LocationModel location;

@@ -10,9 +10,9 @@ import 'package:login/providers/user_data_provider.dart';
 import 'package:login/themes/app_colors.dart'; // Import for theme colors
 import 'package:login/themes/app_dimensions.dart'; // Import for dimensions
 import 'package:login/themes/app_typography.dart'; // Import for typography
-import 'package:login/widgets/LocationCarousel/filter_bar.dart';
-import 'package:login/widgets/LocationCarousel/location_carousel.dart';
-import 'package:login/widgets/pinit_map.dart';
+import 'package:login/widgets/home/LocationCarousel/filter_bar.dart';
+import 'package:login/widgets/home/LocationCarousel/location_carousel.dart';
+import 'package:login/widgets/home/pinit_map.dart';
 import 'package:provider/provider.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -108,74 +108,116 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final locations =
         context.watch<LocationListManager>().currentItems.keys.toList();
 
-    return Stack(
-      children: [
-        // Main UI
-        Column(
-          children: [
-            _buildSearchBar(theme), // New search bar replacing header
-            FilterBar(
-              currentListType: locationListManager_.currentListType,
-              onListTypeChanged: locationListManager_.setCurrentListType,
+    return Scaffold( // Using Scaffold for easier SafeArea and potential AppBar/BottomNav later
+      // extendBodyBehindAppBar: true, // If you want map to go under status bar fully
+      body: Stack(
+        children: [
+          // 1. Map (fills the screen)
+          const Positioned.fill(
+            child: CustomGoogleMap(),
+          ),
+
+          // 2. Floating Header (Search Bar + Filter Bar)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: _buildFloatingHeaderControls(theme),
+          ),
+
+          // 3. Location Carousel (positioned higher above bottom bar)
+          Positioned(
+            bottom: 30, // Adjusted, assuming no system bottom navigation bar for now
+                       // If you have a bottom nav bar, increase this value
+            left: 0,
+            right: 0,
+            child: LocationCarousel(
+              pageController: _pageController,
+              locations: locations,
             ),
-            Expanded(
-              child: Stack(
-                children: [
-                  const Positioned.fill(
-                    child: CustomGoogleMap(),
-                  ),
-                  _buildMagicSearchButton(theme),
-                ],
+          ),
+
+          // 4. Search Overlay
+          if (showSearchOverlay) _buildSearchOverlay(theme),
+
+          // 5. Magic Search Button (Optional - currently commented out as search bar serves similar purpose)
+          Positioned(
+            top: 120,
+            right: 20,
+            child: _buildMagicSearchButton(theme),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFloatingHeaderControls(ThemeData theme) {
+    // This container provides a unified background for search and filter bars
+    // and handles SafeArea.
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            theme.colorScheme.background.withOpacity(0.95), // More opaque at the top
+            theme.colorScheme.background.withOpacity(0.85), // Slightly more transparent
+            theme.colorScheme.background.withOpacity(0.0), // Fades to transparent
+          ],
+          stops: const [0.0, 0.7, 1.0], // Control the gradient spread
+        ),
+      ),
+      child: SafeArea( // Ensures content is not obscured by system UI (status bar)
+        bottom: false, // No safe area needed at the bottom for this header
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildFloatingSearchBar(theme),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8.0), // Space below filter bar before it fades
+              child: FilterBar(
+                currentListType: locationListManager_.currentListType,
+                onListTypeChanged: locationListManager_.setCurrentListType,
               ),
             ),
           ],
         ),
-
-        // Carousel positioned higher above bottom bar
-        Positioned(
-          bottom:
-              110, // Lift it higher above the floating navigation bar (which has 24px margin)
-          left: 0,
-          right: 0,
-          child: LocationCarousel(
-            pageController: _pageController,
-            locations: locations,
-          ),
-        ),
-
-        // Search Overlay
-        if (showSearchOverlay) _buildSearchOverlay(theme),
-      ],
+      ),
     );
   }
 
-  Widget _buildSearchBar(ThemeData theme) {
-    return Container(              padding: EdgeInsets.only(
-        top: MediaQuery.of(context).padding.top + AppSpacing.medium,
-        bottom: AppSpacing.medium,
-        left: AppSpacing.medium,
-        right: AppSpacing.medium,
+  Widget _buildFloatingSearchBar(ThemeData theme) {
+    // Replaces your AppColors, AppSpacing, AppRadius with theme/Material defaults
+    const double appSpacingMedium = 16.0; // Example, replace with theme.dimensions.spacingMedium
+    final BorderRadius appRadiusLarge = BorderRadius.circular(25.0); // Example
+
+    return Padding(
+      padding: const EdgeInsets.only(
+        top: appSpacingMedium / 2, // Less top padding as SafeArea handles status bar
+        bottom: appSpacingMedium / 2,
+        left: appSpacingMedium,
+        right: appSpacingMedium,
       ),
-      color: theme.scaffoldBackgroundColor,
       child: Container(
         height: 50,
         decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: AppRadius.radiusLarge,
+          color: theme.colorScheme.surface, // White or light card color
+          borderRadius: appRadiusLarge,
           boxShadow: [
             BoxShadow(
-              color: AppColors.shadow,
-              blurRadius: 5,
-              spreadRadius: 1,
+              color: Colors.black.withOpacity(0.1), // Softer shadow
+              blurRadius: 8,
+              spreadRadius: 0,
               offset: const Offset(0, 2),
             ),
           ],
         ),
         child: Row(
           children: [
-            const SizedBox(width: 16),              Icon(
-              Icons.search,
-              color: AppColors.textSecondary,
+            const SizedBox(width: appSpacingMedium),
+            Icon(
+              Icons.search_rounded,
+              color: theme.colorScheme.onSurfaceVariant, // Lighter text/icon color
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -187,31 +229,34 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 },
                 decoration: InputDecoration(
                   hintText: "Search locations...",
-                  hintStyle: GoogleFonts.poppins(
-                    color: AppColors.textHint,
+                  hintStyle: GoogleFonts.poppins( // theme.textTheme.bodyMedium.copyWith(color: hintColor)
+                    color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
                     fontSize: 14,
                   ),
                   border: InputBorder.none,
                 ),
-                readOnly:
-                    true, // Make it non-editable to show search overlay instead
+                readOnly: true,
               ),
             ),
             Container(
               margin: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: AppColors.primary,
+                color: theme.colorScheme.primary, // Use theme's primary color
                 borderRadius: BorderRadius.circular(20),
               ),
               child: IconButton(
-                icon: const Icon(
-                  Icons.filter_list,
+                icon: Icon(
+                  Icons.filter_list_rounded,
                   size: 20,
-                  color: AppColors.onPrimary,
+                  color: theme.colorScheme.onPrimary, // Text/icon color on primary bg
                 ),
                 onPressed: () {
-                  // Show filter options
+                  // TODO: Show filter options dialog or panel
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Filter button pressed!")),
+                  );
                 },
+                tooltip: "Filter",
               ),
             ),
           ],
@@ -221,9 +266,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Widget _buildMagicSearchButton(ThemeData theme) {
-    return Positioned(
-      top: 16.0,
-      right: 16.0,
+    return SafeArea(
       child: FloatingActionButton(
         heroTag: "magicButton",
         onPressed: () {

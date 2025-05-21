@@ -100,20 +100,36 @@ class UserRepository {
   
   /// Get user profile data
   Future<UserModel?> getUserProfile() async {
+    final user = _authService.currentUser;
+    if (user == null) return null;
+    return await getUserProfileById(user.id);
+  }
+
+  Future<UserModel?> getUserProfileById(String userId) async {
     try {
-      final user = _authService.currentUser;
-      if (user == null) return null;
-      
-      final response = await SupabaseClientManager().client
+      final Map<String, dynamic> userCreds = await SupabaseClientManager().client
           .from('users')
           .select()
-          .eq('supabase_id', user.id)
+          .eq('supabase_id', userId)
           .single();
-      
-      return UserModel.fromJson(response);
+
+      final followingDetails = await SupabaseClientManager().client
+          .from('user_friends')
+          .select()
+          .eq('followee_id', userId);
+
+      final followersDetails = await SupabaseClientManager().client
+          .from('user_friends')
+          .select()
+          .eq('following_id', userId);
+
+      userCreds['followers_count'] = followersDetails.length;
+      userCreds['following_count'] = followingDetails.length;
+
+      return UserModel.fromJson(userCreds);
     } catch (e) {
       if (kDebugMode) {
-        print('Error in UserRepository.getUserProfile: $e');
+        print('Error in UserRepository.getUserProfileById: $e');
       }
       return null;
     }
@@ -136,6 +152,109 @@ class UserRepository {
     } catch (e) {
       if (kDebugMode) {
         print('Error in UserRepository.updateUserProfile: $e');
+      }
+      return null;
+    }
+  }
+
+  Future<List<UserModel>> getSuggestedUsers() async {
+    //TODO: Implement logic to fetch suggested users based on user interests or other criteria
+    try {
+      final user = _authService.currentUser;
+      if (user == null) return [];
+
+      final response = await SupabaseClientManager().client
+        .from('users')
+        .select()
+        .neq('supabase_id', user.id)
+        .limit(10);
+
+      final futures = (response as List)
+        .map((e) => getUserProfileById(e["supabase_id"] as String))
+        .toList();
+
+      final users = await Future.wait(futures);
+      return users.whereType<UserModel>().toList();
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in UserRepository.getSuggestedUsers: $e');
+      }
+      return [];
+    }
+  }
+
+  Future<void> followUser(String followingId) async {
+    try {
+      final user = _authService.currentUser;
+      if (user == null) {
+        throw Exception("User not authenticated");
+      }
+      final followeeId = user.id;
+
+      // Prevent self-follow
+      if (followeeId == followingId) {
+        print("User cannot follow themselves.");
+        return;
+      }
+
+      await SupabaseClientManager().client.from('user_friends').insert({
+        'following_id': followingId, // Current user is the follower
+        'followee_id': followeeId, // User being followed
+        'status': 'requested', // Initial status
+        // 'created_at' is handled by Supabase (default now())
+      });
+      print("Follow request sent to $followeeId from $followingId");
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in UserRepository.followUser: $e');
+      }
+      rethrow; // Rethrow to allow UI to handle error
+    }
+  }
+
+  Future<void> unfollowUser(String followingId) async {
+    try {
+      final user = _authService.currentUser;
+      if (user == null) {
+        throw Exception("User not authenticated");
+      }
+      final followeeId = user.id;
+
+      await SupabaseClientManager().client
+          .from('user_friends')
+          .delete()
+          .eq('following_id', followingId)
+          .eq('followee_id', followeeId);
+      print("Unfollowed user $followingId from $followeeId");
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in UserRepository.unfollowUser: $e');
+      }
+      rethrow; // Rethrow to allow UI to handle error
+    }
+  }
+
+  // Optional: Check current follow status if needed elsewhere
+  Future<String?> getFollowStatus(String followeeId) async {
+    try {
+      final user = _authService.currentUser;
+      if (user == null) return null;
+      final followerId = user.id;
+
+      final response = await SupabaseClientManager().client
+          .from('user_friends')
+          .select('status')
+          .eq('follower_id', followerId)
+          .eq('followee_id', followeeId)
+          .maybeSingle(); // Use maybeSingle to handle no record found
+
+      if (response != null && response.isNotEmpty) {
+        return response['status'] as String?;
+      }
+      return null; // No existing relationship
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in UserRepository.getFollowStatus: $e');
       }
       return null;
     }

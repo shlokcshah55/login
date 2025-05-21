@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:login/supabase_flutter/models/location_model.dart';
-import 'package:login/widgets/expanded_location_card.dart';
+import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:developer';
@@ -160,7 +160,7 @@ class _LocationCarouselState extends State<LocationCarousel> {
                         children: [
                           Icon(Icons.star_rounded,
                               size: 14,
-                              color: Colors.amber[700]), // Smaller icon
+                              color: colorScheme.secondary), // Smaller icon
                           const SizedBox(width: 2), // Reduced spacing
                           Text(
                             location.rating?.toStringAsFixed(1) ?? 'N/A',
@@ -175,8 +175,8 @@ class _LocationCarouselState extends State<LocationCarousel> {
                             child: Text(
                               "(${location.userRatingsTotal?.toString() ?? '0'} reviews)",
                               style: textTheme.bodySmall?.copyWith(
-                                color: Colors.grey[600],
-                                fontSize: 10, // Smaller text
+                                color: colorScheme.onSurfaceVariant
+                                    .withOpacity(0.7), // Smaller text
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -189,8 +189,10 @@ class _LocationCarouselState extends State<LocationCarousel> {
                         Text(
                           '\$' * location.priceLevel!,
                           style: textTheme.bodyMedium?.copyWith(
-                            color: Colors.green[700],
-                            fontSize: 12, // Smaller text
+                            color: theme.brightness == Brightness.dark
+                                ? Colors.greenAccent
+                                : Colors.green[700], // Smaller text
+                            fontSize: 12,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 0.6, // Reduced spacing
                           ),
@@ -236,9 +238,9 @@ class _LocationCarouselState extends State<LocationCarousel> {
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             colors: [
-                              Colors.black.withOpacity(0.55),
+                              colorScheme.surface.withOpacity(0.55),
                               Colors.transparent,
-                              Colors.black.withOpacity(0.65)
+                              colorScheme.surface.withOpacity(0.65)
                             ],
                             stops: const [0.0, 0.5, 1.0],
                             begin: Alignment.topCenter,
@@ -263,7 +265,7 @@ class _LocationCarouselState extends State<LocationCarousel> {
                               horizontal: 5.0,
                               vertical: 2.0), // Smaller padding
                           decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.5),
+                            color: colorScheme.surface.withOpacity(0.5),
                             borderRadius:
                                 BorderRadius.circular(8.0), // Smaller radius
                           ),
@@ -277,7 +279,7 @@ class _LocationCarouselState extends State<LocationCarousel> {
                               Text(
                                 location.savedCount.toString(),
                                 style: textTheme.bodySmall?.copyWith(
-                                  color: Colors.white,
+                                  color: colorScheme.onSurface,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 9, // Smaller text
                                 ),
@@ -300,6 +302,7 @@ class _LocationCarouselState extends State<LocationCarousel> {
     IconData iconData;
     String text;
     Color bgColor;
+    Color fgColor = theme.colorScheme.onPrimary; // Default foreground for primary/secondary
 
     switch (preference) {
       case LocationPreference.saved:
@@ -315,10 +318,9 @@ class _LocationCarouselState extends State<LocationCarousel> {
       case LocationPreference.search:
         iconData = Icons.search_rounded;
         text = 'Result';
-        bgColor = Colors.blueGrey;
+        bgColor = theme.colorScheme.tertiaryContainer;
+        fgColor = theme.colorScheme.onTertiaryContainer;
         break;
-      default:
-        return const SizedBox.shrink();
     }
 
     return Container(
@@ -329,7 +331,7 @@ class _LocationCarouselState extends State<LocationCarousel> {
         borderRadius: BorderRadius.circular(5.0), // Smaller radius
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: theme.colorScheme.shadow.withOpacity(0.2),
             blurRadius: 2.0, // Smaller blur
             offset: const Offset(1, 1),
           )
@@ -338,12 +340,12 @@ class _LocationCarouselState extends State<LocationCarousel> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(iconData, size: 10, color: Colors.white), // Smaller icon
+          Icon(iconData, size: 10, color: fgColor), // Smaller icon
           const SizedBox(width: 3), // Reduced spacing
           Text(
             text,
             style: theme.textTheme.bodySmall?.copyWith(
-              color: Colors.white,
+              color: fgColor,
               fontWeight: FontWeight.bold,
               fontSize: 8, // Smaller text
             ),
@@ -365,7 +367,7 @@ class _LocationCarouselState extends State<LocationCarousel> {
                 loadingBuilder: (context, child, progress) {
                   if (progress == null) return child;
                   return Container(
-                    color: Colors.grey[200],
+                    color: colorScheme.surfaceVariant,
                     child: Center(
                       child: CircularProgressIndicator(
                         strokeWidth: 1.5, // Thinner stroke
@@ -378,21 +380,21 @@ class _LocationCarouselState extends State<LocationCarousel> {
                 errorBuilder: (context, error, stackTrace) {
                   log("Error loading image for ${location.name}: $error");
                   return Container(
-                    color: Colors.grey[200],
+                    color: colorScheme.surfaceVariant,
                     child: Icon(
                       Icons.restaurant_menu_rounded,
                       size: 30, // Smaller icon
-                      color: Colors.grey[400],
+                      color: colorScheme.onSurfaceVariant.withOpacity(0.5),
                     ),
                   );
                 },
               )
             : Container(
-                color: Colors.grey[200],
+                color: colorScheme.surfaceVariant,
                 child: Icon(
                   Icons.restaurant_menu_rounded,
                   size: 30, // Smaller icon
-                  color: Colors.grey[400],
+                  color: colorScheme.onSurfaceVariant.withOpacity(0.5),
                 ),
               ),
       ),
