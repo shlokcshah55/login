@@ -7,7 +7,9 @@ import 'package:login/providers/device_location_provider.dart';
 import 'package:login/providers/location_list_manager.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
-import 'package:login/assets/constants.dart'; // Import for theme colors
+import 'package:login/themes/app_colors.dart'; // Import for theme colors
+import 'package:login/themes/app_dimensions.dart'; // Import for dimensions
+import 'package:login/themes/app_typography.dart'; // Import for typography
 import 'package:login/widgets/LocationCarousel/filter_bar.dart';
 import 'package:login/widgets/LocationCarousel/location_carousel.dart';
 import 'package:login/widgets/pinit_map.dart';
@@ -148,22 +150,21 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Widget _buildSearchBar(ThemeData theme) {
-    return Container(
-      padding: EdgeInsets.only(
-        top: MediaQuery.of(context).padding.top + 16.0,
-        bottom: 16.0,
-        left: 16.0,
-        right: 16.0,
+    return Container(              padding: EdgeInsets.only(
+        top: MediaQuery.of(context).padding.top + AppSpacing.medium,
+        bottom: AppSpacing.medium,
+        left: AppSpacing.medium,
+        right: AppSpacing.medium,
       ),
       color: theme.scaffoldBackgroundColor,
       child: Container(
         height: 50,
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(25),
+          color: theme.colorScheme.surface,
+          borderRadius: AppRadius.radiusLarge,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: AppColors.shadow,
               blurRadius: 5,
               spreadRadius: 1,
               offset: const Offset(0, 2),
@@ -172,10 +173,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         ),
         child: Row(
           children: [
-            const SizedBox(width: 16),
-            Icon(
+            const SizedBox(width: 16),              Icon(
               Icons.search,
-              color: Colors.grey[600],
+              color: AppColors.textSecondary,
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -188,7 +188,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 decoration: InputDecoration(
                   hintText: "Search locations...",
                   hintStyle: GoogleFonts.poppins(
-                    color: Colors.grey[500],
+                    color: AppColors.textHint,
                     fontSize: 14,
                   ),
                   border: InputBorder.none,
@@ -200,14 +200,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             Container(
               margin: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: primaryTeal,
+                color: AppColors.primary,
                 borderRadius: BorderRadius.circular(20),
               ),
               child: IconButton(
                 icon: const Icon(
                   Icons.filter_list,
                   size: 20,
-                  color: Colors.white,
+                  color: AppColors.onPrimary,
                 ),
                 onPressed: () {
                   // Show filter options
@@ -231,11 +231,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             showSearchOverlay = true;
           });
         },
-        backgroundColor: accentCoral, // Using your app's accent color
+        backgroundColor: AppColors.secondary, // Using your app's secondary color
         child: const Icon(
           Icons.auto_awesome,
           size: 28.0,
-          color: Colors.white,
+          color: AppColors.onSecondary,
         ),
       ),
     );
@@ -319,7 +319,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           }
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryTeal,
+                          backgroundColor: AppColors.primary,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(20),
                           ),
@@ -346,7 +346,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     style: GoogleFonts.poppins(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: textDarkGrey,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -380,15 +380,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       margin: const EdgeInsets.only(right: 12.0),
       padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
       decoration: BoxDecoration(
-        color: primaryTeal.withOpacity(0.1),
-        border: Border.all(color: primaryTeal.withOpacity(0.3)),
+        color: AppColors.primary.withOpacity(0.1),
+        border: Border.all(color: AppColors.primary.withOpacity(0.3)),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         label,
         style: GoogleFonts.poppins(
           fontWeight: FontWeight.w500,
-          color: primaryTeal,
+          color: AppColors.primary,
         ),
       ),
     );

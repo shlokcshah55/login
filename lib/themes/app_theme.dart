@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart'; // Import Google Fonts
+import 'app_colors.dart';
+import 'app_typography.dart';
+import 'app_widget_themes.dart';
 
 const String MAPSTYLE = '''
 [
@@ -280,98 +282,54 @@ const String MAPSTYLE = '''
 ]
 ''';
 
-// Define new colors
-const Color primaryTeal = Color(0xFF008080); // Teal
-const Color accentCoral = Color(0xFFFF7F50); // Coral
-const Color backgroundLinen = Color(0xFFFAF0E6); // Linen (Off-white)
-const Color textDarkGrey = Color(0xFF333333); // Dark Grey for text
-const Color cardBackground = Colors.white; // White for cards for contrast
-
+// Application theme
 final themeData = ThemeData(
-  // Use colorScheme for modern theming
-  colorScheme: ColorScheme.fromSwatch(
-    primarySwatch: createMaterialColor(primaryTeal), // Generate swatch from Teal
-    accentColor: accentCoral, // Coral as accent
-    backgroundColor: backgroundLinen, // Linen background
-    cardColor: cardBackground, // White cards
-    brightness: Brightness.light, // Assuming a light theme
-  ).copyWith(
-    secondary: accentCoral, // Explicitly set secondary (used by FAB by default)
-    onPrimary: Colors.white, // Text/icon color on primary color
-    onSecondary: Colors.white, // Text/icon color on secondary color
-    onBackground: textDarkGrey, // Text color on background
-    onSurface: textDarkGrey, // Text color on surfaces like cards
+  useMaterial3: true,
+  brightness: Brightness.light,
+  
+  // Color scheme
+  colorScheme: ColorScheme(
+    brightness: Brightness.light,
+    primary: AppColors.primary,
+    onPrimary: AppColors.onPrimary,
+    primaryContainer: AppColors.primarySwatch[300]!,
+    onPrimaryContainer: AppColors.primarySwatch[900]!,
+    secondary: AppColors.secondary,
+    onSecondary: AppColors.onSecondary,
+    secondaryContainer: AppColors.secondary.withOpacity(0.2),
+    onSecondaryContainer: AppColors.secondary.withOpacity(0.9),
+    tertiary: AppColors.info,
+    onTertiary: Colors.white,
+    tertiaryContainer: AppColors.info.withOpacity(0.2),
+    onTertiaryContainer: AppColors.info.withOpacity(0.9),
+    error: AppColors.error,
+    onError: AppColors.onError,
+    errorContainer: AppColors.error.withOpacity(0.2),
+    onErrorContainer: AppColors.error.withOpacity(0.9),
+    surface: AppColors.surface,
+    onSurface: AppColors.onSurface,
+    onSurfaceVariant: AppColors.textSecondary,
+    outline: AppColors.divider,
   ),
 
-  // Apply Poppins font globally
-  textTheme: GoogleFonts.poppinsTextTheme(
-    const TextTheme(
-      // Define specific styles if needed, otherwise Poppins will be default
-      bodyLarge: TextStyle(color: textDarkGrey),
-      bodyMedium: TextStyle(color: textDarkGrey),
-      titleLarge: TextStyle(color: textDarkGrey, fontWeight: FontWeight.w600), // Slightly bolder titles
-      titleMedium: TextStyle(color: textDarkGrey, fontWeight: FontWeight.w600),
-      labelLarge: TextStyle(color: Colors.white), // For text on buttons
-    ),
-  ),
+  // Typography - Apply the text theme from AppTypography
+  textTheme: AppTypography.textTheme,
 
   // Background color
-  scaffoldBackgroundColor: backgroundLinen,
+  scaffoldBackgroundColor: AppColors.background,
 
-  // Button theme using ColorScheme
-  elevatedButtonTheme: ElevatedButtonThemeData(
-    style: ElevatedButton.styleFrom(
-      backgroundColor: primaryTeal, // Use primary color
-      foregroundColor: Colors.white, // Use text color defined in colorScheme.onPrimary
-      textStyle: GoogleFonts.poppins(fontWeight: FontWeight.w600), // Ensure button text is Poppins bold
-    ),
-  ),
-
-  // Floating action button theme using ColorScheme
-  floatingActionButtonTheme: const FloatingActionButtonThemeData(
-    backgroundColor: accentCoral, // Use accent color
-    foregroundColor: Colors.white, // Use text color defined in colorScheme.onSecondary
-  ),
-
-  // Card theme
-  cardTheme: CardTheme(
-    color: cardBackground,
-    elevation: 4, // Slightly more pronounced shadow
-    margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4), // Adjust margin
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), // Rounded corners
-    shadowColor: Colors.grey.withOpacity(0.3), // Softer shadow color
-  ),
-
-  // Bottom Navigation Bar Theme
-  bottomNavigationBarTheme: BottomNavigationBarThemeData(
-    backgroundColor: Colors.white, // White background for nav bar
-    selectedItemColor: primaryTeal, // Teal for selected icon/label
-    unselectedItemColor: Colors.grey[400], // Lighter grey for unselected
-    showSelectedLabels: false, // Hide labels if desired
-    showUnselectedLabels: false,
-    type: BottomNavigationBarType.fixed, // Ensures items don't shift
-    elevation: 8, // Add some elevation
-  ),
-
-  // AppBar Theme (Optional, if you add AppBars later)
-  appBarTheme: AppBarTheme(
-    backgroundColor: primaryTeal,
-    foregroundColor: Colors.white, // Text/icons on AppBar
-    elevation: 0, // Flat AppBar
-    titleTextStyle: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w600),
-  ),
-
-  // Input Decoration Theme (for TextFields)
-  inputDecorationTheme: InputDecorationTheme(
-    filled: true,
-    fillColor: Colors.white.withOpacity(0.8),
-    border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(25.0),
-      borderSide: BorderSide.none, // No border
-    ),
-    hintStyle: GoogleFonts.poppins(color: Colors.grey[600]),
-    contentPadding: const EdgeInsets.symmetric(vertical: 15.0, horizontal: 20.0),
-  ),
+  // Widget themes - Apply from AppWidgetThemes
+  elevatedButtonTheme: AppWidgetThemes.elevatedButtonTheme,
+  outlinedButtonTheme: AppWidgetThemes.outlinedButtonTheme,
+  textButtonTheme: AppWidgetThemes.textButtonTheme,
+  floatingActionButtonTheme: AppWidgetThemes.floatingActionButtonTheme,
+  cardTheme: AppWidgetThemes.cardTheme,
+  bottomNavigationBarTheme: AppWidgetThemes.bottomNavigationBarTheme,
+  appBarTheme: AppWidgetThemes.appBarTheme,
+  inputDecorationTheme: AppWidgetThemes.inputDecorationTheme,
+  dividerTheme: AppWidgetThemes.dividerTheme,
+  checkboxTheme: AppWidgetThemes.checkboxTheme,
+  dialogTheme: AppWidgetThemes.dialogTheme,
 );
 
 
