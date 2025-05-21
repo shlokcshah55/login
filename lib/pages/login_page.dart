@@ -3,6 +3,9 @@ import 'package:provider/provider.dart';
 import '../widgets/my_text_widget.dart';
 import '../supabase_flutter/supabase_provider.dart';
 import 'signup_page.dart';
+import '../themes/app_colors.dart';
+import '../themes/app_typography.dart';
+import '../themes/app_dimensions.dart';
 
 class LoginPage extends StatelessWidget {
   LoginPage({super.key});
@@ -33,8 +36,9 @@ class LoginPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
-      backgroundColor: Colors.grey[300],
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -43,19 +47,19 @@ class LoginPage extends StatelessWidget {
               children: [
                 const SizedBox(height: 40),
                 // Logo
-                const Icon(
+                Icon(
                   Icons.pin_drop,
                   size: 100,
-                  color: Color.fromARGB(255, 68, 66, 65),
+                  color: AppColors.primary,
                 ),
                 const SizedBox(height: 20),
     
-                const Text(
+                Text(
                   'Pinit',
                   style: TextStyle(
                     fontSize: 30,
                     fontWeight: FontWeight.bold,
-                    color: Color.fromARGB(255, 68, 66, 65),
+                    color: AppColors.textPrimary,
                   ),
                 ),
     
@@ -81,9 +85,9 @@ class LoginPage extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text(
+                    Text(
                       "Don't have an account?",
-                      style: TextStyle(color: Colors.grey),
+                      style: TextStyle(color: AppColors.textSecondary),
                     ),
                     const SizedBox(width: 4),
                     GestureDetector(
@@ -94,10 +98,10 @@ class LoginPage extends StatelessWidget {
                           ),
                         );
                       },
-                      child: const Text(
+                      child: Text(
                         'Sign up',
                         style: TextStyle(
-                          color: Color.fromARGB(255, 68, 66, 65),
+                          color: AppColors.primary,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -110,10 +114,10 @@ class LoginPage extends StatelessWidget {
                   valueListenable: signInFailedNotifier,
                   builder: (context, signInFailed, child) {
                     if (signInFailed) {
-                      return const Text(
+                      return Text(
                         'Incorrect email or password',
                         style: TextStyle(
-                          color: Colors.red,
+                          color: AppColors.error,
                           fontSize: 16,
                         ),
                       );

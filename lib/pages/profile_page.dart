@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:login/assets/constants.dart';
+import 'package:login/themes/app_theme.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -40,7 +40,6 @@ class _PinitProfileScreenState extends State<ProfilePage>
   final List<Map<String, dynamic>> _filterCategories = [
     {"icon": Icons.push_pin_outlined, "text": "All Pins"},
     {"icon": Icons.collections_bookmark_outlined, "text": "Collections"},
-    {"icon": Icons.map_outlined, "text": "Guides"},
     {"icon": Icons.favorite_border, "text": "Favorites"},
   ];
 
