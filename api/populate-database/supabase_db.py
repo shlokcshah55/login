@@ -172,6 +172,7 @@ class SupabaseClient:
                 if place_data.get(GooglePlaceConstants.coordinates):
                     lat = place_data.get(GooglePlaceConstants.coordinates)['lat']
                     lng = place_data.get(GooglePlaceConstants.coordinates)['lng']
+                print(place_data, 'place_data')
                 new_data = {
                     SupabaseColumns.LOCATION_ID: location_id,
                     SupabaseColumns.GOOGLE_PLACE_ID: google_place_id,
@@ -180,7 +181,7 @@ class SupabaseClient:
                     SupabaseColumns.LAT: lat,
                     SupabaseColumns.LNG: lng,
                     SupabaseColumns.CREATED_AT: current_timestamp,
-                    SupabaseColumns.PHOTO_REFERENCE: place_data.get(GooglePlaceConstants.photos[0], None),
+                    SupabaseColumns.PHOTO_REFERENCE: place_data.get(GooglePlaceConstants.photos[0]['reference'], None),
                     SupabaseColumns.PRICE_LEVEL: place_data.get(GooglePlaceConstants.price_level, None),
                     SupabaseColumns.RATING: place_data.get(GooglePlaceConstants.rating, None),
                 }

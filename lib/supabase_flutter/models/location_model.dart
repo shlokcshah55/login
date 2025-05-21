@@ -64,6 +64,19 @@ class LocationModel {
     );
   }
 
+
+  factory LocationModel.fromJsonLocationNotification(
+      Map<String, dynamic> json) {
+    return LocationModel(
+      locationId: json[SupabaseConstants.columnLocationId],
+      name: json[SupabaseConstants.columnName],
+      vicinity: json[SupabaseConstants.columnVicinity],
+      lat: double.parse(json[SupabaseConstants.columnLat].toString()),
+      lng: double.parse(json[SupabaseConstants.columnLng].toString()),
+      createdAt: DateTime.parse(json[SupabaseConstants.columnCreatedAt]),
+    );
+  }
+
   /// Convert LocationModel to a JSON map
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = {

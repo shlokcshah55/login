@@ -318,4 +318,24 @@ class LocationListManager with ChangeNotifier {
       return false;
     }
   }
+
+  /// Get saved locations since last time the app was opened
+  Future<List<LocationModel>> getSavedLocationsSinceLastOpened() async {
+    try {
+      return await _locationRepository.getSavedLocationsSinceLastOpened();
+    } catch (e) {
+      log('Error fetching saved locations since last opened: $e');
+      return [];
+    }
+  }
+
+  /// Acknowledge if a location is right or not
+  Future<void> acknowledgeLocation(int locationId, bool value) async {
+    try {
+      await _locationRepository.acknowledgeLocation(locationId, value);
+      log("Acknowledged location: ${locationId}, value: $value");
+    } catch (e) {
+      log('Error acknowledging location: $e');
+    }
+  }
 }

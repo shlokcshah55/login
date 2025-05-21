@@ -11,6 +11,7 @@ import 'package:login/supabase_flutter/supabase_client.dart';
 import 'package:login/supabase_flutter/supabase_provider.dart';
 import 'package:login/notifications/notificationService.dart';
 import 'package:login/notifications/backgroundTaskService.dart';
+import 'package:login/pages/alerts_page.dart';
 import 'package:login/pages/auth_handler.dart';
 import 'package:login/pages/home_page.dart';
 import 'package:login/pages/profile_page.dart';
@@ -190,13 +191,29 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
+  bool _hasUnreadNotifications = false;
 
   final List<Widget> _pages = [
     const HomePage(),
     const Center(child: Text('Search')),
-    const Center(child: Text('Notifications')),
+    const AlertsPage(),
     ProfilePage(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _checkForPendingNotifications();
+  }
+
+  Future<void> _checkForPendingNotifications() async {
+    final locationManager = Provider.of<LocationListManager>(context, listen: false);
+    final locations = await locationManager.getSavedLocationsSinceLastOpened();
+
+    setState(() {
+      _hasUnreadNotifications = locations.isNotEmpty;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -224,7 +241,14 @@ class _MainScreenState extends State<MainScreen> {
           children: [
             _buildNavItem(Icons.home_rounded, 0, 'Home'),
             _buildNavItem(Icons.search_rounded, 1, 'Search'),
-            _buildNavItem(Icons.notifications_rounded, 2, 'Alerts'),
+            _buildNavItem(
+              _hasUnreadNotifications
+                ? Icons.notifications_active_rounded
+                : Icons.notifications_rounded,
+              2,
+              'Alerts',
+              hasBadge: _hasUnreadNotifications
+            ),
             _buildNavItem(Icons.person_rounded, 3, 'Profile'),
           ],
         ),
@@ -233,7 +257,7 @@ class _MainScreenState extends State<MainScreen> {
     }
 
       // Improved nav item widget with animations and tooltip
-      Widget _buildNavItem(IconData icon, int index, String label) {
+      Widget _buildNavItem(IconData icon, int index, String label, {bool hasBadge = false}) {
       bool isSelected = _currentIndex == index;
 
       return Tooltip(
@@ -241,6 +265,10 @@ class _MainScreenState extends State<MainScreen> {
         child: InkWell(
           onTap: () => setState(() {
             _currentIndex = index;
+            // Clear badge when navigating to the notifications page
+            if (index == 2 && hasBadge) {
+              _hasUnreadNotifications = false;
+            }
           }),
           customBorder: const CircleBorder(),
           child: AnimatedContainer(
@@ -257,12 +285,29 @@ class _MainScreenState extends State<MainScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  icon,
-                  color: isSelected 
-                    ? Theme.of(context).primaryColor 
-                    : Colors.grey.shade600,
-                  size: 26,
+                Stack(
+                  children: [
+                    Icon(
+                      icon,
+                      color: isSelected
+                        ? Theme.of(context).primaryColor
+                        : Colors.grey.shade600,
+                      size: 26,
+                    ),
+                    if (hasBadge)
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 if (isSelected) ...[
                   const SizedBox(width: 6),

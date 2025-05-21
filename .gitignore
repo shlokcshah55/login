@@ -49,7 +49,7 @@ app.*.map.json
 /android/build
 /android/gradle.properties
 android/app/.cxx/Debug/315c2q1e
-
+android/app/.cxx/RelWithDebInfo
 # python related
 functions/venv/   
 api/venv/   
