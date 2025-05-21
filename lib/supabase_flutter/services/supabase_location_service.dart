@@ -7,6 +7,7 @@ import '../constants.dart';
 import '../models/location_model.dart';
 import '../models/action_model.dart';
 import '../supabase_client.dart';
+import 'package:supabase/supabase.dart';
 
 /// Service for handling Supabase location operations
 class SupabaseLocationService {
@@ -118,7 +119,8 @@ class SupabaseLocationService {
           .from(SupabaseConstants.tableUserLocationActions)
           .select('${SupabaseConstants.columnLocationId}')
           .eq(SupabaseConstants.columnUserId, user.id)
-          .eq(SupabaseConstants.columnAction, SupabaseConstants.actionSave);
+          .eq(SupabaseConstants.columnAction, SupabaseConstants.actionSave)
+          .eq(SupabaseConstants.columnAcked, true);
 
       if (savedActions.isEmpty) {
         return [];
@@ -190,6 +192,7 @@ class SupabaseLocationService {
         SupabaseConstants.columnAction: SupabaseConstants.actionSave,
         SupabaseConstants.columnSavedMethod: savedMethod,
         SupabaseConstants.columnCreatedAt: DateTime.now().toIso8601String(),
+        SupabaseConstants.columnAcked: true,
       });
 
       incrementSaveCount(locationId);
@@ -309,24 +312,24 @@ class SupabaseLocationService {
 
       if (existingRow != null) {
         // Update existing row
-        final currentCount = existingRow[SupabaseConstants.columnSavesCount] as int? ?? 0;
+        final currentCount =
+            existingRow[SupabaseConstants.columnSavesCount] as int? ?? 0;
         await _client
             .from(SupabaseConstants.tableLocationPopularityApp)
             .update({
-              SupabaseConstants.columnSavesCount: currentCount + 1,
-              SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
-            })
-            .eq(SupabaseConstants.columnLocationId, locationId);
+          SupabaseConstants.columnSavesCount: currentCount + 1,
+          SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
+        }).eq(SupabaseConstants.columnLocationId, locationId);
       } else {
         // Create new row with initial count of 1
         await _client
             .from(SupabaseConstants.tableLocationPopularityApp)
             .insert({
-              SupabaseConstants.columnLocationId: locationId,
-              SupabaseConstants.columnSavesCount: 1,
-              SupabaseConstants.columnLikesCount: 0,
-              SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
-            });
+          SupabaseConstants.columnLocationId: locationId,
+          SupabaseConstants.columnSavesCount: 1,
+          SupabaseConstants.columnLikesCount: 0,
+          SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
+        });
       }
       return true;
     } catch (e) {
@@ -349,26 +352,26 @@ class SupabaseLocationService {
 
       if (existingRow != null) {
         // Update existing row (ensure count doesn't go below 0)
-        final currentCount = existingRow[SupabaseConstants.columnSavesCount] as int? ?? 0;
+        final currentCount =
+            existingRow[SupabaseConstants.columnSavesCount] as int? ?? 0;
         final newCount = currentCount > 0 ? currentCount - 1 : 0;
 
         await _client
             .from(SupabaseConstants.tableLocationPopularityApp)
             .update({
-              SupabaseConstants.columnSavesCount: newCount,
-              SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
-            })
-            .eq(SupabaseConstants.columnLocationId, locationId);
+          SupabaseConstants.columnSavesCount: newCount,
+          SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
+        }).eq(SupabaseConstants.columnLocationId, locationId);
       } else {
         // Create new row with count of 0 (rare case, but handled for completeness)
         await _client
             .from(SupabaseConstants.tableLocationPopularityApp)
             .insert({
-              SupabaseConstants.columnLocationId: locationId,
-              SupabaseConstants.columnSavesCount: 0,
-              SupabaseConstants.columnLikesCount: 0,
-              SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
-            });
+          SupabaseConstants.columnLocationId: locationId,
+          SupabaseConstants.columnSavesCount: 0,
+          SupabaseConstants.columnLikesCount: 0,
+          SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
+        });
       }
       return true;
     } catch (e) {
@@ -445,24 +448,24 @@ class SupabaseLocationService {
 
       if (existingRow != null) {
         // Update existing row
-        final currentCount = existingRow[SupabaseConstants.columnLikesCount] as int? ?? 0;
+        final currentCount =
+            existingRow[SupabaseConstants.columnLikesCount] as int? ?? 0;
         await _client
             .from(SupabaseConstants.tableLocationPopularityApp)
             .update({
-              SupabaseConstants.columnLikesCount: currentCount + 1,
-              SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
-            })
-            .eq(SupabaseConstants.columnLocationId, locationId);
+          SupabaseConstants.columnLikesCount: currentCount + 1,
+          SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
+        }).eq(SupabaseConstants.columnLocationId, locationId);
       } else {
         // Create new row with initial count of 1
         await _client
             .from(SupabaseConstants.tableLocationPopularityApp)
             .insert({
-              SupabaseConstants.columnLocationId: locationId,
-              SupabaseConstants.columnSavesCount: 0,
-              SupabaseConstants.columnLikesCount: 1,
-              SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
-            });
+          SupabaseConstants.columnLocationId: locationId,
+          SupabaseConstants.columnSavesCount: 0,
+          SupabaseConstants.columnLikesCount: 1,
+          SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
+        });
       }
       return true;
     } catch (e) {
@@ -485,26 +488,26 @@ class SupabaseLocationService {
 
       if (existingRow != null) {
         // Update existing row (ensure count doesn't go below 0)
-        final currentCount = existingRow[SupabaseConstants.columnLikesCount] as int? ?? 0;
+        final currentCount =
+            existingRow[SupabaseConstants.columnLikesCount] as int? ?? 0;
         final newCount = currentCount > 0 ? currentCount - 1 : 0;
 
         await _client
             .from(SupabaseConstants.tableLocationPopularityApp)
             .update({
-              SupabaseConstants.columnLikesCount: newCount,
-              SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
-            })
-            .eq(SupabaseConstants.columnLocationId, locationId);
+          SupabaseConstants.columnLikesCount: newCount,
+          SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
+        }).eq(SupabaseConstants.columnLocationId, locationId);
       } else {
         // Create new row with count of 0 (rare case, but handled for completeness)
         await _client
             .from(SupabaseConstants.tableLocationPopularityApp)
             .insert({
-              SupabaseConstants.columnLocationId: locationId,
-              SupabaseConstants.columnSavesCount: 0,
-              SupabaseConstants.columnLikesCount: 0,
-              SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
-            });
+          SupabaseConstants.columnLocationId: locationId,
+          SupabaseConstants.columnSavesCount: 0,
+          SupabaseConstants.columnLikesCount: 0,
+          SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
+        });
       }
       return true;
     } catch (e) {
@@ -541,6 +544,85 @@ class SupabaseLocationService {
         print('Error getting popular locations: $e');
       }
       return [];
+    }
+  }
+
+  // Get saved locations since the app was last opened
+  Future<List<LocationModel>> getSavedLocationsSinceLastOpened() async {
+    try {
+      final user = SupabaseClientManager().currentUser;
+
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Get the not acknowledged location IDs and their creation timestamps
+      final notAckedLocations = await _client
+          .from(SupabaseConstants.tableUserLocationActions)
+          .select(
+              "${SupabaseConstants.columnLocationId}, ${SupabaseConstants.columnCreatedAt}")
+          .isFilter(SupabaseConstants.columnAcked, null)
+          .eq(SupabaseConstants.columnUserId, user.id);
+
+      if ((notAckedLocations as List).isEmpty) {
+        return [];
+      }
+
+      // Create a map of locationId to createdAt timestamp from the actions table
+      final Map<int, DateTime> locationTimestamps = {};
+      for (var action in notAckedLocations) {
+        final locationId = action[SupabaseConstants.columnLocationId] as int;
+        final createdAt =
+            DateTime.parse(action[SupabaseConstants.columnCreatedAt]);
+        locationTimestamps[locationId] = createdAt;
+      }
+
+      // Extract location IDs
+      final locationIds = locationTimestamps.keys.toList();
+
+      // Then fetch the actual location data
+      final locations = await _client
+          .from(SupabaseConstants.tableLocations)
+          .select()
+          .inFilter(SupabaseConstants.columnLocationId, locationIds);
+
+      // Convert to LocationModel and override the createdAt with the timestamp from actions
+      return (locations as List).map((data) {
+        // First create the model with the location data
+        final locationModel = LocationModel.fromJson(data);
+        // Then override the createdAt timestamp with the one from the actions table
+        final originalTimestamp = locationTimestamps[locationModel.locationId];
+        return locationModel.copyWith(createdAt: originalTimestamp);
+      }).toList();
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error getting saved locations since last opened: $e');
+      }
+      return [];
+    }
+  }
+
+  /// Set a location as acknowledged
+  Future<bool> acknowledgeLocation(int locationId, bool value) async {
+    try {
+      final user = SupabaseClientManager().currentUser;
+
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      await _client
+          .from(SupabaseConstants.tableUserLocationActions)
+          .update({SupabaseConstants.columnAcked: value})
+          .eq(SupabaseConstants.columnUserId, user.id)
+          .eq(SupabaseConstants.columnLocationId, locationId);
+
+      return true;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error acknowledging location: $e');
+      }
+      return false;
     }
   }
 }

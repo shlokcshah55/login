@@ -164,15 +164,28 @@ class LocationRepository {
     }
   }
 
-  // /// Update a location
-  // Future<LocationModel?> updateLocation(LocationModel location) async {
-  //   try {
-  //     return await _locationService.updateLocation(location);
-  //   } catch (e) {
-  //     if (kDebugMode) {
-  //       print('Error in LocationRepository.updateLocation: $e');
-  //     }
-  //     return null;
-  //   }
-  // }
+  /// Get saved locations since last opened
+  Future<List<LocationModel>> getSavedLocationsSinceLastOpened() async {
+    try {
+      return await _locationService.getSavedLocationsSinceLastOpened();
+    } catch (e) {
+      if (kDebugMode) {
+        print(
+            'Error in LocationRepository.getSavedLocationsSinceLastOpened: $e');
+      }
+      return [];
+    }
+  }
+
+  /// Acknoledge if the location is right or not
+  Future<bool> acknowledgeLocation(int locationId, bool value) async {
+    try {
+      return await _locationService.acknowledgeLocation(locationId, value);
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in LocationRepository.ackLocation: $e');
+      }
+      return false;
+    }
+  }
 }
