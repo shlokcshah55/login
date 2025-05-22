@@ -113,18 +113,20 @@ class UserRepository {
           .eq('supabase_id', userId)
           .single();
 
-      final followingDetails = await SupabaseClientManager().client
+      final followerDetails = await SupabaseClientManager().client
           .from('user_friends')
           .select()
-          .eq('followee_id', userId);
+          .eq('followee_id', userId)
+          .eq('status', 'accepted');
 
       final followersDetails = await SupabaseClientManager().client
           .from('user_friends')
           .select()
-          .eq('following_id', userId);
+          .eq('follower_id', userId)
+          .eq('status', 'accepted');
 
       userCreds['followers_count'] = followersDetails.length;
-      userCreds['following_count'] = followingDetails.length;
+      userCreds['follower_count'] = followerDetails.length;
 
       return UserModel.fromJson(userCreds);
     } catch (e) {
@@ -183,7 +185,7 @@ class UserRepository {
     }
   }
 
-  Future<void> followUser(String followingId) async {
+  Future<void> followUser(String followerId) async {
     try {
       final user = _authService.currentUser;
       if (user == null) {
@@ -192,18 +194,17 @@ class UserRepository {
       final followeeId = user.id;
 
       // Prevent self-follow
-      if (followeeId == followingId) {
+      if (followeeId == followerId) {
         print("User cannot follow themselves.");
         return;
       }
 
       await SupabaseClientManager().client.from('user_friends').insert({
-        'following_id': followingId, // Current user is the follower
+        'follower_id': followerId, // Current user is the follower
         'followee_id': followeeId, // User being followed
         'status': 'requested', // Initial status
-        // 'created_at' is handled by Supabase (default now())
       });
-      print("Follow request sent to $followeeId from $followingId");
+      print("Follow request sent to $followeeId from $followerId");
     } catch (e) {
       if (kDebugMode) {
         print('Error in UserRepository.followUser: $e');
@@ -212,7 +213,7 @@ class UserRepository {
     }
   }
 
-  Future<void> unfollowUser(String followingId) async {
+  Future<void> unfollowUser(String followerId) async {
     try {
       final user = _authService.currentUser;
       if (user == null) {
@@ -223,9 +224,9 @@ class UserRepository {
       await SupabaseClientManager().client
           .from('user_friends')
           .delete()
-          .eq('following_id', followingId)
+          .eq('follower_id', followerId)
           .eq('followee_id', followeeId);
-      print("Unfollowed user $followingId from $followeeId");
+      print("Unfollowed user $followerId from $followeeId");
     } catch (e) {
       if (kDebugMode) {
         print('Error in UserRepository.unfollowUser: $e');
@@ -234,7 +235,74 @@ class UserRepository {
     }
   }
 
-  // Optional: Check current follow status if needed elsewhere
+  Future<List<String>> getPendingFollows() async {
+    try {
+      final user = _authService.currentUser;
+      if (user == null) {
+        throw Exception("User not authenticated");
+      }
+      final followeeId = user.id;
+
+      final response = await SupabaseClientManager().client
+          .from('user_friends')
+          .select()
+          .eq('follower_id', followeeId)
+          .eq('status', 'requested');
+
+      return response.map((e) => e['followee_id'] as String).toList();
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in UserRepository.getPendingFollows: $e');
+      }
+      rethrow; // Rethrow to allow UI to handle error
+    }
+  }
+
+  Future<void> acceptFollowRequest(String followerId) async {
+    try {
+      final user = _authService.currentUser;
+      if (user == null) {
+        throw Exception("User not authenticated");
+      }
+      final followeeId = user.id;
+
+      await SupabaseClientManager().client
+          .from('user_friends')
+          .update({'status': 'accepted'})
+          .eq('follower_id', followerId) // This should be the ID of the user who sent the request
+          .eq('followee_id', followeeId); // This is the current user who is accepting
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in UserRepository.acceptFollowRequest: $e');
+      }
+      rethrow; // Rethrow to allow UI to handle error
+    }
+  }
+
+  Future<void> declineFollowRequest(String followerId) async {
+    try {
+      final user = _authService.currentUser;
+      if (user == null) {
+        throw Exception("User not authenticated");
+      }
+      final followeeId = user.id;
+
+      // Deletes the row representing the follow request
+      await SupabaseClientManager().client
+          .from('user_friends')
+          .delete()
+          .eq('follower_id', followerId) // ID of the user who sent the request
+          .eq('followee_id', followeeId)   // Current user's ID
+          .eq('status', 'requested'); // Ensure we only delete pending requests
+      print("Declined follow request from $followerId to $followeeId");
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in UserRepository.declineFollowRequest: $e');
+      }
+      rethrow;
+    }
+  }
+
   Future<String?> getFollowStatus(String followeeId) async {
     try {
       final user = _authService.currentUser;
