@@ -26,6 +26,7 @@ class UserModel {
 
   /// Create a UserModel from a JSON map
   factory UserModel.fromJson(Map<String, dynamic> json) {
+    print("UserModel.fromJson: $json");
     return UserModel(
       supabaseId: json['supabase_id'], // Assuming you have this field
       name: json['name'],
@@ -38,7 +39,7 @@ class UserModel {
           ? DateTime.parse(json['last_login'])
           : null,
       bio: json['bio'] ?? '',
-      followersCount: json['followers_count'] ?? 0,
+      followersCount: json['follower_count'] ?? 0,
       followingCount: json['following_count'] ?? 0,
     );
   }
@@ -54,6 +55,7 @@ class UserModel {
     if (supabaseId != null) data['supabase_id'] = supabaseId;
     if (name != null) data['name'] = name;
     if (profileImageUrl != null) data['profile_image_url'] = profileImageUrl;
+    if (bio != null) data['bio'] = bio;
 
     return data;
   }
@@ -67,6 +69,7 @@ class UserModel {
     String? profileImageUrl,
     DateTime? createdAt,
     DateTime? lastLogin,
+    String? bio,
     int? followersCount,
     int? followingCount,
   }) {
@@ -77,6 +80,7 @@ class UserModel {
       profileImageUrl: profileImageUrl ?? this.profileImageUrl,
       createdAt: createdAt ?? this.createdAt,
       lastLogin: lastLogin ?? this.lastLogin,
+      bio: bio ?? this.bio,
       followersCount: followersCount ?? this.followersCount,
       followingCount: followingCount ?? this.followingCount,
     );

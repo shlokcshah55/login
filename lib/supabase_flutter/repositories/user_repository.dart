@@ -119,14 +119,16 @@ class UserRepository {
           .eq('followee_id', userId)
           .eq('status', 'accepted');
 
-      final followersDetails = await SupabaseClientManager().client
+      final followingDetails = await SupabaseClientManager().client
           .from('user_friends')
           .select()
           .eq('follower_id', userId)
           .eq('status', 'accepted');
 
-      userCreds['followers_count'] = followersDetails.length;
       userCreds['follower_count'] = followerDetails.length;
+      userCreds['following_count'] = followingDetails.length;
+
+      print("User Repository: User details: $userCreds");
 
       return UserModel.fromJson(userCreds);
     } catch (e) {
@@ -246,10 +248,10 @@ class UserRepository {
       final response = await SupabaseClientManager().client
           .from('user_friends')
           .select()
-          .eq('follower_id', followeeId)
+          .eq('followee_id', followeeId)
           .eq('status', 'requested');
 
-      return response.map((e) => e['followee_id'] as String).toList();
+      return response.map((e) => e['follower_id'] as String).toList();
     } catch (e) {
       if (kDebugMode) {
         print('Error in UserRepository.getPendingFollows: $e');

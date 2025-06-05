@@ -141,8 +141,14 @@ class _AlertsPageState extends State<AlertsPage> {
       _pendingFollowRequests.map((user) {
         return FollowRequestNotificationItem(
           user: user,
-          onAccept: () => _handleAcceptFollowRequest(user.supabaseId!),
-          onDecline: () => _handleDeclineFollowRequest(user.supabaseId!),
+          onAccept: () => {
+            print("Accepting follow request from ${user.name}"),
+            _handleAcceptFollowRequest(user.supabaseId!),
+          },
+          onDecline: () => {
+            print("Declining follow request from ${user.name}"),
+            _handleDeclineFollowRequest(user.supabaseId!),
+          },
         );
       }).toList()
     );

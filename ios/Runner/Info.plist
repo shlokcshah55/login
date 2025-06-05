@@ -55,6 +55,10 @@
     <string>We need your location to show it on the map</string>
     <key>NSLocationAlwaysUsageDescription</key>
     <string>We need your location to show it on the map</string>
+    <key>NSCameraUsageDescription</key>
+    <string>We need camera access to take profile pictures</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>We need photo library access to select profile pictures</string>
     <key>io.flutter.embedded_views_preview</key>
     <true/>
 </dict>

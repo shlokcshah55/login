@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:login/providers/location_list_manager.dart';
 import 'package:login/supabase_flutter/models/user_model.dart';
 import 'package:login/supabase_flutter/models/location_model.dart';
-import 'package:login/themes/app_colors.dart'; // Import AppColors
-import 'package:login/widgets/profile/location_card.dart'; // Assuming you have a LocationCard widget
+import 'package:login/widgets/profile/location_card.dart';
 import 'package:login/widgets/profile/user_card.dart';
 import 'package:login/supabase_flutter/repositories/user_repository.dart';
+import 'package:login/themes/app_colors.dart';
+import 'package:login/themes/app_typography.dart';
+import 'package:login/themes/app_dimensions.dart';
+import 'package:login/pages/settings_page.dart';
+import 'package:login/pages/edit_profile_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({Key? key}) : super(key: key);
@@ -71,22 +74,46 @@ class _PinitProfileScreenState extends State<ProfilePage>
     final userDataProvider = Provider.of<UserDataProvider>(context);
     final locationListManager = Provider.of<LocationListManager>(context);
     final UserModel? user = userDataProvider.supabaseUserData;
-    final theme = Theme.of(context);
 
-    if (userDataProvider.isLoading && user == null) { // Show loading only if user data is not yet available
+    if (userDataProvider.isLoading && user == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Profile')),
-        body: const Center(child: CircularProgressIndicator()),
+        backgroundColor: AppColors.background,
+        body: Center(
+          child: CircularProgressIndicator(
+            color: AppColors.primary,
+            strokeWidth: 3,
+          ),
+        ),
       );
     }
 
     if (user == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Profile')),
+        backgroundColor: AppColors.background,
         body: Center(
-          child: Text(
-            'User data not available. Please log in.',
-            style: theme.textTheme.titleMedium,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.person_off_outlined,
+                size: 64,
+                color: AppColors.textSecondary,
+              ),
+              SizedBox(height: AppSpacing.medium),
+              Text(
+                'User data not available',
+                style: AppTypography.headingMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              SizedBox(height: AppSpacing.small),
+              Text(
+                'Please log in to view your profile',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textHint,
+                ),
+              ),
+            ],
           ),
         ),
       );
@@ -95,226 +122,417 @@ class _PinitProfileScreenState extends State<ProfilePage>
     final savedPins = locationListManager.savedLocations.keys.toList();
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.surface,
-      appBar: AppBar(
-        title: Text('Profile', style: theme.textTheme.headlineSmall?.copyWith(color: theme.colorScheme.onPrimary)),
-        backgroundColor: theme.colorScheme.primary,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: Icon(Icons.settings, color: theme.colorScheme.onPrimary),
-            onPressed: () {
-              // Navigate to settings page or show settings dialog
-            },
+      backgroundColor: AppColors.background,
+      body: CustomScrollView(
+        slivers: [
+          _buildSliverAppBar(user),
+          SliverToBoxAdapter(
+            child: _buildProfileContent(user, savedPins, locationListManager),
           ),
         ],
       ),
-      body: NestedScrollView(
-        headerSliverBuilder: (context, innerBoxIsScrolled) {
-          return <Widget>[
-            SliverToBoxAdapter(
-              child: _buildProfileHeader(context, user, savedPins.length),
-            ),
-            SliverPersistentHeader(
-              delegate: _SliverAppBarDelegate(
-                TabBar(
-                  controller: _tabController,
-                  labelColor: theme.colorScheme.primary,
-                  unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
-                  indicatorColor: theme.colorScheme.primary,
-                  tabs: const [
-                    Tab(text: 'Friends'), 
-                    Tab(text: 'Pins'),
-                    Tab(text: 'Maps'),
-                  ],
-                ),
+    );
+  }
+
+  Widget _buildSliverAppBar(UserModel user) {
+    return SliverAppBar(
+      expandedHeight: 280,
+      floating: false,
+      pinned: true,
+      backgroundColor: AppColors.primary,
+      elevation: 0,
+      actions: [
+        IconButton(
+          icon: Icon(Icons.settings_outlined, color: AppColors.onPrimary),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const SettingsPage(),
               ),
-              pinned: true,
+            );
+          },
+        ),
+        SizedBox(width: AppSpacing.small),
+      ],
+      flexibleSpace: FlexibleSpaceBar(
+        background: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                AppColors.primary,
+                AppColors.primary.withOpacity(0.8),
+                AppColors.background,
+              ],
+              stops: const [0.0, 0.7, 1.0],
             ),
-          ];
-        },
-        body: TabBarView(
-          controller: _tabController,
-          children: [
-            _buildFriendsTab(context),
-            _buildPinsGrid(context, savedPins, locationListManager),
-            _buildMapsGrid(context), 
-          ],
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(height: AppSpacing.xl),
+                _buildProfileImage(user),
+                SizedBox(height: AppSpacing.medium),
+                Text(
+                  user.name ?? 'No Name',
+                  style: AppTypography.headingLarge.copyWith(
+                    color: AppColors.onPrimary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: AppSpacing.xs),
+                Text(
+                  user.email,
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.onPrimary.withOpacity(0.8),
+                  ),
+                ),
+                if (user.bio != null && user.bio!.isNotEmpty) ...[
+                  SizedBox(height: AppSpacing.small),
+                  Padding(
+                    padding: AppSpacing.paddingHorizontalLarge,
+                    child: Text(
+                      user.bio!,
+                      textAlign: TextAlign.center,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.onPrimary.withOpacity(0.9),
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildProfileHeader(BuildContext context, UserModel user, int savedPinsCount) {
-    final theme = Theme.of(context);
+  Widget _buildProfileImage(UserModel user) {
     return Container(
-      padding: const EdgeInsets.all(20.0),
+      padding: EdgeInsets.all(AppSpacing.xs),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
+        shape: BoxShape.circle,
+        color: AppColors.surface,
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.shadow,
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
-      child: Column(
-        children: <Widget>[
-          CircleAvatar(
-            radius: 50,
-            backgroundImage: user.profileImageUrl != null && user.profileImageUrl!.isNotEmpty
-                ? NetworkImage(user.profileImageUrl!)
-                : const AssetImage('lib/assets/default_avatar.png') as ImageProvider,
-            backgroundColor: Colors.grey[300],
+      child: CircleAvatar(
+        radius: 45,
+        backgroundImage: user.profileImageUrl != null && user.profileImageUrl!.isNotEmpty
+            ? NetworkImage(user.profileImageUrl!)
+            : null,
+        backgroundColor: AppColors.primary.withOpacity(0.1),
+        child: user.profileImageUrl == null || user.profileImageUrl!.isEmpty
+            ? Icon(
+                Icons.person,
+                size: 40,
+                color: AppColors.primary,
+              )
+            : null,
+      ),
+    );
+  }
+
+  Widget _buildProfileContent(UserModel user, List<LocationModel> savedPins, LocationListManager manager) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildStatsSection(user, savedPins.length),
+        SizedBox(height: AppSpacing.large),
+        _buildActionButtons(),
+        SizedBox(height: AppSpacing.large),
+        _buildTabSection(savedPins, manager),
+      ],
+    );
+  }
+
+  Widget _buildStatsSection(UserModel user, int savedPinsCount) {
+    return Container(
+      margin: AppSpacing.paddingHorizontalMedium,
+      padding: AppSpacing.paddingLarge,
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: AppRadius.radiusLarge,
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.shadow.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
           ),
-          const SizedBox(height: 15),
-          Text(
-            user.name ?? 'No Name',
-            style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            user.email, 
-            style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-          ),
-          const SizedBox(height: 10),
-          if (user.bio != null && user.bio!.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20.0),
-              child: Text(
-                user.bio!,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurface),
-              ),
-            ),
-          const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: <Widget>[
-              _buildStatItem(context, 'Followers', user.followersCount.toString()),
-              _buildStatItem(context, 'Following', user.followingCount.toString()),
-              _buildStatItem(context, 'Saved Pins', savedPinsCount.toString()),
-            ],
-          ),
-          const SizedBox(height: 20),
-          ElevatedButton.icon(
-            icon: Icon(Icons.edit, size: 18),
-            label: const Text('Edit Profile'),
-            onPressed: () {
-              // Navigate to an edit profile page
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: theme.colorScheme.primary,
-              foregroundColor: theme.colorScheme.onPrimary,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-            ),
-          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildStatItem('Followers', user.followersCount.toString()),
+          _buildVerticalDivider(),
+          _buildStatItem('Following', user.followingCount.toString()),
+          _buildVerticalDivider(),
+          _buildStatItem('Saved Pins', savedPinsCount.toString()),
         ],
       ),
     );
   }
 
-  Widget _buildStatItem(BuildContext context, String label, String value) {
-    final theme = Theme.of(context);
+  Widget _buildStatItem(String label, String value) {
     return Column(
       mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
+      children: [
         Text(
           value,
-          style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface),
+          style: AppTypography.headingMedium.copyWith(
+            color: AppColors.primary,
+            fontWeight: FontWeight.bold,
+          ),
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: AppSpacing.xs),
         Text(
           label,
-          style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          style: AppTypography.caption.copyWith(
+            color: AppColors.textSecondary,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildFriendsTab(BuildContext context) {
-    final theme = Theme.of(context);
-    if (_isLoadingSuggestions) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_suggestedUsers.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Text(
-            'No suggested users at the moment. Check back later!',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+  Widget _buildVerticalDivider() {
+    return Container(
+      height: 40,
+      width: 1,
+      color: AppColors.divider,
+    );
+  }
+
+  Widget _buildActionButtons() {
+    return Padding(
+      padding: AppSpacing.paddingHorizontalMedium,
+      child: Row(
+        children: [
+          Expanded(
+            child: ElevatedButton.icon(
+              icon: Icon(Icons.edit_outlined, size: 18),
+              label: Text('Edit Profile'),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const EditProfilePage(),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.onPrimary,
+                padding: AppSpacing.paddingVerticalMedium,
+                shape: RoundedRectangleBorder(
+                  borderRadius: AppRadius.radiusMedium,
+                ),
+                elevation: AppElevation.small,
+              ),
+            ),
           ),
+          SizedBox(width: AppSpacing.medium),
+          Expanded(
+            child: OutlinedButton.icon(
+              icon: Icon(Icons.share_outlined, size: 18),
+              label: Text('Share Profile'),
+              onPressed: () {
+                // Share profile
+              },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: BorderSide(color: AppColors.primary, width: 1.5),
+                padding: AppSpacing.paddingVerticalMedium,
+                shape: RoundedRectangleBorder(
+                  borderRadius: AppRadius.radiusMedium,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabSection(List<LocationModel> savedPins, LocationListManager manager) {
+    return DefaultTabController(
+      length: 3,
+      child: Column(
+        children: [
+          Container(
+            margin: AppSpacing.paddingHorizontalMedium,
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: AppRadius.radiusMedium,
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.shadow.withOpacity(0.05),
+                  blurRadius: 10,
+                ),
+              ],
+            ),
+            child: TabBar(
+              controller: _tabController,
+              labelColor: AppColors.primary,
+              unselectedLabelColor: AppColors.textSecondary,
+              indicatorColor: AppColors.primary,
+              indicatorWeight: 3,
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent,
+              labelStyle: AppTypography.labelMedium,
+              unselectedLabelStyle: AppTypography.bodyMedium,
+              tabs: const [
+                Tab(text: 'Friends'),
+                Tab(text: 'Pins'),
+                Tab(text: 'Maps'),
+              ],
+            ),
+          ),
+          SizedBox(
+            height: 400,
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildModernFriendsTab(),
+                _buildModernPinsGrid(savedPins, manager),
+                _buildModernMapsGrid(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModernFriendsTab() {
+    if (_isLoadingSuggestions) {
+      return Center(
+        child: CircularProgressIndicator(
+          color: AppColors.primary,
+          strokeWidth: 3,
         ),
       );
     }
-    return SizedBox(
-      height: 220, // Adjust height to fit the smaller UserCard + padding
+    
+    if (_suggestedUsers.isEmpty) {
+      return _buildEmptyState(
+        icon: Icons.people_outline,
+        title: 'No suggested users',
+        subtitle: 'Check back later for new suggestions!',
+      );
+    }
+    
+    return Container(
+      padding: AppSpacing.paddingMedium,
       child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
         itemCount: _suggestedUsers.length,
         itemBuilder: (context, index) {
           final user = _suggestedUsers[index];
-          return SizedBox(
-            width: 180, // Adjust width for a smaller card
-            child: UserCard(user: user), 
+          return Container(
+            margin: AppSpacing.paddingVerticalSmall,
+            child: UserCard(user: user),
           );
         },
       ),
     );
   }
 
-  Widget _buildPinsGrid(BuildContext context, List<LocationModel> pins, LocationListManager manager) {
-    final theme = Theme.of(context);
+  Widget _buildModernPinsGrid(List<LocationModel> pins, LocationListManager manager) {
     if (pins.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Text(
-            'No saved pins yet. Explore and save some amazing places!',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-          ),
-        ),
+      return _buildEmptyState(
+        icon: Icons.location_on_outlined,
+        title: 'No saved pins yet',
+        subtitle: 'Explore and save some amazing places!',
       );
     }
 
-    return GridView.builder(
-      padding: const EdgeInsets.all(10.0),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 10.0,
-        mainAxisSpacing: 10.0,
-        childAspectRatio: 0.8, 
+    return Container(
+      padding: AppSpacing.paddingMedium,
+      child: GridView.builder(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12.0,
+          mainAxisSpacing: 12.0,
+          childAspectRatio: 0.85,
+        ),
+        itemCount: pins.length,
+        itemBuilder: (context, index) {
+          final pin = pins[index];
+          return LocationCard(
+            location: pin,
+            isInitiallySaved: true,
+            onSaveToggle: (isSaved) {
+              if (!isSaved) {
+                manager.removeLocation(pin);
+              } else {
+                manager.saveLocation(pin);
+              }
+            },
+          );
+        },
       ),
-      itemCount: pins.length,
-      itemBuilder: (context, index) {
-        final pin = pins[index];
-        return LocationCard(
-          location: pin,
-          isInitiallySaved: true, 
-          onSaveToggle: (isSaved) {
-            if (!isSaved) {
-              manager.removeLocation(pin);
-            } else {
-              // This case should ideally not happen if it's already saved and shown here
-              // but as a fallback, ensure it's saved.
-              manager.saveLocation(pin); 
-            }
-          },
-        );
-      },
     );
   }
 
-  Widget _buildMapsGrid(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Text(
-          'Your created maps and pins will appear here.', // Updated text
-          textAlign: TextAlign.center,
-          style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-        ),
+  Widget _buildModernMapsGrid() {
+    return _buildEmptyState(
+      icon: Icons.map_outlined,
+      title: 'No maps created yet',
+      subtitle: 'Your created maps and custom pins will appear here.',
+    );
+  }
+
+  Widget _buildEmptyState({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Container(
+      padding: AppSpacing.paddingLarge,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: AppSpacing.paddingLarge,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              icon,
+              size: 48,
+              color: AppColors.primary,
+            ),
+          ),
+          SizedBox(height: AppSpacing.medium),
+          Text(
+            title,
+            style: AppTypography.headingSmall.copyWith(
+              color: AppColors.textPrimary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          SizedBox(height: AppSpacing.small),
+          Text(
+            subtitle,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
