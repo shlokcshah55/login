@@ -73,12 +73,6 @@ class SupabaseAuthService {
           .eq('supabase_id', user.id)
           .single();
 
-      // Update last login
-      await _client
-          .from('users')
-          .update({'last_login': DateTime.now().toIso8601String()}).eq(
-              'supabase_id', user.id);
-
       return UserModel.fromJson(userDetails);
     } catch (e) {
       if (kDebugMode) {

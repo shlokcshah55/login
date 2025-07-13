@@ -34,6 +34,7 @@ dependencies:
   location: ^7.0.0
   googleapis: any
   googleapis_auth: any
+  lottie: ^2.3.1
 
   logging: ^1.2.0
   geolocator: ^13.0.2
@@ -89,6 +90,10 @@ flutter:
     - lib/assets/pinitIcon.png
     - lib/assets/icons/home.png
     - lib/assets/default_avatar.png
+    - lib/assets/loaderSpinner.json
+    - lib/assets/Loaded.json
+    - lib/assets/iPhone 14 Pro Max  1.json
+    - lib/assets/logo.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware
