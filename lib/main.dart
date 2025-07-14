@@ -13,6 +13,7 @@ import 'package:login/notifications/notificationService.dart';
 import 'package:login/notifications/backgroundTaskService.dart';
 import 'package:login/pages/alerts_page.dart';
 import 'package:login/pages/auth_handler.dart';
+import 'package:login/pages/splash_screen.dart';
 import 'package:login/pages/home_page.dart';
 import 'package:login/pages/profile_page.dart';
 import 'package:login/providers/device_location_provider.dart'; // Import new providers
@@ -177,7 +178,7 @@ class _MyAppState extends State<MyApp> {
       title: 'Pinit',
       debugShowCheckedModeBanner: false,
       theme: themeData,
-      home: const AuthHandler(),
+      home: const SplashScreen(),
     );
   }
 }
@@ -207,7 +208,8 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Future<void> _checkForPendingNotifications() async {
-    final locationManager = Provider.of<LocationListManager>(context, listen: false);
+    final locationManager =
+        Provider.of<LocationListManager>(context, listen: false);
     final locations = await locationManager.getSavedLocationsSinceLastOpened();
 
     setState(() {
@@ -242,89 +244,91 @@ class _MainScreenState extends State<MainScreen> {
             _buildNavItem(Icons.home_rounded, 0, 'Home'),
             _buildNavItem(Icons.search_rounded, 1, 'Search'),
             _buildNavItem(
-              _hasUnreadNotifications
-                ? Icons.notifications_active_rounded
-                : Icons.notifications_rounded,
-              2,
-              'Alerts',
-              hasBadge: _hasUnreadNotifications
-            ),
+                _hasUnreadNotifications
+                    ? Icons.notifications_active_rounded
+                    : Icons.notifications_rounded,
+                2,
+                'Alerts',
+                hasBadge: _hasUnreadNotifications),
             _buildNavItem(Icons.person_rounded, 3, 'Profile'),
           ],
         ),
       ),
-      );
-    }
+    );
+  }
 
-      // Improved nav item widget with animations and tooltip
-      Widget _buildNavItem(IconData icon, int index, String label, {bool hasBadge = false}) {
-      bool isSelected = _currentIndex == index;
+  // Improved nav item widget with animations and tooltip
+  Widget _buildNavItem(IconData icon, int index, String label,
+      {bool hasBadge = false}) {
+    bool isSelected = _currentIndex == index;
 
-      return Tooltip(
-        message: label,
-        child: InkWell(
-          onTap: () => setState(() {
-            _currentIndex = index;
-            // Clear badge when navigating to the notifications page
-            if (index == 2 && hasBadge) {
-              _hasUnreadNotifications = false;
-            }
-          }),
-          customBorder: const CircleBorder(),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOutCubic,
-            padding: EdgeInsets.symmetric(
-              horizontal: isSelected ? 16 : 12,
-              vertical: 8,
-            ),
-            decoration: BoxDecoration(
-              color: isSelected ? Theme.of(context).primaryColor.withOpacity(0.1) : Colors.transparent,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Stack(
-                  children: [
-                    Icon(
-                      icon,
-                      color: isSelected
+    return Tooltip(
+      message: label,
+      child: InkWell(
+        onTap: () => setState(() {
+          _currentIndex = index;
+          // Clear badge when navigating to the notifications page
+          if (index == 2 && hasBadge) {
+            _hasUnreadNotifications = false;
+          }
+        }),
+        customBorder: const CircleBorder(),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutCubic,
+          padding: EdgeInsets.symmetric(
+            horizontal: isSelected ? 16 : 12,
+            vertical: 8,
+          ),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? Theme.of(context).primaryColor.withOpacity(0.1)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Stack(
+                children: [
+                  Icon(
+                    icon,
+                    color: isSelected
                         ? Theme.of(context).primaryColor
                         : Colors.grey.shade600,
-                      size: 26,
-                    ),
-                    if (hasBadge)
-                      Positioned(
-                        right: 0,
-                        top: 0,
-                        child: Container(
-                          width: 10,
-                          height: 10,
-                          decoration: BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
-                          ),
+                    size: 26,
+                  ),
+                  if (hasBadge)
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
                         ),
                       ),
-                  ],
-                ),
-                if (isSelected) ...[
-                  const SizedBox(width: 6),
-                  AnimatedDefaultTextStyle(
-                    duration: const Duration(milliseconds: 300),
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                      color: Theme.of(context).primaryColor,
                     ),
-                    child: Text(label),
-                  ),
                 ],
+              ),
+              if (isSelected) ...[
+                const SizedBox(width: 6),
+                AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 300),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: Theme.of(context).primaryColor,
+                  ),
+                  child: Text(label),
+                ),
               ],
-            ),
+            ],
           ),
         ),
-      );
-      }
+      ),
+    );
+  }
 }
