@@ -323,13 +323,13 @@ final themeData = ThemeData(
   outlinedButtonTheme: AppWidgetThemes.outlinedButtonTheme,
   textButtonTheme: AppWidgetThemes.textButtonTheme,
   floatingActionButtonTheme: AppWidgetThemes.floatingActionButtonTheme,
-  cardTheme: AppWidgetThemes.cardTheme,
+  // cardTheme: AppWidgetThemes.cardTheme,
   bottomNavigationBarTheme: AppWidgetThemes.bottomNavigationBarTheme,
   appBarTheme: AppWidgetThemes.appBarTheme,
   inputDecorationTheme: AppWidgetThemes.inputDecorationTheme,
   dividerTheme: AppWidgetThemes.dividerTheme,
   checkboxTheme: AppWidgetThemes.checkboxTheme,
-  dialogTheme: AppWidgetThemes.dialogTheme,
+  // dialogTheme: AppWidgetThemes.dialogTheme,
 );
 
 
@@ -353,3 +353,4 @@ MaterialColor createMaterialColor(Color color) {
   });
   return MaterialColor(color.value, swatch);
 }
+
