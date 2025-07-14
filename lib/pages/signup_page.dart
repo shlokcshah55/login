@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../widgets/my_text_widget.dart';
+import '../widgets/loading_widget.dart';
 import '../supabase_flutter/supabase_provider.dart';
 import 'login_page.dart';
 
@@ -265,9 +266,9 @@ class _SignupPageState extends State<SignupPage> {
       ),
       padding: const EdgeInsets.symmetric(vertical: 16),
       alignment: Alignment.center,
-      child: const CircularProgressIndicator(
-        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-        strokeWidth: 3,
+      child: const LoadingWidget(
+        width: 40,
+        height: 40,
       ),
     );
   }

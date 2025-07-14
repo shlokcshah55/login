@@ -18,8 +18,8 @@ class SleekTextInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 25.0),
+    return Container(
+      width: double.infinity, // Ensure full width
       child: TextField(
         controller: controller,
         obscureText: isPassword,

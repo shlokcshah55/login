@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:login/supabase_flutter/constants.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/user_model.dart';
@@ -97,7 +98,7 @@ class UserRepository {
 
   /// Get auth state changes stream
   Stream<AuthState> get onAuthStateChange => _authService.onAuthStateChange;
-  
+
   /// Get user profile data
   Future<UserModel?> getUserProfile() async {
     final user = _authService.currentUser;
@@ -107,21 +108,28 @@ class UserRepository {
 
   Future<UserModel?> getUserProfileById(String userId) async {
     try {
-      final Map<String, dynamic> userCreds = await SupabaseClientManager().client
-          .from('users')
+      final Map<String, dynamic> userCreds = await SupabaseClientManager()
+          .client
+          .from(SupabaseConstants.tableUsers)
           .select()
-          .eq('supabase_id', userId)
+          .eq(SupabaseConstants.columnSupabaseId, userId)
           .single();
 
-      final followingDetails = await SupabaseClientManager().client
-          .from('user_friends')
+      final followingDetails = await SupabaseClientManager()
+          .client
+          .from(SupabaseConstants.tableUserFriends)
           .select()
-          .eq('followee_id', userId);
+          .eq(SupabaseConstants.columnFolloweeId, userId)
+          .eq(SupabaseConstants.columnStatus,
+              SupabaseConstants.relationshipStatusAccepted);
 
-      final followersDetails = await SupabaseClientManager().client
-          .from('user_friends')
+      final followersDetails = await SupabaseClientManager()
+          .client
+          .from(SupabaseConstants.tableUserFriends)
           .select()
-          .eq('following_id', userId);
+          .eq(SupabaseConstants.columnFollowerId, userId)
+          .eq(SupabaseConstants.columnStatus,
+              SupabaseConstants.relationshipStatusAccepted);
 
       userCreds['followers_count'] = followersDetails.length;
       userCreds['following_count'] = followingDetails.length;
@@ -134,20 +142,21 @@ class UserRepository {
       return null;
     }
   }
-  
+
   /// Update user profile data
   Future<UserModel?> updateUserProfile(Map<String, dynamic> userData) async {
     try {
       final user = _authService.currentUser;
       if (user == null) return null;
-      
-      final response = await SupabaseClientManager().client
+
+      final response = await SupabaseClientManager()
+          .client
           .from('users')
           .update(userData)
           .eq('supabase_id', user.id)
           .select()
           .single();
-      
+
       return UserModel.fromJson(response);
     } catch (e) {
       if (kDebugMode) {
@@ -163,15 +172,16 @@ class UserRepository {
       final user = _authService.currentUser;
       if (user == null) return [];
 
-      final response = await SupabaseClientManager().client
-        .from('users')
-        .select()
-        .neq('supabase_id', user.id)
-        .limit(10);
+      final response = await SupabaseClientManager()
+          .client
+          .from('users')
+          .select()
+          .neq('supabase_id', user.id)
+          .limit(10);
 
       final futures = (response as List)
-        .map((e) => getUserProfileById(e["supabase_id"] as String))
-        .toList();
+          .map((e) => getUserProfileById(e["supabase_id"] as String))
+          .toList();
 
       final users = await Future.wait(futures);
       return users.whereType<UserModel>().toList();
@@ -220,7 +230,8 @@ class UserRepository {
       }
       final followeeId = user.id;
 
-      await SupabaseClientManager().client
+      await SupabaseClientManager()
+          .client
           .from('user_friends')
           .delete()
           .eq('following_id', followingId)
@@ -241,7 +252,8 @@ class UserRepository {
       if (user == null) return null;
       final followerId = user.id;
 
-      final response = await SupabaseClientManager().client
+      final response = await SupabaseClientManager()
+          .client
           .from('user_friends')
           .select('status')
           .eq('follower_id', followerId)

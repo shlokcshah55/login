@@ -5,6 +5,7 @@ import 'package:login/pages/login_page.dart';
 import 'package:login/providers/location_list_manager.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:login/supabase_flutter/supabase_provider.dart';
+import 'package:login/widgets/loading_widget.dart';
 import 'package:provider/provider.dart';
 
 class AuthHandler extends StatelessWidget {
@@ -37,7 +38,7 @@ class AuthHandler extends StatelessWidget {
         // Check Supabase authentication
         if (supabaseProvider.isLoading) {
           log("AuthHandler: Waiting for Supabase auth state...");
-          return const Center(child: CircularProgressIndicator());
+          return const LoadingWidget();
         } else if (supabaseProvider.isAuthenticated) {
           // User is logged in with Supabase
           log("AuthHandler: User logged in with Supabase");

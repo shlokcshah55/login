@@ -338,4 +338,16 @@ class LocationListManager with ChangeNotifier {
       log('Error acknowledging location: $e');
     }
   }
+
+  /// Clears all data (used for sign out)
+  void clearData() {
+    _userId = null;
+    _savedLocations.clear();
+    _recommendedLocations.clear();
+    _searchLocations.clear();
+    _currentItems.clear();
+    _currentListType = LocationListType.saved;
+    log("LocationListManager: Cleared all location data");
+    notifyListeners();
+  }
 }

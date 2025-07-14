@@ -9,6 +9,8 @@ import 'package:login/themes/app_colors.dart'; // Import AppColors
 import 'package:login/widgets/profile/location_card.dart'; // Assuming you have a LocationCard widget
 import 'package:login/widgets/profile/user_card.dart';
 import 'package:login/supabase_flutter/repositories/user_repository.dart';
+import 'package:login/supabase_flutter/services/supabase_auth_service.dart';
+import 'package:login/pages/login_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({Key? key}) : super(key: key);
@@ -66,6 +68,32 @@ class _PinitProfileScreenState extends State<ProfilePage>
     super.dispose();
   }
 
+  Future<void> _handleSignOut(BuildContext context) async {
+    try {
+      final authService = SupabaseAuthService();
+      await authService.signOut();
+
+      // Clear providers if needed
+      if (mounted) {
+        Provider.of<UserDataProvider>(context, listen: false).clearUserData();
+        Provider.of<LocationListManager>(context, listen: false).clearData();
+
+        // Navigate to login page and remove all previous routes
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => LoginPage()),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      // Show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error signing out: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final userDataProvider = Provider.of<UserDataProvider>(context);
@@ -101,10 +129,38 @@ class _PinitProfileScreenState extends State<ProfilePage>
         backgroundColor: theme.colorScheme.primary,
         elevation: 0,
         actions: [
-          IconButton(
-            icon: Icon(Icons.settings, color: theme.colorScheme.onPrimary),
-            onPressed: () {
-              // Navigate to settings page or show settings dialog
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert, color: theme.colorScheme.onPrimary),
+            onSelected: (value) {
+              if (value == 'settings') {
+                // Navigate to settings page or show settings dialog
+              } else if (value == 'logout') {
+                _handleSignOut(context);
+              }
+            },
+            itemBuilder: (BuildContext context) {
+              return [
+                PopupMenuItem<String>(
+                  value: 'settings',
+                  child: Row(
+                    children: [
+                      Icon(Icons.settings, color: theme.colorScheme.onSurface),
+                      const SizedBox(width: 8),
+                      Text('Settings'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem<String>(
+                  value: 'logout',
+                  child: Row(
+                    children: [
+                      Icon(Icons.logout, color: theme.colorScheme.onSurface),
+                      const SizedBox(width: 8),
+                      Text('Sign Out'),
+                    ],
+                  ),
+                ),
+              ];
             },
           ),
         ],
