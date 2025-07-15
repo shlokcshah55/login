@@ -2,25 +2,26 @@ import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:login/themes/app_theme.dart';
 import 'package:login/controllers/home_controller.dart';
-import 'package:login/providers/device_location_provider.dart'; // Add new
+import 'package:login/providers/device_location_provider.dart';
 import 'package:login/providers/location_list_manager.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:provider/provider.dart';
 
-class CustomGoogleMap extends StatefulWidget {
+class PinitMap extends StatefulWidget {
   static const double DEFAULT_LAT = 51.4988;
   static const double DEFAULT_LNG = -0.1749;
 
-  const CustomGoogleMap({super.key});
+  const PinitMap({super.key});
 
   @override
-  _CustomGoogleMapState createState() => _CustomGoogleMapState();
+  _PinitMapState createState() => _PinitMapState();
 }
 
-class _CustomGoogleMapState extends State<CustomGoogleMap> {
+class _PinitMapState extends State<PinitMap> {
   BitmapDescriptor? _customMarkerIcon;
 
   @override
@@ -117,159 +118,163 @@ class _CustomGoogleMapState extends State<CustomGoogleMap> {
     return Stack(
       children: [
         GoogleMap(
-          style: MAPSTYLE,
-          mapToolbarEnabled: false,
-          myLocationButtonEnabled: false, // We add our own marker
-          compassEnabled: false,
-          zoomControlsEnabled: false,
-          initialCameraPosition: CameraPosition(
-            // Use current position from DeviceLocationProvider for initial target
-            target: currentPosition ??
-                const LatLng(
-                    CustomGoogleMap.DEFAULT_LAT, CustomGoogleMap.DEFAULT_LNG),
-            zoom: 15,
-          ),
-          onMapCreated: (controller) {
-            // Set the controller in the MapStateProvider
-            final mapState = context.read<MapStateProvider>();
-            mapState.setMapController(controller);
+                style: MAPSTYLE,
+                mapToolbarEnabled: false,
+                myLocationButtonEnabled: false, // We add our own marker
+                compassEnabled: false,
+                zoomControlsEnabled: false,
+                initialCameraPosition: CameraPosition(
+                  // Use current position from DeviceLocationProvider for initial target
+                  target: currentPosition ??
+                      const LatLng(
+                          PinitMap.DEFAULT_LAT, PinitMap.DEFAULT_LNG),
+                  zoom: 15,
+                ),
+                onMapCreated: (controller) {
+                  // Set the controller in the MapStateProvider
+                  final mapState = context.read<MapStateProvider>();
+                  mapState.setMapController(controller);
 
-            // Initialize the lastFocusedUserLocation with the current position
-            // or the initial camera position if no current position is available
-            final deviceLocation = context.read<DeviceLocationProvider>();
-            LatLng initialLocation = deviceLocation.currentPosition ??
-                LatLng(
-                    CustomGoogleMap.DEFAULT_LAT, CustomGoogleMap.DEFAULT_LNG);
+                  // Initialize the lastFocusedUserLocation with the current position
+                  // or the initial camera position if no current position is available
+                  final deviceLocation = context.read<DeviceLocationProvider>();
+                  LatLng initialLocation = deviceLocation.currentPosition ??
+                      LatLng(
+                          PinitMap.DEFAULT_LAT, PinitMap.DEFAULT_LNG);
 
-            print('Setting initial location in onMapCreated: $initialLocation');
-            mapState.setLastFocusedUserLocation(initialLocation);
-          },
-          onCameraMove: (CameraPosition position) {
-            // Update the map center in MapStateProvider when camera moves
-            mapStateProvider.updateMapCenter(position);
-          },
-          onCameraIdle: () {
-            // Optional: Add any actions to perform when camera stops moving
-          },
-          markers: markers,
-          // Get polylines from MapStateProvider
-          polylines: mapStateProvider.polylines,
-          
-        ),
+                  print('Setting initial location in onMapCreated: $initialLocation');
+                  mapState.setLastFocusedUserLocation(initialLocation);
+                },
+                onCameraMove: (CameraPosition position) {
+                  // Update the map center in MapStateProvider when camera moves
+                  mapStateProvider.updateMapCenter(position);
+                },
+                onCameraIdle: () {
+                  // Optional: Add any actions to perform when camera stops moving
+                },
+                markers: markers,
+                // Get polylines from MapStateProvider
+                polylines: mapStateProvider.polylines,
+                
+              ),
 
-        // "Search this area" button - only show on recommended tab
-        if (mapStateProvider.showSearchThisAreaButton && isRecommendedTab)
-          Positioned(
-            top: 150,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Container(
-                decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor.withOpacity(0.85),
-                    borderRadius: BorderRadius.circular(20.0),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.15),
-                        blurRadius: 3,
-                        offset: const Offset(0, 1),
-                      )
-                    ]),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(20.0),
-                    onTap: () {
-                      // Call searchThisArea when button is tapped
-                      LatLng newCentre = mapStateReader.searchThisArea();
+              // "Search this area" button - only show on recommended tab
+              if (mapStateProvider.showSearchThisAreaButton && isRecommendedTab)
+                Positioned(
+                  top: 150,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: Container(
+                      decoration: BoxDecoration(
+                          color: Theme.of(context).primaryColor.withOpacity(0.85),
+                          borderRadius: BorderRadius.circular(20.0),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.15),
+                              blurRadius: 3,
+                              offset: const Offset(0, 1),
+                            )
+                          ]),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(20.0),
+                          onTap: () {
+                            // Call searchThisArea when button is tapped
+                            LatLng newCentre = mapStateReader.searchThisArea();
 
-                      // Create a HomeController instance and use it
-                      final homeController = HomeController(
-                        locationListManager: locationListManager,
-                        mapStateProvider: mapStateReader,
-                        deviceLocationProvider: deviceLocationProvider,
-                      );
+                            // Create a HomeController instance and use it
+                            final homeController = HomeController(
+                              locationListManager: locationListManager,
+                              mapStateProvider: mapStateReader,
+                              deviceLocationProvider: deviceLocationProvider,
+                            );
 
-                      // Use the controller to fetch recommended pins for this area
-                      homeController.fetchAndPlotRecommendedPins(newCentre);
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14.0,
-                        vertical: 8.0,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: const [
-                          Icon(
-                            Icons.search,
-                            color: Colors.white,
-                            size: 16,
-                          ),
-                          SizedBox(width: 6),
-                          Text(
-                            'Search this area',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w500,
-                              fontSize: 13,
+                            // Use the controller to fetch recommended pins for this area
+                            homeController.fetchAndPlotRecommendedPins(newCentre);
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14.0,
+                              vertical: 8.0,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  FeatherIcons.search,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  "Search this area",
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+              // "My Location" button - always show at the top left
+              Positioned(
+                top: 150,
+                left: 20,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(30.0),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      )
+                    ]
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(30.0),
+                      onTap: () {
+                        // Focus camera on user's current location
+                        if (currentPosition != null) {
+                          mapStateReader.focusOnUserLocation(currentPosition, zoom: 15.0);
+                        } else {
+                          // Try to get current position first if not available
+                          deviceLocationProvider.getCurrentLocation().then((position) {
+                            if (position != null) {
+                              mapStateReader.focusOnUserLocation(position, zoom: 15.0);
+                            }
+                          });
+                        }
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Icon(
+                          FeatherIcons.crosshair,
+                          color: Theme.of(context).primaryColor,
+                          size: 24,
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ),
+            ],
+          );
+  }
 
-        // "My Location" button - always show at the top left
-        Positioned(
-          top: 150,
-          left: 20,
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(30.0),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                )
-              ]
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(30.0),
-                onTap: () {
-                  // Focus camera on user's current location
-                  if (currentPosition != null) {
-                    mapStateReader.focusOnUserLocation(currentPosition, zoom: 15.0);
-                  } else {
-                    // Try to get current position first if not available
-                    deviceLocationProvider.getCurrentLocation().then((position) {
-                      if (position != null) {
-                        mapStateReader.focusOnUserLocation(position, zoom: 15.0);
-                      }
-                    });
-                  }
-                },
-                child: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Icon(
-                    Icons.my_location,
-                    color: Theme.of(context).primaryColor,
-                    size: 24,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
+  @override
+  void dispose() {
+    super.dispose();
   }
 }

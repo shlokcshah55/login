@@ -1,0 +1,10 @@
+// Configuration template file
+// Copy this to Config.xcconfig and fill in your actual API keys
+// DO NOT commit Config.xcconfig to version control
+
+// Google Maps API Key
+GOOGLE_MAPS_API_KEY = YOUR_GOOGLE_MAPS_API_KEY_HERE
+
+// Other environment variables
+// FIREBASE_API_KEY = YOUR_FIREBASE_KEY_HERE
+// SUPABASE_URL = YOUR_SUPABASE_URL_HERE

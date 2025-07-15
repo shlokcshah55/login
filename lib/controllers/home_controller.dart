@@ -1,4 +1,5 @@
 import 'dart:developer'; // Added for logging
+import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:login/supabase_flutter/models/location_model.dart';
 import 'package:login/providers/device_location_provider.dart'; // Import new providers
@@ -6,7 +7,6 @@ import 'package:login/providers/location_list_manager.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:login/services/google_place_service.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:math' hide log; // Hide log from dart:math
 // import 'package:permission_handler/permission_handler.dart'; // Permission handled by DeviceLocationProvider
 
@@ -172,9 +172,7 @@ class HomeController {
         children: [
           location.photoReference != null
               ? Image.network(
-                  'https://maps.googleapis.com/maps/api/place/photo'
-                  '?maxwidth=1600&photoreference=${location.photoReference}'
-                  '&key=${dotenv.env['GOOGLE_PLACE_API_KEY']}',
+                  googlePlacesService.getPhotoUrl(location.photoReference) ?? '',
                   fit: BoxFit.cover,
                   height: 80,
                   width: double.infinity,
@@ -183,11 +181,12 @@ class HomeController {
                     return const Center(child: CircularProgressIndicator());
                   },
                   errorBuilder: (context, error, stackTrace) {
+                    log("Error loading image for ${location.name}: $error");
                     return Container(
                       height: 80,
                       width: double.infinity,
                       color: Colors.grey[300],
-                      child: const Icon(Icons.broken_image,
+                      child: const Icon(FeatherIcons.image,
                           size: 50, color: Colors.grey),
                     );
                   },
@@ -196,7 +195,7 @@ class HomeController {
                   height: 80,
                   width: double.infinity,
                   color: Colors.grey[300],
-                  child: const Icon(Icons.restaurant,
+                  child: const Icon(FeatherIcons.mapPin,
                       size: 40, color: Colors.grey),
                 ),
           const SizedBox(height: 8.0),
@@ -208,7 +207,7 @@ class HomeController {
           ),
           Row(
             children: [
-              const Icon(Icons.star, size: 10, color: Colors.amber),
+              const Icon(FeatherIcons.star, size: 10, color: Colors.amber),
               Text(location.rating?.toString() ?? 'N/A',
                   style: const TextStyle(fontSize: 10)),
               const Spacer(),
@@ -258,7 +257,7 @@ class HomeController {
                       return const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.directions_walk,
+                          Icon(FeatherIcons.navigation,
                               size: 14, color: Colors.black54),
                           SizedBox(width: 6),
                           Text("..",
@@ -270,7 +269,7 @@ class HomeController {
                       return const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.directions_walk,
+                          Icon(FeatherIcons.navigation,
                               size: 14, color: Colors.black54),
                           SizedBox(width: 6),
                           Text("?",
@@ -282,7 +281,7 @@ class HomeController {
                       return Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.directions_walk,
+                          const Icon(FeatherIcons.navigation,
                               size: 14, color: Colors.black54),
                           const SizedBox(width: 6),
                           Text(
@@ -313,7 +312,7 @@ class HomeController {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.favorite, size: 14, color: Colors.redAccent),
+              const Icon(FeatherIcons.heart, size: 14, color: Colors.redAccent),
               const SizedBox(width: 6),
               Text(
                 "${location.savedCount ?? 0}",
@@ -328,7 +327,7 @@ class HomeController {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.star, size: 14, color: Colors.amber),
+              const Icon(FeatherIcons.star, size: 14, color: Colors.amber),
               const SizedBox(width: 6),
               Text(
                 location.rating?.toString() ?? 'N/A',

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:login/supabase_flutter/models/location_model.dart';
+import 'package:login/services/google_place_service.dart';
 
 class CarouselTile extends StatelessWidget {
   final LocationModel item;
@@ -8,6 +9,8 @@ class CarouselTile extends StatelessWidget {
   final VoidCallback onRemove;
   final VoidCallback onSave;
   final VoidCallback onTap;
+  
+  static final GooglePlacesService _googlePlacesService = GooglePlacesService();
 
   const CarouselTile({
     super.key,
@@ -34,13 +37,13 @@ class CarouselTile extends StatelessWidget {
         color: Colors.green,
         alignment: Alignment.centerLeft,
         padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: const Icon(Icons.check, color: Colors.white),
+        child: const Icon(FeatherIcons.check, color: Colors.white),
       ),
       secondaryBackground: Container(
         color: Colors.red,
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: const Icon(Icons.delete, color: Colors.white),
+        child: const Icon(FeatherIcons.trash2, color: Colors.white),
       ),
       child: InkWell(
         onTap: onTap,
@@ -56,9 +59,7 @@ class CarouselTile extends StatelessWidget {
               // Image at the top
               item.photoReference != null
                   ? Image.network(
-                      'https://maps.googleapis.com/maps/api/place/photo'
-                      '?maxwidth=400&photoreference=${item.photoReference}'
-                      '&key=${dotenv.env['GOOGLE_PLACE_API_KEY']}',
+                      _googlePlacesService.getPhotoUrl(item.photoReference) ?? '',
                       fit: BoxFit.cover,
                       width: double.infinity,
                       height: 200, // Adjust to your desired height
@@ -73,7 +74,7 @@ class CarouselTile extends StatelessWidget {
                           color: Colors.grey[300],
                           height: 200,
                           width: double.infinity,
-                          child: const Icon(Icons.broken_image,
+                          child: const Icon(FeatherIcons.image,
                               size: 50, color: Colors.grey),
                         );
                       },
@@ -119,7 +120,7 @@ class CarouselTile extends StatelessWidget {
                         if (item.rating != null)
                           Row(
                             children: [
-                              const Icon(Icons.star,
+                              const Icon(FeatherIcons.star,
                                   size: 16, color: Colors.amber),
                               Text(
                                 item.rating.toString(),

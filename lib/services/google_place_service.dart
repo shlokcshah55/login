@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:ffi';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
@@ -7,12 +6,52 @@ import 'dart:developer';
 
 import 'package:login/supabase_flutter/models/location_model.dart';
 
-
 class GooglePlacesService {
-  final String apiKey = dotenv.env["GOOGLE_PLACE_API_KEY"] ?? 'NOT_SET';
+  final String? apiKey = dotenv.env["GOOGLE_PLACE_API_KEY"];
 
-  Future<List<LocationModel>> handleMagicSearchQuery(String url) {
+  // Debug method to check API key
+  void debugApiKey() {
+    log('GooglePlaceService: API Key loaded: ${apiKey != null ? "YES (${apiKey!.substring(0, 10)}...)" : "NO"}');
+    log('GooglePlaceService: All env vars: ${dotenv.env.keys.toList()}');
+  }
+
+  // Add method to get photo URL
+  String? getPhotoUrl(String? photoReference, {int maxWidth = 400}) {
+    if (photoReference == null || photoReference.isEmpty) return null;
+    if (apiKey == null || apiKey!.isEmpty) return null;
+    
+    return 'https://maps.googleapis.com/maps/api/place/photo?maxwidth=$maxWidth&photoreference=$photoReference&key=$apiKey';
+  }
+
+  // Magic search for restaurants based on text query
+  Future<List<LocationModel>> searchPlaces({
+    required String query,
+    double? latitude,
+    double? longitude,
+    int radius = 2000,
+  }) async {
+    if (apiKey == null || apiKey!.isEmpty) {
+      throw Exception('GooglePlaceService: GOOGLE_PLACE_API_KEY not found in .env file');
+    }
+
+    String url;
+    if (latitude != null && longitude != null) {
+      // Location-based search
+      url = 'https://maps.googleapis.com/maps/api/place/textsearch/json?'
+          'query=${Uri.encodeComponent(query)}&location=$latitude,$longitude&radius=$radius&key=$apiKey';
+    } else {
+      // General text search
+      url = 'https://maps.googleapis.com/maps/api/place/textsearch/json?'
+          'query=${Uri.encodeComponent(query)}&key=$apiKey';
+    }
+    
+    log('GooglePlaceService: Searching with URL: $url');
     return processApiCall(url, LocationPreference.search);
+  }
+
+  Future<List<LocationModel>> handleMagicSearchQuery(String query) {
+    // Enhanced magic search that works better
+    return searchPlaces(query: query);
   } 
 
   Future<List<LocationModel>> fetchNearbyPlaces({
@@ -21,74 +60,115 @@ class GooglePlacesService {
     required String placeType,
     int radius = 1500,
   }) async {
-    if (apiKey == 'NOT_SET') {
-      throw Exception('GooglePlaceService: API key not set - please add it to your .env file');
+    if (apiKey == null || apiKey!.isEmpty) {
+      throw Exception('GooglePlaceService: GOOGLE_PLACE_API_KEY not found in .env file');
     }
 
     final String url =
         'https://maps.googleapis.com/maps/api/place/nearbysearch/json?'
         'location=$latitude,$longitude&radius=$radius&type=$placeType&key=$apiKey';
+    
+    log('GooglePlaceService: Fetching nearby places with URL: $url');
     return processApiCall(url, LocationPreference.recommended);
   }
 
   Future<List<LocationModel>> processApiCall(String url, LocationPreference preference) async {
-    final response = await http.get(Uri.parse(url));
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final results = data['results'];
-      if (results != null && results.isNotEmpty) {
-        List<LocationModel> places = [];
-        for (var result in results) {
-          LocationModel place = _processPlace(result, preference);
-          places.add(place);
+    try {
+      log('GooglePlaceService: Making API call to: $url');
+      
+      final response = await http.get(Uri.parse(url));
+      log('GooglePlaceService: Response status: ${response.statusCode}');
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        log('GooglePlaceService: Response data: ${data.toString().substring(0, 200)}...');
+        
+        // Check for API errors
+        if (data['status'] != null && data['status'] != 'OK' && data['status'] != 'ZERO_RESULTS') {
+          throw Exception('GooglePlaceService: API Error - ${data['status']}: ${data['error_message'] ?? 'Unknown error'}');
         }
-        log('GooglePlaceService: Found ${places.length} places');
-        return places;
+        
+        final results = data['results'];
+        if (results != null && results.isNotEmpty) {
+          List<LocationModel> places = [];
+          for (var result in results) {
+            try {
+              LocationModel place = _processPlace(result, preference);
+              places.add(place);
+            } catch (e) {
+              log('GooglePlaceService: Error processing place: $e');
+              // Continue with other places
+            }
+          }
+          log('GooglePlaceService: Successfully processed ${places.length} places');
+          return places;
+        } else {
+          log('GooglePlaceService: No places found in response');
+          return []; // Return empty list instead of throwing error
+        }
       } else {
-        throw Exception('GooglePlaceService: No places found');
+        final errorBody = response.body;
+        log('GooglePlaceService: HTTP Error ${response.statusCode}: $errorBody');
+        throw Exception('GooglePlaceService: HTTP ${response.statusCode} - Failed to fetch places');
       }
-    } else {
-      throw Exception('GooglePlaceService: Failed to fetch nearby places');
+    } catch (e) {
+      log('GooglePlaceService: Exception during API call: $e');
+      rethrow;
     }
   }
 
   
 
   LocationModel _processPlace(Map<String, dynamic> result, LocationPreference locationPreference) {
-    log('GooglePlaceService: Processing place $result');
-    var id = result['place_id'];
-    var name = result['name'];
-    var location = result['geometry']['location'];
-    var lat = location['lat'];
-    var lng = location['lng'];
-    var vicinity = result['vicinity'];
-    var rating = result['rating']?.toDouble();
-    var userRatingsTotal = result['user_ratings_total'];
-    var priceLevel = result['price_level'];
-    var photoReference = result['photos']?.isNotEmpty == true
-        ? result['photos'][0]['photo_reference']
-        : null;
-    var types = result['types'] as List<dynamic> ? ?? [];
-    String? cuisine = _extractCuisine(types, name);
+    try {
+      log('GooglePlaceService: Processing place: ${result['name']}');
+      
+      var id = result['place_id'];
+      var name = result['name'] ?? 'Unknown Place';
+      var location = result['geometry']?['location'];
+      
+      if (location == null) {
+        throw Exception('Place missing location data');
+      }
+      
+      var lat = location['lat'];
+      var lng = location['lng'];
+      var vicinity = result['vicinity'] ?? result['formatted_address'] ?? '';
+      var rating = result['rating']?.toDouble();
+      var userRatingsTotal = result['user_ratings_total'];
+      var priceLevel = result['price_level'];
+      
+      // Get photo reference safely
+      var photoReference;
+      if (result['photos'] != null && result['photos'].isNotEmpty) {
+        photoReference = result['photos'][0]['photo_reference'];
+      }
+      
+      var types = result['types'] as List<dynamic>? ?? [];
+      String? cuisine = _extractCuisine(types, name);
 
-    log('GooglePlaceService: Found place $name at $lat, $lng');
+      log('GooglePlaceService: Successfully processed place: $name at $lat, $lng');
 
-    // Return the new Supabase LocationModel
-    return LocationModel(
-      locationId: id.hashCode, // Use hashCode of place_id as locationId
-      name: name,
-      vicinity: vicinity,
-      lat: lat.toDouble(),
-      lng: lng.toDouble(),
-      createdAt: DateTime.now(),
-      cuisine: cuisine,
-      rating: rating,
-      userRatingsTotal: userRatingsTotal,
-      priceLevel: priceLevel,
-      photoReference: photoReference,
-      savedCount: 0
-    );
+      // Return the new Supabase LocationModel
+      return LocationModel(
+        locationId: id.hashCode, // Use hashCode of place_id as locationId
+        name: name,
+        vicinity: vicinity,
+        lat: lat.toDouble(),
+        lng: lng.toDouble(),
+        createdAt: DateTime.now(),
+        cuisine: cuisine,
+        rating: rating,
+        userRatingsTotal: userRatingsTotal,
+        priceLevel: priceLevel,
+        photoReference: photoReference,
+        savedCount: 0,
+        preference: locationPreference,
+      );
+    } catch (e) {
+      log('GooglePlaceService: Error processing place: $e');
+      rethrow;
+    }
   }
 
 
@@ -96,49 +176,66 @@ Future<String> getWalkingDuration({
   required LatLng? originLatLng,
   required String destinationPlaceId,
 }) async {
-  if (originLatLng == Null) {
-    return '';
+  if (originLatLng == null) {
+    return 'N/A';
   }
-  print('got here ok');
   
- 
-
-
+  if (apiKey == null || apiKey!.isEmpty) {
+    log('GooglePlaceService: API key not available for walking duration');
+    return 'N/A';
+  }
 
   try {
-  print(originLatLng);
-  double lat = originLatLng!.latitude;
-  double lng = originLatLng!.longitude;
-  final String url =
-      "https://maps.googleapis.com/maps/api/distancematrix/json?"
-      "origins=$lat,$lng"
-      "&destinations=place_id:$destinationPlaceId"
-      "&mode=walking"
-      "&key=$apiKey";
+    log('GooglePlaceService: Getting walking duration from ${originLatLng.latitude}, ${originLatLng.longitude} to $destinationPlaceId');
+    
+    double lat = originLatLng.latitude;
+    double lng = originLatLng.longitude;
+    
+    final String url =
+        "https://maps.googleapis.com/maps/api/distancematrix/json?"
+        "origins=$lat,$lng"
+        "&destinations=place_id:$destinationPlaceId"
+        "&mode=walking"
+        "&key=$apiKey";
+        
+    log('GooglePlaceService: Distance Matrix URL: $url');
     final response = await http.get(Uri.parse(url));
 
     if (response.statusCode == 200) {
-      print('response ok');
+      log('GooglePlaceService: Distance Matrix response OK');
       final data = json.decode(response.body);
-      print(data);
-      if (data["status"] == "OK") {
-        final duration = data["rows"][0]["elements"][0]["duration"]["text"];
-        return '${_convertDurationToMinutes(duration)} mins';
-
+      log('GooglePlaceService: Distance Matrix data: $data');
+      
+      if (data["status"] == "OK" && 
+          data["rows"] != null && 
+          data["rows"].isNotEmpty &&
+          data["rows"][0]["elements"] != null &&
+          data["rows"][0]["elements"].isNotEmpty) {
+        
+        final element = data["rows"][0]["elements"][0];
+        if (element["status"] == "OK" && element["duration"] != null) {
+          final duration = element["duration"]["text"];
+          log('GooglePlaceService: Walking duration: $duration');
+          return _convertDurationToMinutes(duration);
+        } else {
+          log('GooglePlaceService: Distance Matrix element error: ${element["status"]}');
+          return 'N/A';
+        }
       } else {
-        return '';
+        log('GooglePlaceService: Distance Matrix API error: ${data["status"]}');
+        return 'N/A';
       }
     } else {
-      print("⚠️ HTTP Error: ${response.statusCode}");
-      return 'null';
+      log('GooglePlaceService: Distance Matrix HTTP error: ${response.statusCode}');
+      return 'N/A';
     }
   } catch (e) {
-    print("❌ Exception: $e");
-    return 'null';
+    log('GooglePlaceService: Exception in getWalkingDuration: $e');
+    return 'N/A';
   }
 }
 
-int _convertDurationToMinutes(String duration) {
+String _convertDurationToMinutes(String duration) {
   final regex = RegExp(r'(\d+)\s*hours?|\s*(\d+)\s*mins?');
   int totalMinutes = 0;
 
@@ -151,7 +248,7 @@ int _convertDurationToMinutes(String duration) {
     }
   }
   
-  return totalMinutes;
+  return totalMinutes > 0 ? '${totalMinutes} mins' : duration;
 }
 
 

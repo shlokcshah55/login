@@ -1,6 +1,14 @@
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+  /// Provides location-related services for the application.
+  /// 
+  /// This service may include methods for retrieving the user's current location,
+  /// handling location permissions, and managing location updates.
+  /// 
+  /// Usage:
+  ///   Instantiate and use this service to access location functionalities.
+  // 
 class LocationService {
   Stream<Position> getPositionStream() {
     return Geolocator.getPositionStream(

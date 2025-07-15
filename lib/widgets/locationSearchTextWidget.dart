@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 
 class SearchWidget extends StatefulWidget {
   final Function(String) onSearch; // Callback to pass the search input
@@ -52,7 +53,7 @@ class _SearchWidgetState extends State<SearchWidget> {
         SizedBox(width: 8.0), // Space between TextField and Button
         ElevatedButton(
           onPressed: _handleSearch,
-          child: Icon(Icons.search, color: Colors.black),
+          child: Icon(FeatherIcons.search, color: Colors.black),
         ),
       ],
     );

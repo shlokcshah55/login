@@ -7,9 +7,8 @@ import 'package:login/providers/device_location_provider.dart';
 import 'package:login/providers/location_list_manager.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
+import 'package:login/providers/bottom_nav_visibility_provider.dart';
 import 'package:login/themes/app_colors.dart'; // Import for theme colors
-import 'package:login/themes/app_dimensions.dart'; // Import for dimensions
-import 'package:login/themes/app_typography.dart'; // Import for typography
 import 'package:login/widgets/home/LocationCarousel/filter_bar.dart';
 import 'package:login/widgets/home/LocationCarousel/location_carousel.dart';
 import 'package:login/widgets/home/pinit_map.dart';
@@ -30,6 +29,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   late final LocationListManager locationListManager_;
   late final DeviceLocationProvider deviceLocationProvider_;
   late final MapStateProvider mapStateProvider_;
+  late final BottomNavVisibilityProvider bottomNavProvider_;
 
   bool showSearchOverlay = false;
   final TextEditingController _searchController = TextEditingController();
@@ -46,6 +46,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     locationListManager_ = context.read<LocationListManager>();
     deviceLocationProvider_ = context.read<DeviceLocationProvider>();
     mapStateProvider_ = context.read<MapStateProvider>();
+    bottomNavProvider_ = context.read<BottomNavVisibilityProvider>();
 
     homeController_ = HomeController(
       locationListManager: locationListManager_,
@@ -112,9 +113,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       // extendBodyBehindAppBar: true, // If you want map to go under status bar fully
       body: Stack(
         children: [
-          // 1. Map (fills the screen)
-          const Positioned.fill(
-            child: CustomGoogleMap(),
+          // 1. Map (fills the screen) - wrapped with tap detection
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: () {
+                // Tap anywhere on the map to show bottom nav temporarily
+                bottomNavProvider_.showTemporarily();
+              },
+              child: const PinitMap(),
+            ),
           ),
 
           // 2. Floating Header (Search Bar + Filter Bar)
@@ -125,15 +132,24 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             child: _buildFloatingHeaderControls(theme),
           ),
 
-          // 3. Location Carousel (positioned higher above bottom bar)
+          // 3. Location Carousel (positioned higher above bottom bar) - wrapped with scroll detection
           Positioned(
             bottom: 30, // Adjusted, assuming no system bottom navigation bar for now
                        // If you have a bottom nav bar, increase this value
             left: 0,
             right: 0,
-            child: LocationCarousel(
-              pageController: _pageController,
-              locations: locations,
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (ScrollNotification scrollInfo) {
+                // Hide bottom nav when user starts scrolling the carousel
+                if (scrollInfo is ScrollStartNotification) {
+                  bottomNavProvider_.hide();
+                }
+                return false; // Allow the scroll to continue
+              },
+              child: LocationCarousel(
+                pageController: _pageController,
+                locations: locations,
+              ),
             ),
           ),
 

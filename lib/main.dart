@@ -4,15 +4,13 @@ import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:http/http.dart' as http;
 import 'package:login/themes/app_theme.dart';
 import 'package:login/supabase_flutter/models/location_model.dart';
 import 'package:login/supabase_flutter/supabase_client.dart';
 import 'package:login/supabase_flutter/supabase_provider.dart';
-import 'package:login/notifications/notificationService.dart';
-import 'package:login/notifications/backgroundTaskService.dart';
 import 'package:login/pages/alerts_page.dart';
-import 'package:login/pages/auth_handler.dart';
 import 'package:login/pages/splash_screen.dart';
 import 'package:login/pages/home_page.dart';
 import 'package:login/pages/profile_page.dart';
@@ -20,8 +18,11 @@ import 'package:login/providers/device_location_provider.dart'; // Import new pr
 import 'package:login/providers/location_list_manager.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
+import 'package:login/providers/bottom_nav_visibility_provider.dart';
+import 'package:login/providers/dynamic_nav_provider.dart';
 import 'package:login/services/google_place_service.dart';
 import 'package:login/services/location_service.dart';
+import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:provider/provider.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
@@ -42,6 +43,9 @@ void main() async {
   final googlePlacesService = GooglePlacesService();
   final locationService = LocationService();
 
+  // Debug API key loading
+  googlePlacesService.debugApiKey();
+
   // Initialize Supabase Provider
   final supabaseProvider = SupabaseProvider();
   await supabaseProvider.initialize();
@@ -59,6 +63,12 @@ void main() async {
         ChangeNotifierProvider(create: (_) => MapStateProvider()),
         ChangeNotifierProvider(
             create: (_) => DeviceLocationProvider(locationService)),
+        
+        // Bottom Navigation Visibility Provider
+        ChangeNotifierProvider(create: (_) => BottomNavVisibilityProvider()),
+
+        // Dynamic Navigation Provider
+        ChangeNotifierProvider(create: (_) => DynamicNavProvider()),
       ],
       child: const MyApp(),
     ),
@@ -73,7 +83,6 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  String? _sharedLink;
   late StreamSubscription _intentSub;
   final _sharedFiles = <SharedMediaFile>[];
 
@@ -190,9 +199,12 @@ class MainScreen extends StatefulWidget {
   _MainScreenState createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
+class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   int _currentIndex = 0;
   bool _hasUnreadNotifications = false;
+  late AnimationController _animationController;
+  late Animation<Offset> _slideAnimation;
+  late Animation<double> _fadeAnimation;
 
   final List<Widget> _pages = [
     const HomePage(),
@@ -205,6 +217,33 @@ class _MainScreenState extends State<MainScreen> {
   void initState() {
     super.initState();
     _checkForPendingNotifications();
+    
+    // Initialize animation controller for bottom nav
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    
+    // Slide animation from bottom
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 1), // Start below screen
+      end: Offset.zero,         // End at normal position
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    ));
+    
+    // Fade animation
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    ));
+    
+    // Start with visible bottom nav
+    _animationController.forward();
   }
 
   Future<void> _checkForPendingNotifications() async {
@@ -219,41 +258,91 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: _pages[_currentIndex],
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        height: 68,
-        margin: const EdgeInsets.symmetric(horizontal: 24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(34),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withBlue(10),
-              blurRadius: 15,
-              spreadRadius: 0,
-              offset: const Offset(0, 6),
+    return Consumer2<BottomNavVisibilityProvider, DynamicNavProvider>(
+      builder: (context, bottomNavProvider, dynamicNavProvider, child) {
+        // Update animation based on visibility state
+        if (bottomNavProvider.isVisible) {
+          _animationController.forward();
+        } else {
+          _animationController.reverse();
+        }
+        
+        return Scaffold(
+          body: _pages[_currentIndex],
+          floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+          floatingActionButton: SlideTransition(
+            position: _slideAnimation,
+            child: FadeTransition(
+              opacity: _fadeAnimation,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                height: 68,
+                margin: const EdgeInsets.symmetric(horizontal: 24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(34),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withBlue(10),
+                      blurRadius: bottomNavProvider.isVisible ? 15 : 5,
+                      spreadRadius: 0,
+                      offset: Offset(0, bottomNavProvider.isVisible ? 6 : 2),
+                    ),
+                  ],
+                ),
+                child: dynamicNavProvider.navState == NavState.standard
+                    ? _buildStandardNav()
+                    : _buildDynamicNav(dynamicNavProvider),
+              ),
             ),
-          ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStandardNav() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        _buildNavItem(FeatherIcons.home, 0, 'Home'),
+        _buildNavItem(FeatherIcons.search, 1, 'Search'),
+        _buildNavItem(
+            _hasUnreadNotifications
+                ? FeatherIcons.bell
+                : FeatherIcons.bell,
+            2,
+            'Alerts',
+            hasBadge: _hasUnreadNotifications),
+        _buildNavItem(FeatherIcons.user, 3, 'Profile'),
+      ],
+    );
+  }
+
+  Widget _buildDynamicNav(DynamicNavProvider dynamicNavProvider) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.apps),
+          onPressed: () {
+            dynamicNavProvider.showStandardNav();
+          },
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _buildNavItem(Icons.home_rounded, 0, 'Home'),
-            _buildNavItem(Icons.search_rounded, 1, 'Search'),
-            _buildNavItem(
-                _hasUnreadNotifications
-                    ? Icons.notifications_active_rounded
-                    : Icons.notifications_rounded,
-                2,
-                'Alerts',
-                hasBadge: _hasUnreadNotifications),
-            _buildNavItem(Icons.person_rounded, 3, 'Profile'),
-          ],
+        ElevatedButton(
+          child: const Text('Explore'),
+          onPressed: () {
+            showDialog(
+              context: context,
+              builder: (context) => ExpandedLocationCard(
+                location: dynamicNavProvider.selectedLocation!,
+                onClose: () => Navigator.of(context).pop(),
+              ),
+            );
+          },
         ),
-      ),
+      ],
     );
   }
 
@@ -265,13 +354,17 @@ class _MainScreenState extends State<MainScreen> {
     return Tooltip(
       message: label,
       child: InkWell(
-        onTap: () => setState(() {
-          _currentIndex = index;
-          // Clear badge when navigating to the notifications page
-          if (index == 2 && hasBadge) {
-            _hasUnreadNotifications = false;
-          }
-        }),
+        onTap: () {
+          context.read<BottomNavVisibilityProvider>().show();
+          context.read<DynamicNavProvider>().showStandardNav();
+          setState(() {
+            _currentIndex = index;
+            // Clear badge when navigating to the notifications page
+            if (index == 2 && hasBadge) {
+              _hasUnreadNotifications = false;
+            }
+          });
+        },
         customBorder: const CircleBorder(),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 300),
@@ -330,5 +423,11 @@ class _MainScreenState extends State<MainScreen> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
   }
 }

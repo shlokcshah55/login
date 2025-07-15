@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:login/supabase_flutter/models/location_model.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart'; // Required for GOOGLE_PLACE_API_KEY
 import 'dart:developer';
@@ -57,7 +58,7 @@ class LocationCard extends StatelessWidget {
                   return Container(
                     color: Colors.grey[200],
                     child: Icon(
-                      Icons.restaurant_menu_rounded, // Fallback icon
+                      FeatherIcons.mapPin, // Fallback icon
                       size: 30,
                       color: Colors.grey[400],
                     ),
@@ -67,7 +68,7 @@ class LocationCard extends StatelessWidget {
             : Container(
                 color: Colors.grey[200],
                 child: Icon(
-                  Icons.restaurant_menu_rounded, // Fallback icon if no image URL
+                  FeatherIcons.mapPin, // Fallback icon if no image URL
                   size: 30,
                   color: Colors.grey[400],
                 ),
@@ -147,7 +148,7 @@ class LocationCard extends StatelessWidget {
                       const SizedBox(height: 4.0),
                       Row(
                         children: [
-                          Icon(Icons.star_rounded, size: 16, color: Colors.amber[700]),
+                          Icon(FeatherIcons.star, size: 16, color: Colors.amber[700]),
                           const SizedBox(width: 4),
                           Text(
                             location.rating?.toStringAsFixed(1) ?? 'N/A',
@@ -178,7 +179,7 @@ class LocationCard extends StatelessWidget {
                       padding: EdgeInsets.zero, // Remove default padding to make it more compact
                       constraints: const BoxConstraints(), // Remove default constraints
                       icon: Icon(
-                        isInitiallySaved ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
+                        isInitiallySaved ? FeatherIcons.bookmark : FeatherIcons.bookmark,
                         color: isInitiallySaved ? colorScheme.primary : colorScheme.onSurfaceVariant,
                         size: 24,
                       ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 
 class SearchWidget extends StatelessWidget {
   final ValueChanged<String> onSearch;
@@ -11,7 +12,7 @@ class SearchWidget extends StatelessWidget {
       onChanged: onSearch,
       decoration: InputDecoration(
         hintText: "Search restaurants...",
-        prefixIcon: Icon(Icons.search),
+        prefixIcon: Icon(FeatherIcons.search),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8.0),
           borderSide: BorderSide.none,

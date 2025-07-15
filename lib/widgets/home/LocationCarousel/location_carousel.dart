@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:login/providers/map_state_provider.dart';
+import 'package:login/providers/bottom_nav_visibility_provider.dart';
+import 'package:login/providers/dynamic_nav_provider.dart';
 import 'package:login/supabase_flutter/models/location_model.dart';
-import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:developer';
@@ -66,11 +68,9 @@ class _LocationCarouselState extends State<LocationCarousel> {
               duration: const Duration(milliseconds: 300),
               curve: Curves.easeOutQuint,
               // Center-align the card with smaller margins to ensure visibility on both sides
-              margin: EdgeInsets.only(
-                left: 5.0,
-                right: 5.0,
-                top: isSelected ? 0 : 10.0,
-                bottom: isSelected ? 0 : 10.0,
+              margin: EdgeInsets.symmetric(
+                horizontal: 5.0,
+                vertical: isSelected ? 0 : 10.0,
               ),
               transform: isSelected
                   ? Matrix4.identity()
@@ -81,16 +81,17 @@ class _LocationCarouselState extends State<LocationCarousel> {
             );
           },
           onPageChanged: (index) {
+            // Hide bottom nav when page changes (user scrolled)
+            context.read<BottomNavVisibilityProvider>().hide();
+            
             final location = widget.locations[index];
             mapState.setSelectedMarkerId(
               MarkerId(location.locationId.toString()),
               triggeredByCarousel: true,
             );
-            if (location.position != null) {
-              mapState.animateCamera(
-                CameraUpdate.newLatLng(location.position!),
-              );
-            }
+            mapState.animateCamera(
+              CameraUpdate.newLatLng(location.position),
+            );
           },
         ),
       ),
@@ -106,19 +107,22 @@ class _LocationCarouselState extends State<LocationCarousel> {
   ) {
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
+    final dynamicNavProvider = context.read<DynamicNavProvider>();
 
     return InkWell(
       onTap: () {
         log("Tapped card for: ${location.name} (ID: ${location.locationId})");
-        mapState.setSelectedMarkerId(MarkerId(location.locationId.toString()));
+        
+        // Show the bottom navigation bar temporarily
+        context.read<BottomNavVisibilityProvider>().showTemporarily();
 
-        // Show the expanded location card
-        showDialog(
-          context: context,
-          builder: (context) => ExpandedLocationCard(
-            location: location,
-            onClose: () => Navigator.of(context).pop(),
-          ),
+        // Show the dynamic navigation bar
+        dynamicNavProvider.showDynamicNav(location);
+
+        // Set the selected marker and animate the camera
+        mapState.setSelectedMarkerId(MarkerId(location.locationId.toString()));
+        mapState.animateCamera(
+          CameraUpdate.newLatLng(location.position),
         );
       },
       child: Card(
@@ -158,7 +162,7 @@ class _LocationCarouselState extends State<LocationCarousel> {
                       const SizedBox(height: 6.0), // Reduced spacing
                       Row(
                         children: [
-                          Icon(Icons.star_rounded,
+                          Icon(FeatherIcons.star,
                               size: 14,
                               color: colorScheme.secondary), // Smaller icon
                           const SizedBox(width: 2), // Reduced spacing
@@ -272,7 +276,7 @@ class _LocationCarouselState extends State<LocationCarousel> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.bookmark_rounded,
+                              Icon(FeatherIcons.bookmark,
                                   size: 10,
                                   color: colorScheme.primary), // Smaller icon
                               const SizedBox(width: 2), // Smaller spacing
@@ -306,17 +310,17 @@ class _LocationCarouselState extends State<LocationCarousel> {
 
     switch (preference) {
       case LocationPreference.saved:
-        iconData = Icons.bookmark_rounded;
+        iconData = FeatherIcons.bookmark;
         text = 'Saved';
         bgColor = theme.colorScheme.primary;
         break;
       case LocationPreference.recommended:
-        iconData = Icons.star_rounded;
+        iconData = FeatherIcons.star;
         text = 'Rec'; // Shortened text
         bgColor = theme.colorScheme.secondary;
         break;
       case LocationPreference.search:
-        iconData = Icons.search_rounded;
+        iconData = FeatherIcons.search;
         text = 'Result';
         bgColor = theme.colorScheme.tertiaryContainer;
         fgColor = theme.colorScheme.onTertiaryContainer;
@@ -382,7 +386,7 @@ class _LocationCarouselState extends State<LocationCarousel> {
                   return Container(
                     color: colorScheme.surfaceVariant,
                     child: Icon(
-                      Icons.restaurant_menu_rounded,
+                      FeatherIcons.mapPin,
                       size: 30, // Smaller icon
                       color: colorScheme.onSurfaceVariant.withOpacity(0.5),
                     ),
@@ -392,7 +396,7 @@ class _LocationCarouselState extends State<LocationCarousel> {
             : Container(
                 color: colorScheme.surfaceVariant,
                 child: Icon(
-                  Icons.restaurant_menu_rounded,
+                  FeatherIcons.mapPin,
                   size: 30, // Smaller icon
                   color: colorScheme.onSurfaceVariant.withOpacity(0.5),
                 ),

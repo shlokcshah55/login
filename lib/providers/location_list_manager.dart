@@ -264,27 +264,25 @@ class LocationListManager with ChangeNotifier {
       return;
     }
 
-    // TODO: Implement Supabase full-text search for locations
-    // This would use the Supabase PostgreSQL full-text search capabilities
-    // For now, we'll continue to use the existing search service
-
-    final url =
-        'https://search-places-endpoint-lqmy33nkaa-nw.a.run.app?query=$query';
+    // Use Google Places API text search instead of external endpoint
+    log("LocationListManager: Starting magic search for query: '$query'");
+    
     try {
-      var searchModels = await _googlePlacesService.handleMagicSearchQuery(url);
+      // Use the improved search method from GooglePlacesService
+      var searchModels = await _googlePlacesService.searchPlaces(query: query);
+      
       _searchLocations = {
         for (var location in searchModels)
           location: location.setPreference(LocationPreference.search).toMarker()
       };
-      log("Magic search returned ${searchModels.length} results for '$query'.");
-      setCurrentListType(LocationListType
-          .search); // Automatically switch view to search results
+      
+      log("LocationListManager: Magic search returned ${searchModels.length} results for '$query'.");
+      setCurrentListType(LocationListType.search); // Automatically switch view to search results
     } catch (e) {
-      log('Error during magic search: $e');
+      log('LocationListManager: Error during magic search: $e');
       _searchLocations = {}; // Clear previous search results on error
-      // Optionally notify the user of the error
-      setCurrentListType(
-          LocationListType.search); // Still update UI to show empty results
+      // Still update UI to show empty results
+      setCurrentListType(LocationListType.search);
     }
     // No need for notifyListeners() here as setCurrentListType calls it
   }
@@ -303,6 +301,7 @@ class LocationListManager with ChangeNotifier {
 
         return addedLocation;
       }
+      return null;
     } catch (e) {
       log('Error adding new location: $e');
       return null;
