@@ -2,134 +2,116 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-    <string>This app needs location access to provide location-based features and background updates.</string>
-    <key>NSLocationWhenInUseUsageDescription</key>
-    <string>This app needs location access to show your current location and provide location-based features.</string>
-    <key>NSLocationAlwaysUsageDescription</key>
-    <string>This app needs location access to provide location-based features even when the app is in the background.</string>
-    
-    <!-- Photo Library Access for sharing images -->
-    <key>NSPhotoLibraryUsageDescription</key>
-    <string>This app needs access to your photo library to share location photos and images.</string>
-    <key>NSPhotoLibraryAddUsageDescription</key>
-    <string>This app needs access to save location photos to your photo library.</string>
-    
-    <!-- Camera Access for taking photos -->
-    <key>NSCameraUsageDescription</key>
-    <string>This app needs camera access to take photos of locations you want to share.</string>
-    <key>UIBackgroundModes</key>
-    <array>
-        <string>location</string>
-        <string>background-fetch</string>
-    </array>
-    <key>CFBundleDevelopmentRegion</key>
-    <string>$(DEVELOPMENT_LANGUAGE)</string>
-    <key>CFBundleDisplayName</key>
-    <string>Pinit</string>
-    <key>CFBundleExecutable</key>
-    <string>$(EXECUTABLE_NAME)</string>
-    <key>CFBundleIdentifier</key>
-    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-    <key>CFBundleInfoDictionaryVersion</key>
-    <string>6.0</string>
-    <key>CFBundleName</key>
-    <string>Pinit</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleShortVersionString</key>
-    <string>$(FLUTTER_BUILD_NAME)</string>
-    <key>CFBundleVersion</key>
-    <string>$(FLUTTER_BUILD_NUMBER)</string>
-    <key>LSRequiresIPhoneOS</key>
-    <true/>
-    <key>UILaunchStoryboardName</key>
-    <string>LaunchScreen</string>
-    <key>UIMainStoryboardFile</key>
-    <string>Main</string>
-    <key>UISupportedInterfaceOrientations</key>
-    <array>
-        <string>UIInterfaceOrientationPortrait</string>
-        <string>UIInterfaceOrientationLandscapeLeft</string>
-        <string>UIInterfaceOrientationLandscapeRight</string>
-    </array>
-    <key>UISupportedInterfaceOrientations~ipad</key>
-    <array>
-        <string>UIInterfaceOrientationPortrait</string>
-        <string>UIInterfaceOrientationPortraitUpsideDown</string>
-        <string>UIInterfaceOrientationLandscapeLeft</string>
-        <string>UIInterfaceOrientationLandscapeRight</string>
-    </array>
-    <key>CADisableMinimumFrameDurationOnPhone</key>
-    <true/>
-    <key>UIApplicationSupportsIndirectInputEvents</key>
-    <true/>
-    <key>io.flutter.embedded_views_preview</key>
-    <true/>
-    
-    <!-- Google Maps API Key (should be set via environment variables or secure storage) -->
-    <key>GOOGLE_MAPS_API_KEY</key>
-    <string>AIzaSyCi0MLRrvIHvHzMf16LF9_KmJWVmQQ8OPM</string>
-    
-    <!-- App Transport Security Settings -->
-    <key>NSAppTransportSecurity</key>
-    <dict>
-        <!-- Allow arbitrary loads for development only - Remove for production -->
-        <key>NSAllowsArbitraryLoads</key>
-        <false/>
-        <!-- Enable HTTPS requirement -->
-        <key>NSExceptionDomains</key>
-        <dict>
-            <!-- Google APIs exception -->
-            <key>googleapis.com</key>
-            <dict>
-                <key>NSExceptionAllowsInsecureHTTPLoads</key>
-                <false/>
-                <key>NSExceptionRequiresForwardSecrecy</key>
-                <false/>
-            </dict>
-            <!-- Supabase exception if needed -->
-            <key>supabase.co</key>
-            <dict>
-                <key>NSExceptionAllowsInsecureHTTPLoads</key>
-                <false/>
-                <key>NSExceptionRequiresForwardSecrecy</key>
-                <false/>
-            </dict>
-        </dict>
-    </dict>
-    
-    <!-- URL Scheme Support -->
-    <key>CFBundleURLTypes</key>
-    <array>
-        <dict>
-            <key>CFBundleURLName</key>
-            <string>com.srishlok.pinit</string>
-            <key>CFBundleURLSchemes</key>
-            <array>
-                <string>pinit</string>
-            </array>
-        </dict>
-    </array>
-    
-    <!-- Share Extension Support -->
-    <key>NSExtensionAttributes</key>
-    <dict>
-        <key>NSExtensionActivationRule</key>
-        <dict>
-            <key>NSExtensionActivationSupportsText</key>
-            <true/>
-            <key>NSExtensionActivationSupportsWebURLWithMaxCount</key>
-            <integer>1</integer>
-            <key>NSExtensionActivationSupportsImageWithMaxCount</key>
-            <integer>10</integer>
-        </dict>
-    </dict>
-    
-    <!-- Privacy Settings -->
-    <key>NSSupportsAutomaticTermination</key>
-    <true/>
-    <key>NSSupportsSuddenTermination</key>
-    <true/>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>Pinit</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>Pinit</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(FLUTTER_BUILD_NAME)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.srishlok.pinit</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>pinit</string>
+			</array>
+		</dict>
+	</array>
+	<key>CFBundleVersion</key>
+	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>GOOGLE_MAPS_API_KEY</key>
+	<string>AIzaSyCi0MLRrvIHvHzMf16LF9_KmJWVmQQ8OPM</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<false/>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>googleapis.com</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<false/>
+				<key>NSExceptionRequiresForwardSecrecy</key>
+				<false/>
+			</dict>
+			<key>supabase.co</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<false/>
+				<key>NSExceptionRequiresForwardSecrecy</key>
+				<false/>
+			</dict>
+		</dict>
+	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>This app needs camera access to take photos of locations you want to share.</string>
+	<key>NSExtensionAttributes</key>
+	<dict>
+		<key>NSExtensionActivationRule</key>
+		<dict>
+			<key>NSExtensionActivationSupportsImageWithMaxCount</key>
+			<integer>10</integer>
+			<key>NSExtensionActivationSupportsText</key>
+			<true/>
+			<key>NSExtensionActivationSupportsWebURLWithMaxCount</key>
+			<integer>1</integer>
+		</dict>
+	</dict>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>This app needs location access to provide location-based features and background updates.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>This app needs location access to provide location-based features even when the app is in the background.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>This app needs location access to show your current location and provide location-based features.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>This app needs access to save location photos to your photo library.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app needs access to your photo library to share location photos and images.</string>
+	<key>NSSupportsAutomaticTermination</key>
+	<true/>
+	<key>NSSupportsSuddenTermination</key>
+	<true/>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>background-fetch</string>
+	</array>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>io.flutter.embedded_views_preview</key>
+	<true/>
 </dict>
 </plist>

@@ -4,7 +4,6 @@ import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:http/http.dart' as http;
 import 'package:login/themes/app_theme.dart';
 import 'package:login/supabase_flutter/models/location_model.dart';
@@ -22,7 +21,7 @@ import 'package:login/providers/bottom_nav_visibility_provider.dart';
 import 'package:login/providers/dynamic_nav_provider.dart';
 import 'package:login/services/google_place_service.dart';
 import 'package:login/services/location_service.dart';
-import 'package:login/widgets/home/expanded_location_card.dart';
+import 'package:login/widgets/navigation/bottom_nav_bar.dart';
 import 'package:provider/provider.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
@@ -199,12 +198,9 @@ class MainScreen extends StatefulWidget {
   _MainScreenState createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
+class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
   bool _hasUnreadNotifications = false;
-  late AnimationController _animationController;
-  late Animation<Offset> _slideAnimation;
-  late Animation<double> _fadeAnimation;
 
   final List<Widget> _pages = [
     const HomePage(),
@@ -217,33 +213,6 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     _checkForPendingNotifications();
-    
-    // Initialize animation controller for bottom nav
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-    
-    // Slide animation from bottom
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 1), // Start below screen
-      end: Offset.zero,         // End at normal position
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeInOut,
-    ));
-    
-    // Fade animation
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeInOut,
-    ));
-    
-    // Start with visible bottom nav
-    _animationController.forward();
   }
 
   Future<void> _checkForPendingNotifications() async {
@@ -258,176 +227,31 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<BottomNavVisibilityProvider, DynamicNavProvider>(
-      builder: (context, bottomNavProvider, dynamicNavProvider, child) {
-        // Update animation based on visibility state
-        if (bottomNavProvider.isVisible) {
-          _animationController.forward();
-        } else {
-          _animationController.reverse();
-        }
-        
-        return Scaffold(
-          body: _pages[_currentIndex],
-          floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-          floatingActionButton: SlideTransition(
-            position: _slideAnimation,
-            child: FadeTransition(
-              opacity: _fadeAnimation,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                height: 68,
-                margin: const EdgeInsets.symmetric(horizontal: 24),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(34),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withBlue(10),
-                      blurRadius: bottomNavProvider.isVisible ? 15 : 5,
-                      spreadRadius: 0,
-                      offset: Offset(0, bottomNavProvider.isVisible ? 6 : 2),
-                    ),
-                  ],
-                ),
-                child: dynamicNavProvider.navState == NavState.standard
-                    ? _buildStandardNav()
-                    : _buildDynamicNav(dynamicNavProvider),
-              ),
+    return Scaffold(
+      body: Stack(
+        children: [
+          _pages[_currentIndex],
+
+          // Positioned BottomNavBar
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: 24,
+            child: BottomNavBar(
+              currentIndex: _currentIndex,
+              hasUnreadNotifications: _hasUnreadNotifications,
+              onIndexChanged: (index) {
+                setState(() {
+                  _currentIndex = index;
+                  if (index == 2 && _hasUnreadNotifications) {
+                    _hasUnreadNotifications = false;
+                  }
+                });
+              },
             ),
           ),
-        );
-      },
-    );
-  }
-
-  Widget _buildStandardNav() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        _buildNavItem(FeatherIcons.home, 0, 'Home'),
-        _buildNavItem(FeatherIcons.search, 1, 'Search'),
-        _buildNavItem(
-            _hasUnreadNotifications
-                ? FeatherIcons.bell
-                : FeatherIcons.bell,
-            2,
-            'Alerts',
-            hasBadge: _hasUnreadNotifications),
-        _buildNavItem(FeatherIcons.user, 3, 'Profile'),
-      ],
-    );
-  }
-
-  Widget _buildDynamicNav(DynamicNavProvider dynamicNavProvider) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        IconButton(
-          icon: const Icon(Icons.apps),
-          onPressed: () {
-            dynamicNavProvider.showStandardNav();
-          },
-        ),
-        ElevatedButton(
-          child: const Text('Explore'),
-          onPressed: () {
-            showDialog(
-              context: context,
-              builder: (context) => ExpandedLocationCard(
-                location: dynamicNavProvider.selectedLocation!,
-                onClose: () => Navigator.of(context).pop(),
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  // Improved nav item widget with animations and tooltip
-  Widget _buildNavItem(IconData icon, int index, String label,
-      {bool hasBadge = false}) {
-    bool isSelected = _currentIndex == index;
-
-    return Tooltip(
-      message: label,
-      child: InkWell(
-        onTap: () {
-          context.read<BottomNavVisibilityProvider>().show();
-          context.read<DynamicNavProvider>().showStandardNav();
-          setState(() {
-            _currentIndex = index;
-            // Clear badge when navigating to the notifications page
-            if (index == 2 && hasBadge) {
-              _hasUnreadNotifications = false;
-            }
-          });
-        },
-        customBorder: const CircleBorder(),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOutCubic,
-          padding: EdgeInsets.symmetric(
-            horizontal: isSelected ? 16 : 12,
-            vertical: 8,
-          ),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? Theme.of(context).primaryColor.withOpacity(0.1)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Stack(
-                children: [
-                  Icon(
-                    icon,
-                    color: isSelected
-                        ? Theme.of(context).primaryColor
-                        : Colors.grey.shade600,
-                    size: 26,
-                  ),
-                  if (hasBadge)
-                    Positioned(
-                      right: 0,
-                      top: 0,
-                      child: Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: Colors.red,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              if (isSelected) ...[
-                const SizedBox(width: 6),
-                AnimatedDefaultTextStyle(
-                  duration: const Duration(milliseconds: 300),
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    color: Theme.of(context).primaryColor,
-                  ),
-                  child: Text(label),
-                ),
-              ],
-            ],
-          ),
-        ),
+        ],
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
   }
 }

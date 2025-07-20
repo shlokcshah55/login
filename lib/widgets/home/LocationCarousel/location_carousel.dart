@@ -41,15 +41,20 @@ class _LocationCarouselState extends State<LocationCarousel> {
         "Building LocationCarousel with ${widget.locations.length} locations");
     final theme = Theme.of(context);
     final mapState = context.watch<MapStateProvider>();
+    final bottomNavVisible = context.watch<BottomNavVisibilityProvider>().isVisible;
 
     if (widget.locations.isEmpty) return const SizedBox.shrink();
 
-    return Positioned(
-      bottom: 90.0, // Position above bottom navigation bar
+    return AnimatedPositioned(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutQuint,
+      bottom: bottomNavVisible ? 90.0 : 20.0, // Position adjusts based on nav visibility
       left: 0,
       right: 0,
-      child: Container(
-        height: 160.0, // Reduced height to match smaller card content
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutQuint,
+        height: bottomNavVisible ? 160.0 : 200.0, // Expand height when nav is hidden
         padding: const EdgeInsets.symmetric(
             horizontal: 0), // Ensure no horizontal padding
         child: PageView.builder(
@@ -108,6 +113,7 @@ class _LocationCarouselState extends State<LocationCarousel> {
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
     final dynamicNavProvider = context.read<DynamicNavProvider>();
+    final bottomNavVisible = context.watch<BottomNavVisibilityProvider>().isVisible;
 
     return InkWell(
       onTap: () {
@@ -136,8 +142,10 @@ class _LocationCarouselState extends State<LocationCarousel> {
               : BorderSide.none,
         ),
         elevation: isSelected ? 8.0 : 4.0, // Higher elevation when selected
-        child: SizedBox(
-          height: 140, // Reduced height
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutQuint,
+          height: bottomNavVisible ? 140 : 170, // Adjust card height based on nav visibility
           child: Row(
             children: [
               // --- Text Section (Left Half) ---
@@ -230,8 +238,10 @@ class _LocationCarouselState extends State<LocationCarousel> {
                 ),
               ),
               // --- Photo Section (Right Half) ---
-              Container(
-                width: 125, // Reduced width for the image side
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOutQuint,
+                width: bottomNavVisible ? 125 : 145, // Expand width when nav is hidden
                 height: double.infinity,
                 child: Stack(
                   children: [

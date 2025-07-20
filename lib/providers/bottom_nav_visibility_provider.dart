@@ -29,7 +29,7 @@ class BottomNavVisibilityProvider with ChangeNotifier {
   /// Shows the bottom navigation bar temporarily, then hides it after a delay
   void showTemporarily() {
     show();
-    // _startHideTimer(); // Temporarily disabled as per user request
+    // _startHideTimer(); // Temporarily disabled 
   }
 
   /// Toggles the visibility of the bottom navigation bar
