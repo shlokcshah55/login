@@ -70,7 +70,7 @@
     <!-- Google Maps API Key (should be set via environment variables or secure storage) -->
     <key>GOOGLE_MAPS_API_KEY</key>
     <string>AIzaSyCi0MLRrvIHvHzMf16LF9_KmJWVmQQ8OPM</string>
-    
+
     <!-- App Transport Security Settings -->
     <key>NSAppTransportSecurity</key>
     <dict>
@@ -107,24 +107,17 @@
             <string>com.srishlok.pinit</string>
             <key>CFBundleURLSchemes</key>
             <array>
-                <string>pinit</string>
+                <string>com.srishlok.pinit</string>
             </array>
         </dict>
     </array>
-    
-    <!-- Share Extension Support -->
-    <key>NSExtensionAttributes</key>
-    <dict>
-        <key>NSExtensionActivationRule</key>
-        <dict>
-            <key>NSExtensionActivationSupportsText</key>
-            <true/>
-            <key>NSExtensionActivationSupportsWebURLWithMaxCount</key>
-            <integer>1</integer>
-            <key>NSExtensionActivationSupportsImageWithMaxCount</key>
-            <integer>10</integer>
-        </dict>
-    </dict>
+
+    <!-- Allow app to query and open HTTPS URLs for OAuth -->
+    <key>LSApplicationQueriesSchemes</key>
+    <array>
+        <string>https</string>
+        <string>http</string>
+    </array>
     
     <!-- Privacy Settings -->
     <key>NSSupportsAutomaticTermination</key>

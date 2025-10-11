@@ -8,30 +8,58 @@ import 'package:login/supabase_flutter/supabase_provider.dart';
 import 'package:login/widgets/loading_widget.dart';
 import 'package:provider/provider.dart';
 
-class AuthHandler extends StatelessWidget {
+class AuthHandler extends StatefulWidget {
   const AuthHandler({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // Get the providers
-    final userDataProvider =
-        Provider.of<UserDataProvider>(context, listen: false);
-    final locationListManager =
-        Provider.of<LocationListManager>(context, listen: false);
-    final supabaseProvider =
-        Provider.of<SupabaseProvider>(context, listen: false);
+  State<AuthHandler> createState() => _AuthHandlerState();
+}
 
-    // Listen to auth changes from Supabase
-    supabaseProvider.listenToAuthChanges(context);
+class _AuthHandlerState extends State<AuthHandler> {
+  bool _hasInitializedData = false;
 
-    // Set up a listener for Supabase authentication status changes
+  @override
+  void initState() {
+    super.initState();
+    // Check auth state on first build
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (supabaseProvider.isAuthenticated) {
-        // When Supabase auth is successful, fetch user data
-        userDataProvider.setUserIdAndFetchData(
-            supabaseProvider.userRepository.currentUser?.id ?? '');
-      }
+      _initializeUserData();
     });
+  }
+
+  void _initializeUserData() {
+    final supabaseProvider = Provider.of<SupabaseProvider>(context, listen: false);
+
+    if (supabaseProvider.isAuthenticated && !_hasInitializedData) {
+      log("AuthHandler: Initializing user data");
+      final supabaseUser = supabaseProvider.userRepository.currentUser!;
+
+      final userDataProvider = Provider.of<UserDataProvider>(context, listen: false);
+      final locationListManager = Provider.of<LocationListManager>(context, listen: false);
+
+      // Initialize user data and locations
+      locationListManager.setUserId(supabaseUser.id);
+      userDataProvider.setUserIdAndFetchData(supabaseUser.id);
+      locationListManager.fetchSavedLocations();
+
+      _hasInitializedData = true;
+    } else if (!supabaseProvider.isAuthenticated) {
+      // Reset flag when user logs out
+      _hasInitializedData = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Listen to SupabaseProvider changes - widget rebuilds when auth state changes
+    final supabaseProvider = Provider.of<SupabaseProvider>(context, listen: true);
+
+    // Re-initialize data when auth state changes to authenticated
+    if (supabaseProvider.isAuthenticated && !_hasInitializedData) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _initializeUserData();
+      });
+    }
 
     return Scaffold(
       body: Builder(builder: (context) {
@@ -42,23 +70,11 @@ class AuthHandler extends StatelessWidget {
         } else if (supabaseProvider.isAuthenticated) {
           // User is logged in with Supabase
           log("AuthHandler: User logged in with Supabase");
-
-          // Handle Supabase authentication
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            final supabaseUser = supabaseProvider.userRepository.currentUser!;
-
-            // Use the Supabase user ID for all data fetching
-            locationListManager.setUserId(supabaseUser.id);
-            userDataProvider.setUserIdAndFetchData(supabaseUser.id);
-
-            // Explicitly trigger location data loading
-            locationListManager.fetchSavedLocations();
-          });
-
-          return MainScreen();
+          return const MainScreen();
         } else {
           // Not authenticated - show login page
-          return LoginPage();
+          log("AuthHandler: User not authenticated, showing login page");
+          return const LoginPage();
         }
       }),
     );

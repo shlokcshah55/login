@@ -8,12 +8,26 @@ import '../themes/app_typography.dart';
 import '../themes/app_dimensions.dart';
 import 'auth_handler.dart';
 
-class LoginPage extends StatelessWidget {
-  LoginPage({super.key});
+class LoginPage extends StatefulWidget {
+  const LoginPage({super.key});
 
+  @override
+  State<LoginPage> createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   final ValueNotifier<bool> signInFailedNotifier = ValueNotifier<bool>(false);
+  bool _isPasswordVisible = false;
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    signInFailedNotifier.dispose();
+    super.dispose();
+  }
 
   Future<void> signInUser(
       BuildContext context, String userEmail, String userPassword) async {
@@ -47,163 +61,383 @@ class LoginPage extends StatelessWidget {
     }
   }
 
+  Future<void> _signInWithGoogle(BuildContext context) async {
+    try {
+      if (mounted) {
+        signInFailedNotifier.value = false;
+      }
+
+      final supabaseProvider =
+          Provider.of<SupabaseProvider>(context, listen: false);
+
+      // Initiate Google OAuth flow
+      // This opens browser - actual auth happens via deep link callback
+      final bool success = await supabaseProvider.signInWithGoogle();
+
+      if (success) {
+        // OAuth flow initiated successfully
+        // Browser will open for Google sign in
+        // After user authenticates, deep link brings them back
+        // Auth state listener in SupabaseProvider will handle the rest
+        // AuthHandler will automatically navigate when auth state changes
+        print("Google OAuth flow initiated - waiting for callback");
+      } else {
+        // Failed to initiate OAuth flow
+        if (mounted) {
+          signInFailedNotifier.value = true;
+        }
+      }
+    } catch (e) {
+      print("Google sign in error: $e");
+      if (mounted) {
+        signInFailedNotifier.value = true;
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        backgroundColor: const Color(0xFFDDC6B6), // Custom background color
-        body: SafeArea(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minHeight: MediaQuery.of(context).size.height - MediaQuery.of(context).padding.top,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 30), // Reduced top spacing
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 20),
 
-                  // Logo at top center - even smaller
-                  Center(
+                // Logo
+                Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 20,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
                     child: Image.asset(
                       'lib/assets/logo.png',
-                      height: 35, // Smaller logo
+                      height: 40,
                     ),
                   ),
+                ),
 
-                  const SizedBox(height: 60), // Increased spacing after logo
+                const SizedBox(height: 48),
 
-                  // Heading - left aligned
-                  const Align(
-                    alignment: Alignment.centerLeft,
+                // Welcome text
+                Text(
+                  'Welcome back!',
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Login to revolutionise your dining experience',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: AppColors.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+
+                const SizedBox(height: 40),
+
+                // Email field
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: TextField(
+                    controller: emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    style: const TextStyle(fontSize: 16),
+                    decoration: InputDecoration(
+                      hintText: 'Email',
+                      hintStyle: TextStyle(color: AppColors.textHint),
+                      prefixIcon: Icon(Icons.email_outlined, color: AppColors.textSecondary),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 18,
+                      ),
+                      filled: true,
+                      fillColor: AppColors.surface,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Password field
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: TextField(
+                    controller: passwordController,
+                    obscureText: !_isPasswordVisible,
+                    style: const TextStyle(fontSize: 16),
+                    decoration: InputDecoration(
+                      hintText: 'Password',
+                      hintStyle: TextStyle(color: AppColors.textHint),
+                      prefixIcon: Icon(Icons.lock_outline, color: AppColors.textSecondary),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _isPasswordVisible
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                          color: AppColors.textSecondary,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _isPasswordVisible = !_isPasswordVisible;
+                          });
+                        },
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 18,
+                      ),
+                      filled: true,
+                      fillColor: AppColors.surface,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // Forgot password
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () {
+                      // TODO: Implement forgot password functionality
+                    },
                     child: Text(
-                      'Login to revolutionise your dining experience',
-                      textAlign: TextAlign.left,
+                      'Forgot password?',
                       style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF33272A),
-                        height: 1.3,
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
+                ),
 
-                  const SizedBox(height: 60), // Increased spacing after heading
+                const SizedBox(height: 24),
 
-                  SleekTextInput(
-                    controller: emailController,
-                    hintText: "Email",
-                    prefixIcon: Icons.email_outlined,
+                // Sign in button
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      signInUser(context, emailController.text, passwordController.text);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: AppColors.onPrimary,
+                      elevation: 0,
+                      shadowColor: AppColors.primary.withOpacity(0.3),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: const Text(
+                      'Sign in',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
                   ),
+                ),
 
-                  const SizedBox(height: 25), // Increased spacing between inputs
-
-                  SleekTextInput(
-                    controller: passwordController,
-                    hintText: "Password",
-                    prefixIcon: Icons.lock_outline,
-                    isPassword: true,
-                  ),
-
-                  const SizedBox(height: 40), // Increased spacing before button
-
-                  // Full-width login button
-                  buildLoginButton(),
-
-                  // signin failure message
-                  ValueListenableBuilder<bool>(
-                    valueListenable: signInFailedNotifier,
-                    builder: (context, signInFailed, child) {
-                      if (signInFailed) {
-                        return Padding(
-                          padding: const EdgeInsets.only(top: 15.0),
+                // signin failure message
+                ValueListenableBuilder<bool>(
+                  valueListenable: signInFailedNotifier,
+                  builder: (context, signInFailed, child) {
+                    if (signInFailed) {
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 15.0),
+                        child: Center(
                           child: Text(
                             'Incorrect email or password',
                             style: TextStyle(
                               color: AppColors.error,
-                              fontSize: 16,
+                              fontSize: 14,
                             ),
                           ),
-                        );
-                      } else {
-                        return Container();
-                      }
-                    },
-                  ),
+                        ),
+                      );
+                    } else {
+                      return const SizedBox.shrink();
+                    }
+                  },
+                ),
 
-                  const Spacer(), // Push the following content to the bottom
+                const SizedBox(height: 24),
 
-                  // Sign up link with updated text - now at bottom
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        "New to pinit?",
+                // Divider
+                Row(
+                  children: [
+                    Expanded(child: Divider(color: AppColors.divider)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        'or continue with',
                         style: TextStyle(
                           color: AppColors.textSecondary,
-                          fontSize: 16,
+                          fontSize: 14,
                         ),
                       ),
-                      const SizedBox(width: 4),
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (context) => const SignupPage(),
-                            ),
-                          );
-                        },
-                        child: Text(
-                          'Sign up',
-                          style: TextStyle(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                    ),
+                    Expanded(child: Divider(color: AppColors.divider)),
+                  ],
+                ),
+
+                const SizedBox(height: 24),
+
+                // Google Sign-In button
+                _SocialButton(
+                  icon: Icons.g_mobiledata,
+                  label: 'Continue with Google',
+                  onPressed: () => _signInWithGoogle(context),
+                ),
+
+                const SizedBox(height: 32),
+
+                // Sign up link
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'New to pinit? ',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 15,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => const SignupPage(),
                           ),
+                        );
+                      },
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(0, 0),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(
+                        'Sign up',
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
+                ),
 
-                  const SizedBox(height: 30), // Bottom padding
-                ],
-              ),
-            ),
-          ),
-        ));
-  }
-
-  Widget buildLoginButton() {
-    return Builder(builder: (context) {
-      return GestureDetector(
-        onTap: () =>
-            signInUser(context, emailController.text, passwordController.text),
-        child: Container(
-          width: double.infinity, // Full width button
-          decoration: BoxDecoration(
-            color: AppColors.primary,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                spreadRadius: 1,
-                blurRadius: 4,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          alignment: Alignment.center,
-          child: const Text(
-            "Sign in",
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
+                const SizedBox(height: 24),
+              ],
             ),
           ),
         ),
-      );
-    });
+      ),
+    );
+  }
+
+}
+
+class _SocialButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  const _SocialButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 56,
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 24, color: AppColors.textSecondary),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

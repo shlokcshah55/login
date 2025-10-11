@@ -12,23 +12,30 @@ class SupabaseClientManager {
 
   /// Initializes the Supabase client with the provided URL and key.
   /// Should be called in the main() function before runApp().
+  /// Includes OAuth deep link handling configuration.
   static Future<void> initialize() async {
     try {
       final supabaseUrl = dotenv.env['SUPABASE_URL'];
       final supabaseKey = dotenv.env['SUPABASE_ANON_KEY'];
-      
+
       if (supabaseUrl == null || supabaseKey == null) {
         throw Exception('Supabase URL or API key not found in .env file');
       }
-      
+
       await Supabase.initialize(
         url: supabaseUrl,
         anonKey: supabaseKey,
         debug: kDebugMode,
+        // OAuth configuration for deep link handling
+        // The SDK automatically handles deep links matching the redirect URL pattern
+        // Used with URL scheme: com.srishlok.pinit://login-callback/
+        authOptions: const FlutterAuthClientOptions(
+          authFlowType: AuthFlowType.pkce,
+        ),
       );
-      
+
       if (kDebugMode) {
-        print('Supabase client initialized successfully');
+        print('Supabase client initialized successfully with OAuth support');
       }
     } catch (e) {
       if (kDebugMode) {
