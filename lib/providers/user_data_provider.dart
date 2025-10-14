@@ -2,7 +2,6 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:login/supabase_flutter/models/user_model.dart';
 import 'package:login/supabase_flutter/repositories/user_repository.dart';
-import 'package:login/supabase_flutter/supabase_client.dart';
 
 class UserDataProvider with ChangeNotifier {
   // Keep Firebase service for backward compatibility during migration

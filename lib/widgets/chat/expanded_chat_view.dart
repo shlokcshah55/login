@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:login/models/chat_group_model.dart';
 import 'package:login/pages/bubble_profile_page.dart';
+import 'dart:math' as math;
 
 class ExpandedChatView extends StatefulWidget {
   final ChatGroupModel chatGroup;
@@ -24,15 +24,10 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
 
-  GoogleMapController? mapController;
-  Set<Marker> markers = {};
-  bool isMapReady = false;
-
   @override
   void initState() {
     super.initState();
     _initializeAnimations();
-    _createMarkers();
   }
 
   void _initializeAnimations() {
@@ -68,58 +63,6 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
     _animationController.forward();
   }
 
-  void _createMarkers() {
-    markers = widget.chatGroup.groupLocations.map((location) {
-      return Marker(
-        markerId: MarkerId(location.locationId.toString()),
-        position: LatLng(location.lat, location.lng),
-        infoWindow: InfoWindow(
-          title: location.name,
-          snippet: location.vicinity,
-        ),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
-      );
-    }).toSet();
-  }
-
-  void _onMapCreated(GoogleMapController controller) {
-    mapController = controller;
-    setState(() {
-      isMapReady = true;
-    });
-
-    if (widget.chatGroup.groupLocations.isNotEmpty) {
-      _fitMarkersInView();
-    }
-  }
-
-  void _fitMarkersInView() {
-    if (mapController == null || widget.chatGroup.groupLocations.isEmpty) return;
-
-    final locations = widget.chatGroup.groupLocations;
-    double minLat = locations.first.lat;
-    double maxLat = locations.first.lat;
-    double minLng = locations.first.lng;
-    double maxLng = locations.first.lng;
-
-    for (final location in locations) {
-      minLat = minLat < location.lat ? minLat : location.lat;
-      maxLat = maxLat > location.lat ? maxLat : location.lat;
-      minLng = minLng < location.lng ? minLng : location.lng;
-      maxLng = maxLng > location.lng ? maxLng : location.lng;
-    }
-
-    mapController!.animateCamera(
-      CameraUpdate.newLatLngBounds(
-        LatLngBounds(
-          southwest: LatLng(minLat, minLng),
-          northeast: LatLng(maxLat, maxLng),
-        ),
-        100.0,
-      ),
-    );
-  }
-
   @override
   void dispose() {
     _animationController.dispose();
@@ -132,7 +75,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
     final screenSize = MediaQuery.of(context).size;
 
     return Scaffold(
-      backgroundColor: Colors.black.withOpacity(0.5),
+      backgroundColor: Colors.black.withValues(red: 0, green: 0, blue: 0, alpha: 0.5),
       body: GestureDetector(
         onTap: _handleClose,
         child: Container(
@@ -155,7 +98,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
                         borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
+                            color: Colors.black.withValues(red: 0, green: 0, blue: 0, alpha: 0.5),
                             blurRadius: 20,
                             spreadRadius: 5,
                           ),
@@ -166,7 +109,18 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
                           _buildHeader(theme),
                           _buildGroupInfo(theme),
                           Expanded(
-                            child: _buildMapSection(theme),
+                            child: SingleChildScrollView(
+                              child: Column(
+                                children: [
+                                  _buildTopRecommendationsPodium(theme),
+                                  const SizedBox(height: 16),
+                                  _buildGroupActivity(theme),
+                                  const SizedBox(height: 16),
+                                  _buildStatisticsStickers(theme),
+                                  const SizedBox(height: 16),
+                                ],
+                              ),
+                            ),
                           ),
                           _buildMembersList(theme),
                         ],
@@ -186,7 +140,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: theme.primaryColor.withOpacity(0.1),
+        color: theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.1),
         borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(24),
           topRight: Radius.circular(24),
@@ -197,7 +151,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
           CircleAvatar(
             radius: 24,
             backgroundImage: NetworkImage(widget.chatGroup.groupAvatar),
-            backgroundColor: theme.primaryColor.withOpacity(0.2),
+            backgroundColor: theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.2),
             child: widget.chatGroup.groupAvatar.isEmpty
                 ? Icon(Icons.group, color: theme.primaryColor)
                 : null,
@@ -223,10 +177,18 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
             ),
           ),
           IconButton(
+            onPressed: _navigateToBubbleProfile,
+            icon: Icon(Icons.open_in_full, color: theme.primaryColor),
+            style: IconButton.styleFrom(
+              backgroundColor: theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.1),
+            ),
+            tooltip: 'Expand to full view',
+          ),
+          IconButton(
             onPressed: _handleClose,
             icon: Icon(Icons.close, color: theme.primaryColor),
             style: IconButton.styleFrom(
-              backgroundColor: theme.primaryColor.withOpacity(0.1),
+              backgroundColor: theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.1),
             ),
           ),
         ],
@@ -248,99 +210,380 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
     );
   }
 
-  Widget _buildMapSection(ThemeData theme) {
-    if (widget.chatGroup.groupLocations.isEmpty) {
+  Widget _buildTopRecommendationsPodium(ThemeData theme) {
+    // Get random top 3 locations (for now, until we implement actual ranking)
+    final random = math.Random();
+    final locations = widget.chatGroup.groupLocations.toList();
+    locations.shuffle(random);
+    final top3 = locations.take(3).toList();
+
+    if (top3.isEmpty) {
       return Container(
-        margin: const EdgeInsets.all(16),
+        margin: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: theme.cardColor,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.location_off,
-                size: 64,
-                color: Colors.grey[400],
+        child: Column(
+          children: [
+            Icon(Icons.emoji_events, size: 48, color: Colors.grey[400]),
+            const SizedBox(height: 12),
+            Text(
+              'No recommendations yet',
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: Colors.grey[600],
               ),
-              const SizedBox(height: 16),
-              Text(
-                'No locations shared yet',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: Colors.grey[600],
-                ),
+            ),
+            Text(
+              'Start adding pins to see top picks!',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: Colors.grey[500],
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Start sharing locations with your group!',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: Colors.grey[500],
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       );
     }
 
-    return Stack(
-      children: [
-        Container(
-          margin: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 8,
-                spreadRadius: 2,
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.1),
+            theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.emoji_events, color: theme.primaryColor, size: 28),
+              const SizedBox(width: 8),
+              Text(
+                'Top Recommendations',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: GoogleMap(
-              onMapCreated: _onMapCreated,
-              onTap: (_) => _navigateToBubbleProfile(),
-              initialCameraPosition: CameraPosition(
-                target: widget.chatGroup.groupLocations.isNotEmpty
-                    ? LatLng(
-                        widget.chatGroup.groupLocations.first.lat,
-                        widget.chatGroup.groupLocations.first.lng,
-                      )
-                    : const LatLng(37.7749, -122.4194), // San Francisco default
-                zoom: 12,
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              // 2nd place
+              if (top3.length > 1)
+                _buildPodiumPlace(theme, top3[1], 2, 80, Colors.grey[400]!),
+              // 1st place
+              if (top3.isNotEmpty)
+                _buildPodiumPlace(theme, top3[0], 1, 100, Colors.amber),
+              // 3rd place
+              if (top3.length > 2)
+                _buildPodiumPlace(theme, top3[2], 3, 60, Colors.brown[300]!),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPodiumPlace(ThemeData theme, dynamic location, int place, double height, Color medalColor) {
+    return Column(
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: medalColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.2),
+            border: Border.all(color: medalColor, width: 2),
+          ),
+          child: Center(
+            child: Text(
+              '$place',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: medalColor,
               ),
-              markers: markers,
-              myLocationEnabled: true,
-              myLocationButtonEnabled: true,
-              zoomControlsEnabled: false,
-              mapToolbarEnabled: false,
             ),
           ),
         ),
-        Positioned(
-          bottom: 32,
-          left: 32,
-          right: 32,
-          child: ElevatedButton.icon(
-            onPressed: _navigateToBubbleProfile,
-            icon: const Icon(Icons.map),
-            label: const Text('View Full Profile'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: theme.primaryColor,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(25),
+        const SizedBox(height: 6),
+        Container(
+          width: 70,
+          height: height,
+          decoration: BoxDecoration(
+            color: medalColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.3),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.location_on, color: medalColor, size: 24),
+              const SizedBox(height: 3),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Text(
+                  location.name,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 10,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-              elevation: 4,
-            ),
+            ],
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildGroupActivity(ThemeData theme) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(red: 0, green: 0, blue: 0, alpha: 0.05),
+            blurRadius: 8,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.timeline, color: theme.primaryColor, size: 24),
+              const SizedBox(width: 8),
+              Text(
+                'Group Activity',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildActivityItem(
+            theme,
+            Icons.add_location,
+            'New pin added',
+            'Sarah saved "Cozy Coffee Shop"',
+            '2 hours ago',
+          ),
+          const Divider(height: 24),
+          _buildActivityItem(
+            theme,
+            Icons.favorite,
+            'Pin liked',
+            'Mike liked "Best Pizza Place"',
+            '5 hours ago',
+          ),
+          const Divider(height: 24),
+          _buildActivityItem(
+            theme,
+            Icons.comment,
+            'New comment',
+            'Emma: "We should go here!"',
+            '1 day ago',
+          ),
+          const SizedBox(height: 12),
+          Center(
+            child: TextButton(
+              onPressed: _navigateToBubbleProfile,
+              child: Text('View All Activity'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActivityItem(ThemeData theme, IconData icon, String title, String description, String time) {
+    return Row(
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: theme.primaryColor, size: 20),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                description,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+        ),
+        Text(
+          time,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: Colors.grey[500],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatisticsStickers(ThemeData theme) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 12),
+            child: Row(
+              children: [
+                Icon(Icons.stars, color: theme.primaryColor, size: 24),
+                const SizedBox(width: 8),
+                Text(
+                  'Group Stats',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _buildStatSticker(
+                theme,
+                '🔥',
+                'Most Active',
+                'Sarah',
+                Colors.orange,
+              ),
+              _buildStatSticker(
+                theme,
+                '📍',
+                'Most Saves',
+                'Mike',
+                Colors.blue,
+              ),
+              _buildStatSticker(
+                theme,
+                '⭐',
+                'Top Reviewer',
+                'Emma',
+                Colors.amber,
+              ),
+              _buildStatSticker(
+                theme,
+                '🎯',
+                'Explorer',
+                'Alex',
+                Colors.green,
+              ),
+              _buildStatSticker(
+                theme,
+                '💬',
+                'Chattiest',
+                'Lisa',
+                Colors.purple,
+              ),
+              _buildStatSticker(
+                theme,
+                '🏆',
+                'Trendsetter',
+                'Tom',
+                Colors.red,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatSticker(ThemeData theme, String emoji, String title, String userName, Color color) {
+    return Container(
+      width: (MediaQuery.of(context).size.width - 56) / 2,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            color.withValues(red: 0, green: 0, blue: 0, alpha: 0.2),
+            color.withValues(red: 0, green: 0, blue: 0, alpha: 0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: color.withValues(red: 0, green: 0, blue: 0, alpha: 0.3),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 24)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            userName,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
     );
   }
 
@@ -359,6 +602,18 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
   }
 
   Widget _buildMembersList(ThemeData theme) {
+    // Generate member names (for now using placeholder names)
+    final memberNames = [
+      'Sarah Chen',
+      'Mike Johnson',
+      'Emma Davis',
+      'Alex Kim',
+      'Lisa Brown',
+      'Tom Wilson',
+      'Maya Patel',
+      'Chris Lee',
+    ];
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -371,37 +626,58 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Group Members',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+          Row(
+            children: [
+              Icon(Icons.group, color: theme.primaryColor, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Group Members',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
-          SizedBox(
-            height: 60,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: widget.chatGroup.memberAvatars.length,
-              itemBuilder: (context, index) {
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: List.generate(
+              widget.chatGroup.memberAvatars.length,
+              (index) {
+                final name = index < memberNames.length 
+                    ? memberNames[index] 
+                    : 'Member ${index + 1}';
+                
                 return Container(
-                  margin: const EdgeInsets.only(right: 12),
-                  child: Column(
+                  decoration: BoxDecoration(
+                    color: theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.2),
+                      width: 1,
+                    ),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       CircleAvatar(
-                        radius: 20,
+                        radius: 12,
                         backgroundImage: widget.chatGroup.memberAvatars[index].isNotEmpty
                             ? NetworkImage(widget.chatGroup.memberAvatars[index])
                             : null,
-                        backgroundColor: theme.primaryColor.withOpacity(0.2),
+                        backgroundColor: theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.3),
                         child: widget.chatGroup.memberAvatars[index].isEmpty
-                            ? Icon(Icons.person, color: theme.primaryColor, size: 20)
+                            ? Icon(Icons.person, color: theme.primaryColor, size: 14)
                             : null,
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(width: 8),
                       Text(
-                        'User ${index + 1}',
-                        style: theme.textTheme.bodySmall,
+                        name,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ],
                   ),

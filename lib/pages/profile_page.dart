@@ -5,7 +5,6 @@ import 'package:login/providers/user_data_provider.dart';
 import 'package:login/providers/location_list_manager.dart';
 import 'package:login/supabase_flutter/models/user_model.dart';
 import 'package:login/supabase_flutter/models/location_model.dart';
-import 'package:login/themes/app_colors.dart'; // Import AppColors
 import 'package:login/widgets/profile/location_card.dart'; // Assuming you have a LocationCard widget
 import 'package:login/widgets/profile/user_card.dart';
 import 'package:login/supabase_flutter/repositories/user_repository.dart';
