@@ -56,6 +56,7 @@ dependencies:
   map_launcher: ^3.5.0
   shared_preferences: 2.2.2
   flutter_feather_icons: ^2.0.0+1
+  font_awesome_flutter: ^10.7.0
 dev_dependencies:
   workmanager:
     git:

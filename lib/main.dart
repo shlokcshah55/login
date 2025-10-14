@@ -5,6 +5,7 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
+import 'package:login/pages/bubbles_page.dart';
 import 'package:login/themes/app_theme.dart';
 import 'package:login/supabase_flutter/models/location_model.dart';
 import 'package:login/supabase_flutter/supabase_client.dart';
@@ -238,7 +239,7 @@ class _MainScreenState extends State<MainScreen> {
 
   final List<Widget> _pages = [
     const HomePage(),
-    const Center(child: Text('Search')),
+    BubblesPage(),
     const AlertsPage(),
     ProfilePage(),
   ];

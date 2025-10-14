@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../widgets/my_text_widget.dart';
 import '../supabase_flutter/supabase_provider.dart';
 import 'signup_page.dart';
-import '../themes/app_colors.dart';
-import '../themes/app_typography.dart';
-import '../themes/app_dimensions.dart';
 import 'auth_handler.dart';
 
 class LoginPage extends StatefulWidget {
