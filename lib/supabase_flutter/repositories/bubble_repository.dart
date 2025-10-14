@@ -213,6 +213,45 @@ class BubbleRepository {
     }
   }
 
+  /// Get a single bubble by ID
+  Future<ChatGroupModel?> getBubbleById(String bubbleId) async {
+    try {
+      // Get bubble details
+      final bubbleResponse = await _client
+          .from('bubbles')
+          .select()
+          .eq('bubble_id', bubbleId)
+          .single();
+
+      // Get member count and avatars
+      final members = await _getBubbleMembers(bubbleId);
+      
+      // Get locations for this bubble
+      final locations = await _getBubbleLocations(bubbleId);
+      
+      // Create ChatGroupModel
+      return ChatGroupModel(
+        id: bubbleId,
+        name: bubbleResponse['name'] ?? 'Unnamed Bubble',
+        lastMessage: 'Tap to view locations',
+        lastMessageTime: _getTimeAgo(DateTime.parse(bubbleResponse['created_at'])),
+        memberCount: members.length,
+        memberAvatars: members.map((m) => (m['profile_image_url'] ?? '') as String).toList(),
+        groupAvatar: members.isNotEmpty ? (members.first['profile_image_url'] ?? '') : '',
+        isOnline: true,
+        unreadCount: 0,
+        groupLocations: locations,
+        description: 'Created ${_getTimeAgo(DateTime.parse(bubbleResponse['created_at']))}',
+        memberIds: members.map((m) => m['supabase_id'].toString()).toList(),
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in BubbleRepository.getBubbleById: $e');
+      }
+      return null;
+    }
+  }
+
   /// Add a member to a bubble
   Future<bool> addMemberToBubble({
     required String bubbleId,

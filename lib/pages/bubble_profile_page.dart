@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:login/models/chat_group_model.dart';
 import 'package:login/supabase_flutter/models/location_model.dart';
 import 'package:login/supabase_flutter/supabase_provider.dart';
+import 'package:login/widgets/chat/add_members_dialog.dart';
 
 class BubbleProfilePage extends StatefulWidget {
   final ChatGroupModel chatGroup;
@@ -25,10 +26,14 @@ class _BubbleProfilePageState extends State<BubbleProfilePage>
   Set<Marker> markers = {};
   List<LocationModel> allMemberLocations = [];
   bool isLoading = true;
+  
+  // Local state for bubble data that can be updated
+  late ChatGroupModel currentBubble;
 
   @override
   void initState() {
     super.initState();
+    currentBubble = widget.chatGroup;
     _initializeAnimations();
     _loadAllMemberLocations();
   }
@@ -40,6 +45,22 @@ class _BubbleProfilePageState extends State<BubbleProfilePage>
     );
 
     _animationController.forward();
+  }
+
+  Future<void> _reloadBubbleData() async {
+    try {
+      final supabaseProvider = Provider.of<SupabaseProvider>(context, listen: false);
+      final updatedBubble = await supabaseProvider.bubbleRepository
+          .getBubbleById(widget.chatGroup.id);
+
+      if (updatedBubble != null) {
+        setState(() {
+          currentBubble = updatedBubble;
+        });
+      }
+    } catch (e) {
+      print('Error reloading bubble data: $e');
+    }
   }
 
   Future<void> _loadAllMemberLocations() async {
@@ -276,11 +297,11 @@ class _BubbleProfilePageState extends State<BubbleProfilePage>
           const SizedBox(width: 12),
           CircleAvatar(
             radius: 24,
-            backgroundImage: widget.chatGroup.groupAvatar.isNotEmpty
-                ? NetworkImage(widget.chatGroup.groupAvatar)
+            backgroundImage: currentBubble.groupAvatar.isNotEmpty
+                ? NetworkImage(currentBubble.groupAvatar)
                 : null,
             backgroundColor: theme.primaryColor.withOpacity(0.2),
-            child: widget.chatGroup.groupAvatar.isEmpty
+            child: currentBubble.groupAvatar.isEmpty
                 ? Icon(Icons.group, color: theme.primaryColor)
                 : null,
           ),
@@ -290,13 +311,13 @@ class _BubbleProfilePageState extends State<BubbleProfilePage>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  widget.chatGroup.name,
+                  currentBubble.name,
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
-                  widget.chatGroup.description,
+                  currentBubble.description,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: Colors.grey[600],
                   ),
@@ -308,11 +329,32 @@ class _BubbleProfilePageState extends State<BubbleProfilePage>
           ),
           IconButton(
             onPressed: () {
+              _showAddMembersDialog();
+            },
+            icon: Icon(Icons.person_add, color: theme.primaryColor),
+            tooltip: 'Add Members',
+          ),
+          IconButton(
+            onPressed: () {
               // TODO: Show bubble options menu
             },
             icon: Icon(Icons.more_vert, color: theme.primaryColor),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showAddMembersDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AddMembersDialog(
+        bubble: currentBubble,
+        onMembersAdded: () async {
+          // Reload the bubble data after members are added
+          await _reloadBubbleData();
+          await _loadAllMemberLocations();
+        },
       ),
     );
   }
@@ -327,14 +369,14 @@ class _BubbleProfilePageState extends State<BubbleProfilePage>
             theme,
             icon: Icons.people,
             label: 'Members',
-            value: widget.chatGroup.memberCount.toString(),
+            value: currentBubble.memberCount.toString(),
             color: Colors.blue,
           ),
           _buildStatCard(
             theme,
             icon: Icons.location_on,
             label: 'Shared Pins',
-            value: widget.chatGroup.groupLocations.length.toString(),
+            value: currentBubble.groupLocations.length.toString(),
             color: Colors.green,
           ),
           _buildStatCard(
@@ -515,7 +557,7 @@ class _BubbleProfilePageState extends State<BubbleProfilePage>
             height: 80,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              itemCount: widget.chatGroup.memberAvatars.length,
+              itemCount: currentBubble.memberAvatars.length,
               itemBuilder: (context, index) {
                 return Container(
                   margin: const EdgeInsets.only(right: 16),
@@ -523,11 +565,11 @@ class _BubbleProfilePageState extends State<BubbleProfilePage>
                     children: [
                       CircleAvatar(
                         radius: 28,
-                        backgroundImage: widget.chatGroup.memberAvatars[index].isNotEmpty
-                            ? NetworkImage(widget.chatGroup.memberAvatars[index])
+                        backgroundImage: currentBubble.memberAvatars[index].isNotEmpty
+                            ? NetworkImage(currentBubble.memberAvatars[index])
                             : null,
                         backgroundColor: theme.primaryColor.withOpacity(0.2),
-                        child: widget.chatGroup.memberAvatars[index].isEmpty
+                        child: currentBubble.memberAvatars[index].isEmpty
                             ? Icon(Icons.person, color: theme.primaryColor, size: 28)
                             : null,
                       ),

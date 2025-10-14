@@ -283,4 +283,76 @@ class UserRepository {
       return null;
     }
   }
+
+  /// Get list of friends (accepted relationships)
+  Future<List<UserModel>> getFriends() async {
+    try {
+      final user = _authService.currentUser;
+      if (user == null) return [];
+
+      // Get users where current user is the follower
+      final following = await SupabaseClientManager()
+          .client
+          .from(SupabaseConstants.tableUserFriends)
+          .select('followee_id')
+          .eq(SupabaseConstants.columnFollowerId, user.id)
+          .eq(SupabaseConstants.columnStatus,
+              SupabaseConstants.relationshipStatusAccepted);
+
+      // Get users where current user is the followee
+      final followers = await SupabaseClientManager()
+          .client
+          .from(SupabaseConstants.tableUserFriends)
+          .select('follower_id')
+          .eq(SupabaseConstants.columnFolloweeId, user.id)
+          .eq(SupabaseConstants.columnStatus,
+              SupabaseConstants.relationshipStatusAccepted);
+
+      // Combine and deduplicate user IDs
+      final Set<String> friendIds = {};
+      for (var f in following) {
+        friendIds.add(f['followee_id'] as String);
+      }
+      for (var f in followers) {
+        friendIds.add(f['follower_id'] as String);
+      }
+
+      if (friendIds.isEmpty) return [];
+
+      // Fetch user details
+      final usersData = await SupabaseClientManager()
+          .client
+          .from(SupabaseConstants.tableUsers)
+          .select()
+          .inFilter(SupabaseConstants.columnSupabaseId, friendIds.toList());
+
+      return usersData.map((user) => UserModel.fromJson(user)).toList();
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in UserRepository.getFriends: $e');
+      }
+      return [];
+    }
+  }
+
+  /// Search users by name or email
+  Future<List<UserModel>> searchUsers(String query) async {
+    try {
+      if (query.isEmpty) return [];
+
+      final usersData = await SupabaseClientManager()
+          .client
+          .from(SupabaseConstants.tableUsers)
+          .select()
+          .or('${SupabaseConstants.name}.ilike.%$query%,${SupabaseConstants.columnEmail}.ilike.%$query%')
+          .limit(20);
+
+      return usersData.map((user) => UserModel.fromJson(user)).toList();
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in UserRepository.searchUsers: $e');
+      }
+      return [];
+    }
+  }
 }
