@@ -113,14 +113,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       // extendBodyBehindAppBar: true, // If you want map to go under status bar fully
       body: Stack(
         children: [
-          // 1. Map (fills the screen) - wrapped with tap detection
+          // 1. Map (fills the screen) - with tap detection via GoogleMap's onTap
           Positioned.fill(
-            child: GestureDetector(
-              onTap: () {
+            child: PinitMap(
+              onMapTap: () {
                 // Tap anywhere on the map to show bottom nav temporarily
                 bottomNavProvider_.showTemporarily();
               },
-              child: const PinitMap(),
             ),
           ),
 
@@ -153,15 +152,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ),
           ),
 
-          // 4. Search Overlay
-          if (showSearchOverlay) _buildSearchOverlay(theme),
-
-          // 5. Magic Search Button (Optional - currently commented out as search bar serves similar purpose)
+          // 4. Magic Search Button (positioned before overlay so overlay appears on top)
           Positioned(
-            top: 120,
+            top: 80,
             right: 20,
             child: _buildMagicSearchButton(theme),
           ),
+
+          // 5. Search Overlay (appears on top of everything)
+          if (showSearchOverlay) _buildSearchOverlay(theme),
         ],
       ),
     );
@@ -188,9 +187,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildFloatingSearchBar(theme),
             Padding(
-              padding: const EdgeInsets.only(bottom: 8.0), // Space below filter bar before it fades
+              padding: const EdgeInsets.only(top: 15.0, bottom: 8.0), // Space above and below filter bar
               child: FilterBar(
                 currentListType: locationListManager_.currentListType,
                 onListTypeChanged: locationListManager_.setCurrentListType,
@@ -202,84 +200,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildFloatingSearchBar(ThemeData theme) {
-    // Replaces your AppColors, AppSpacing, AppRadius with theme/Material defaults
-    const double appSpacingMedium = 16.0; // Example, replace with theme.dimensions.spacingMedium
-    final BorderRadius appRadiusLarge = BorderRadius.circular(25.0); // Example
-
-    return Padding(
-      padding: const EdgeInsets.only(
-        top: appSpacingMedium / 2, // Less top padding as SafeArea handles status bar
-        bottom: appSpacingMedium / 2,
-        left: appSpacingMedium,
-        right: appSpacingMedium,
-      ),
-      child: Container(
-        height: 50,
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface, // White or light card color
-          borderRadius: appRadiusLarge,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1), // Softer shadow
-              blurRadius: 8,
-              spreadRadius: 0,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            const SizedBox(width: appSpacingMedium),
-            Icon(
-              Icons.search_rounded,
-              color: theme.colorScheme.onSurfaceVariant, // Lighter text/icon color
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: TextField(
-                onTap: () {
-                  setState(() {
-                    showSearchOverlay = true;
-                  });
-                },
-                decoration: InputDecoration(
-                  hintText: "Search locations...",
-                  hintStyle: GoogleFonts.poppins( // theme.textTheme.bodyMedium.copyWith(color: hintColor)
-                    color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
-                    fontSize: 14,
-                  ),
-                  border: InputBorder.none,
-                ),
-                readOnly: true,
-              ),
-            ),
-            Container(
-              margin: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary, // Use theme's primary color
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: IconButton(
-                icon: Icon(
-                  Icons.filter_list_rounded,
-                  size: 20,
-                  color: theme.colorScheme.onPrimary, // Text/icon color on primary bg
-                ),
-                onPressed: () {
-                  // TODO: Show filter options dialog or panel
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Filter button pressed!")),
-                  );
-                },
-                tooltip: "Filter",
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildMagicSearchButton(ThemeData theme) {
     return SafeArea(
@@ -302,70 +222,132 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   Widget _buildSearchOverlay(ThemeData theme) {
     final locationListManagerReader = context.read<LocationListManager>();
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          showSearchOverlay = false;
-        });
-      },
-      child: Stack(
-        children: [
-          // Dimmed Background
-          Positioned.fill(
+    return Stack(
+      children: [
+        // Dimmed Background with tap to close
+        Positioned.fill(
+          child: GestureDetector(
+            onTap: () {
+              setState(() {
+                showSearchOverlay = false;
+              });
+            },
             child: Container(
               color: Colors.black.withOpacity(0.5),
             ),
           ),
-          // Search Box with Tags
-          Center(
-            child: Container(
-              width: MediaQuery.of(context).size.width * 0.85,
-              height: 200,
-              padding: const EdgeInsets.all(16.0),
-              decoration: BoxDecoration(
-                color: theme.cardTheme.color,
-                borderRadius: BorderRadius.circular(25),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 10,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Search Field with Enter Button
-                  Row(
-                    children: [
-                      // Search Icon
-                      Icon(Icons.search,
-                          color: theme.textTheme.bodyMedium?.color),
-                      const SizedBox(width: 10),
-                      // Search Input
-                      Expanded(
-                        child: TextField(
-                          controller: _searchController,
-                          decoration: InputDecoration(
-                            hintText: "Your next adventure...",
-                            hintStyle: TextStyle(
-                              color: theme.textTheme.bodyMedium?.color
-                                  ?.withOpacity(0.5),
-                            ),
-                            border: InputBorder.none,
+        ),
+        // Magic Search Popover
+        Center(
+          child: Container(
+            width: MediaQuery.of(context).size.width * 0.9,
+            constraints: const BoxConstraints(maxWidth: 500),
+            padding: const EdgeInsets.all(24.0),
+            decoration: BoxDecoration(
+              color: theme.cardColor,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 20,
+                  spreadRadius: 5,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header with title and close button
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.auto_awesome,
+                          color: AppColors.secondary,
+                          size: 28,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          "Magic Search",
+                          style: GoogleFonts.poppins(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: theme.textTheme.titleLarge?.color,
                           ),
-                          style: TextStyle(
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          icon: Icon(
+                            Icons.close,
                             color: theme.textTheme.bodyMedium?.color,
                           ),
-                          onChanged: (value) {
-                            // Optionally handle live input changes
+                          onPressed: () {
+                            setState(() {
+                              showSearchOverlay = false;
+                            });
                           },
                         ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    // Description text
+                    Text(
+                      "Search in natural language like 'cozy Italian place with outdoor seating' or 'best ramen near me'",
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                        height: 1.4,
                       ),
-                      const SizedBox(width: 10),
-                      // Enter Button
-                      ElevatedButton(
+                    ),
+                    const SizedBox(height: 24),
+                    // Search Input Field
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: theme.colorScheme.outline.withOpacity(0.2),
+                        ),
+                      ),
+                      child: TextField(
+                        controller: _searchController,
+                        textInputAction: TextInputAction.search,
+                        onSubmitted: (value) {
+                          String query = value.trim();
+                          if (query.isNotEmpty) {
+                            log("HomePage: Triggering magic search for: $query");
+                            locationListManagerReader.magicSearch(query);
+                            setState(() {
+                              showSearchOverlay = false;
+                            });
+                            _searchController.clear();
+                          }
+                        },
+                        decoration: InputDecoration(
+                          hintText: "Your next adventure...",
+                          hintStyle: GoogleFonts.poppins(
+                            color: theme.textTheme.bodyMedium?.color?.withOpacity(0.5),
+                            fontSize: 16,
+                          ),
+                          border: InputBorder.none,
+                          icon: Icon(
+                            Icons.search,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                        style: GoogleFonts.poppins(
+                          color: theme.textTheme.bodyMedium?.color,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    // Search Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
                         onPressed: () {
                           String query = _searchController.text.trim();
                           if (query.isNotEmpty) {
@@ -380,76 +362,27 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 8.0,
-                            horizontal: 16.0,
-                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 16.0),
+                          elevation: 0,
                         ),
                         child: Text(
-                          "Enter",
+                          "Search",
                           style: GoogleFonts.poppins(
-                            fontSize: 14.0,
+                            fontSize: 16.0,
                             color: Colors.white,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  // Tags Label
-                  Text(
-                    "Popular Cuisines",
-                    style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  // Scrollable Tags
-                  Expanded(
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: [
-                        _buildTag("Italian 🍕", theme),
-                        _buildTag("Chinese 🥡", theme),
-                        _buildTag("Mexican 🌮", theme),
-                        _buildTag("Indian 🍛", theme),
-                        _buildTag("Japanese 🍣", theme),
-                        _buildTag("French 🥖", theme),
-                        _buildTag("Thai 🍜", theme),
-                        _buildTag("Korean 🍲", theme),
-                      ],
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
+          ],
+        );
   }
 
-  Widget _buildTag(String label, ThemeData theme) {
-    return Container(
-      margin: const EdgeInsets.only(right: 12.0),
-      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
-      decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.1),
-        border: Border.all(color: AppColors.primary.withOpacity(0.3)),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.poppins(
-          fontWeight: FontWeight.w500,
-          color: AppColors.primary,
-        ),
-      ),
-    );
-  }
 }

@@ -14,7 +14,9 @@ class PinitMap extends StatefulWidget {
   static const double DEFAULT_LAT = 51.4988;
   static const double DEFAULT_LNG = -0.1749;
 
-  const PinitMap({super.key});
+  final VoidCallback? onMapTap;
+
+  const PinitMap({super.key, this.onMapTap});
 
   @override
   _PinitMapState createState() => _PinitMapState();
@@ -56,7 +58,7 @@ class _PinitMapState extends State<PinitMap> {
 
     final ui.Codec codec = await ui.instantiateImageCodec(
       bytes,
-      targetWidth: 30, // Adjust this width to make it smaller
+      targetWidth: 60, // Adjust this width to make it bigger or smaller
     );
 
     final ui.FrameInfo frameInfo = await codec.getNextFrame();
@@ -153,6 +155,10 @@ class _PinitMapState extends State<PinitMap> {
                   print('Setting initial location in onMapCreated: $initialLocation');
                   mapState.setLastFocusedUserLocation(initialLocation);
                 },
+                onTap: (LatLng position) {
+                  // Call the callback when map is tapped
+                  widget.onMapTap?.call();
+                },
                 onCameraMove: (CameraPosition position) {
                   // Update the map center in MapStateProvider when camera moves
                   mapStateProvider.updateMapCenter(position);
@@ -163,7 +169,7 @@ class _PinitMapState extends State<PinitMap> {
                 markers: markers,
                 // Get polylines from MapStateProvider
                 polylines: mapStateProvider.polylines,
-                
+
               ),
 
               // "Search this area" button - only show on recommended tab
