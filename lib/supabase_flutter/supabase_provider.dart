@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'repositories/user_repository.dart';
 import 'repositories/location_repository.dart';
 import 'repositories/video_repository.dart';
+import 'repositories/bubble_repository.dart';
 import 'supabase_client.dart';
 
 /// Provider class for Supabase services
@@ -12,6 +13,7 @@ class SupabaseProvider extends ChangeNotifier {
   final UserRepository _userRepository = UserRepository();
   final LocationRepository _locationRepository = LocationRepository();
   final VideoRepository _videoRepository = VideoRepository();
+  final BubbleRepository _bubbleRepository = BubbleRepository();
 
   bool _isLoading = false;
   String? _error;
@@ -21,6 +23,7 @@ class SupabaseProvider extends ChangeNotifier {
   UserRepository get userRepository => _userRepository;
   LocationRepository get locationRepository => _locationRepository;
   VideoRepository get videoRepository => _videoRepository;
+  BubbleRepository get bubbleRepository => _bubbleRepository;
 
   // Status getters
   bool get isLoading => _isLoading;

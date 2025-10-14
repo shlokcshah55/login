@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:login/models/chat_group_model.dart';
+import 'package:login/pages/bubble_profile_page.dart';
 
 class ExpandedChatView extends StatefulWidget {
   final ChatGroupModel chatGroup;
@@ -284,36 +285,74 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
       );
     }
 
-    return Container(
-      margin: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            spreadRadius: 2,
+    return Stack(
+      children: [
+        Container(
+          margin: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 8,
+                spreadRadius: 2,
+              ),
+            ],
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: GoogleMap(
-          onMapCreated: _onMapCreated,
-          initialCameraPosition: CameraPosition(
-            target: widget.chatGroup.groupLocations.isNotEmpty
-                ? LatLng(
-                    widget.chatGroup.groupLocations.first.lat,
-                    widget.chatGroup.groupLocations.first.lng,
-                  )
-                : const LatLng(37.7749, -122.4194), // San Francisco default
-            zoom: 12,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: GoogleMap(
+              onMapCreated: _onMapCreated,
+              onTap: (_) => _navigateToBubbleProfile(),
+              initialCameraPosition: CameraPosition(
+                target: widget.chatGroup.groupLocations.isNotEmpty
+                    ? LatLng(
+                        widget.chatGroup.groupLocations.first.lat,
+                        widget.chatGroup.groupLocations.first.lng,
+                      )
+                    : const LatLng(37.7749, -122.4194), // San Francisco default
+                zoom: 12,
+              ),
+              markers: markers,
+              myLocationEnabled: true,
+              myLocationButtonEnabled: true,
+              zoomControlsEnabled: false,
+              mapToolbarEnabled: false,
+            ),
           ),
-          markers: markers,
-          myLocationEnabled: true,
-          myLocationButtonEnabled: true,
-          zoomControlsEnabled: false,
-          mapToolbarEnabled: false,
+        ),
+        Positioned(
+          bottom: 32,
+          left: 32,
+          right: 32,
+          child: ElevatedButton.icon(
+            onPressed: _navigateToBubbleProfile,
+            icon: const Icon(Icons.map),
+            label: const Text('View Full Profile'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: theme.primaryColor,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(25),
+              ),
+              elevation: 4,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _navigateToBubbleProfile() {
+    // Close the current dialog
+    Navigator.of(context).pop();
+    
+    // Navigate to bubble profile page
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => BubbleProfilePage(
+          chatGroup: widget.chatGroup,
         ),
       ),
     );

@@ -1,13 +1,9 @@
 import 'package:flutter/foundation.dart';
-import 'package:googleapis/cloudkms/v1.dart';
-import 'package:location/location.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../constants.dart';
 import '../models/location_model.dart';
-import '../models/action_model.dart';
 import '../supabase_client.dart';
-import 'package:supabase/supabase.dart';
 
 /// Service for handling Supabase location operations
 class SupabaseLocationService {
@@ -623,6 +619,80 @@ class SupabaseLocationService {
         print('Error acknowledging location: $e');
       }
       return false;
+    }
+  }
+
+  /// Get all saved locations from a list of user IDs
+  /// Used by bubbles to show all member locations
+  Future<List<LocationModel>> getLocationsByUserIds(List<String> userIds) async {
+    try {
+      if (userIds.isEmpty) {
+        return [];
+      }
+
+      // Get all saved locations for these users
+      final locationsResponse = await _client
+          .from(SupabaseConstants.tableUserLocationActions)
+          .select('''
+            ${SupabaseConstants.columnLocationId},
+            ${SupabaseConstants.columnUserId},
+            ${SupabaseConstants.columnAction},
+            ${SupabaseConstants.columnCreatedAt},
+            ${SupabaseConstants.tableLocations}!inner(
+              ${SupabaseConstants.columnLocationId},
+              ${SupabaseConstants.columnName},
+              ${SupabaseConstants.columnVicinity},
+              ${SupabaseConstants.columnLat},
+              ${SupabaseConstants.columnLng},
+              ${SupabaseConstants.columnCreatedAt},
+              ${SupabaseConstants.columnPhoneNumber},
+              ${SupabaseConstants.columnCuisine},
+              ${SupabaseConstants.columnRating},
+              ${SupabaseConstants.columnUserRatingsTotal},
+              ${SupabaseConstants.columnPriceLevel},
+              ${SupabaseConstants.columnPhotoReference},
+              ${SupabaseConstants.columnSavedCount}
+            )
+          ''')
+          .inFilter(SupabaseConstants.columnUserId, userIds)
+          .eq(SupabaseConstants.columnAction, SupabaseConstants.actionSave);
+
+      if ((locationsResponse as List).isEmpty) {
+        return [];
+      }
+
+      // Convert to LocationModel and remove duplicates by location_id
+      final Map<int, LocationModel> uniqueLocations = {};
+      
+      for (var item in locationsResponse) {
+        final location = item[SupabaseConstants.tableLocations];
+        final locationId = location[SupabaseConstants.columnLocationId];
+        
+        if (!uniqueLocations.containsKey(locationId)) {
+          uniqueLocations[locationId] = LocationModel(
+            locationId: location[SupabaseConstants.columnLocationId],
+            name: location[SupabaseConstants.columnName] ?? '',
+            vicinity: location[SupabaseConstants.columnVicinity] ?? '',
+            lat: (location[SupabaseConstants.columnLat] as num?)?.toDouble() ?? 0.0,
+            lng: (location[SupabaseConstants.columnLng] as num?)?.toDouble() ?? 0.0,
+            createdAt: DateTime.parse(location[SupabaseConstants.columnCreatedAt]),
+            phoneNumber: location[SupabaseConstants.columnPhoneNumber],
+            cuisine: location[SupabaseConstants.columnCuisine],
+            rating: (location[SupabaseConstants.columnRating] as num?)?.toDouble(),
+            userRatingsTotal: location[SupabaseConstants.columnUserRatingsTotal],
+            priceLevel: location[SupabaseConstants.columnPriceLevel],
+            photoReference: location[SupabaseConstants.columnPhotoReference],
+            savedCount: location[SupabaseConstants.columnSavedCount],
+          );
+        }
+      }
+
+      return uniqueLocations.values.toList();
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error fetching locations by user IDs: $e');
+      }
+      return [];
     }
   }
 }
