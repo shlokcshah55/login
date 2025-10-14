@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'repositories/user_repository.dart';
 import 'repositories/location_repository.dart';
@@ -10,24 +12,28 @@ class SupabaseProvider extends ChangeNotifier {
   final UserRepository _userRepository = UserRepository();
   final LocationRepository _locationRepository = LocationRepository();
   final VideoRepository _videoRepository = VideoRepository();
-  
+
   bool _isLoading = false;
   String? _error;
-  
+  StreamSubscription? _authSubscription;
+
   // Getters for repositories
   UserRepository get userRepository => _userRepository;
   LocationRepository get locationRepository => _locationRepository;
   VideoRepository get videoRepository => _videoRepository;
-  
+
   // Status getters
   bool get isLoading => _isLoading;
   String? get error => _error;
   bool get isAuthenticated => _userRepository.isAuthenticated;
-  
+
   // Create single instance of this provider
   static final SupabaseProvider _instance = SupabaseProvider._internal();
   factory SupabaseProvider() => _instance;
-  SupabaseProvider._internal();
+  SupabaseProvider._internal() {
+    // Set up auth state listener to automatically notify listeners
+    _setupAuthListener();
+  }
   
   // Initialize Supabase
   Future<void> initialize() async {
@@ -85,14 +91,41 @@ class SupabaseProvider extends ChangeNotifier {
       _setLoading(false);
     }
   }
-  
-  // Listen to auth state changes
-  void listenToAuthChanges(BuildContext context) {
-    _userRepository.onAuthStateChange.listen((state) {
-      notifyListeners();
-    });
+
+  Future<bool> signInWithGoogle() async {
+    _setLoading(true);
+    try {
+      final success = await _userRepository.signInWithGoogle();
+      if (success) {
+        _setError(null);
+        // Note: Don't navigate here - let auth state listener handle it
+        // The OAuth flow happens asynchronously via browser
+      } else {
+        _setError('Failed to initiate Google sign in');
+      }
+      return success;
+    } catch (e) {
+      _setError('Google sign in failed: $e');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
   }
   
+  // Set up auth state listener
+  void _setupAuthListener() {
+    _authSubscription = _userRepository.onAuthStateChange.listen((state) async {
+      // Notify all listeners when auth state changes
+      notifyListeners();
+
+      // If user just signed in, ensure their database record exists
+      // This is especially important for OAuth users
+      if (state.event == AuthChangeEvent.signedIn) {
+        await _userRepository.ensureUserRecordExists();
+      }
+    });
+  }
+
   // Helper methods
   void _setLoading(bool loading) {
     _isLoading = loading;
@@ -107,5 +140,12 @@ class SupabaseProvider extends ChangeNotifier {
   void clearError() {
     _error = null;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    // Cancel auth subscription to prevent memory leaks
+    _authSubscription?.cancel();
+    super.dispose();
   }
 }

@@ -24,6 +24,7 @@ import 'package:login/services/location_service.dart';
 import 'package:login/widgets/navigation/bottom_nav_bar.dart';
 import 'package:provider/provider.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
+import 'package:flutter/services.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -82,12 +83,17 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
+  static const platform = MethodChannel('com.example.srishlok.pinit/share');
   late StreamSubscription _intentSub;
   final _sharedFiles = <SharedMediaFile>[];
 
   @override
   void initState() {
     super.initState();
+
+    // Check for URLs from share extension
+    _checkSharedURLs();
+
     // Listen to media sharing coming from outside the app while the app is in the memory.
     _intentSub = ReceiveSharingIntent.instance.getMediaStream().listen((value) {
       setState(() {
@@ -128,11 +134,32 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
-  /// Process received shared links from social media and publish them to Pub/Sub
-  Future<void> addFilesToProcess(List<SharedMediaFile> sharedFiles) async {
-    print("Background Task Service: Processing shared files");
-    List<String> urls = sharedFiles.map((f) => f.path).toList();
-    print("These are the urls, $urls");
+  /// Check for URLs shared from the share extension
+  Future<void> _checkSharedURLs() async {
+    try {
+      final List<dynamic> urls = await platform.invokeMethod('getSharedURLs');
+      if (urls.isNotEmpty) {
+        print("📲 Found ${urls.length} shared URLs from extension: $urls");
+
+        // Process each URL
+        for (String url in urls.cast<String>()) {
+          if (url.contains("tiktok.com")) {
+            await _processTikTokURL(url);
+          }
+        }
+
+        // Clear the URLs after processing
+        await platform.invokeMethod('clearSharedURLs');
+      }
+    } catch (e) {
+      print("Error checking shared URLs: $e");
+    }
+  }
+
+  /// Process a single TikTok URL
+  Future<void> _processTikTokURL(String url) async {
+    print("Background Task Service: Processing TikTok link: $url");
+
     // Get current user ID
     final userId = SupabaseClientManager().currentUser?.id;
     if (userId == null) {
@@ -144,32 +171,39 @@ class _MyAppState extends State<MyApp> {
     final apiUrl =
         'https://tiktok-producer-711637650309.europe-west2.run.app/v1/publish';
 
+    try {
+      // Send request to Cloud Run service, which will publish to PubSub
+      final response = await http.post(
+        Uri.parse(apiUrl),
+        headers: <String, String>{
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(<String, String>{
+          'url': url,
+          'userId': userId,
+        }),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 202) {
+        print("Sent tiktok to pubsub");
+        log("TikTok link sent to Cloud Run API successfully: $url");
+      } else {
+        log("Failed to send TikTok link to Cloud Run API: ${response.body}");
+      }
+    } catch (e) {
+      log("Error sending TikTok link to Cloud Run API: $e");
+    }
+  }
+
+  /// Process received shared links from social media and publish them to Pub/Sub
+  Future<void> addFilesToProcess(List<SharedMediaFile> sharedFiles) async {
+    print("Background Task Service: Processing shared files");
+    List<String> urls = sharedFiles.map((f) => f.path).toList();
+    print("These are the urls, $urls");
+
     for (String url in urls) {
       if (url.contains("tiktok.com")) {
-        print("Background Task Service: Processing TikTok link: $url");
-
-        try {
-          // Send request to Cloud Run service, which will publish to PubSub
-          final response = await http.post(
-            Uri.parse(apiUrl),
-            headers: <String, String>{
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode(<String, String>{
-              'url': url,
-              'userId': userId,
-            }),
-          );
-
-          if (response.statusCode == 200 || response.statusCode == 202) {
-            print("Sent tiktok to pubsub");
-            log("TikTok link sent to Cloud Run API successfully: $url");
-          } else {
-            log("Failed to send TikTok link to Cloud Run API: ${response.body}");
-          }
-        } catch (e) {
-          log("Error sending TikTok link to Cloud Run API: $e");
-        }
+        await _processTikTokURL(url);
       }
     }
   }

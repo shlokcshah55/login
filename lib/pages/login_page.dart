@@ -8,12 +8,26 @@ import '../themes/app_typography.dart';
 import '../themes/app_dimensions.dart';
 import 'auth_handler.dart';
 
-class LoginPage extends StatelessWidget {
-  LoginPage({super.key});
+class LoginPage extends StatefulWidget {
+  const LoginPage({super.key});
 
+  @override
+  State<LoginPage> createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   final ValueNotifier<bool> signInFailedNotifier = ValueNotifier<bool>(false);
+  bool _isPasswordVisible = false;
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    signInFailedNotifier.dispose();
+    super.dispose();
+  }
 
   Future<void> signInUser(
       BuildContext context, String userEmail, String userPassword) async {
@@ -47,163 +61,365 @@ class LoginPage extends StatelessWidget {
     }
   }
 
+  Future<void> _signInWithGoogle(BuildContext context) async {
+    try {
+      if (mounted) {
+        signInFailedNotifier.value = false;
+      }
+
+      final supabaseProvider =
+          Provider.of<SupabaseProvider>(context, listen: false);
+
+      // Initiate Google OAuth flow
+      // This opens browser - actual auth happens via deep link callback
+      final bool success = await supabaseProvider.signInWithGoogle();
+
+      if (success) {
+        // OAuth flow initiated successfully
+        // Browser will open for Google sign in
+        // After user authenticates, deep link brings them back
+        // Auth state listener in SupabaseProvider will handle the rest
+        // AuthHandler will automatically navigate when auth state changes
+        print("Google OAuth flow initiated - waiting for callback");
+      } else {
+        // Failed to initiate OAuth flow
+        if (mounted) {
+          signInFailedNotifier.value = true;
+        }
+      }
+    } catch (e) {
+      print("Google sign in error: $e");
+      if (mounted) {
+        signInFailedNotifier.value = true;
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        backgroundColor: const Color(0xFFDDC6B6), // Custom background color
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minHeight: MediaQuery.of(context).size.height - MediaQuery.of(context).padding.top,
+      backgroundColor: const Color(0xFF42143d),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Spacer(flex: 1),
+
+              // Welcome text
+              const Text(
+                'Welcome back!',
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 30), // Reduced top spacing
+              const SizedBox(height: 8),
+              Text(
+                'Login to revolutionise your dining experience',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.white.withOpacity(0.8),
+                  height: 1.4,
+                ),
+              ),
 
-                  // Logo at top center - even smaller
-                  Center(
-                    child: Image.asset(
-                      'lib/assets/logo.png',
-                      height: 35, // Smaller logo
+              const SizedBox(height: 40),
+
+              // Email field
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: TextField(
+                  controller: emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  style: const TextStyle(fontSize: 16, color: Colors.black87),
+                  decoration: InputDecoration(
+                    hintText: 'Email',
+                    hintStyle: TextStyle(color: Colors.grey.shade500),
+                    prefixIcon: Icon(Icons.email_outlined, color: Colors.grey.shade700),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 18,
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Password field
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: TextField(
+                  controller: passwordController,
+                  obscureText: !_isPasswordVisible,
+                  style: const TextStyle(fontSize: 16, color: Colors.black87),
+                  decoration: InputDecoration(
+                    hintText: 'Password',
+                    hintStyle: TextStyle(color: Colors.grey.shade500),
+                    prefixIcon: Icon(Icons.lock_outline, color: Colors.grey.shade700),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _isPasswordVisible
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                        color: Colors.grey.shade700,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _isPasswordVisible = !_isPasswordVisible;
+                        });
+                      },
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 18,
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // Forgot password
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () {
+                    // TODO: Implement forgot password functionality
+                  },
+                  child: Text(
+                    'Forgot password?',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.9),
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
+                ),
+              ),
 
-                  const SizedBox(height: 60), // Increased spacing after logo
+              const SizedBox(height: 24),
 
-                  // Heading - left aligned
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Login to revolutionise your dining experience',
-                      textAlign: TextAlign.left,
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF33272A),
-                        height: 1.3,
-                      ),
+              // Sign in button
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: () {
+                    signInUser(context, emailController.text, passwordController.text);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.black87,
+                    elevation: 4,
+                    shadowColor: Colors.black.withOpacity(0.3),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
                     ),
                   ),
-
-                  const SizedBox(height: 60), // Increased spacing after heading
-
-                  SleekTextInput(
-                    controller: emailController,
-                    hintText: "Email",
-                    prefixIcon: Icons.email_outlined,
+                  child: const Text(
+                    'Sign in',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
+                    ),
                   ),
+                ),
+              ),
 
-                  const SizedBox(height: 25), // Increased spacing between inputs
-
-                  SleekTextInput(
-                    controller: passwordController,
-                    hintText: "Password",
-                    prefixIcon: Icons.lock_outline,
-                    isPassword: true,
-                  ),
-
-                  const SizedBox(height: 40), // Increased spacing before button
-
-                  // Full-width login button
-                  buildLoginButton(),
-
-                  // signin failure message
-                  ValueListenableBuilder<bool>(
-                    valueListenable: signInFailedNotifier,
-                    builder: (context, signInFailed, child) {
-                      if (signInFailed) {
-                        return Padding(
-                          padding: const EdgeInsets.only(top: 15.0),
-                          child: Text(
-                            'Incorrect email or password',
-                            style: TextStyle(
-                              color: AppColors.error,
-                              fontSize: 16,
-                            ),
-                          ),
-                        );
-                      } else {
-                        return Container();
-                      }
-                    },
-                  ),
-
-                  const Spacer(), // Push the following content to the bottom
-
-                  // Sign up link with updated text - now at bottom
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        "New to pinit?",
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (context) => const SignupPage(),
-                            ),
-                          );
-                        },
+              // signin failure message
+              ValueListenableBuilder<bool>(
+                valueListenable: signInFailedNotifier,
+                builder: (context, signInFailed, child) {
+                  if (signInFailed) {
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 15.0),
+                      child: Center(
                         child: Text(
-                          'Sign up',
+                          'Incorrect email or password',
                           style: TextStyle(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                            color: Colors.red.shade300,
+                            fontSize: 14,
                           ),
                         ),
                       ),
-                    ],
-                  ),
+                    );
+                  } else {
+                    return const SizedBox.shrink();
+                  }
+                },
+              ),
 
-                  const SizedBox(height: 30), // Bottom padding
+              const SizedBox(height: 24),
+
+              // Divider
+              Row(
+                children: [
+                  const Expanded(child: Divider(color: Colors.white54, thickness: 1)),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      'or continue with',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.8),
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                  const Expanded(child: Divider(color: Colors.white54, thickness: 1)),
                 ],
               ),
-            ),
+
+              const SizedBox(height: 24),
+
+              // Google Sign-In button
+              _SocialButton(
+                icon: Icons.g_mobiledata,
+                label: 'Continue with Google',
+                onPressed: () => _signInWithGoogle(context),
+              ),
+
+              const SizedBox(height: 32),
+
+              // Sign up link
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'New to pinit? ',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.8),
+                      fontSize: 15,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const SignupPage(),
+                        ),
+                      );
+                    },
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(0, 0),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text(
+                      'Sign up',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 24),
+
+              const Spacer(flex: 1),
+            ],
           ),
-        ));
+        ),
+      ),
+    );
   }
 
-  Widget buildLoginButton() {
-    return Builder(builder: (context) {
-      return GestureDetector(
-        onTap: () =>
-            signInUser(context, emailController.text, passwordController.text),
-        child: Container(
-          width: double.infinity, // Full width button
-          decoration: BoxDecoration(
-            color: AppColors.primary,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                spreadRadius: 1,
-                blurRadius: 4,
-                offset: const Offset(0, 2),
+}
+
+class _SocialButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  const _SocialButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 56,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 24, color: Colors.black87),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
               ),
             ],
           ),
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          alignment: Alignment.center,
-          child: const Text(
-            "Sign in",
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
         ),
-      );
-    });
+      ),
+    );
   }
 }

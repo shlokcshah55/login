@@ -49,7 +49,7 @@ dependencies:
   http: ^0.13.6
   provider: ^6.1.2
   flutter_local_notifications: ^18.0.1
-  receive_sharing_intent: ^1.8.1
+  receive_sharing_intent: ^1.0.1
   google_fonts: ^4.0.4
   supabase_flutter: ^2.9.0
   url_launcher: ^6.2.5
@@ -95,6 +95,7 @@ flutter:
     - lib/assets/Loaded.json
     - lib/assets/iPhone 14 Pro Max  1.json
     - lib/assets/logo.png
+    - lib/assets/logo.jpg
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware

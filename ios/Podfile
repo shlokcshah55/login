@@ -34,9 +34,17 @@ target 'Runner' do
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
   pod 'GoogleMaps'
+
   target 'RunnerTests' do
     inherit! :search_paths
   end
+end
+
+# Share extension target - completely separate from main app
+# No Flutter plugins or dependencies
+target 'TiktokShareExtension' do
+  use_frameworks!
+  # Empty target - uses only native iOS APIs
 end
 
 post_install do |installer|

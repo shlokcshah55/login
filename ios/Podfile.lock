@@ -9,11 +9,9 @@ PODS:
   - google_maps_flutter_ios (0.0.1):
     - Flutter
     - GoogleMaps (< 10.0, >= 8.4)
-  - GoogleMaps (8.4.0):
-    - GoogleMaps/Maps (= 8.4.0)
-  - GoogleMaps/Base (8.4.0)
-  - GoogleMaps/Maps (8.4.0):
-    - GoogleMaps/Base
+  - GoogleMaps (9.4.0):
+    - GoogleMaps/Maps (= 9.4.0)
+  - GoogleMaps/Maps (9.4.0)
   - location (0.0.1):
     - Flutter
   - map_launcher (0.0.1):
@@ -87,7 +85,7 @@ SPEC CHECKSUMS:
   flutter_local_notifications: df98d66e515e1ca797af436137b4459b160ad8c9
   geolocator_apple: 9bcea1918ff7f0062d98345d238ae12718acfbc1
   google_maps_flutter_ios: 5bc2be60ad012e79b182ce0fb0ef5030a50fb03e
-  GoogleMaps: 8939898920281c649150e0af74aa291c60f2e77d
+  GoogleMaps: 0608099d4870cac8754bdba9b6953db543432438
   location: d5cf8598915965547c3f36761ae9cc4f4e87d22e
   map_launcher: 5fde49ac9a52672bf99da746599f507b4490d7b5
   path_provider_foundation: 2b6b4c569c0fb62ec74538f866245ac84301af46
@@ -97,6 +95,6 @@ SPEC CHECKSUMS:
   url_launcher_ios: 5334b05cef931de560670eeae103fd3e431ac3fe
   workmanager: 0afdcf5628bbde6924c21af7836fed07b42e30e6
 
-PODFILE CHECKSUM: 52d2d22bae79c1c5479cdd3310ae1c8f6238c534
+PODFILE CHECKSUM: f8a2ed81028f5879a4662b9c62ffff17bb4e26d4
 
 COCOAPODS: 1.16.2

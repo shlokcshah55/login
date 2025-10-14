@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../supabase_client.dart';
 import '../models/user_model.dart';
@@ -82,20 +83,82 @@ class SupabaseAuthService {
     }
   }
 
-  // /// Sign in with third-party providers (Google, Apple, etc.)
-  // Future<void> signInWithProvider(Provider provider) async {
-  //   try {
-  //     await _client.auth.signInWithOAuth(
-  //       provider,
-  //       redirectTo: 'io.supabase.app://login-callback/', // Set up your URL scheme
-  //     );
-  //   } catch (e) {
-  //     if (kDebugMode) {
-  //       print('Error signing in with provider: $e');
-  //     }
-  //     rethrow;
-  //   }
-  // }
+  /// Sign in with Google using Supabase OAuth
+  /// Returns true if OAuth flow was successfully initiated
+  /// Auth state changes will be handled automatically by listeners
+  Future<bool> signInWithGoogle() async {
+    try {
+      if (kDebugMode) {
+        print('Initiating Google OAuth flow...');
+      }
+
+      // Use Supabase's built-in OAuth flow
+      // This opens browser/webview and handles the OAuth dance
+      // The client ID and secret are configured in Supabase Dashboard
+      final result = await _client.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: 'com.srishlok.pinit://login-callback/',
+        authScreenLaunchMode: LaunchMode.externalApplication,
+      );
+
+      if (!result) {
+        throw Exception('Failed to initiate Google sign in');
+      }
+
+      if (kDebugMode) {
+        print('Google OAuth flow initiated successfully');
+      }
+
+      // Return true to indicate flow started
+      // The actual authentication happens via deep link callback
+      // Auth state changes will be detected by SupabaseProvider's listener
+      return true;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error initiating Google sign in: $e');
+      }
+      return false;
+    }
+  }
+
+  /// Ensure user record exists in database for OAuth users
+  /// Called automatically when auth state changes to signed in
+  Future<void> ensureUserRecordExists() async {
+    try {
+      final user = currentUser;
+      if (user == null) return;
+
+      // Check if user exists in your users table
+      final existingUser = await _client
+          .from('users')
+          .select()
+          .eq('supabase_id', user.id)
+          .maybeSingle();
+
+      // If user doesn't exist, create a new record
+      if (existingUser == null) {
+        if (kDebugMode) {
+          print('Creating database record for new OAuth user: ${user.email}');
+        }
+
+        await _client.from('users').insert({
+          'supabase_id': user.id,
+          'email': user.email,
+          'name': user.userMetadata?['name'] ?? user.userMetadata?['full_name'],
+          'created_at': DateTime.now().toIso8601String(),
+        });
+
+        if (kDebugMode) {
+          print('User record created successfully');
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error ensuring user record exists: $e');
+      }
+      // Don't rethrow - this is a background operation
+    }
+  }
 
   /// Sign out the current user
   Future<void> signOut() async {

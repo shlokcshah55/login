@@ -78,17 +78,29 @@ class UserRepository {
     }
   }
 
-  // /// Sign in with third-party provider
-  // Future<void> signInWithProvider(Provider provider) async {
-  //   try {
-  //     await _authService.signInWithProvider(provider);
-  //   } catch (e) {
-  //     if (kDebugMode) {
-  //       print('Error in UserRepository.signInWithProvider: $e');
-  //     }
-  //     rethrow;
-  //   }
-  // }
+  /// Sign in with Google
+  /// Returns true if OAuth flow was successfully initiated
+  Future<bool> signInWithGoogle() async {
+    try {
+      return await _authService.signInWithGoogle();
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in UserRepository.signInWithGoogle: $e');
+      }
+      return false;
+    }
+  }
+
+  /// Ensure user record exists in database (for OAuth users)
+  Future<void> ensureUserRecordExists() async {
+    try {
+      await _authService.ensureUserRecordExists();
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in UserRepository.ensureUserRecordExists: $e');
+      }
+    }
+  }
 
   /// Get the current user
   User? get currentUser => _authService.currentUser;
