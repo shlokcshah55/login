@@ -2,6 +2,7 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:login/main.dart';
 import 'package:login/pages/login_page.dart';
+import 'package:login/pages/welcome_page.dart';
 import 'package:login/providers/location_list_manager.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:login/supabase_flutter/supabase_provider.dart';
@@ -72,9 +73,9 @@ class _AuthHandlerState extends State<AuthHandler> {
           log("AuthHandler: User logged in with Supabase");
           return const MainScreen();
         } else {
-          // Not authenticated - show login page
-          log("AuthHandler: User not authenticated, showing login page");
-          return const LoginPage();
+          // Not authenticated - show welcome page
+          log("AuthHandler: User not authenticated, showing welcome page");
+          return const WelcomePage();
         }
       }),
     );

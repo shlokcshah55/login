@@ -95,6 +95,7 @@ flutter:
     - lib/assets/Loaded.json
     - lib/assets/iPhone 14 Pro Max  1.json
     - lib/assets/logo.png
+    - lib/assets/logo.jpg
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware
