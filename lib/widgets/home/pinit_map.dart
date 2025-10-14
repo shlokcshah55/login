@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:login/themes/app_theme.dart';
 import 'package:login/controllers/home_controller.dart';
 import 'package:login/providers/device_location_provider.dart';
 import 'package:login/providers/location_list_manager.dart';
@@ -23,11 +22,20 @@ class PinitMap extends StatefulWidget {
 
 class _PinitMapState extends State<PinitMap> {
   BitmapDescriptor? _customMarkerIcon;
+  String? _mapStyle;
 
   @override
   void initState() {
     super.initState();
     _loadCustomMarker(); // Load custom marker icon
+    _loadMapStyle(); // Load map style from JSON
+  }
+
+  Future<void> _loadMapStyle() async {
+    final String style = await rootBundle.loadString('lib/assets/map_style.json');
+    setState(() {
+      _mapStyle = style;
+    });
   }
 
   Future<void> _loadCustomMarker() async {
@@ -118,7 +126,7 @@ class _PinitMapState extends State<PinitMap> {
     return Stack(
       children: [
         GoogleMap(
-                style: MAPSTYLE,
+                style: _mapStyle,
                 mapToolbarEnabled: false,
                 myLocationButtonEnabled: false, // We add our own marker
                 compassEnabled: false,
