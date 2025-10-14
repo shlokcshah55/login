@@ -134,14 +134,15 @@ class _LocationCarouselState extends State<LocationCarousel> {
       child: Card(
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20), // Increased corner radius
+          borderRadius: BorderRadius.circular(24), // More rounded corners
           side: isSelected
               ? BorderSide(
                   color: colorScheme.primary,
-                  width: 3.0) // Thicker border when selected
+                  width: 2.5) // Slightly thinner border
               : BorderSide.none,
         ),
-        elevation: isSelected ? 8.0 : 4.0, // Higher elevation when selected
+        elevation: isSelected ? 12.0 : 6.0, // Higher elevation for more depth
+        shadowColor: colorScheme.shadow.withOpacity(0.3),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOutQuint,
@@ -151,88 +152,121 @@ class _LocationCarouselState extends State<LocationCarousel> {
               // --- Text Section (Left Half) ---
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.all(8.0), // Reduced padding
+                  padding: const EdgeInsets.all(16.0), // Increased padding for better spacing
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // Location Name
                       Text(
                         location.name,
                         style: textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w700,
                           color: colorScheme.onSurface,
-                          fontSize: 14, // Slightly smaller font
+                          fontSize: 16,
+                          letterSpacing: -0.2,
                         ),
-                        maxLines: 1,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 6.0), // Reduced spacing
+                      const SizedBox(height: 8.0),
+                      
+                      // Rating Row
                       Row(
                         children: [
-                          Icon(FeatherIcons.star,
-                              size: 14,
-                              color: colorScheme.secondary), // Smaller icon
-                          const SizedBox(width: 2), // Reduced spacing
-                          Text(
-                            location.rating?.toStringAsFixed(1) ?? 'N/A',
-                            style: textTheme.bodyMedium?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 12, // Smaller text
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
+                            decoration: BoxDecoration(
+                              color: colorScheme.secondary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8.0),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  FeatherIcons.star,
+                                  size: 12,
+                                  color: colorScheme.secondary,
+                                ),
+                                const SizedBox(width: 3),
+                                Text(
+                                  location.rating?.toStringAsFixed(1) ?? 'N/A',
+                                  style: textTheme.bodySmall?.copyWith(
+                                    color: colorScheme.secondary,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(width: 3), // Reduced spacing
+                          const SizedBox(width: 6),
                           Flexible(
                             child: Text(
-                              "(${location.userRatingsTotal?.toString() ?? '0'} reviews)",
+                              "(${location.userRatingsTotal?.toString() ?? '0'})",
                               style: textTheme.bodySmall?.copyWith(
-                                color: colorScheme.onSurfaceVariant
-                                    .withOpacity(0.7), // Smaller text
+                                color: colorScheme.onSurfaceVariant.withOpacity(0.7),
+                                fontSize: 11,
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 6.0), // Reduced spacing
-                      if (location.priceLevel != null &&
-                          location.priceLevel! > 0)
-                        Text(
-                          '\$' * location.priceLevel!,
-                          style: textTheme.bodyMedium?.copyWith(
-                            color: theme.brightness == Brightness.dark
-                                ? Colors.greenAccent
-                                : Colors.green[700], // Smaller text
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.6, // Reduced spacing
-                          ),
-                        ),
-                      const SizedBox(height: 6.0), // Reduced spacing
-                      if (location.cuisine != null &&
-                          location.cuisine!.isNotEmpty)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6.0,
-                              vertical: 2.0), // Reduced padding
-                          decoration: BoxDecoration(
-                            color:
-                                colorScheme.secondaryContainer.withOpacity(0.7),
-                            borderRadius:
-                                BorderRadius.circular(10.0), // Smaller radius
-                          ),
-                          child: Text(
-                            location.cuisine!,
-                            style: textTheme.bodySmall?.copyWith(
-                              color: colorScheme.onSecondaryContainer,
-                              fontWeight: FontWeight.w500,
-                              fontSize: 9, // Smaller text
+                      const SizedBox(height: 8.0),
+                      
+                      // Price and Cuisine Row
+                      Row(
+                        children: [
+                          if (location.priceLevel != null && location.priceLevel! > 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0),
+                              decoration: BoxDecoration(
+                                color: theme.brightness == Brightness.dark
+                                    ? Colors.green.withOpacity(0.2)
+                                    : Colors.green.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12.0),
+                              ),
+                              child: Text(
+                                '\$' * location.priceLevel!,
+                                style: textTheme.bodySmall?.copyWith(
+                                  color: theme.brightness == Brightness.dark
+                                      ? Colors.greenAccent
+                                      : Colors.green[700],
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 1.0,
+                                ),
+                              ),
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
+                          if (location.priceLevel != null && 
+                              location.priceLevel! > 0 && 
+                              location.cuisine != null && 
+                              location.cuisine!.isNotEmpty)
+                            const SizedBox(width: 8.0),
+                          if (location.cuisine != null && location.cuisine!.isNotEmpty)
+                            Flexible(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0),
+                                decoration: BoxDecoration(
+                                  color: colorScheme.primaryContainer.withOpacity(0.6),
+                                  borderRadius: BorderRadius.circular(12.0),
+                                ),
+                                child: Text(
+                                  location.cuisine!,
+                                  style: textTheme.bodySmall?.copyWith(
+                                    color: colorScheme.onPrimaryContainer,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 10,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -243,66 +277,75 @@ class _LocationCarouselState extends State<LocationCarousel> {
                 curve: Curves.easeOutQuint,
                 width: bottomNavVisible ? 125 : 145, // Expand width when nav is hidden
                 height: double.infinity,
-                child: Stack(
-                  children: [
-                    _buildCardImage(location, theme),
-                    // Gradient overlay for improved text contrast on the image if needed
-                    Positioned.fill(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              colorScheme.surface.withOpacity(0.55),
-                              Colors.transparent,
-                              colorScheme.surface.withOpacity(0.65)
-                            ],
-                            stops: const [0.0, 0.5, 1.0],
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                          ),
-                        ),
-                      ),
-                    ),
-                    // Type indicator badge on the top-left of the image section
-                    Positioned(
-                      top: 6, // Reduced position
-                      left: 6, // Reduced position
-                      child: _buildTypeIndicator(location.preference!, theme),
-                    ),
-                    // Saved count badge on the top-right if applicable
-                    if (location.savedCount != null && location.savedCount! > 0)
-                      Positioned(
-                        top: 6, // Reduced position
-                        right: 6, // Reduced position
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topRight: Radius.circular(24),
+                    bottomRight: Radius.circular(24),
+                  ),
+                  child: Stack(
+                    children: [
+                      _buildCardImage(location, theme),
+                      // Enhanced gradient overlay
+                      Positioned.fill(
                         child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 5.0,
-                              vertical: 2.0), // Smaller padding
                           decoration: BoxDecoration(
-                            color: colorScheme.surface.withOpacity(0.5),
-                            borderRadius:
-                                BorderRadius.circular(8.0), // Smaller radius
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(FeatherIcons.bookmark,
-                                  size: 10,
-                                  color: colorScheme.primary), // Smaller icon
-                              const SizedBox(width: 2), // Smaller spacing
-                              Text(
-                                location.savedCount.toString(),
-                                style: textTheme.bodySmall?.copyWith(
-                                  color: colorScheme.onSurface,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 9, // Smaller text
-                                ),
-                              ),
-                            ],
+                            gradient: LinearGradient(
+                              colors: [
+                                colorScheme.surface.withOpacity(0.3),
+                                Colors.transparent,
+                                Colors.black.withOpacity(0.4),
+                              ],
+                              stops: const [0.0, 0.4, 1.0],
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                            ),
                           ),
                         ),
                       ),
-                  ],
+                      // Type indicator badge with enhanced styling
+                      Positioned(
+                        top: 8,
+                        left: 8,
+                        child: _buildTypeIndicator(location.preference!, theme),
+                      ),
+                      // Saved count badge with enhanced styling
+                      if (location.savedCount != null && location.savedCount! > 0)
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.7),
+                              borderRadius: BorderRadius.circular(12.0),
+                              border: Border.all(
+                                color: colorScheme.primary.withOpacity(0.3),
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  FeatherIcons.bookmark,
+                                  size: 12,
+                                  color: colorScheme.primary,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  location.savedCount.toString(),
+                                  style: textTheme.bodySmall?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -316,52 +359,54 @@ class _LocationCarouselState extends State<LocationCarousel> {
     IconData iconData;
     String text;
     Color bgColor;
-    Color fgColor = theme.colorScheme.onPrimary; // Default foreground for primary/secondary
+    Color fgColor;
 
     switch (preference) {
       case LocationPreference.saved:
-        iconData = FeatherIcons.bookmark;
+        iconData = FeatherIcons.heart;
         text = 'Saved';
         bgColor = theme.colorScheme.primary;
+        fgColor = theme.colorScheme.onPrimary;
         break;
       case LocationPreference.recommended:
-        iconData = FeatherIcons.star;
-        text = 'Rec'; // Shortened text
+        iconData = FeatherIcons.award;
+        text = 'Top Pick';
         bgColor = theme.colorScheme.secondary;
+        fgColor = theme.colorScheme.onSecondary;
         break;
       case LocationPreference.search:
         iconData = FeatherIcons.search;
-        text = 'Result';
+        text = 'Match';
         bgColor = theme.colorScheme.tertiaryContainer;
         fgColor = theme.colorScheme.onTertiaryContainer;
         break;
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(
-          horizontal: 5.0, vertical: 2.0), // Reduced padding
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
       decoration: BoxDecoration(
-        color: bgColor.withOpacity(0.9),
-        borderRadius: BorderRadius.circular(5.0), // Smaller radius
+        color: bgColor,
+        borderRadius: BorderRadius.circular(12.0),
         boxShadow: [
           BoxShadow(
-            color: theme.colorScheme.shadow.withOpacity(0.2),
-            blurRadius: 2.0, // Smaller blur
-            offset: const Offset(1, 1),
+            color: bgColor.withOpacity(0.3),
+            blurRadius: 4.0,
+            offset: const Offset(0, 2),
           )
         ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(iconData, size: 10, color: fgColor), // Smaller icon
-          const SizedBox(width: 3), // Reduced spacing
+          Icon(iconData, size: 12, color: fgColor),
+          const SizedBox(width: 4),
           Text(
             text,
             style: theme.textTheme.bodySmall?.copyWith(
               color: fgColor,
-              fontWeight: FontWeight.bold,
-              fontSize: 8, // Smaller text
+              fontWeight: FontWeight.w600,
+              fontSize: 10,
+              letterSpacing: 0.2,
             ),
           ),
         ],
@@ -371,47 +416,116 @@ class _LocationCarouselState extends State<LocationCarousel> {
 
   Widget _buildCardImage(LocationModel location, ThemeData theme) {
     final colorScheme = theme.colorScheme;
-    return ClipRRect(
-      child: SizedBox(
-        height: double.infinity, // Fill the container height
-        child: location.photoReference != null
-            ? Image.network(
-                'https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${location.photoReference}&key=${dotenv.env['GOOGLE_PLACE_API_KEY']}',
-                fit: BoxFit.cover,
-                loadingBuilder: (context, child, progress) {
-                  if (progress == null) return child;
-                  return Container(
-                    color: colorScheme.surfaceVariant,
-                    child: Center(
-                      child: CircularProgressIndicator(
-                        strokeWidth: 1.5, // Thinner stroke
-                        valueColor:
-                            AlwaysStoppedAnimation<Color>(colorScheme.primary),
-                      ),
+    return SizedBox(
+      height: double.infinity,
+      width: double.infinity,
+      child: location.photoReference != null
+          ? Image.network(
+              'https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${location.photoReference}&key=${dotenv.env['GOOGLE_PLACE_API_KEY']}',
+              fit: BoxFit.cover,
+              loadingBuilder: (context, child, progress) {
+                if (progress == null) return child;
+                return Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        colorScheme.surfaceVariant,
+                        colorScheme.surfaceVariant.withOpacity(0.8),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                  );
-                },
-                errorBuilder: (context, error, stackTrace) {
-                  log("Error loading image for ${location.name}: $error");
-                  return Container(
-                    color: colorScheme.surfaceVariant,
-                    child: Icon(
-                      FeatherIcons.mapPin,
-                      size: 30, // Smaller icon
-                      color: colorScheme.onSurfaceVariant.withOpacity(0.5),
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(
+                          strokeWidth: 2.0,
+                          valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Loading...',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
                     ),
-                  );
-                },
-              )
-            : Container(
-                color: colorScheme.surfaceVariant,
-                child: Icon(
-                  FeatherIcons.mapPin,
-                  size: 30, // Smaller icon
-                  color: colorScheme.onSurfaceVariant.withOpacity(0.5),
+                  ),
+                );
+              },
+              errorBuilder: (context, error, stackTrace) {
+                log("Error loading image for ${location.name}: $error");
+                return Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        colorScheme.errorContainer.withOpacity(0.3),
+                        colorScheme.surfaceVariant,
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          FeatherIcons.image,
+                          size: 32,
+                          color: colorScheme.onSurfaceVariant.withOpacity(0.6),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'No Image',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant.withOpacity(0.7),
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            )
+          : Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    colorScheme.surfaceVariant,
+                    colorScheme.surfaceVariant.withOpacity(0.7),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
               ),
-      ),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      FeatherIcons.mapPin,
+                      size: 32,
+                      color: colorScheme.primary.withOpacity(0.7),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Location',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant.withOpacity(0.8),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
     );
   }
 }
