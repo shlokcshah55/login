@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
-import 'package:login/api/models/locations.dart';
+import 'package:login/models/locations.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart'; // Required for GOOGLE_PLACE_API_KEY
 import 'dart:developer';
 

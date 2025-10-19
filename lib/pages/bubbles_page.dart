@@ -3,8 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:login/models/chat_group_model.dart';
 import 'package:login/widgets/chat/chat_group_tile.dart';
 import 'package:login/widgets/chat/expanded_chat_view.dart';
-import 'package:login/api/provider.dart';
-import 'package:login/api/supabase_client.dart';
+import 'package:login/supabase/service.dart';
+import 'package:login/supabase/supabase_client.dart';
 
 class BubblesPage extends StatefulWidget {
   @override
@@ -56,7 +56,7 @@ class _BubblesPageState extends State<BubblesPage>
     setState(() => _isLoading = true);
     
     try {
-      final supabaseProvider = Provider.of<SupabaseProvider>(context, listen: false);
+      final supabaseProvider = Provider.of<SupabaseService>(context, listen: false);
       final currentUser = SupabaseClientManager().client.auth.currentUser;
       
       if (currentUser == null) {
@@ -167,7 +167,7 @@ class _BubblesPageState extends State<BubblesPage>
               onPressed: () async {
                 if (nameController.text.trim().isEmpty) return;
                 
-                final supabaseProvider = Provider.of<SupabaseProvider>(context, listen: false);
+                final supabaseProvider = Provider.of<SupabaseService>(context, listen: false);
                 final currentUser = SupabaseClientManager().client.auth.currentUser;
                 
                 if (currentUser == null) return;

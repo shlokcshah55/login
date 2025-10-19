@@ -7,21 +7,19 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:login/pages/bubbles_page.dart';
 import 'package:login/themes/app_theme.dart';
-import 'package:login/api/models/locations.dart';
-import 'package:login/api/supabase_client.dart';
-import 'package:login/api/provider.dart';
+import 'package:login/models/locations.dart';
+import 'package:login/supabase/supabase_client.dart';
+import 'package:login/supabase/service.dart';
 import 'package:login/pages/alerts_page.dart';
 import 'package:login/pages/splash_screen.dart';
 import 'package:login/pages/home_page.dart';
 import 'package:login/pages/profile_page.dart';
-import 'package:login/providers/device_location_provider.dart'; // Import new providers
-import 'package:login/providers/location_list_manager.dart';
+import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
-import 'package:login/providers/bottom_nav_visibility_provider.dart';
-import 'package:login/providers/dynamic_nav_provider.dart';
+import 'package:login/providers/nav_bar/visibility_provider.dart';
+import 'package:login/providers/nav_bar/dynamic_nav_provider.dart';
 import 'package:login/services/google_place_service.dart';
-import 'package:login/services/location_service.dart';
 import 'package:login/widgets/navigation/bottom_nav_bar.dart';
 import 'package:provider/provider.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
@@ -42,13 +40,12 @@ void main() async {
 
   // Instantiate services
   final googlePlacesService = GooglePlacesService();
-  final locationService = LocationService();
 
   // Debug API key loading
   googlePlacesService.debugApiKey();
 
   // Initialize Supabase Provider
-  final supabaseProvider = SupabaseProvider();
+  final supabaseProvider = SupabaseService();
   await supabaseProvider.initialize();
 
   runApp(
@@ -62,9 +59,7 @@ void main() async {
         ChangeNotifierProvider(
             create: (_) => LocationListManager(googlePlacesService)),
         ChangeNotifierProvider(create: (_) => MapStateProvider()),
-        ChangeNotifierProvider(
-            create: (_) => DeviceLocationProvider(locationService)),
-        
+
         // Bottom Navigation Visibility Provider
         ChangeNotifierProvider(create: (_) => BottomNavVisibilityProvider()),
 

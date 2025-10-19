@@ -1,4 +1,4 @@
-import '../constants.dart';
+import '../supabase/constants.dart';
 
 /// Model class for video data from Supabase
 class VideoModel {

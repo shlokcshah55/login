@@ -5,8 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:login/controllers/home_controller.dart';
-import 'package:login/providers/device_location_provider.dart';
-import 'package:login/providers/location_list_manager.dart';
+import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:provider/provider.dart';
 
@@ -72,7 +71,6 @@ class _PinitMapState extends State<PinitMap> {
   Widget build(BuildContext context) {
     // Listen to providers needed for map display
     final locationListManager = context.watch<LocationListManager>();
-    final deviceLocationProvider = context.watch<DeviceLocationProvider>();
     final mapStateProvider = context
         .watch<MapStateProvider>(); // Watch for polyline/selection changes
     final mapStateReader =
@@ -105,8 +103,8 @@ class _PinitMapState extends State<PinitMap> {
       );
     }).toSet();
 
-    // Get current position from DeviceLocationProvider
-    final currentPosition = deviceLocationProvider.currentPosition;
+    // Get current position from LocationListManager
+    final currentPosition = locationListManager.currentPosition;
 
     // Get the current list type from location list manager
     final isRecommendedTab =
@@ -134,7 +132,7 @@ class _PinitMapState extends State<PinitMap> {
                 compassEnabled: false,
                 zoomControlsEnabled: false,
                 initialCameraPosition: CameraPosition(
-                  // Use current position from DeviceLocationProvider for initial target
+                  // Use current position from LocationListManager for initial target
                   target: currentPosition ??
                       const LatLng(
                           PinitMap.DEFAULT_LAT, PinitMap.DEFAULT_LNG),
@@ -147,8 +145,8 @@ class _PinitMapState extends State<PinitMap> {
 
                   // Initialize the lastFocusedUserLocation with the current position
                   // or the initial camera position if no current position is available
-                  final deviceLocation = context.read<DeviceLocationProvider>();
-                  LatLng initialLocation = deviceLocation.currentPosition ??
+                  final locationManager = context.read<LocationListManager>();
+                  LatLng initialLocation = locationManager.currentPosition ??
                       LatLng(
                           PinitMap.DEFAULT_LAT, PinitMap.DEFAULT_LNG);
 
@@ -202,7 +200,6 @@ class _PinitMapState extends State<PinitMap> {
                             final homeController = HomeController(
                               locationListManager: locationListManager,
                               mapStateProvider: mapStateReader,
-                              deviceLocationProvider: deviceLocationProvider,
                             );
 
                             // Use the controller to fetch recommended pins for this area
@@ -264,7 +261,7 @@ class _PinitMapState extends State<PinitMap> {
                           mapStateReader.focusOnUserLocation(currentPosition, zoom: 15.0);
                         } else {
                           // Try to get current position first if not available
-                          deviceLocationProvider.getCurrentLocation().then((position) {
+                          locationListManager.getCurrentLocation().then((position) {
                             if (position != null) {
                               mapStateReader.focusOnUserLocation(position, zoom: 15.0);
                             }

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:login/models/chat_group_model.dart';
-import 'package:login/api/models/users.dart';
+import 'package:login/models/users.dart';
 import 'package:provider/provider.dart';
-import '../../api/provider.dart';
+import '../../supabase/service.dart';
 
 class AddMembersDialog extends StatefulWidget {
   final ChatGroupModel bubble;
@@ -51,7 +51,7 @@ class _AddMembersDialogState extends State<AddMembersDialog> {
 
   Future<void> _performSearch(String query) async {
     try {
-      final supabase = Provider.of<SupabaseProvider>(context, listen: false);
+      final supabase = Provider.of<SupabaseService>(context, listen: false);
       final results = await supabase.users.searchUsers(query);
       
       // Filter out current members
@@ -74,7 +74,7 @@ class _AddMembersDialogState extends State<AddMembersDialog> {
     });
 
     try {
-      final supabase = Provider.of<SupabaseProvider>(context, listen: false);
+      final supabase = Provider.of<SupabaseService>(context, listen: false);
       final friends = await supabase.users.getFriends();
       
       // Filter out current members
@@ -104,7 +104,7 @@ class _AddMembersDialogState extends State<AddMembersDialog> {
     });
 
     try {
-      final supabase = Provider.of<SupabaseProvider>(context, listen: false);
+      final supabase = Provider.of<SupabaseService>(context, listen: false);
       
       for (final userId in _selectedUserIds) {
         await supabase.bubbles.addMemberToBubble(

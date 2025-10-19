@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:login/api/models/locations.dart';
-import 'package:login/providers/location_list_manager.dart';
+import 'package:login/models/locations.dart';
+import 'package:login/providers/location_list_provider.dart';
 import 'package:provider/provider.dart';
 
 class AlertsPage extends StatefulWidget {

@@ -1,4 +1,4 @@
-import 'package:login/api/models/locations.dart';
+import 'package:login/models/locations.dart';
 
 class ChatGroupModel {
   final String id;

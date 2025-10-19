@@ -1,26 +1,26 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:login/api/services/auth.dart';
-import 'package:login/api/services/location.dart';
+import 'package:login/supabase/helpers/auth.dart';
+import 'package:login/supabase/helpers/location.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'services/bubbles.dart';
+import 'helpers/bubbles.dart';
 import 'supabase_client.dart';
 
 /// Provider class for Supabase services
-class SupabaseProvider extends ChangeNotifier {
-  final AuthService _authService = AuthService();
-  final LocationService _locationService = LocationService();
-  final BubbleService _bubbleService = BubbleService();
+class SupabaseService extends ChangeNotifier {
+  final AuthHelper _authService = AuthHelper();
+  final LocationHelper _locationService = LocationHelper();
+  final BubbleHelper _bubbleService = BubbleHelper();
 
   bool _isLoading = false;
   String? _error;
   StreamSubscription? _authSubscription;
 
   // Getters for repositories
-  AuthService get users => _authService;
-  LocationService get locations => _locationService;
-  BubbleService get bubbles => _bubbleService;
+  AuthHelper get users => _authService;
+  LocationHelper get locations => _locationService;
+  BubbleHelper get bubbles => _bubbleService;
 
   // Status getters
   bool get isLoading => _isLoading;
@@ -28,9 +28,9 @@ class SupabaseProvider extends ChangeNotifier {
   bool get isAuthenticated => _authService.isAuthenticated;
 
   // Create single instance of this provider
-  static final SupabaseProvider _instance = SupabaseProvider._internal();
-  factory SupabaseProvider() => _instance;
-  SupabaseProvider._internal() {
+  static final SupabaseService _instance = SupabaseService._internal();
+  factory SupabaseService() => _instance;
+  SupabaseService._internal() {
     // Set up auth state listener to automatically notify listeners
     _setupAuthListener();
   }

@@ -1,4 +1,4 @@
-import '../constants.dart';
+import '../supabase/constants.dart';
 
 /// Model class for user location actions data from Supabase
 class UserLocationActionModel {

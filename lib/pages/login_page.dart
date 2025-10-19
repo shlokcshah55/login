@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../api/provider.dart';
+import '../supabase/service.dart';
 import 'signup_page.dart';
 import 'auth_handler.dart';
 
@@ -30,7 +30,7 @@ class _LoginPageState extends State<LoginPage> {
     try {
       // Get Supabase provider
       final supabaseProvider =
-          Provider.of<SupabaseProvider>(context, listen: false);
+          Provider.of<SupabaseService>(context, listen: false);
 
       // Attempt sign in with Supabase
       bool supabaseSignInSuccess =
@@ -64,7 +64,7 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       final supabaseProvider =
-          Provider.of<SupabaseProvider>(context, listen: false);
+          Provider.of<SupabaseService>(context, listen: false);
 
       // Initiate Google OAuth flow
       // This opens browser - actual auth happens via deep link callback

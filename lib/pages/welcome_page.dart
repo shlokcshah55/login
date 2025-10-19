@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'login_page.dart';
 import 'signup_page.dart';
-import '../api/provider.dart';
+import '../supabase/service.dart';
 
 class WelcomePage extends StatelessWidget {
   const WelcomePage({super.key});
@@ -10,7 +10,7 @@ class WelcomePage extends StatelessWidget {
   Future<void> _signInWithGoogle(BuildContext context) async {
     try {
       final supabaseProvider =
-          Provider.of<SupabaseProvider>(context, listen: false);
+          Provider.of<SupabaseService>(context, listen: false);
 
       // Initiate Google OAuth flow
       final bool success = await supabaseProvider.signInWithGoogle();

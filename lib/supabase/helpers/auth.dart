@@ -2,11 +2,11 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../supabase_client.dart';
-import '../models/users.dart';
+import '../../models/users.dart';
 import '../constants.dart';
 
 /// Service for handling Supabase authentication operations
-class AuthService {
+class AuthHelper {
   final SupabaseClient _client = SupabaseClientManager().client;
   User? get currentUser => _client.auth.currentUser;
   bool get isAuthenticated => currentUser != null;

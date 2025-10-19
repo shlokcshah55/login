@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:login/providers/location_list_manager.dart';
+import 'package:login/providers/location_list_provider.dart';
 import 'package:google_fonts/google_fonts.dart'; // For font consistency
 
 class FilterBar extends StatelessWidget {

@@ -1,21 +1,29 @@
+import 'dart:async';
 import 'dart:developer';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:login/api/models/locations.dart';
+import 'package:login/models/locations.dart';
 import 'package:login/services/google_place_service.dart';
-import 'package:login/api/services/location.dart';
+import 'package:login/supabase/service.dart';
+import 'package:login/supabase/helpers/location.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 // Enum to represent the different types of location lists
 enum LocationListType { saved, recommended, search }
 
 class LocationListManager with ChangeNotifier {
-  // Keep Firebase service for backward compatibility
   final GooglePlacesService _googlePlacesService;
+  final SupabaseService _supabaseService = SupabaseService();
 
-  // Add Supabase repository
-  final LocationService _locationRepository = LocationService();
+  String? _userId;
 
-  String? _userId; // Needed for saving/fetching user-specific data
+  // Device location tracking state
+  LatLng? _currentPosition;
+  StreamSubscription<Position>? _positionStreamSubscription;
+  bool _isTracking = false;
+  bool _permissionGranted = false;
+  String? _error;
 
   LocationListManager(this._googlePlacesService);
 
@@ -33,6 +41,12 @@ class LocationListManager with ChangeNotifier {
   Map<LocationModel, Marker> get searchLocations => _searchLocations;
   Map<LocationModel, Marker> get currentItems => _currentItems;
   LocationListType get currentListType => _currentListType;
+
+  // Device location getters
+  LatLng? get currentPosition => _currentPosition;
+  bool get isTracking => _isTracking;
+  bool get permissionGranted => _permissionGranted;
+  String? get error => _error;
 
   // Method to update the user ID when the user logs in
   void setUserId(String? userId) {
@@ -77,7 +91,7 @@ class LocationListManager with ChangeNotifier {
 
     try {
       List<LocationModel> supabaseSavedLocations =
-          await _locationRepository.getSavedLocations();
+          await _supabaseService.locations.getSavedLocations();
 
       if (supabaseSavedLocations.isNotEmpty) {
         // Use Supabase data if available
@@ -106,7 +120,7 @@ class LocationListManager with ChangeNotifier {
     try {
       // Try getting nearby locations from Supabase first
       List<LocationModel> nearbyLocations =
-          await _locationRepository.getLocationsNearby(
+          await _supabaseService.locations.getLocationsNearby(
         latitude,
         longitude,
         radiusMeters: 5000, // 5km radius
@@ -194,7 +208,7 @@ class LocationListManager with ChangeNotifier {
 
         // Try to remove from Supabase first
 
-        await _locationRepository.unsaveLocation(locationId);
+        await _supabaseService.locations.unsaveLocation(locationId);
 
         removed = true;
         log("Removed saved location: ${location.name}");
@@ -239,7 +253,7 @@ class LocationListManager with ChangeNotifier {
     // Try to save in Supabase first
 
     bool supabaseSuccess =
-        await _locationRepository.saveLocation(location, savedMethod: 'in-app');
+        await _supabaseService.locations.saveLocation(location, savedMethod: 'in-app');
 
     if (supabaseSuccess) {
       log("Saved location to Supabase: ${location.name}");
@@ -292,7 +306,7 @@ class LocationListManager with ChangeNotifier {
     try {
       // Add location to Supabase
       LocationModel? addedLocation =
-          await _locationRepository.addLocation(location);
+          await _supabaseService.locations.addLocation(location);
       if (addedLocation != null) {
         log("Added new location to Supabase: ${location.name}");
 
@@ -311,7 +325,7 @@ class LocationListManager with ChangeNotifier {
   /// Check if location is saved by current user
   Future<bool> isLocationSaved(LocationModel location) async {
     try {
-      return await _locationRepository.isLocationSaved(location.locationId);
+      return await _supabaseService.locations.isLocationSaved(location.locationId);
     } catch (e) {
       log('Error checking if location is saved: $e');
       return false;
@@ -321,7 +335,7 @@ class LocationListManager with ChangeNotifier {
   /// Get saved locations since last time the app was opened
   Future<List<LocationModel>> getSavedLocationsSinceLastOpened() async {
     try {
-      return await _locationRepository.getSavedLocationsSinceLastOpened();
+      return await _supabaseService.locations.getSavedLocationsSinceLastOpened();
     } catch (e) {
       log('Error fetching saved locations since last opened: $e');
       return [];
@@ -331,7 +345,7 @@ class LocationListManager with ChangeNotifier {
   /// Acknowledge if a location is right or not
   Future<void> acknowledgeLocation(int locationId, bool value) async {
     try {
-      await _locationRepository.acknowledgeLocation(locationId, value);
+      await _supabaseService.locations.acknowledgeLocation(locationId, value);
       log("Acknowledged location: ${locationId}, value: $value");
     } catch (e) {
       log('Error acknowledging location: $e');
@@ -346,7 +360,130 @@ class LocationListManager with ChangeNotifier {
     _searchLocations.clear();
     _currentItems.clear();
     _currentListType = LocationListType.saved;
+    stopLocationUpdates(); // Stop tracking when clearing data
     log("LocationListManager: Cleared all location data");
     notifyListeners();
+  }
+
+  /// Checks and requests location permission
+  Future<bool> checkAndRequestPermission() async {
+    PermissionStatus status = await Permission.locationWhenInUse.status;
+    if (status.isDenied) {
+      status = await Permission.locationWhenInUse.request();
+    }
+
+    _permissionGranted = status.isGranted;
+    if (!_permissionGranted) {
+      _error = "Location permission denied.";
+      log("LocationListManager: Location permission denied.");
+    } else {
+      _error = null; // Clear previous error if permission granted now
+      log("LocationListManager: Location permission granted.");
+    }
+    notifyListeners(); // Notify about permission status change
+    return _permissionGranted;
+  }
+
+  /// Starts tracking the user's live location updates
+  Future<void> startLocationUpdates() async {
+    if (_isTracking) {
+      log("LocationListManager: Already tracking location.");
+      return; // Already tracking
+    }
+    if (!_permissionGranted) {
+       log("LocationListManager: Requesting permission before starting tracking.");
+       bool granted = await checkAndRequestPermission();
+       if (!granted) {
+         log("LocationListManager: Cannot start tracking, permission denied.");
+         return; // Don't start if permission denied
+       }
+    }
+
+    _positionStreamSubscription?.cancel(); // Cancel any previous stream
+    try {
+      _positionStreamSubscription = getPositionStream().listen(
+        (Position position) {
+          _currentPosition = LatLng(position.latitude, position.longitude);
+          _isTracking = true; // Ensure tracking state is true
+           _error = null; // Clear error on successful update
+          // log("LocationListManager: Location update: $_currentPosition"); // Can be noisy
+          notifyListeners(); // Notify UI about the location change
+        },
+        onError: (error) {
+          _error = "Location stream error: $error";
+          _isTracking = false; // Stop tracking on error
+          log("LocationListManager: Error in location stream: $error");
+          notifyListeners();
+        },
+        onDone: () {
+          _isTracking = false; // Stream closed
+          log("LocationListManager: Location stream closed.");
+          notifyListeners();
+        },
+      );
+      _isTracking = true; // Mark as tracking immediately
+      _error = null;
+      log("LocationListManager: Started location tracking.");
+      notifyListeners(); // Notify that tracking has started
+    } catch (e) {
+       _error = "Failed to start location stream: $e";
+       _isTracking = false;
+       log("LocationListManager: Error starting location stream: $e");
+       notifyListeners();
+    }
+  }
+
+  /// Stops live location tracking
+  void stopLocationUpdates() {
+    if (_positionStreamSubscription != null) {
+      _positionStreamSubscription!.cancel();
+      _positionStreamSubscription = null;
+      _isTracking = false;
+      log("LocationListManager: Stopped location tracking.");
+      notifyListeners(); // Notify that tracking has stopped
+    }
+  }
+
+  /// Gets a stream of position updates
+  Stream<Position> getPositionStream() {
+    return Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 10, // Updates when user moves 10 meters
+      ),
+    );
+  }
+
+  /// Gets the current location with permission handling (fetches once)
+  Future<LatLng?> getCurrentLocation() async {
+    if (!_permissionGranted) {
+      log("LocationListManager: Cannot get current location, permission not granted.");
+      await checkAndRequestPermission(); // Try asking again
+      if (!_permissionGranted) return null; // Still no permission
+    }
+
+    try {
+      // Get the current location
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      _currentPosition = LatLng(position.latitude, position.longitude);
+      _error = null;
+      log("LocationListManager: Fetched current location: $_currentPosition");
+      notifyListeners();
+      return _currentPosition;
+    } catch (e) {
+      _error = "Failed to get current location: $e";
+      log("LocationListManager: Error getting current location: $e");
+      notifyListeners();
+      return null;
+    }
+  }
+
+  @override
+  void dispose() {
+    stopLocationUpdates(); // Ensure stream is cancelled
+    log("LocationListManager: Disposed.");
+    super.dispose();
   }
 }

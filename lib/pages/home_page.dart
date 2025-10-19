@@ -3,11 +3,10 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart'; // Import for TickerProvider
 import 'package:login/controllers/home_controller.dart';
-import 'package:login/providers/device_location_provider.dart';
-import 'package:login/providers/location_list_manager.dart';
+import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
-import 'package:login/providers/bottom_nav_visibility_provider.dart';
+import 'package:login/providers/nav_bar/visibility_provider.dart';
 import 'package:login/themes/app_colors.dart'; // Import for theme colors
 import 'package:login/widgets/home/LocationCarousel/filter_bar.dart';
 import 'package:login/widgets/home/LocationCarousel/location_carousel.dart';
@@ -27,7 +26,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   late final HomeController homeController_;
   late final UserDataProvider userDataProvider_;
   late final LocationListManager locationListManager_;
-  late final DeviceLocationProvider deviceLocationProvider_;
   late final MapStateProvider mapStateProvider_;
   late final BottomNavVisibilityProvider bottomNavProvider_;
 
@@ -44,19 +42,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     userDataProvider_ = context.read<UserDataProvider>();
     locationListManager_ = context.read<LocationListManager>();
-    deviceLocationProvider_ = context.read<DeviceLocationProvider>();
     mapStateProvider_ = context.read<MapStateProvider>();
     bottomNavProvider_ = context.read<BottomNavVisibilityProvider>();
 
     homeController_ = HomeController(
       locationListManager: locationListManager_,
       mapStateProvider: mapStateProvider_,
-      deviceLocationProvider: deviceLocationProvider_,
     );
     log("HomeController initialized");
 
     homeController_.fetchAndPlotRecommendedPins(null);
-    deviceLocationProvider_.startLocationUpdates();
+    locationListManager_.startLocationUpdates();
 
     SchedulerBinding.instance.addPostFrameCallback((_) {
       mapStateProvider_.addListener(_onSelectedMarkerChanged);
@@ -95,7 +91,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   @override
   void dispose() {
     log("HomePage dispose: Stopping location updates and disposing controllers.");
-    deviceLocationProvider_.stopLocationUpdates();
+    locationListManager_.stopLocationUpdates();
     mapStateProvider_.removeListener(_onSelectedMarkerChanged);
     _pageController.dispose();
     _searchController.dispose();

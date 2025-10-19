@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:login/providers/bottom_nav_visibility_provider.dart';
-import 'package:login/providers/dynamic_nav_provider.dart';
+import 'package:login/providers/nav_bar/visibility_provider.dart';
+import 'package:login/providers/nav_bar/dynamic_nav_provider.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:provider/provider.dart';
 

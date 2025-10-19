@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
-import 'package:login/api/models/locations.dart';
+import 'package:login/models/locations.dart';
 import 'package:login/services/google_place_service.dart';
 
 class CarouselTile extends StatelessWidget {

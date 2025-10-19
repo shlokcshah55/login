@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:login/api/models/users.dart';
-import 'package:login/api/provider.dart';
+import 'package:login/models/users.dart';
+import 'package:login/supabase/service.dart';
 import 'package:login/themes/app_colors.dart';
 import 'package:login/themes/app_dimensions.dart';
 import 'package:login/themes/app_typography.dart';
@@ -22,7 +22,7 @@ enum FollowStatus { idle, requested, following, unfollowing }
 
 class _UserCardState extends State<UserCard> {
   FollowStatus _followStatus = FollowStatus.idle;
-  final SupabaseProvider _supabaseProvider = SupabaseProvider();
+  final SupabaseService _supabaseProvider = SupabaseService();
   bool _isLoading = false; // To handle loading state for API calls
 
   @override

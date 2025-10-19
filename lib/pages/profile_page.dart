@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:login/api/models/locations.dart';
-import 'package:login/api/models/users.dart';
-import 'package:login/api/services/auth.dart';
-import 'package:login/api/provider.dart';
+import 'package:login/models/locations.dart';
+import 'package:login/models/users.dart';
+import 'package:login/supabase/helpers/auth.dart';
+import 'package:login/supabase/service.dart';
 import 'package:provider/provider.dart';
 import 'package:login/providers/user_data_provider.dart';
-import 'package:login/providers/location_list_manager.dart';
+import 'package:login/providers/location_list_provider.dart';
 import 'package:login/widgets/profile/location_card.dart'; // Assuming you have a LocationCard widget
 import 'package:login/widgets/profile/user_card.dart';
 import 'package:login/pages/login_page.dart';
@@ -23,7 +23,7 @@ class _PinitProfileScreenState extends State<ProfilePage>
   late TabController _tabController;
   List<UserModel> _suggestedUsers = [];
   bool _isLoadingSuggestions = false;
-  final SupabaseProvider supabaseProvider = SupabaseProvider();
+  final SupabaseService supabaseProvider = SupabaseService();
 
   @override
   void initState() {
@@ -69,7 +69,7 @@ class _PinitProfileScreenState extends State<ProfilePage>
 
   Future<void> _handleSignOut(BuildContext context) async {
     try {
-      final authService = AuthService();
+      final authService = AuthHelper();
       await authService.signOut();
 
       // Clear providers if needed

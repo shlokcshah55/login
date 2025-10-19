@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:login/providers/location_list_manager.dart';
-import 'package:login/api/provider.dart';
+import 'package:login/providers/location_list_provider.dart';
+import 'package:login/supabase/service.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../api/models/locations.dart';
+import '../../models/locations.dart';
 
 class ExpandedLocationCard extends StatefulWidget {
   final LocationModel location;
@@ -35,7 +35,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard> {
   // Check if location is already saved
   Future<void> _checkIfLocationIsSaved() async {
     final supabaseProvider =
-        Provider.of<SupabaseProvider>(context, listen: false);
+        Provider.of<SupabaseService>(context, listen: false);
 
     setState(() => _isLoading = true);
     try {
@@ -52,7 +52,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard> {
   // Toggle save state
   Future<void> _toggleSave() async {
     final supabaseProvider =
-        Provider.of<SupabaseProvider>(context, listen: false);
+        Provider.of<SupabaseService>(context, listen: false);
 
     setState(() => _isLoading = true);
     try {
@@ -108,7 +108,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final supabaseProvider =
-        Provider.of<SupabaseProvider>(context, listen: false);
+        Provider.of<SupabaseService>(context, listen: false);
 
     return GestureDetector(
       onTap: widget.onClose, // Close when tapping outside

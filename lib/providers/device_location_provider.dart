@@ -3,13 +3,13 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:login/services/location_service.dart';
+import 'package:login/providers/location_list_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class DeviceLocationProvider with ChangeNotifier {
-  final LocationService _locationService;
+  final LocationListManager _locationListManager;
 
-  DeviceLocationProvider(this._locationService);
+  DeviceLocationProvider(this._locationListManager);
 
   LatLng? _currentPosition;
   StreamSubscription<Position>? _positionStreamSubscription;
@@ -52,7 +52,7 @@ class DeviceLocationProvider with ChangeNotifier {
 
     try {
       // Call the correct method which returns LatLng directly
-      _currentPosition = await _locationService.getCurrentLocation();
+      _currentPosition = await _locationListManager.getCurrentLocation();
       _error = null;
       log("DeviceLocationProvider: Fetched current location: $_currentPosition");
       notifyListeners();
@@ -83,7 +83,7 @@ class DeviceLocationProvider with ChangeNotifier {
 
     _positionStreamSubscription?.cancel(); // Cancel any previous stream
     try {
-      _positionStreamSubscription = _locationService.getPositionStream().listen(
+      _positionStreamSubscription = _locationListManager.getPositionStream().listen(
         (Position position) {
           _currentPosition = LatLng(position.latitude, position.longitude);
           _isTracking = true; // Ensure tracking state is true

@@ -1,9 +1,9 @@
 import 'dart:developer';
 import 'package:flutter/material.dart';
-import 'package:login/api/provider.dart';
+import 'package:login/supabase/service.dart';
 import 'package:login/main.dart';
 import 'package:login/pages/welcome_page.dart';
-import 'package:login/providers/location_list_manager.dart';
+import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:login/widgets/loading_widget.dart';
 import 'package:provider/provider.dart';
@@ -28,7 +28,7 @@ class _AuthHandlerState extends State<AuthHandler> {
   }
 
   void _initializeUserData() {
-    final supabaseProvider = Provider.of<SupabaseProvider>(context, listen: false);
+    final supabaseProvider = Provider.of<SupabaseService>(context, listen: false);
 
     if (supabaseProvider.isAuthenticated && !_hasInitializedData) {
       log("AuthHandler: Initializing user data");
@@ -52,7 +52,7 @@ class _AuthHandlerState extends State<AuthHandler> {
   @override
   Widget build(BuildContext context) {
     // Listen to SupabaseProvider changes - widget rebuilds when auth state changes
-    final supabaseProvider = Provider.of<SupabaseProvider>(context, listen: true);
+    final supabaseProvider = Provider.of<SupabaseService>(context, listen: true);
 
     // Re-initialize data when auth state changes to authenticated
     if (supabaseProvider.isAuthenticated && !_hasInitializedData) {

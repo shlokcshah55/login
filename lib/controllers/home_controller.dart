@@ -1,20 +1,17 @@
 import 'dart:developer'; // Added for logging
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:login/api/models/locations.dart';
-import 'package:login/providers/device_location_provider.dart'; // Import new providers
-import 'package:login/providers/location_list_manager.dart';
+import 'package:login/models/locations.dart';
+import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:login/services/google_place_service.dart';
 import 'package:flutter/material.dart';
 import 'dart:math' hide log; // Hide log from dart:math
-// import 'package:permission_handler/permission_handler.dart'; // Permission handled by DeviceLocationProvider
 
 class HomeController {
   // Keep references to the providers needed
   final LocationListManager locationListManager;
   final MapStateProvider mapStateProvider;
-  final DeviceLocationProvider deviceLocationProvider;
   // UserDataProvider might be needed if actions depend on user state
   // final UserDataProvider userDataProvider;
 
@@ -25,14 +22,13 @@ class HomeController {
   HomeController({
     required this.locationListManager,
     required this.mapStateProvider,
-    required this.deviceLocationProvider,
     // required this.userDataProvider,
   });
 
-  /// Fetches the user's current location using DeviceLocationProvider
+  /// Fetches the user's current location using LocationListManager
   /// and potentially updates the map focus.
   Future<void> getUserLocationAndFocus() async {
-    LatLng? position = await deviceLocationProvider.getCurrentLocation();
+    LatLng? position = await locationListManager.getCurrentLocation();
     if (position != null) {
       // Optionally focus the map on the user's location
       await mapStateProvider.focusOnUserLocation(position);
@@ -47,8 +43,8 @@ class HomeController {
   Future<void> fetchAndPlotRecommendedPins(LatLng? location) async {
     if (location == null) {
       // Ensure we have a current location first
-      LatLng? currentLocation = deviceLocationProvider.currentPosition ??
-          await deviceLocationProvider.getCurrentLocation();
+      LatLng? currentLocation = locationListManager.currentPosition ??
+          await locationListManager.getCurrentLocation();
 
       if (currentLocation != null) {
         await locationListManager.fetchRecommendedLocations(
@@ -88,7 +84,7 @@ class HomeController {
     return GestureDetector(
       onLongPress: () async {
         isFlipped.value = !isFlipped.value;
-        final currentPosition = deviceLocationProvider.currentPosition;
+        final currentPosition = locationListManager.currentPosition;
 
         if (isFlipped.value && currentPosition != null) {
           _adjustCameraToFit(currentPosition, location.position);
@@ -227,7 +223,7 @@ class HomeController {
   Widget _buildBackSide(BuildContext context, LocationModel location) {
     // This seems mostly UI logic, could live entirely in the widget itself (HomePage)
     // Access providers if needed for data like currentPosition
-    final currentPosition = deviceLocationProvider.currentPosition;
+    final currentPosition = locationListManager.currentPosition;
 
     return Container(
       key: const ValueKey(true), // Key for back side

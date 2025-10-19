@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:login/api/models/locations.dart';
+import 'package:login/models/locations.dart';
 
 enum NavState { standard, dynamic }
 
