@@ -32,11 +32,11 @@ class AuthService {
       final user = response.user!;
 
       // Create a user record in your users table (if needed)
-      await _client.from('users').insert({
-        'supabase_id': user.id,
-        'email': email,
-        'name': name,
-        'created_at': DateTime.now().toIso8601String(),
+      await _client.from(SupabaseConstants.tableUsers).insert({
+        SupabaseConstants.columnSupabaseId: user.id,
+        SupabaseConstants.columnEmail: email,
+        SupabaseConstants.name: name,
+        SupabaseConstants.columnCreatedAt: DateTime.now().toIso8601String(),
       });
 
       return UserModel(
@@ -72,9 +72,9 @@ class AuthService {
 
       // Get user details from your users table (if you have one)
       final userDetails = await _client
-          .from('users')
+          .from(SupabaseConstants.tableUsers)
           .select()
-          .eq('supabase_id', user.id)
+          .eq(SupabaseConstants.columnSupabaseId, user.id)
           .single();
 
       return UserModel.fromJson(userDetails);
@@ -132,9 +132,9 @@ class AuthService {
 
       // Check if user exists in your users table
       final existingUser = await _client
-          .from('users')
+          .from(SupabaseConstants.tableUsers)
           .select()
-          .eq('supabase_id', user.id)
+          .eq(SupabaseConstants.columnSupabaseId, user.id)
           .maybeSingle();
 
       // If user doesn't exist, create a new record
@@ -143,11 +143,11 @@ class AuthService {
           print('Creating database record for new OAuth user: ${user.email}');
         }
 
-        await _client.from('users').insert({
-          'supabase_id': user.id,
-          'email': user.email,
-          'name': user.userMetadata?['name'] ?? user.userMetadata?['full_name'],
-          'created_at': DateTime.now().toIso8601String(),
+        await _client.from(SupabaseConstants.tableUsers).insert({
+          SupabaseConstants.columnSupabaseId: user.id,
+          SupabaseConstants.columnEmail: user.email,
+          SupabaseConstants.name: user.userMetadata?['name'] ?? user.userMetadata?['full_name'],
+          SupabaseConstants.columnCreatedAt: DateTime.now().toIso8601String(),
         });
 
         if (kDebugMode) {
@@ -326,7 +326,7 @@ class AuthService {
       await _client.from(SupabaseConstants.tableUserFriends).insert({
         SupabaseConstants.columnFollowerId: followingId,
         SupabaseConstants.columnFolloweeId: followeeId,
-        SupabaseConstants.columnStatus: 'requested',
+        SupabaseConstants.columnStatus: SupabaseConstants.relationshipStatusPending,
       });
 
       if (kDebugMode) {

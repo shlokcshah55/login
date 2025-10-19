@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:login/api/services/auth.dart';
 import 'package:login/api/services/location.dart';
-import 'package:login/api/services/video.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'services/bubbles.dart';
@@ -12,7 +11,6 @@ import 'supabase_client.dart';
 class SupabaseProvider extends ChangeNotifier {
   final AuthService _authService = AuthService();
   final LocationService _locationService = LocationService();
-  final SupabaseVideoService _videoService = SupabaseVideoService();
   final BubbleService _bubbleService = BubbleService();
 
   bool _isLoading = false;
@@ -22,7 +20,6 @@ class SupabaseProvider extends ChangeNotifier {
   // Getters for repositories
   AuthService get users => _authService;
   LocationService get locations => _locationService;
-  SupabaseVideoService get videos => _videoService;
   BubbleService get bubbles => _bubbleService;
 
   // Status getters

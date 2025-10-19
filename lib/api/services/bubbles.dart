@@ -3,6 +3,7 @@ import 'package:login/models/chat_group_model.dart';
 import 'package:login/api/models/locations.dart';
 import 'package:login/api/supabase_client.dart';
 import 'package:login/api/services/location.dart';
+import 'package:login/api/constants.dart';
 
 /// Repository for bubble-related operations
 class BubbleService {
@@ -14,28 +15,28 @@ class BubbleService {
     try {
       // Get bubbles where user is a member
       final response = await _client
-          .from('bubble_members')
+          .from(SupabaseConstants.tableBubbleMembers)
           .select('''
-            bubble_id,
-            bubbles!inner(
-              bubble_id,
-              name,
-              created_by,
-              created_at,
-              is_private
+            ${SupabaseConstants.columnBubbleId},
+            ${SupabaseConstants.tableBubbles}!inner(
+              ${SupabaseConstants.columnBubbleId},
+              ${SupabaseConstants.columnName},
+              ${SupabaseConstants.columnCreatedBy},
+              ${SupabaseConstants.columnCreatedAt},
+              ${SupabaseConstants.columnIsPrivate}
             )
           ''')
-          .eq('user_id', userId);
+          .eq(SupabaseConstants.columnUserId, userId);
 
       if ((response as List).isEmpty) {
         return [];
       }
 
       List<ChatGroupModel> bubbles = [];
-      
+
       for (var item in response as List) {
-        final bubble = item['bubbles'];
-        final bubbleId = bubble['bubble_id'];
+        final bubble = item[SupabaseConstants.tableBubbles];
+        final bubbleId = bubble[SupabaseConstants.columnBubbleId];
         
         // Get member count and avatars
         final members = await _getBubbleMembers(bubbleId);
@@ -46,17 +47,17 @@ class BubbleService {
         // Create ChatGroupModel
         bubbles.add(ChatGroupModel(
           id: bubbleId,
-          name: bubble['name'] ?? 'Unnamed Bubble',
+          name: bubble[SupabaseConstants.columnName] ?? 'Unnamed Bubble',
           lastMessage: 'Tap to view locations',
-          lastMessageTime: _getTimeAgo(DateTime.parse(bubble['created_at'])),
+          lastMessageTime: _getTimeAgo(DateTime.parse(bubble[SupabaseConstants.columnCreatedAt])),
           memberCount: members.length,
-          memberAvatars: members.map((m) => (m['profile_image_url'] ?? '') as String).toList(),
-          groupAvatar: members.isNotEmpty ? (members.first['profile_image_url'] ?? '') : '',
+          memberAvatars: members.map((m) => (m[SupabaseConstants.columnProfileImageUrl] ?? '') as String).toList(),
+          groupAvatar: members.isNotEmpty ? (members.first[SupabaseConstants.columnProfileImageUrl] ?? '') : '',
           isOnline: true,
           unreadCount: 0,
           groupLocations: locations,
-          description: 'Created ${_getTimeAgo(DateTime.parse(bubble['created_at']))}',
-          memberIds: members.map((m) => m['supabase_id'].toString()).toList(),
+          description: 'Created ${_getTimeAgo(DateTime.parse(bubble[SupabaseConstants.columnCreatedAt]))}',
+          memberIds: members.map((m) => m[SupabaseConstants.columnSupabaseId].toString()).toList(),
         ));
       }
 
@@ -73,23 +74,23 @@ class BubbleService {
   Future<List<Map<String, dynamic>>> _getBubbleMembers(String bubbleId) async {
     try {
       final response = await _client
-          .from('bubble_members')
+          .from(SupabaseConstants.tableBubbleMembers)
           .select('''
-            user_id,
-            users!inner(
-              supabase_id,
-              name,
-              profile_image_url
+            ${SupabaseConstants.columnUserId},
+            ${SupabaseConstants.tableUsers}!inner(
+              ${SupabaseConstants.columnSupabaseId},
+              ${SupabaseConstants.name},
+              ${SupabaseConstants.columnProfileImageUrl}
             )
           ''')
-          .eq('bubble_id', bubbleId);
+          .eq(SupabaseConstants.columnBubbleId, bubbleId);
 
       if ((response as List).isEmpty) {
         return [];
       }
 
       return (response as List)
-          .map((item) => item['users'] as Map<String, dynamic>)
+          .map((item) => item[SupabaseConstants.tableUsers] as Map<String, dynamic>)
           .toList();
     } catch (e) {
       if (kDebugMode) {
@@ -103,26 +104,26 @@ class BubbleService {
   Future<List<LocationModel>> _getBubbleLocations(String bubbleId) async {
     try {
       final response = await _client
-          .from('bubble_locations')
+          .from(SupabaseConstants.tableBubbleLocations)
           .select('''
-            location_id,
-            locations!inner(
-              location_id,
-              name,
-              vicinity,
-              lat,
-              lng,
-              created_at,
-              phone_number,
-              cuisine,
-              rating,
-              user_ratings_total,
-              price_level,
-              photo_reference,
-              saved_count
+            ${SupabaseConstants.columnLocationId},
+            ${SupabaseConstants.tableLocations}!inner(
+              ${SupabaseConstants.columnLocationId},
+              ${SupabaseConstants.columnName},
+              ${SupabaseConstants.columnVicinity},
+              ${SupabaseConstants.columnLat},
+              ${SupabaseConstants.columnLng},
+              ${SupabaseConstants.columnCreatedAt},
+              ${SupabaseConstants.columnPhoneNumber},
+              ${SupabaseConstants.columnCuisine},
+              ${SupabaseConstants.columnRating},
+              ${SupabaseConstants.columnUserRatingsTotal},
+              ${SupabaseConstants.columnPriceLevel},
+              ${SupabaseConstants.columnPhotoReference},
+              ${SupabaseConstants.columnSavedCount}
             )
           ''')
-          .eq('bubble_id', bubbleId);
+          .eq(SupabaseConstants.columnBubbleId, bubbleId);
 
       if ((response as List).isEmpty) {
         return [];
@@ -130,21 +131,21 @@ class BubbleService {
 
       return (response as List)
           .map((item) {
-            final location = item['locations'];
+            final location = item[SupabaseConstants.tableLocations];
             return LocationModel(
-              locationId: location['location_id'],
-              name: location['name'] ?? '',
-              vicinity: location['vicinity'] ?? '',
-              lat: (location['lat'] as num?)?.toDouble() ?? 0.0,
-              lng: (location['lng'] as num?)?.toDouble() ?? 0.0,
-              createdAt: DateTime.parse(location['created_at']),
-              phoneNumber: location['phone_number'],
-              cuisine: location['cuisine'],
-              rating: (location['rating'] as num?)?.toDouble(),
-              userRatingsTotal: location['user_ratings_total'],
-              priceLevel: location['price_level'],
-              photoReference: location['photo_reference'],
-              savedCount: location['saved_count'],
+              locationId: location[SupabaseConstants.columnLocationId],
+              name: location[SupabaseConstants.columnName] ?? '',
+              vicinity: location[SupabaseConstants.columnVicinity] ?? '',
+              lat: (location[SupabaseConstants.columnLat] as num?)?.toDouble() ?? 0.0,
+              lng: (location[SupabaseConstants.columnLng] as num?)?.toDouble() ?? 0.0,
+              createdAt: DateTime.parse(location[SupabaseConstants.columnCreatedAt]),
+              phoneNumber: location[SupabaseConstants.columnPhoneNumber],
+              cuisine: location[SupabaseConstants.columnCuisine],
+              rating: (location[SupabaseConstants.columnRating] as num?)?.toDouble(),
+              userRatingsTotal: location[SupabaseConstants.columnUserRatingsTotal],
+              priceLevel: location[SupabaseConstants.columnPriceLevel],
+              photoReference: location[SupabaseConstants.columnPhotoReference],
+              savedCount: location[SupabaseConstants.columnSavedCount],
             );
           })
           .toList();
@@ -164,21 +165,21 @@ class BubbleService {
   }) async {
     try {
       final response = await _client
-          .from('bubbles')
+          .from(SupabaseConstants.tableBubbles)
           .insert({
-            'name': name,
-            'created_by': createdBy,
-            'is_private': isPrivate,
+            SupabaseConstants.columnName: name,
+            SupabaseConstants.columnCreatedBy: createdBy,
+            SupabaseConstants.columnIsPrivate: isPrivate,
           })
           .select()
           .single();
 
-      final bubbleId = response['bubble_id'];
+      final bubbleId = response[SupabaseConstants.columnBubbleId];
 
       // Add creator as a member
-      await _client.from('bubble_members').insert({
-        'bubble_id': bubbleId,
-        'user_id': createdBy,
+      await _client.from(SupabaseConstants.tableBubbleMembers).insert({
+        SupabaseConstants.columnBubbleId: bubbleId,
+        SupabaseConstants.columnUserId: createdBy,
       });
 
       return bubbleId;
@@ -198,11 +199,11 @@ class BubbleService {
     String? note,
   }) async {
     try {
-      await _client.from('bubble_locations').insert({
-        'bubble_id': bubbleId,
-        'location_id': locationId,
-        'added_by': addedBy,
-        'note': note,
+      await _client.from(SupabaseConstants.tableBubbleLocations).insert({
+        SupabaseConstants.columnBubbleId: bubbleId,
+        SupabaseConstants.columnLocationId: locationId,
+        SupabaseConstants.columnAddedBy: addedBy,
+        SupabaseConstants.columnNote: note,
       });
       return true;
     } catch (e) {
@@ -218,9 +219,9 @@ class BubbleService {
     try {
       // Get bubble details
       final bubbleResponse = await _client
-          .from('bubbles')
+          .from(SupabaseConstants.tableBubbles)
           .select()
-          .eq('bubble_id', bubbleId)
+          .eq(SupabaseConstants.columnBubbleId, bubbleId)
           .single();
 
       // Get member count and avatars
@@ -232,17 +233,17 @@ class BubbleService {
       // Create ChatGroupModel
       return ChatGroupModel(
         id: bubbleId,
-        name: bubbleResponse['name'] ?? 'Unnamed Bubble',
+        name: bubbleResponse[SupabaseConstants.columnName] ?? 'Unnamed Bubble',
         lastMessage: 'Tap to view locations',
-        lastMessageTime: _getTimeAgo(DateTime.parse(bubbleResponse['created_at'])),
+        lastMessageTime: _getTimeAgo(DateTime.parse(bubbleResponse[SupabaseConstants.columnCreatedAt])),
         memberCount: members.length,
-        memberAvatars: members.map((m) => (m['profile_image_url'] ?? '') as String).toList(),
-        groupAvatar: members.isNotEmpty ? (members.first['profile_image_url'] ?? '') : '',
+        memberAvatars: members.map((m) => (m[SupabaseConstants.columnProfileImageUrl] ?? '') as String).toList(),
+        groupAvatar: members.isNotEmpty ? (members.first[SupabaseConstants.columnProfileImageUrl] ?? '') : '',
         isOnline: true,
         unreadCount: 0,
         groupLocations: locations,
-        description: 'Created ${_getTimeAgo(DateTime.parse(bubbleResponse['created_at']))}',
-        memberIds: members.map((m) => m['supabase_id'].toString()).toList(),
+        description: 'Created ${_getTimeAgo(DateTime.parse(bubbleResponse[SupabaseConstants.columnCreatedAt]))}',
+        memberIds: members.map((m) => m[SupabaseConstants.columnSupabaseId].toString()).toList(),
       );
     } catch (e) {
       if (kDebugMode) {
@@ -258,9 +259,9 @@ class BubbleService {
     required String userId,
   }) async {
     try {
-      await _client.from('bubble_members').insert({
-        'bubble_id': bubbleId,
-        'user_id': userId,
+      await _client.from(SupabaseConstants.tableBubbleMembers).insert({
+        SupabaseConstants.columnBubbleId: bubbleId,
+        SupabaseConstants.columnUserId: userId,
       });
       return true;
     } catch (e) {
@@ -278,10 +279,10 @@ class BubbleService {
   }) async {
     try {
       await _client
-          .from('bubble_locations')
+          .from(SupabaseConstants.tableBubbleLocations)
           .delete()
-          .eq('bubble_id', bubbleId)
-          .eq('location_id', locationId);
+          .eq(SupabaseConstants.columnBubbleId, bubbleId)
+          .eq(SupabaseConstants.columnLocationId, locationId);
       return true;
     } catch (e) {
       if (kDebugMode) {
@@ -298,10 +299,10 @@ class BubbleService {
   }) async {
     try {
       await _client
-          .from('bubble_members')
+          .from(SupabaseConstants.tableBubbleMembers)
           .delete()
-          .eq('bubble_id', bubbleId)
-          .eq('user_id', userId);
+          .eq(SupabaseConstants.columnBubbleId, bubbleId)
+          .eq(SupabaseConstants.columnUserId, userId);
       return true;
     } catch (e) {
       if (kDebugMode) {
@@ -316,16 +317,16 @@ class BubbleService {
     try {
       // First get all member IDs in the bubble
       final membersResponse = await _client
-          .from('bubble_members')
-          .select('user_id')
-          .eq('bubble_id', bubbleId);
+          .from(SupabaseConstants.tableBubbleMembers)
+          .select(SupabaseConstants.columnUserId)
+          .eq(SupabaseConstants.columnBubbleId, bubbleId);
 
       if ((membersResponse as List).isEmpty) {
         return [];
       }
 
       final memberIds = (membersResponse as List)
-          .map((m) => m['user_id'].toString())
+          .map((m) => m[SupabaseConstants.columnUserId].toString())
           .toList();
 
       // Use the location service to get all locations for these users
