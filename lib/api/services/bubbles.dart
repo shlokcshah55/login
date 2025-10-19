@@ -1,13 +1,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:login/models/chat_group_model.dart';
-import 'package:login/supabase_flutter/models/location_model.dart';
-import 'package:login/supabase_flutter/supabase_client.dart';
-import 'package:login/supabase_flutter/services/supabase_location_service.dart';
+import 'package:login/api/models/locations.dart';
+import 'package:login/api/supabase_client.dart';
+import 'package:login/api/services/location.dart';
 
 /// Repository for bubble-related operations
-class BubbleRepository {
+class BubbleService {
   final _client = SupabaseClientManager().client;
-  final _locationService = SupabaseLocationService();
+  final _locationService = LocationService();
 
   /// Get all bubbles for the current user
   Future<List<ChatGroupModel>> getUserBubbles(String userId) async {

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:login/supabase_flutter/models/location_model.dart';
+import 'package:login/api/models/locations.dart';
 import 'package:login/providers/location_list_manager.dart';
 import 'package:provider/provider.dart';
 

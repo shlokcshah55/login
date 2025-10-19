@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../supabase_flutter/supabase_provider.dart';
+import '../api/provider.dart';
 import 'signup_page.dart';
 import 'auth_handler.dart';
 

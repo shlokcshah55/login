@@ -9,12 +9,16 @@ class SupabaseConstants {
   static const String tableLocationPopularitySocial =
       'location_popularity_social';
   static const String tableUsers = 'users';
+  static const String tableBubbles = 'bubbles';
+  static const String tableBubbleMembers = 'bubble_members';
+  static const String tableBubbleLocations = 'bubble_locations';
 
   // Column names - users
   static const String columnSupabaseId = 'supabase_id';
   static const String name = 'name';
   static const String columnEmail = 'email';
-  static const String columnProfilePicture = 'profile_picture';
+  static const String columnBio = 'bio';
+  static const String columnProfileImageUrl = 'profile_image_url';
 
   // Column names - locations
   static const String columnLocationId = 'location_id';
@@ -30,10 +34,10 @@ class SupabaseConstants {
   static const String columnPriceLevel = 'price_level';
   static const String columnPhotoReference = 'photo_reference';
   static const String columnSavedCount = 'saved_count';
+  static const String columnGooglePlaceId = 'google_place_id';
 
   // Column names - videos
   static const String columnVideoId = 'video_id';
-  static const String columnUserId = 'user_id';
   static const String columnPlatform = 'platform';
   static const String columnUrl = 'url';
   static const String columnExtractedLocationId = 'extracted_location_id';
@@ -48,6 +52,8 @@ class SupabaseConstants {
   static const String columnAction = 'action';
   static const String columnSourceVideoUrl = 'source_video_url';
   static const String columnSavedMethod = 'saved_method';
+  static const String columnPreference = 'preference';
+  static const String columnUserId = 'user_id';
   static const String columnAcked = 'acked';
 
   // Column names - location_popularity_app
@@ -58,6 +64,20 @@ class SupabaseConstants {
   // Column names - location_popularity_social
   static const String columnMentionCount = 'mention_count';
   static const String columnLastScanned = 'last_scanned';
+
+  // Column names - bubbles
+  static const String columnBubbleId = 'bubble_id';
+  static const String columnCreatedBy = 'created_by';
+  static const String columnIsPrivate = 'is_private';
+
+  // Column names - bubble_members
+  static const String columnId = 'id';
+  static const String columnAddedAt = 'added_at';
+
+  // Column names - bubble_locations
+  static const String columnBubbleLocationId = 'bubble_location_id';
+  static const String columnAddedBy = 'added_by';
+  static const String columnNote = 'note';
 
   // Enum values - action_type
   static const String actionSave = 'save';

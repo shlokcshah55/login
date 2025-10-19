@@ -3,10 +3,10 @@ import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:login/providers/location_list_manager.dart';
-import 'package:login/supabase_flutter/supabase_provider.dart';
+import 'package:login/api/provider.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../supabase_flutter/models/location_model.dart';
+import '../../api/models/locations.dart';
 
 class ExpandedLocationCard extends StatefulWidget {
   final LocationModel location;
@@ -39,7 +39,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard> {
 
     setState(() => _isLoading = true);
     try {
-      _isSaved = await supabaseProvider.locationRepository
+      _isSaved = await supabaseProvider.locations
           .isLocationSaved(widget.location.locationId);
       setState(() {});
     } catch (e) {
@@ -58,7 +58,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard> {
     try {
       if (_isSaved) {
         // Unsave location
-        final success = await supabaseProvider.locationRepository
+        final success = await supabaseProvider.locations
             .unsaveLocation(widget.location.locationId);
         if (success) {
           setState(() => _isSaved = false);
@@ -68,7 +68,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard> {
         }
       } else {
         // Save location
-        final success = await supabaseProvider.locationRepository
+        final success = await supabaseProvider.locations
             .saveLocation(widget.location);
         if (success) {
           setState(() => _isSaved = true);

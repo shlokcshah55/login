@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'login_page.dart';
 import 'signup_page.dart';
-import 'auth_handler.dart';
-import '../supabase_flutter/supabase_provider.dart';
+import '../api/provider.dart';
 
 class WelcomePage extends StatelessWidget {
   const WelcomePage({super.key});

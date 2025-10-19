@@ -1,34 +1,34 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:login/api/services/auth.dart';
+import 'package:login/api/services/location.dart';
+import 'package:login/api/services/video.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'repositories/user_repository.dart';
-import 'repositories/location_repository.dart';
-import 'repositories/video_repository.dart';
-import 'repositories/bubble_repository.dart';
+import 'services/bubbles.dart';
 import 'supabase_client.dart';
 
 /// Provider class for Supabase services
 class SupabaseProvider extends ChangeNotifier {
-  final UserRepository _userRepository = UserRepository();
-  final LocationRepository _locationRepository = LocationRepository();
-  final VideoRepository _videoRepository = VideoRepository();
-  final BubbleRepository _bubbleRepository = BubbleRepository();
+  final AuthService _authService = AuthService();
+  final LocationService _locationService = LocationService();
+  final SupabaseVideoService _videoService = SupabaseVideoService();
+  final BubbleService _bubbleService = BubbleService();
 
   bool _isLoading = false;
   String? _error;
   StreamSubscription? _authSubscription;
 
   // Getters for repositories
-  UserRepository get userRepository => _userRepository;
-  LocationRepository get locationRepository => _locationRepository;
-  VideoRepository get videoRepository => _videoRepository;
-  BubbleRepository get bubbleRepository => _bubbleRepository;
+  AuthService get users => _authService;
+  LocationService get locations => _locationService;
+  SupabaseVideoService get videos => _videoService;
+  BubbleService get bubbles => _bubbleService;
 
   // Status getters
   bool get isLoading => _isLoading;
   String? get error => _error;
-  bool get isAuthenticated => _userRepository.isAuthenticated;
+  bool get isAuthenticated => _authService.isAuthenticated;
 
   // Create single instance of this provider
   static final SupabaseProvider _instance = SupabaseProvider._internal();
@@ -55,7 +55,7 @@ class SupabaseProvider extends ChangeNotifier {
   Future<bool> signIn(String email, String password) async {
     _setLoading(true);
     try {
-      await _userRepository.signIn(email, password);
+      await _authService.signIn(email: email, password: password);
       _setError(null);
       notifyListeners();
       return true;
@@ -70,7 +70,7 @@ class SupabaseProvider extends ChangeNotifier {
   Future<bool> signUp(String email, String password, {String? name}) async {
     _setLoading(true);
     try {
-      await _userRepository.signUp(email, password, name: name);
+      await _authService.signUp(email: email, password: password, name: name);
       _setError(null);
       notifyListeners();
       return true;
@@ -85,7 +85,7 @@ class SupabaseProvider extends ChangeNotifier {
   Future<void> signOut() async {
     _setLoading(true);
     try {
-      await _userRepository.signOut();
+      await _authService.signOut();
       _setError(null);
       notifyListeners();
     } catch (e) {
@@ -98,7 +98,7 @@ class SupabaseProvider extends ChangeNotifier {
   Future<bool> signInWithGoogle() async {
     _setLoading(true);
     try {
-      final success = await _userRepository.signInWithGoogle();
+      final success = await _authService.signInWithGoogle();
       if (success) {
         _setError(null);
         // Note: Don't navigate here - let auth state listener handle it
@@ -117,14 +117,14 @@ class SupabaseProvider extends ChangeNotifier {
   
   // Set up auth state listener
   void _setupAuthListener() {
-    _authSubscription = _userRepository.onAuthStateChange.listen((state) async {
+    _authSubscription = _authService.onAuthStateChange.listen((state) async {
       // Notify all listeners when auth state changes
       notifyListeners();
 
       // If user just signed in, ensure their database record exists
       // This is especially important for OAuth users
       if (state.event == AuthChangeEvent.signedIn) {
-        await _userRepository.ensureUserRecordExists();
+        await _authService.ensureUserRecordExists();
       }
     });
   }

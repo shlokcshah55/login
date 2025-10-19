@@ -1,11 +1,10 @@
 import 'dart:developer';
 import 'package:flutter/material.dart';
+import 'package:login/api/provider.dart';
 import 'package:login/main.dart';
-import 'package:login/pages/login_page.dart';
 import 'package:login/pages/welcome_page.dart';
 import 'package:login/providers/location_list_manager.dart';
 import 'package:login/providers/user_data_provider.dart';
-import 'package:login/supabase_flutter/supabase_provider.dart';
 import 'package:login/widgets/loading_widget.dart';
 import 'package:provider/provider.dart';
 
@@ -33,7 +32,7 @@ class _AuthHandlerState extends State<AuthHandler> {
 
     if (supabaseProvider.isAuthenticated && !_hasInitializedData) {
       log("AuthHandler: Initializing user data");
-      final supabaseUser = supabaseProvider.userRepository.currentUser!;
+      final supabaseUser = supabaseProvider.users.currentUser!;
 
       final userDataProvider = Provider.of<UserDataProvider>(context, listen: false);
       final locationListManager = Provider.of<LocationListManager>(context, listen: false);

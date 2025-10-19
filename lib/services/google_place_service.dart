@@ -4,7 +4,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'dart:developer';
 
-import 'package:login/supabase_flutter/models/location_model.dart';
+import 'package:login/api/models/locations.dart';
 
 class GooglePlacesService {
   final String? apiKey = dotenv.env["GOOGLE_PLACE_API_KEY"];

@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:login/api/models/locations.dart';
+import 'package:login/api/models/users.dart';
+import 'package:login/api/services/auth.dart';
+import 'package:login/api/provider.dart';
 import 'package:provider/provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:login/providers/location_list_manager.dart';
-import 'package:login/supabase_flutter/models/user_model.dart';
-import 'package:login/supabase_flutter/models/location_model.dart';
 import 'package:login/widgets/profile/location_card.dart'; // Assuming you have a LocationCard widget
 import 'package:login/widgets/profile/user_card.dart';
-import 'package:login/supabase_flutter/repositories/user_repository.dart';
-import 'package:login/supabase_flutter/services/supabase_auth_service.dart';
 import 'package:login/pages/login_page.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -23,7 +23,7 @@ class _PinitProfileScreenState extends State<ProfilePage>
   late TabController _tabController;
   List<UserModel> _suggestedUsers = [];
   bool _isLoadingSuggestions = false;
-  final UserRepository _userRepository = UserRepository();
+  final SupabaseProvider supabaseProvider = SupabaseProvider();
 
   @override
   void initState() {
@@ -41,7 +41,7 @@ class _PinitProfileScreenState extends State<ProfilePage>
       _isLoadingSuggestions = true;
     });
     try {
-      final users = await _userRepository.getSuggestedUsers();
+      final users = await supabaseProvider.users.getSuggestedUsers();
       if (mounted) { // Check if the widget is still in the tree
         setState(() {
           _suggestedUsers = users;
@@ -69,7 +69,7 @@ class _PinitProfileScreenState extends State<ProfilePage>
 
   Future<void> _handleSignOut(BuildContext context) async {
     try {
-      final authService = SupabaseAuthService();
+      final authService = AuthService();
       await authService.signOut();
 
       // Clear providers if needed

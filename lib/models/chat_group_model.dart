@@ -1,4 +1,4 @@
-import 'package:login/supabase_flutter/models/location_model.dart';
+import 'package:login/api/models/locations.dart';
 
 class ChatGroupModel {
   final String id;

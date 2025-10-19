@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:login/models/chat_group_model.dart';
-import 'package:login/supabase_flutter/models/location_model.dart';
-import 'package:login/supabase_flutter/supabase_provider.dart';
+import 'package:login/api/models/locations.dart';
+import 'package:login/api/provider.dart';
 import 'package:login/widgets/chat/add_members_dialog.dart';
 
 class BubbleProfilePage extends StatefulWidget {
@@ -50,7 +50,7 @@ class _BubbleProfilePageState extends State<BubbleProfilePage>
   Future<void> _reloadBubbleData() async {
     try {
       final supabaseProvider = Provider.of<SupabaseProvider>(context, listen: false);
-      final updatedBubble = await supabaseProvider.bubbleRepository
+      final updatedBubble = await supabaseProvider.bubbles
           .getBubbleById(widget.chatGroup.id);
 
       if (updatedBubble != null) {
@@ -68,7 +68,7 @@ class _BubbleProfilePageState extends State<BubbleProfilePage>
 
     try {
       final supabaseProvider = Provider.of<SupabaseProvider>(context, listen: false);
-      final locations = await supabaseProvider.bubbleRepository
+      final locations = await supabaseProvider.bubbles
           .getAllMemberLocations(widget.chatGroup.id);
 
       setState(() {

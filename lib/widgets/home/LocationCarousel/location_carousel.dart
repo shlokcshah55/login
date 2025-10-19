@@ -4,7 +4,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:login/providers/bottom_nav_visibility_provider.dart';
 import 'package:login/providers/dynamic_nav_provider.dart';
-import 'package:login/supabase_flutter/models/location_model.dart';
+import 'package:login/api/models/locations.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';

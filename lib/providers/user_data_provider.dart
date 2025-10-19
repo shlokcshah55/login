@@ -1,13 +1,13 @@
 import 'dart:developer';
 import 'package:flutter/material.dart';
-import 'package:login/supabase_flutter/models/user_model.dart';
-import 'package:login/supabase_flutter/repositories/user_repository.dart';
+import 'package:login/api/models/users.dart';
+import 'package:login/api/provider.dart';
 
 class UserDataProvider with ChangeNotifier {
   // Keep Firebase service for backward compatibility during migration
 
   // Add Supabase repository
-  final UserRepository _userRepository = UserRepository();
+  final SupabaseProvider _supabaseProvider = SupabaseProvider();
 
   UserDataProvider();
 
@@ -24,7 +24,7 @@ class UserDataProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
   bool get isLoggedIn =>
-      (_userId != null && _userData != null) || _userRepository.isAuthenticated;
+      (_userId != null && _userData != null) || _supabaseProvider.users.isAuthenticated;
 
   /// Sets the user ID (typically after login) and fetches user data.
   Future<void> setUserIdAndFetchData(String userId) async {
@@ -35,8 +35,8 @@ class UserDataProvider with ChangeNotifier {
 
     try {
       // Try to fetch from Supabase first
-      if (_userRepository.isAuthenticated) {
-        final UserModel? userModel = await _userRepository.getUserProfile();
+      if (_supabaseProvider.users.isAuthenticated) {
+        final UserModel? userModel = await _supabaseProvider.users.getUserProfile();
         if (userModel != null) {
           _supabaseUserData = userModel;
           log("UserDataProvider: Fetched Supabase data for user");
@@ -100,8 +100,8 @@ class UserDataProvider with ChangeNotifier {
       }
 
       // Update in Supabase
-      if (_userRepository.isAuthenticated) {
-        final updatedUser = await _userRepository.updateUserProfile(updateData);
+      if (_supabaseProvider.users.isAuthenticated)  {
+        final updatedUser = await _supabaseProvider.users.updateUserProfile(updateData);
         if (updatedUser != null) {
           _supabaseUserData = updatedUser;
 

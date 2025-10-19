@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../constants.dart';
-import '../models/video_model.dart';
+import '../models/videos.dart';
 import '../supabase_client.dart';
 
 /// Service for handling Supabase video operations

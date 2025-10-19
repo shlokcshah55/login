@@ -2,14 +2,14 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../constants.dart';
-import '../models/location_model.dart';
+import '../models/locations.dart';
 import '../supabase_client.dart';
 
-/// Service for handling Supabase location operations
-class SupabaseLocationService {
+// Service for handling Supabase location operations
+class LocationService {
   final SupabaseClient _client = SupabaseClientManager().client;
 
-  /// Get all locations
+  // Get all locations
   Future<List<LocationModel>> getAllLocations() async {
     try {
       final response = await _client

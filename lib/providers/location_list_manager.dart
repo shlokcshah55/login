@@ -1,9 +1,9 @@
 import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:login/supabase_flutter/models/location_model.dart';
+import 'package:login/api/models/locations.dart';
 import 'package:login/services/google_place_service.dart';
-import 'package:login/supabase_flutter/repositories/location_repository.dart';
+import 'package:login/api/services/location.dart';
 
 // Enum to represent the different types of location lists
 enum LocationListType { saved, recommended, search }
@@ -13,7 +13,7 @@ class LocationListManager with ChangeNotifier {
   final GooglePlacesService _googlePlacesService;
 
   // Add Supabase repository
-  final LocationRepository _locationRepository = LocationRepository();
+  final LocationService _locationRepository = LocationService();
 
   String? _userId; // Needed for saving/fetching user-specific data
 

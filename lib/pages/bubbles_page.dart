@@ -3,8 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:login/models/chat_group_model.dart';
 import 'package:login/widgets/chat/chat_group_tile.dart';
 import 'package:login/widgets/chat/expanded_chat_view.dart';
-import 'package:login/supabase_flutter/supabase_provider.dart';
-import 'package:login/supabase_flutter/supabase_client.dart';
+import 'package:login/api/provider.dart';
+import 'package:login/api/supabase_client.dart';
 
 class BubblesPage extends StatefulWidget {
   @override
@@ -68,7 +68,7 @@ class _BubblesPageState extends State<BubblesPage>
       }
 
       // Fetch bubbles from Supabase
-      final bubbles = await supabaseProvider.bubbleRepository.getUserBubbles(currentUser.id);
+      final bubbles = await supabaseProvider.bubbles.getUserBubbles(currentUser.id);
       
       setState(() {
         _chatGroups = bubbles;
@@ -172,7 +172,7 @@ class _BubblesPageState extends State<BubblesPage>
                 
                 if (currentUser == null) return;
                 
-                final bubbleId = await supabaseProvider.bubbleRepository.createBubble(
+                final bubbleId = await supabaseProvider.bubbles.createBubble(
                   name: nameController.text.trim(),
                   createdBy: currentUser.id,
                 );

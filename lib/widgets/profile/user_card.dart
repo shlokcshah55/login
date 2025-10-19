@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:login/supabase_flutter/models/location_model.dart';
+import 'package:login/api/models/users.dart';
+import 'package:login/api/provider.dart';
 import 'package:login/themes/app_colors.dart';
 import 'package:login/themes/app_dimensions.dart';
-import 'package:login/themes/app_widget_themes.dart';
 import 'package:login/themes/app_typography.dart';
-import 'package:login/supabase_flutter/models/user_model.dart';
-import 'package:login/supabase_flutter/repositories/user_repository.dart'; // Import UserRepository
 
 class UserCard extends StatefulWidget {
   final UserModel user;
@@ -24,7 +22,7 @@ enum FollowStatus { idle, requested, following, unfollowing }
 
 class _UserCardState extends State<UserCard> {
   FollowStatus _followStatus = FollowStatus.idle;
-  final UserRepository _userRepository = UserRepository();
+  final SupabaseProvider _supabaseProvider = SupabaseProvider();
   bool _isLoading = false; // To handle loading state for API calls
 
   @override
@@ -41,7 +39,7 @@ class _UserCardState extends State<UserCard> {
         if (mounted) setState(() => _followStatus = FollowStatus.idle);
         return;
       }
-      final status = await _userRepository.getFollowStatus(widget.user.supabaseId!);
+      final status = await _supabaseProvider.users.getFollowStatus(widget.user.supabaseId!);
       if (mounted) {
         setState(() {
           if (status == 'requested') {
@@ -79,11 +77,11 @@ class _UserCardState extends State<UserCard> {
       }
 
       if (_followStatus == FollowStatus.idle) {
-        await _userRepository.followUser(widget.user.supabaseId!);
+        await _supabaseProvider.users.followUser(widget.user.supabaseId!);
         if (mounted) setState(() => _followStatus = FollowStatus.requested);
       } else if (_followStatus == FollowStatus.requested || _followStatus == FollowStatus.following) {
         // For both 'requested' and 'following', the action is to unfollow
-        await _userRepository.unfollowUser(widget.user.supabaseId!);
+        await _supabaseProvider.users.unfollowUser(widget.user.supabaseId!);
         if (mounted) setState(() => _followStatus = FollowStatus.idle);
       }
     } catch (e) {
