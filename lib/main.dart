@@ -13,7 +13,7 @@ import 'package:login/supabase/service.dart';
 import 'package:login/pages/alerts_page.dart';
 import 'package:login/pages/splash_screen.dart';
 import 'package:login/pages/home_page.dart';
-import 'package:login/pages/profile_page.dart';
+import 'package:login/pages/profile/profile_page.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:login/providers/user_data_provider.dart';

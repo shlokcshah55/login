@@ -20,8 +20,8 @@ help:
 
 install:
 	@echo "Installing dependencies..."
-	pip install -r requirements.txt
-	python -m playwright install
+	pip3 install -r requirements.txt
+	python3 -m playwright install
 
 deploy:
 	@echo "Deploying Firebase Functions..."
