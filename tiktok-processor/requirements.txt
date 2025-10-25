@@ -1,0 +1,8 @@
+flask==3.0.0
+googlemaps==4.10.0
+TikTokApi>=7.1.0
+playwright==1.42.0
+gunicorn==21.2.0
+openai==1.40.0
+httpx==0.27.0
+

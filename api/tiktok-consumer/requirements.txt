@@ -1,4 +1,0 @@
-Flask==2.3.2
-python-dotenv==1.0.0
-requests==2.31.0
-google-cloud-logging==3.6.0

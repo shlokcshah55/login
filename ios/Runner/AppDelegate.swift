@@ -5,6 +5,7 @@ import GoogleMaps
 @main
 @objc class AppDelegate: FlutterAppDelegate {
   private let CHANNEL = "com.example.srishlok.pinit/share"
+  private var shareChannel: FlutterMethodChannel?
 
   override func application(
     _ application: UIApplication,
@@ -21,9 +22,9 @@ import GoogleMaps
 
     // Setup method channel for share extension communication
     let controller = window?.rootViewController as! FlutterViewController
-    let shareChannel = FlutterMethodChannel(name: CHANNEL, binaryMessenger: controller.binaryMessenger)
+    shareChannel = FlutterMethodChannel(name: CHANNEL, binaryMessenger: controller.binaryMessenger)
 
-    shareChannel.setMethodCallHandler { (call: FlutterMethodCall, result: @escaping FlutterResult) in
+    shareChannel?.setMethodCallHandler { (call: FlutterMethodCall, result: @escaping FlutterResult) in
       if call.method == "getSharedURLs" {
         self.getSharedURLs(result: result)
       } else if call.method == "clearSharedURLs" {
@@ -36,9 +37,25 @@ import GoogleMaps
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
-  // Handle deep links (for OAuth callbacks)
+  // Handle deep links (for OAuth callbacks and share extension)
   override func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {
-    // Let Flutter handle the deep link (Supabase will intercept OAuth callbacks)
+    print("📲 AppDelegate: Received deep link: \(url)")
+
+    // Handle share extension deep link
+    if url.scheme == "pinit" && url.host == "share" {
+      print("📲 AppDelegate: Detected share extension deep link")
+
+      // Notify Flutter to check for shared URLs
+      // Small delay to ensure Flutter is ready
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+        print("📲 AppDelegate: Notifying Flutter about shared data")
+        self?.shareChannel?.invokeMethod("onSharedData", arguments: nil)
+      }
+
+      return true
+    }
+
+    // Let Flutter handle other deep links (Supabase will intercept OAuth callbacks)
     return super.application(app, open: url, options: options)
   }
 
@@ -48,7 +65,7 @@ import GoogleMaps
   }
 
   private func getSharedURLs(result: FlutterResult) {
-    if let userDefaults = UserDefaults(suiteName: "group.pinit.app") {
+    if let userDefaults = UserDefaults(suiteName: "group.com.example.srishlok.pinit") {
       let urls = userDefaults.stringArray(forKey: "shared_url") ?? []
       result(urls)
     } else {
@@ -57,7 +74,7 @@ import GoogleMaps
   }
 
   private func clearSharedURLs(result: FlutterResult) {
-    if let userDefaults = UserDefaults(suiteName: "group.pinit.app") {
+    if let userDefaults = UserDefaults(suiteName: "group.com.example.srishlok.pinit") {
       userDefaults.removeObject(forKey: "shared_url")
       userDefaults.synchronize()
       result(nil)
