@@ -21,6 +21,7 @@ import 'package:login/providers/nav_bar/visibility_provider.dart';
 import 'package:login/providers/nav_bar/dynamic_nav_provider.dart';
 import 'package:login/services/google_place_service.dart';
 import 'package:login/widgets/navigation/bottom_nav_bar.dart';
+import 'package:login/widgets/url_processing_popover.dart';
 import 'package:provider/provider.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:flutter/services.dart';
@@ -78,16 +79,23 @@ class MyApp extends StatefulWidget {
   _MyAppState createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   static const platform = MethodChannel('com.example.srishlok.pinit/share');
   late StreamSubscription _intentSub;
   final _sharedFiles = <SharedMediaFile>[];
+  final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   void initState() {
     super.initState();
 
-    // Check for URLs from share extension
+    // Add lifecycle observer to detect when app resumes
+    WidgetsBinding.instance.addObserver(this);
+
+    // Setup listener for share extension deep link notifications
+    platform.setMethodCallHandler(_handleNativeMethodCall);
+
+    // Check for URLs from share extension on startup
     _checkSharedURLs();
 
     // Listen to media sharing coming from outside the app while the app is in the memory.
@@ -130,6 +138,28 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    // Check for shared URLs when app resumes from background
+    if (state == AppLifecycleState.resumed) {
+      _checkSharedURLs();
+    }
+  }
+
+  /// Handle method calls from native iOS code
+  Future<dynamic> _handleNativeMethodCall(MethodCall call) async {
+    print("📲 Flutter: Received method call from native: ${call.method}");
+
+    if (call.method == 'onSharedData') {
+      print("📲 Flutter: Share extension deep link detected - checking for shared URLs");
+      await _checkSharedURLs();
+    }
+
+    return null;
+  }
+
   /// Check for URLs shared from the share extension
   Future<void> _checkSharedURLs() async {
     try {
@@ -137,38 +167,69 @@ class _MyAppState extends State<MyApp> {
       if (urls.isNotEmpty) {
         print("📲 Found ${urls.length} shared URLs from extension: $urls");
 
-        // Process each URL
-        for (String url in urls.cast<String>()) {
-          if (url.contains("tiktok.com")) {
-            await _processTikTokURL(url);
-          }
-        }
+        // Get the URL to process (only the first one)
+        final urlToProcess = urls.first as String;
 
-        // Clear the URLs after processing
+        // Clear URLs from storage immediately
         await platform.invokeMethod('clearSharedURLs');
+        print("✅ Cleared shared URLs from storage");
+
+        // Show popover with the URL
+        _showSharePopover(urlToProcess);
       }
     } catch (e) {
       print("Error checking shared URLs: $e");
     }
   }
 
+  /// Show popover overlay with shared content
+  void _showSharePopover(String url) {
+    print("📲 Showing popover for URL: $url");
+
+    // Wait a bit to ensure the navigator is ready
+    Future.delayed(Duration(milliseconds: 300), () {
+      final context = navigatorKey.currentContext;
+      if (context != null) {
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (context) => UrlProcessingPopover(
+            url: url,
+            onProcess: (urlToProcess) async {
+              // Process the URL and return location data
+              return await _processTikTokURL(urlToProcess);
+            },
+            onDismiss: () async {
+              // URLs already cleared immediately after reading
+              // No need to clear again
+            },
+          ),
+        );
+      }
+    });
+  }
+
+
+
   /// Process a single TikTok URL
-  Future<void> _processTikTokURL(String url) async {
+  Future<Map<String, dynamic>> _processTikTokURL(String url) async {
     print("Background Task Service: Processing TikTok link: $url");
 
     // Get current user ID
     final userId = SupabaseClientManager().currentUser?.id;
     if (userId == null) {
       log("Error: User not logged in. Cannot process TikTok links.");
-      return;
+      throw Exception("You must be logged in to process URLs");
     }
 
-    // Cloud Run API endpoint for publishing to Pub/Sub
+    // TODO: Replace this URL with your deployed Cloud Run URL
+    // Deploy tiktok-processor/ to Cloud Run and update this endpoint
     final apiUrl =
-        'https://tiktok-producer-711637650309.europe-west2.run.app/v1/publish';
+        'https://tiktok-processor-lqmy33nkaa-nw.a.run.app/process';
 
     try {
-      // Send request to Cloud Run service, which will publish to PubSub
+      // Send request to TikTok processor service
       final response = await http.post(
         Uri.parse(apiUrl),
         headers: <String, String>{
@@ -180,15 +241,70 @@ class _MyAppState extends State<MyApp> {
         }),
       );
 
-      if (response.statusCode == 200 || response.statusCode == 202) {
-        print("Sent tiktok to pubsub");
-        log("TikTok link sent to Cloud Run API successfully: $url");
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+
+        if (responseData['success'] == true) {
+          final locationsRaw = responseData['locations'] as List;
+
+          // Parse each location and convert to a structured format
+          final parsedLocations = locationsRaw.map((loc) {
+            final placeData = loc['place'] as Map<String, dynamic>;
+            final videoData = loc['video_data'] as Map<String, dynamic>;
+
+            // Convert to LocationModel for consistency
+            final locationModel = _googlePlaceToLocationModel(placeData);
+
+            return {
+              'location': locationModel,
+              'place': placeData,
+              'video_data': videoData,
+            };
+          }).toList();
+
+          log("Successfully extracted ${parsedLocations.length} location(s)");
+
+          return {
+            'success': true,
+            'locations': parsedLocations,
+            'url': url,
+          };
+        } else {
+          final error = responseData['error'] ?? 'Unknown error';
+          log("TikTok processing returned error: $error");
+          throw Exception("Could not extract location: $error");
+        }
       } else {
-        log("Failed to send TikTok link to Cloud Run API: ${response.body}");
+        log("Failed to process TikTok link: ${response.statusCode} - ${response.body}");
+        throw Exception("Failed to process URL: ${response.statusCode}");
       }
     } catch (e) {
-      log("Error sending TikTok link to Cloud Run API: $e");
+      log("Error processing TikTok link: $e");
+      // Re-throw if it's already an Exception, otherwise wrap it
+      if (e is Exception) {
+        rethrow;
+      } else {
+        throw Exception("Error processing URL: $e");
+      }
     }
+  }
+
+  /// Convert Google Places API response to LocationModel
+  LocationModel _googlePlaceToLocationModel(Map<String, dynamic> placeData) {
+    final placeId = placeData['place_id'] as String;
+    final location = placeData['location'] as Map<String, dynamic>;
+
+    return LocationModel(
+      locationId: placeId.hashCode.abs(), // Stable int ID from place_id
+      name: placeData['name'] as String,
+      vicinity: placeData['address'] as String? ?? '',
+      lat: (location['lat'] as num).toDouble(),
+      lng: (location['lng'] as num).toDouble(),
+      createdAt: DateTime.now(),
+      rating: (placeData['rating'] as num?)?.toDouble(),
+      photoReference: placeData['photo_reference'] as String?,
+      priceLevel: placeData['price_level'] as int?,
+    );
   }
 
   /// Process received shared links from social media and publish them to Pub/Sub
@@ -199,13 +315,19 @@ class _MyAppState extends State<MyApp> {
 
     for (String url in urls) {
       if (url.contains("tiktok.com")) {
-        await _processTikTokURL(url);
+        try {
+          final result = await _processTikTokURL(url);
+          print("Processing result: $result");
+        } catch (e) {
+          print("Error processing URL: $e");
+        }
       }
     }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _intentSub.cancel();
     super.dispose();
   }
@@ -213,6 +335,7 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'Pinit',
       debugShowCheckedModeBanner: false,
       theme: themeData,
