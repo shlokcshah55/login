@@ -42,7 +42,7 @@ end
 
 # Share extension target - completely separate from main app
 # No Flutter plugins or dependencies
-target 'TiktokShareExtension' do
+target 'URLShareExtension' do
   use_frameworks!
   # Empty target - uses only native iOS APIs
 end

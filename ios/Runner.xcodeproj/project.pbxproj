@@ -14,14 +14,12 @@
 		37EA239C2E23144300730104 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 37EA239B2E23144300730104 /* GoogleService-Info.plist */; };
 		37FC63762E25A22700E582DE /* Config.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = 37FC63752E25A22700E582DE /* Config.xcconfig */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
-		7132650D6D1382CF8F286BC0 /* Pods_TiktokShareExtension.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E48981B6E9E54541AEE59EC2 /* Pods_TiktokShareExtension.framework */; };
+		4ECE6F00ACEE2E1BEFB76967 /* Pods_URLShareExtension.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D9379045B96610342AF09E55 /* Pods_URLShareExtension.framework */; };
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
-		9B6398162E96A40E001D5CDC /* TiktokShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 9B63980C2E96A40E001D5CDC /* TiktokShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		9B6398552E96AB92001D5CDC /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B6398522E96AB92001D5CDC /* ShareViewController.swift */; };
-		9B6398572E96AB92001D5CDC /* MainInterface.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 9B6398512E96AB92001D5CDC /* MainInterface.storyboard */; };
+		9B6398B52EAB77E8001D5CDC /* URLShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 9B6398AB2EAB77E8001D5CDC /* URLShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -32,12 +30,12 @@
 			remoteGlobalIDString = 97C146ED1CF9000F007C117D;
 			remoteInfo = Runner;
 		};
-		9B6398142E96A40E001D5CDC /* PBXContainerItemProxy */ = {
+		9B6398B32EAB77E8001D5CDC /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 97C146E61CF9000F007C117D /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 9B63980B2E96A40E001D5CDC;
-			remoteInfo = TiktokShareExtension;
+			remoteGlobalIDString = 9B6398AA2EAB77E8001D5CDC;
+			remoteInfo = URLShareExtension;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -58,7 +56,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				9B6398162E96A40E001D5CDC /* TiktokShareExtension.appex in Embed Foundation Extensions */,
+				9B6398B52EAB77E8001D5CDC /* URLShareExtension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -69,6 +67,7 @@
 		091B1C44863BCB26D2D66A7C /* Pods-Runner-TiktokShareExtension.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner-TiktokShareExtension.debug.xcconfig"; path = "Target Support Files/Pods-Runner-TiktokShareExtension/Pods-Runner-TiktokShareExtension.debug.xcconfig"; sourceTree = "<group>"; };
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
+		227136DBAE4D6BE7FA11559E /* Pods-URLShareExtension.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-URLShareExtension.release.xcconfig"; path = "Target Support Files/Pods-URLShareExtension/Pods-URLShareExtension.release.xcconfig"; sourceTree = "<group>"; };
 		2521DC5221CB5AFC6CE77FEC /* Pods-Runner.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.release.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"; sourceTree = "<group>"; };
 		2A67671E99B750F5F808A3AD /* Pods_RunnerTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_RunnerTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		331C807B294A618700263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
@@ -78,6 +77,8 @@
 		3821AEBD1C4361003315E300 /* Pods-RunnerTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.debug.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.debug.xcconfig"; sourceTree = "<group>"; };
 		3A7D1D94C2AE1D27A584D1BF /* Pods-TiktokShareExtension.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-TiktokShareExtension.profile.xcconfig"; path = "Target Support Files/Pods-TiktokShareExtension/Pods-TiktokShareExtension.profile.xcconfig"; sourceTree = "<group>"; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
+		3EBD2A738DC2D901612FDE51 /* Pods-URLShareExtension.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-URLShareExtension.profile.xcconfig"; path = "Target Support Files/Pods-URLShareExtension/Pods-URLShareExtension.profile.xcconfig"; sourceTree = "<group>"; };
+		51CA3249922F38F81C299403 /* Pods-URLShareExtension.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-URLShareExtension.debug.xcconfig"; path = "Target Support Files/Pods-URLShareExtension/Pods-URLShareExtension.debug.xcconfig"; sourceTree = "<group>"; };
 		520A4351C62F0E21998A915E /* Pods-TiktokShareExtension.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-TiktokShareExtension.release.xcconfig"; path = "Target Support Files/Pods-TiktokShareExtension/Pods-TiktokShareExtension.release.xcconfig"; sourceTree = "<group>"; };
 		5D5C2C8E40D35F20213209A1 /* Pods-Runner-TiktokShareExtension.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner-TiktokShareExtension.profile.xcconfig"; path = "Target Support Files/Pods-Runner-TiktokShareExtension/Pods-Runner-TiktokShareExtension.profile.xcconfig"; sourceTree = "<group>"; };
 		5EFFBE3D0FB1C4AD29ED0802 /* Pods-Runner-TiktokShareExtension.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner-TiktokShareExtension.release.xcconfig"; path = "Target Support Files/Pods-Runner-TiktokShareExtension/Pods-Runner-TiktokShareExtension.release.xcconfig"; sourceTree = "<group>"; };
@@ -95,16 +96,38 @@
 		97C146FD1CF9000F007C117D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		97C147001CF9000F007C117D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		9B63980C2E96A40E001D5CDC /* TiktokShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TiktokShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		9B63981E2E96A557001D5CDC /* Runner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Runner.entitlements; sourceTree = "<group>"; };
-		9B63984F2E96AB92001D5CDC /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		9B6398502E96AB92001D5CDC /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/MainInterface.storyboard; sourceTree = "<group>"; };
-		9B6398522E96AB92001D5CDC /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
-		9B6398532E96AB92001D5CDC /* TiktokShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TiktokShareExtension.entitlements; sourceTree = "<group>"; };
+		9B6398AB2EAB77E8001D5CDC /* URLShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = URLShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		D015266F646B668549F36A0F /* Pods-TiktokShareExtension.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-TiktokShareExtension.debug.xcconfig"; path = "Target Support Files/Pods-TiktokShareExtension/Pods-TiktokShareExtension.debug.xcconfig"; sourceTree = "<group>"; };
+		D9379045B96610342AF09E55 /* Pods_URLShareExtension.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_URLShareExtension.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		E48981B6E9E54541AEE59EC2 /* Pods_TiktokShareExtension.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_TiktokShareExtension.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		EEDB5A70554ECC9FD34CC81C /* Pods-RunnerTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.profile.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.profile.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		9B6398B62EAB77E8001D5CDC /* Exceptions for "URLShareExtension" folder in "URLShareExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 9B6398AA2EAB77E8001D5CDC /* URLShareExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		9B6398AC2EAB77E8001D5CDC /* URLShareExtension */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				9B6398B62EAB77E8001D5CDC /* Exceptions for "URLShareExtension" folder in "URLShareExtension" target */,
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = URLShareExtension;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		5A3D1FC4D6C6E106C0A36583 /* Frameworks */ = {
@@ -123,11 +146,11 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		9B6398092E96A40E001D5CDC /* Frameworks */ = {
+		9B6398A82EAB77E8001D5CDC /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				7132650D6D1382CF8F286BC0 /* Pods_TiktokShareExtension.framework in Frameworks */,
+				4ECE6F00ACEE2E1BEFB76967 /* Pods_URLShareExtension.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -158,7 +181,7 @@
 			children = (
 				9740EEB11CF90186004384FC /* Flutter */,
 				97C146F01CF9000F007C117D /* Runner */,
-				9B6398542E96AB92001D5CDC /* TiktokShareExtension */,
+				9B6398AC2EAB77E8001D5CDC /* URLShareExtension */,
 				97C146EF1CF9000F007C117D /* Products */,
 				331C8082294A63A400263BE5 /* RunnerTests */,
 				9E87BF07909EF26033FB579D /* Pods */,
@@ -173,7 +196,7 @@
 			children = (
 				97C146EE1CF9000F007C117D /* Runner.app */,
 				331C8081294A63A400263BE5 /* RunnerTests.xctest */,
-				9B63980C2E96A40E001D5CDC /* TiktokShareExtension.appex */,
+				9B6398AB2EAB77E8001D5CDC /* URLShareExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -194,17 +217,6 @@
 			path = Runner;
 			sourceTree = "<group>";
 		};
-		9B6398542E96AB92001D5CDC /* TiktokShareExtension */ = {
-			isa = PBXGroup;
-			children = (
-				9B63984F2E96AB92001D5CDC /* Info.plist */,
-				9B6398512E96AB92001D5CDC /* MainInterface.storyboard */,
-				9B6398522E96AB92001D5CDC /* ShareViewController.swift */,
-				9B6398532E96AB92001D5CDC /* TiktokShareExtension.entitlements */,
-			);
-			path = TiktokShareExtension;
-			sourceTree = "<group>";
-		};
 		9E87BF07909EF26033FB579D /* Pods */ = {
 			isa = PBXGroup;
 			children = (
@@ -220,6 +232,9 @@
 				091B1C44863BCB26D2D66A7C /* Pods-Runner-TiktokShareExtension.debug.xcconfig */,
 				5EFFBE3D0FB1C4AD29ED0802 /* Pods-Runner-TiktokShareExtension.release.xcconfig */,
 				5D5C2C8E40D35F20213209A1 /* Pods-Runner-TiktokShareExtension.profile.xcconfig */,
+				51CA3249922F38F81C299403 /* Pods-URLShareExtension.debug.xcconfig */,
+				227136DBAE4D6BE7FA11559E /* Pods-URLShareExtension.release.xcconfig */,
+				3EBD2A738DC2D901612FDE51 /* Pods-URLShareExtension.profile.xcconfig */,
 			);
 			path = Pods;
 			sourceTree = "<group>";
@@ -230,6 +245,7 @@
 				6336610ED820C7E473D1BB15 /* Pods_Runner.framework */,
 				2A67671E99B750F5F808A3AD /* Pods_RunnerTests.framework */,
 				E48981B6E9E54541AEE59EC2 /* Pods_TiktokShareExtension.framework */,
+				D9379045B96610342AF09E55 /* Pods_URLShareExtension.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -261,12 +277,12 @@
 			buildConfigurationList = 97C147051CF9000F007C117D /* Build configuration list for PBXNativeTarget "Runner" */;
 			buildPhases = (
 				9EA64428EB7CF81FE48DE733 /* [CP] Check Pods Manifest.lock */,
+				9B6398172E96A40E001D5CDC /* Embed Foundation Extensions */,
 				9740EEB61CF901F6004384FC /* Run Script */,
 				97C146EA1CF9000F007C117D /* Sources */,
 				97C146EB1CF9000F007C117D /* Frameworks */,
 				97C146EC1CF9000F007C117D /* Resources */,
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
-				9B6398172E96A40E001D5CDC /* Embed Foundation Extensions */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 				EEB581019E23CE3CD0B56AC6 /* [CP] Embed Pods Frameworks */,
 				FF2997275C7D58660E160F53 /* [CP] Copy Pods Resources */,
@@ -274,29 +290,32 @@
 			buildRules = (
 			);
 			dependencies = (
-				9B6398152E96A40E001D5CDC /* PBXTargetDependency */,
+				9B6398B42EAB77E8001D5CDC /* PBXTargetDependency */,
 			);
 			name = Runner;
 			productName = Runner;
 			productReference = 97C146EE1CF9000F007C117D /* Runner.app */;
 			productType = "com.apple.product-type.application";
 		};
-		9B63980B2E96A40E001D5CDC /* TiktokShareExtension */ = {
+		9B6398AA2EAB77E8001D5CDC /* URLShareExtension */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 9B63981C2E96A40E001D5CDC /* Build configuration list for PBXNativeTarget "TiktokShareExtension" */;
+			buildConfigurationList = 9B6398B72EAB77E8001D5CDC /* Build configuration list for PBXNativeTarget "URLShareExtension" */;
 			buildPhases = (
-				F2EE7B42BB35363ADDFFC14E /* [CP] Check Pods Manifest.lock */,
-				9B6398082E96A40E001D5CDC /* Sources */,
-				9B6398092E96A40E001D5CDC /* Frameworks */,
-				9B63980A2E96A40E001D5CDC /* Resources */,
+				DE39649B832C9F758AAA7BC4 /* [CP] Check Pods Manifest.lock */,
+				9B6398A72EAB77E8001D5CDC /* Sources */,
+				9B6398A82EAB77E8001D5CDC /* Frameworks */,
+				9B6398A92EAB77E8001D5CDC /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
-			name = TiktokShareExtension;
-			productName = TiktokShareExtension;
-			productReference = 9B63980C2E96A40E001D5CDC /* TiktokShareExtension.appex */;
+			fileSystemSynchronizedGroups = (
+				9B6398AC2EAB77E8001D5CDC /* URLShareExtension */,
+			);
+			name = URLShareExtension;
+			productName = URLShareExtension;
+			productReference = 9B6398AB2EAB77E8001D5CDC /* URLShareExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
@@ -318,7 +337,7 @@
 						CreatedOnToolsVersion = 7.3.1;
 						LastSwiftMigration = 1100;
 					};
-					9B63980B2E96A40E001D5CDC = {
+					9B6398AA2EAB77E8001D5CDC = {
 						CreatedOnToolsVersion = 26.0.1;
 					};
 				};
@@ -338,7 +357,7 @@
 			targets = (
 				97C146ED1CF9000F007C117D /* Runner */,
 				331C8080294A63A400263BE5 /* RunnerTests */,
-				9B63980B2E96A40E001D5CDC /* TiktokShareExtension */,
+				9B6398AA2EAB77E8001D5CDC /* URLShareExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -364,11 +383,10 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		9B63980A2E96A40E001D5CDC /* Resources */ = {
+		9B6398A92EAB77E8001D5CDC /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				9B6398572E96AB92001D5CDC /* MainInterface.storyboard in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -450,6 +468,28 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
+		DE39649B832C9F758AAA7BC4 /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-URLShareExtension-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
 		EEB581019E23CE3CD0B56AC6 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -465,28 +505,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
-		F2EE7B42BB35363ADDFFC14E /* [CP] Check Pods Manifest.lock */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
-				"${PODS_ROOT}/Manifest.lock",
-			);
-			name = "[CP] Check Pods Manifest.lock";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(DERIVED_FILE_DIR)/Pods-TiktokShareExtension-checkManifestLockResult.txt",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
 		FF2997275C7D58660E160F53 /* [CP] Copy Pods Resources */ = {
@@ -526,11 +544,10 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		9B6398082E96A40E001D5CDC /* Sources */ = {
+		9B6398A72EAB77E8001D5CDC /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				9B6398552E96AB92001D5CDC /* ShareViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -542,10 +559,10 @@
 			target = 97C146ED1CF9000F007C117D /* Runner */;
 			targetProxy = 331C8085294A63A400263BE5 /* PBXContainerItemProxy */;
 		};
-		9B6398152E96A40E001D5CDC /* PBXTargetDependency */ = {
+		9B6398B42EAB77E8001D5CDC /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 9B63980B2E96A40E001D5CDC /* TiktokShareExtension */;
-			targetProxy = 9B6398142E96A40E001D5CDC /* PBXContainerItemProxy */;
+			target = 9B6398AA2EAB77E8001D5CDC /* URLShareExtension */;
+			targetProxy = 9B6398B32EAB77E8001D5CDC /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -564,14 +581,6 @@
 				97C147001CF9000F007C117D /* Base */,
 			);
 			name = LaunchScreen.storyboard;
-			sourceTree = "<group>";
-		};
-		9B6398512E96AB92001D5CDC /* MainInterface.storyboard */ = {
-			isa = PBXVariantGroup;
-			children = (
-				9B6398502E96AB92001D5CDC /* Base */,
-			);
-			name = MainInterface.storyboard;
 			sourceTree = "<group>";
 		};
 /* End PBXVariantGroup section */
@@ -640,12 +649,12 @@
 				DEVELOPMENT_TEAM = 65D6Q2APL8;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.srishlok.pinit2;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.srishlok.pinit;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
@@ -825,12 +834,12 @@
 				DEVELOPMENT_TEAM = 65D6Q2APL8;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.srishlok.pinit2;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.srishlok.pinit;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -850,12 +859,12 @@
 				DEVELOPMENT_TEAM = 65D6Q2APL8;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.srishlok.pinit2;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.srishlok.pinit;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
@@ -863,9 +872,9 @@
 			};
 			name = Release;
 		};
-		9B6398182E96A40E001D5CDC /* Debug */ = {
+		9B6398B82EAB77E8001D5CDC /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = D015266F646B668549F36A0F /* Pods-TiktokShareExtension.debug.xcconfig */;
+			baseConfigurationReference = 51CA3249922F38F81C299403 /* Pods-URLShareExtension.debug.xcconfig */;
 			buildSettings = {
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -873,17 +882,17 @@
 				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
 				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
-				CODE_SIGN_ENTITLEMENTS = TiktokShareExtension/TiktokShareExtension.entitlements;
+				CODE_SIGN_ENTITLEMENTS = URLShareExtension/URLShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 65D6Q2APL8;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = TiktokShareExtension/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = TiktokShareExtension;
+				INFOPLIST_FILE = URLShareExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = URLShareExtension;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -893,7 +902,7 @@
 				MARKETING_VERSION = 1.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.srishlok.pinit2.TiktokShareExtension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.srishlok.pinit.URLShareExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -907,9 +916,9 @@
 			};
 			name = Debug;
 		};
-		9B6398192E96A40E001D5CDC /* Release */ = {
+		9B6398B92EAB77E8001D5CDC /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 520A4351C62F0E21998A915E /* Pods-TiktokShareExtension.release.xcconfig */;
+			baseConfigurationReference = 227136DBAE4D6BE7FA11559E /* Pods-URLShareExtension.release.xcconfig */;
 			buildSettings = {
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -917,17 +926,17 @@
 				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
 				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
-				CODE_SIGN_ENTITLEMENTS = TiktokShareExtension/TiktokShareExtension.entitlements;
+				CODE_SIGN_ENTITLEMENTS = URLShareExtension/URLShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 65D6Q2APL8;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = TiktokShareExtension/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = TiktokShareExtension;
+				INFOPLIST_FILE = URLShareExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = URLShareExtension;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -936,7 +945,7 @@
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MARKETING_VERSION = 1.0;
 				MTL_FAST_MATH = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.srishlok.pinit2.TiktokShareExtension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.srishlok.pinit.URLShareExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -948,9 +957,9 @@
 			};
 			name = Release;
 		};
-		9B63981A2E96A40E001D5CDC /* Profile */ = {
+		9B6398BA2EAB77E8001D5CDC /* Profile */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 3A7D1D94C2AE1D27A584D1BF /* Pods-TiktokShareExtension.profile.xcconfig */;
+			baseConfigurationReference = 3EBD2A738DC2D901612FDE51 /* Pods-URLShareExtension.profile.xcconfig */;
 			buildSettings = {
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -958,17 +967,17 @@
 				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
 				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
-				CODE_SIGN_ENTITLEMENTS = TiktokShareExtension/TiktokShareExtension.entitlements;
+				CODE_SIGN_ENTITLEMENTS = URLShareExtension/URLShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 65D6Q2APL8;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = TiktokShareExtension/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = TiktokShareExtension;
+				INFOPLIST_FILE = URLShareExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = URLShareExtension;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -977,7 +986,7 @@
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MARKETING_VERSION = 1.0;
 				MTL_FAST_MATH = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.srishlok.pinit2.TiktokShareExtension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.srishlok.pinit.URLShareExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -1022,12 +1031,12 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		9B63981C2E96A40E001D5CDC /* Build configuration list for PBXNativeTarget "TiktokShareExtension" */ = {
+		9B6398B72EAB77E8001D5CDC /* Build configuration list for PBXNativeTarget "URLShareExtension" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				9B6398182E96A40E001D5CDC /* Debug */,
-				9B6398192E96A40E001D5CDC /* Release */,
-				9B63981A2E96A40E001D5CDC /* Profile */,
+				9B6398B82EAB77E8001D5CDC /* Debug */,
+				9B6398B92EAB77E8001D5CDC /* Release */,
+				9B6398BA2EAB77E8001D5CDC /* Profile */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
