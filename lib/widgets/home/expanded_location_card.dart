@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/supabase/service.dart';
+import 'package:login/models/chat_group_model.dart';
+import 'package:login/providers/user_data_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/locations.dart';
@@ -107,48 +109,56 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard> {
     final size = MediaQuery.of(context).size;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final supabaseProvider =
-        Provider.of<SupabaseService>(context, listen: false);
 
-    return GestureDetector(
-      onTap: widget.onClose, // Close when tapping outside
-      child: Container(
-        width: size.width,
-        height: size.height * 0.8,
-        color: Colors.black.withOpacity(0.5),
-        child: Center(
-          child: GestureDetector(
-            onTap: () {}, // Prevent closing when tapping on the card
-            child: Container(
-              width: size.width * 0.9,
-              height: size.height * 0.7,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
-                    blurRadius: 10,
-                    spreadRadius: 5,
-                  ),
-                ],
-              ),
+    return Material(
+      color: Colors.transparent,
+      child: GestureDetector(
+        onTap: widget.onClose, // Close when tapping outside
+        child: Container(
+          width: size.width,
+          height: size.height,
+          color: Colors.black.withOpacity(0.6),
+          child: Center(
+            child: GestureDetector(
+              onTap: () {}, // Prevent closing when tapping on the card
+              child: Container(
+                width: size.width * 0.92,
+                height: size.height * 0.85,
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      blurRadius: 20,
+                      spreadRadius: 2,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // Header with image
                   ClipRRect(
                     borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(20),
-                      topRight: Radius.circular(20),
+                      topLeft: Radius.circular(24),
+                      topRight: Radius.circular(24),
                     ),
                     child: Stack(
                       children: [
                         // Image
                         Container(
-                          height: size.height * 0.25,
+                          height: size.height * 0.3,
                           decoration: BoxDecoration(
-                            color: Colors.grey[300],
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                colorScheme.primary.withOpacity(0.3),
+                                colorScheme.secondary.withOpacity(0.3),
+                              ],
+                            ),
                           ),
                           child: widget.location.photoReference != null
                               ? Image.network(
@@ -158,18 +168,18 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard> {
                                   errorBuilder: (context, error, stackTrace) {
                                     return Center(
                                       child: Icon(
-                                        Icons.restaurant_menu_rounded,
-                                        size: 60,
-                                        color: Colors.grey[400],
+                                        Icons.restaurant,
+                                        size: 80,
+                                        color: Colors.white.withOpacity(0.7),
                                       ),
                                     );
                                   },
                                 )
                               : Center(
                                   child: Icon(
-                                    Icons.restaurant_menu_rounded,
-                                    size: 60,
-                                    color: Colors.grey[400],
+                                    Icons.restaurant,
+                                    size: 80,
+                                    color: Colors.white.withOpacity(0.7),
                                   ),
                                 ),
                         ),
@@ -179,111 +189,82 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard> {
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
                                 colors: [
-                                  Colors.black.withOpacity(0.7),
+                                  Colors.black.withOpacity(0.6),
                                   Colors.transparent,
-                                  Colors.black.withOpacity(0.7),
+                                  Colors.black.withOpacity(0.8),
                                 ],
                                 begin: Alignment.topCenter,
                                 end: Alignment.bottomCenter,
-                                stops: const [0.0, 0.5, 1.0],
+                                stops: const [0.0, 0.4, 1.0],
                               ),
                             ),
                           ),
                         ),
-                        // Save button & close button at top
+                        // Close button at top
                         Positioned(
-                          top: 8,
-                          right: 8,
-                          child: Row(
-                            children: [
-                              // Save button
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withOpacity(0.6),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: IconButton(
-                                  icon: _isLoading
-                                      ? SizedBox(
-                                          width: 18,
-                                          height: 18,
-                                          child: CircularProgressIndicator(
-                                            color: colorScheme.primary,
-                                            strokeWidth: 2,
-                                          ),
-                                        )
-                                      : Icon(
-                                          _isSaved
-                                              ? Icons.bookmark
-                                              : Icons.bookmark_border,
-                                          color: colorScheme.primary,
-                                        ),
-                                  onPressed: _isLoading ? null : _toggleSave,
-                                ),
+                          top: 12,
+                          right: 12,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.5),
+                              shape: BoxShape.circle,
+                            ),
+                            child: IconButton(
+                              icon: const Icon(
+                                Icons.close_rounded,
+                                color: Colors.white,
+                                size: 28,
                               ),
-                              const SizedBox(width: 8),
-                              // Close button
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withOpacity(0.6),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: IconButton(
-                                  icon: const Icon(
-                                    Icons.close,
-                                    color: Colors.white,
-                                  ),
-                                  onPressed: widget.onClose,
-                                ),
-                              ),
-                            ],
+                              onPressed: widget.onClose,
+                            ),
                           ),
                         ),
-                        // Location name at bottom of image
+                        // Location name and details at bottom of image
                         Positioned(
-                          bottom: 16,
-                          left: 16,
-                          right: 16,
+                          bottom: 20,
+                          left: 20,
+                          right: 20,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // Restaurant name with semi-transparent background
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: const Color.fromARGB(255, 32, 54, 54)
-                                      .withOpacity(0.7),
-                                  borderRadius: BorderRadius.circular(10),
+                              // Restaurant name
+                              Text(
+                                widget.location.name,
+                                style: theme.textTheme.headlineMedium?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.black.withOpacity(0.5),
+                                      blurRadius: 8,
+                                    ),
+                                  ],
                                 ),
-                                child: Text(
-                                  widget.location.name,
-                                  style:
-                                      theme.textTheme.headlineSmall?.copyWith(
-                                    color: const Color.fromARGB(
-                                        255, 252, 252, 252),
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                               ),
+                              const SizedBox(height: 8),
+                              // Cuisine badge
                               if (widget.location.cuisine != null &&
                                   widget.location.cuisine!.isNotEmpty)
                                 Container(
-                                  margin: const EdgeInsets.only(top: 8),
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 4),
+                                      horizontal: 12, vertical: 6),
                                   decoration: BoxDecoration(
-                                    color: colorScheme.primaryContainer
-                                        .withOpacity(0.9),
-                                    borderRadius: BorderRadius.circular(8),
+                                    color: Colors.white.withOpacity(0.25),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(0.4),
+                                      width: 1,
+                                    ),
                                   ),
                                   child: Text(
                                     widget.location.cuisine!,
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: colorScheme.onPrimaryContainer,
-                                      fontWeight: FontWeight.bold,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: 0.5,
                                     ),
                                   ),
                                 ),
@@ -296,100 +277,97 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard> {
                   // Content
                   Expanded(
                     child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(20),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Rating and Price
-                          Row(
-                            children: [
-                              // Rating
-                              if (widget.location.rating != null)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.amber[700],
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.star_rounded,
-                                        color: Colors.white,
-                                        size: 16,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        '${widget.location.rating!.toStringAsFixed(1)} (${widget.location.userRatingsTotal ?? 0})',
-                                        style: theme.textTheme.bodyMedium
-                                            ?.copyWith(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                          // Key Stats Row - Rating, Price, Saved Count
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 2),
                                 ),
-                              const SizedBox(width: 12),
-                              // Price level
-                              if (widget.location.priceLevel != null &&
-                                  widget.location.priceLevel! > 0)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.green[700],
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    '\$' * widget.location.priceLevel!,
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceAround,
+                              children: [
+                                // Rating
+                                if (widget.location.rating != null)
+                                  Expanded(
+                                    child: _buildStatItem(
+                                      Icons.star_rounded,
+                                      '${widget.location.rating!.toStringAsFixed(1)}',
+                                      '${widget.location.userRatingsTotal ?? 0} reviews',
+                                      Colors.amber[700]!,
                                     ),
                                   ),
-                                ),
-                              // Saved count badge
-                              if (widget.location.savedCount != null &&
-                                  widget.location.savedCount! > 0)
-                                Container(
-                                  margin: const EdgeInsets.only(left: 12),
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: colorScheme.secondary,
-                                    borderRadius: BorderRadius.circular(8),
+                                if (widget.location.rating != null &&
+                                    widget.location.priceLevel != null)
+                                  Container(
+                                    width: 1,
+                                    height: 40,
+                                    color: Colors.grey[300],
                                   ),
-                                  child: Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.bookmark_rounded,
-                                        color: Colors.white,
-                                        size: 16,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        '${widget.location.savedCount}',
-                                        style: theme.textTheme.bodyMedium
-                                            ?.copyWith(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
+                                // Price Level
+                                if (widget.location.priceLevel != null &&
+                                    widget.location.priceLevel! > 0)
+                                  Expanded(
+                                    child: _buildStatItem(
+                                      Icons.attach_money_rounded,
+                                      '\$' * widget.location.priceLevel!,
+                                      _getPriceLabel(
+                                          widget.location.priceLevel!),
+                                      Colors.green[700]!,
+                                    ),
                                   ),
-                                ),
-                            ],
+                                if (widget.location.priceLevel != null &&
+                                    widget.location.savedCount != null)
+                                  Container(
+                                    width: 1,
+                                    height: 40,
+                                    color: Colors.grey[300],
+                                  ),
+                                // Saved Count
+                                if (widget.location.savedCount != null &&
+                                    widget.location.savedCount! > 0)
+                                  Expanded(
+                                    child: _buildStatItem(
+                                      Icons.bookmark_rounded,
+                                      '${widget.location.savedCount}',
+                                      'Saves',
+                                      colorScheme.primary,
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ),
-                          const SizedBox(height: 16),
+
+                          const SizedBox(height: 20),
+
+                          // Location Details Section
+                          Text(
+                            'Details',
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[800],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
 
                           // Address
-                          _buildInfoRow(
+                          _buildModernInfoRow(
                             context,
-                            Icons.location_on,
+                            Icons.location_on_rounded,
+                            'Address',
                             widget.location.vicinity,
-                            colorScheme,
+                            colorScheme.primary,
                           ),
 
                           // Phone
@@ -397,131 +375,241 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard> {
                             InkWell(
                               onTap: () =>
                                   _launchPhone(widget.location.phoneNumber!),
-                              child: _buildInfoRow(
+                              child: _buildModernInfoRow(
                                 context,
-                                Icons.phone,
+                                Icons.phone_rounded,
+                                'Phone',
                                 widget.location.phoneNumber!,
-                                colorScheme,
+                                Colors.blue[700]!,
                                 isLink: true,
                               ),
                             ),
 
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 20),
 
-                          // Location on map preview
-                          AspectRatio(
-                            aspectRatio: 16 / 9,
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Container(
-                                color: Colors.grey[300],
-                                child: Stack(
-                                  children: [
-                                    // Map preview image - using Static Maps API
-                                    Image.network(
-                                      'https://maps.googleapis.com/maps/api/staticmap?center=${widget.location.lat},${widget.location.lng}&zoom=15&size=600x300&maptype=roadmap&markers=color:red%7C${widget.location.lat},${widget.location.lng}&key=${dotenv.env['GOOGLE_PLACE_API_KEY']}',
-                                      fit: BoxFit.cover,
-                                      width: double.infinity,
-                                      errorBuilder:
-                                          (context, error, stackTrace) {
-                                        return Center(
-                                          child: Icon(
-                                            Icons.map,
-                                            size: 60,
-                                            color: Colors.grey[400],
+                          // Quick Actions Card
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              children: [
+                                // Directions Button
+                                InkWell(
+                                  onTap: () => _openInMaps(
+                                      widget.location.lat,
+                                      widget.location.lng,
+                                      widget.location.name),
+                                  borderRadius: const BorderRadius.vertical(
+                                      top: Radius.circular(16)),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 20, vertical: 16),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(10),
+                                          decoration: BoxDecoration(
+                                            color: Colors.blue[50],
+                                            borderRadius:
+                                                BorderRadius.circular(12),
                                           ),
-                                        );
-                                      },
-                                    ),
-                                    // Overlay button to open in maps
-                                    Positioned.fill(
-                                      child: Material(
-                                        color: Colors.transparent,
-                                        child: InkWell(
-                                          onTap: () => _openInMaps(
-                                              widget.location.lat,
-                                              widget.location.lng,
-                                              widget.location.name),
-                                          child: Container(
-                                            alignment: Alignment.center,
-                                            child: Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 16,
-                                                      vertical: 8),
-                                              decoration: BoxDecoration(
-                                                color: colorScheme.primary
-                                                    .withOpacity(0.8),
-                                                borderRadius:
-                                                    BorderRadius.circular(20),
-                                              ),
-                                              child: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  const Icon(
-                                                    Icons.directions,
-                                                    color: Colors.white,
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  Text(
-                                                    'Directions',
-                                                    style: theme
-                                                        .textTheme.labelLarge
-                                                        ?.copyWith(
-                                                      color: Colors.white,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
+                                          child: Icon(
+                                            Icons.directions_rounded,
+                                            color: Colors.blue[700],
+                                            size: 24,
                                           ),
                                         ),
-                                      ),
+                                        const SizedBox(width: 16),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'Get Directions',
+                                                style: theme
+                                                    .textTheme.titleMedium
+                                                    ?.copyWith(
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.grey[800],
+                                                ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                'Open in maps app',
+                                                style: theme
+                                                    .textTheme.bodySmall
+                                                    ?.copyWith(
+                                                  color: Colors.grey[600],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Icon(Icons.arrow_forward_ios_rounded,
+                                            size: 16, color: Colors.grey[400]),
+                                      ],
                                     ),
-                                  ],
+                                  ),
                                 ),
-                              ),
-                            ),
-                          ),
-
-                          // Action buttons
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 20),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: [
-                                _buildActionButton(
-                                  context,
-                                  Icons.share,
-                                  'Share',
-                                  colorScheme,
-                                  () {
-                                    // Implement share functionality
-                                  },
+                                Divider(
+                                    height: 1,
+                                    thickness: 1,
+                                    color: Colors.grey[200]),
+                                // Add to Bubble Button
+                                InkWell(
+                                  onTap: () => _showAddToBubbleDialog(context),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 20, vertical: 16),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(10),
+                                          decoration: BoxDecoration(
+                                            color: Colors.purple[50],
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                          ),
+                                          child: Icon(
+                                            Icons.group_add_rounded,
+                                            color: Colors.purple[700],
+                                            size: 24,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'Add to Bubble',
+                                                style: theme
+                                                    .textTheme.titleMedium
+                                                    ?.copyWith(
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.grey[800],
+                                                ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                'Share with your groups',
+                                                style: theme
+                                                    .textTheme.bodySmall
+                                                    ?.copyWith(
+                                                  color: Colors.grey[600],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Icon(Icons.arrow_forward_ios_rounded,
+                                            size: 16, color: Colors.grey[400]),
+                                      ],
+                                    ),
+                                  ),
                                 ),
-                                _buildActionButton(
-                                  context,
-                                  _isSaved
-                                      ? Icons.bookmark
-                                      : Icons.bookmark_border,
-                                  _isSaved ? 'Saved' : 'Save',
-                                  colorScheme,
-                                  _isLoading ? null : _toggleSave,
-                                ),
-                                _buildActionButton(
-                                  context,
-                                  Icons.list_alt,
-                                  'Reviews',
-                                  colorScheme,
-                                  () {
-                                    // Implement reviews functionality
-                                  },
+                                Divider(
+                                    height: 1,
+                                    thickness: 1,
+                                    color: Colors.grey[200]),
+                                // Save/Unsave Button
+                                InkWell(
+                                  onTap: _isLoading ? null : _toggleSave,
+                                  borderRadius: const BorderRadius.only(
+                                    bottomLeft: Radius.circular(16),
+                                    bottomRight: Radius.circular(16),
+                                  ),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 20, vertical: 16),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(10),
+                                          decoration: BoxDecoration(
+                                            color: _isSaved
+                                                ? colorScheme.primary
+                                                    .withOpacity(0.1)
+                                                : Colors.grey[100],
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                          ),
+                                          child: _isLoading
+                                              ? SizedBox(
+                                                  width: 24,
+                                                  height: 24,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                    color: colorScheme.primary,
+                                                    strokeWidth: 2.5,
+                                                  ),
+                                                )
+                                              : Icon(
+                                                  _isSaved
+                                                      ? Icons.bookmark_rounded
+                                                      : Icons
+                                                          .bookmark_border_rounded,
+                                                  color: _isSaved
+                                                      ? colorScheme.primary
+                                                      : Colors.grey[700],
+                                                  size: 24,
+                                                ),
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                _isSaved
+                                                    ? 'Saved to your list'
+                                                    : 'Save this place',
+                                                style: theme
+                                                    .textTheme.titleMedium
+                                                    ?.copyWith(
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.grey[800],
+                                                ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                _isSaved
+                                                    ? 'Tap to remove from saves'
+                                                    : 'Add to your saved places',
+                                                style: theme
+                                                    .textTheme.bodySmall
+                                                    ?.copyWith(
+                                                  color: Colors.grey[600],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
                           ),
+
+                          const SizedBox(height: 20),
+
+                          // Map Preview
+                          
+                          const SizedBox(height: 30),
                         ],
                       ),
                     ),
@@ -532,80 +620,396 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard> {
           ),
         ),
       ),
+    ),
     );
   }
 
-  Widget _buildInfoRow(
-    BuildContext context,
-    IconData icon,
-    String text,
-    ColorScheme colorScheme, {
-    bool isLink = false,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  // Show dialog to select bubble to add location to
+  Future<void> _showAddToBubbleDialog(BuildContext context) async {
+    final supabaseService = Provider.of<SupabaseService>(context, listen: false);
+    final userDataProvider = Provider.of<UserDataProvider>(context, listen: false);
+    final userId = userDataProvider.supabaseUserData?.supabaseId;
+
+    if (userId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please log in to add to bubbles')),
+        );
+      }
+      return;
+    }
+
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+
+    try {
+      // Fetch user's bubbles
+      final bubbles = await supabaseService.bubbles.getUserBubbles(userId);
+      
+      if (!mounted) return;
+      
+      // Close loading dialog
+      Navigator.pop(context);
+
+      if (bubbles.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('You don\'t have any bubbles yet. Create one first!'),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+        return;
+      }
+
+      // Show bubble selection dialog
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: Colors.transparent,
+        isScrollControlled: true,
+        builder: (context) => _buildBubbleSelectionSheet(bubbles, userId),
+      );
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading bubbles: $e')),
+        );
+      }
+    }
+  }
+
+  // Build the bubble selection bottom sheet
+  Widget _buildBubbleSelectionSheet(List<ChatGroupModel> bubbles, String userId) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon,
-            color: isLink ? colorScheme.primary : Colors.grey[700],
-            size: 20,
+          // Handle bar
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(2),
+            ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
+          const SizedBox(height: 20),
+          // Title
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                Icon(Icons.group_add_rounded, color: Colors.grey[700]),
+                const SizedBox(width: 12),
+                Text(
+                  'Add to Bubble',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[800],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Text(
-              text,
+              'Select a bubble to share this location',
               style: TextStyle(
-                color: isLink ? colorScheme.primary : Colors.grey[800],
-                fontSize: 15,
-                fontWeight: isLink ? FontWeight.w500 : FontWeight.normal,
-                decoration:
-                    isLink ? TextDecoration.underline : TextDecoration.none,
+                fontSize: 14,
+                color: Colors.grey[600],
               ),
             ),
           ),
+          const SizedBox(height: 20),
+          // Bubble list
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.5,
+            ),
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: bubbles.length,
+              itemBuilder: (context, index) {
+                final bubble = bubbles[index];
+                return _buildBubbleItem(bubble, userId);
+              },
+            ),
+          ),
+          const SizedBox(height: 10),
         ],
       ),
     );
   }
 
-  Widget _buildActionButton(
+  // Build individual bubble item
+  Widget _buildBubbleItem(ChatGroupModel bubble, String userId) {
+    return InkWell(
+      onTap: () => _addLocationToBubble(bubble, userId),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.grey[50],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[200]!),
+        ),
+        child: Row(
+          children: [
+            // Group avatar
+            CircleAvatar(
+              radius: 24,
+              backgroundImage: bubble.groupAvatar.isNotEmpty
+                  ? NetworkImage(bubble.groupAvatar)
+                  : null,
+              backgroundColor: Colors.blue[100],
+              child: bubble.groupAvatar.isEmpty
+                  ? Icon(Icons.group, color: Colors.blue[700], size: 28)
+                  : null,
+            ),
+            const SizedBox(width: 14),
+            // Group info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    bubble.name,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${bubble.memberCount} members · ${bubble.groupLocations.length} locations',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios_rounded,
+                size: 16, color: Colors.grey[400]),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Add location to selected bubble
+  Future<void> _addLocationToBubble(ChatGroupModel bubble, String userId) async {
+    final supabaseService = Provider.of<SupabaseService>(context, listen: false);
+    
+    // Close the bubble selection sheet
+    Navigator.pop(context);
+
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+
+    try {
+      final success = await supabaseService.bubbles.addLocationToBubble(
+        bubbleId: bubble.id,
+        locationId: widget.location.locationId,
+        addedBy: userId,
+        note: 'Shared from explore',
+      );
+
+      if (!mounted) return;
+
+      // Close loading dialog
+      Navigator.pop(context);
+
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text('Added to "${bubble.name}"'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green[600],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Failed to add location to bubble'),
+            backgroundColor: Colors.red[600],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red[600],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  // New stat item widget for the stats card
+  Widget _buildStatItem(
+      IconData icon, String value, String label, Color color) {
+    return Column(
+      children: [
+        Icon(icon, color: color, size: 28),
+        const SizedBox(height: 6),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey[800],
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: Colors.grey[600],
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  // Get price level description
+  String _getPriceLabel(int priceLevel) {
+    switch (priceLevel) {
+      case 1:
+        return 'Inexpensive';
+      case 2:
+        return 'Moderate';
+      case 3:
+        return 'Expensive';
+      case 4:
+        return 'Very Expensive';
+      default:
+        return '';
+    }
+  }
+
+  // Modern info row with better styling
+  Widget _buildModernInfoRow(
     BuildContext context,
     IconData icon,
     String label,
-    ColorScheme colorScheme,
-    VoidCallback? onTap,
-  ) {
-    final isDisabled = onTap == null;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                color: isDisabled ? Colors.grey : colorScheme.primary,
-                size: 24,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  color: isDisabled ? Colors.grey : colorScheme.onSurface,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
+    String text,
+    Color iconColor, {
+    bool isLink = false,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
-        ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: iconColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              icon,
+              color: iconColor,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  text,
+                  style: TextStyle(
+                    color: isLink ? iconColor : Colors.grey[800],
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    decoration:
+                        isLink ? TextDecoration.underline : TextDecoration.none,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (isLink)
+            Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 14,
+              color: Colors.grey[400],
+            ),
+        ],
       ),
     );
   }
