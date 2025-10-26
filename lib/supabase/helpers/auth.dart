@@ -99,7 +99,7 @@ class AuthHelper {
       // The client ID and secret are configured in Supabase Dashboard
       final result = await _client.auth.signInWithOAuth(
         OAuthProvider.google,
-        redirectTo: 'com.srishlok.pinit://login-callback/',
+        redirectTo: 'com.example.srishlok.pinit://login-callback/',
         authScreenLaunchMode: LaunchMode.externalApplication,
       );
 
@@ -457,6 +457,154 @@ class AuthHelper {
         print('Error searching users: $e');
       }
       return [];
+    }
+  }
+
+  /// Get all dietary requirement tags for the current user
+  /// Returns a list of maps containing tag information
+  Future<List<Map<String, dynamic>>> getDietaryRequirementTags() async {
+    try {
+      final user = currentUser;
+      if (user == null) return [];
+
+      final response = await _client
+          .from(SupabaseConstants.tableUserTags)
+          .select('''
+            ${SupabaseConstants.columnId},
+            ${SupabaseConstants.tableTags}!inner(
+              ${SupabaseConstants.columnTagId},
+              ${SupabaseConstants.columnText},
+              ${SupabaseConstants.columnPromptDescription},
+              ${SupabaseConstants.columnTagType}
+            )
+          ''')
+          .eq(SupabaseConstants.columnUserId, user.id)
+          .eq('${SupabaseConstants.tableTags}.${SupabaseConstants.columnTagType}', 'dietary_requirement');
+
+      if ((response as List).isEmpty) {
+        return [];
+      }
+
+      return (response as List).map((item) {
+        final tag = item[SupabaseConstants.tableTags] as Map<String, dynamic>;
+        return {
+          'id': item[SupabaseConstants.columnId],
+          'tag_id': tag[SupabaseConstants.columnTagId],
+          'text': tag[SupabaseConstants.columnText],
+          'prompt_description': tag[SupabaseConstants.columnPromptDescription],
+          'tag_type': tag[SupabaseConstants.columnTagType],
+        };
+      }).toList();
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error getting dietary requirement tags: $e');
+      }
+      return [];
+    }
+  }
+
+  /// Get all preference tags for the current user
+  /// Returns a list of maps containing tag information
+  Future<List<Map<String, dynamic>>> getPreferenceTags() async {
+    try {
+      final user = currentUser;
+      if (user == null) return [];
+
+      final response = await _client
+          .from(SupabaseConstants.tableUserTags)
+          .select('''
+            ${SupabaseConstants.columnId},
+            ${SupabaseConstants.tableTags}!inner(
+              ${SupabaseConstants.columnTagId},
+              ${SupabaseConstants.columnText},
+              ${SupabaseConstants.columnPromptDescription},
+              ${SupabaseConstants.columnTagType}
+            )
+          ''')
+          .eq(SupabaseConstants.columnUserId, user.id)
+          .eq('${SupabaseConstants.tableTags}.${SupabaseConstants.columnTagType}', 'preference');
+
+      if ((response as List).isEmpty) {
+        return [];
+      }
+
+      return (response as List).map((item) {
+        final tag = item[SupabaseConstants.tableTags] as Map<String, dynamic>;
+        return {
+          'id': item[SupabaseConstants.columnId],
+          'tag_id': tag[SupabaseConstants.columnTagId],
+          'text': tag[SupabaseConstants.columnText],
+          'prompt_description': tag[SupabaseConstants.columnPromptDescription],
+          'tag_type': tag[SupabaseConstants.columnTagType],
+        };
+      }).toList();
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error getting preference tags: $e');
+      }
+      return [];
+    }
+  }
+
+  /// Get the influence value of a specific followee on the current user
+  /// Takes the followee ID and returns their influence value on the current user
+  Future<int?> getFolloweeInfluence(String followeeId) async {
+    try {
+      final user = currentUser;
+      if (user == null) return null;
+
+      final response = await _client
+          .from(SupabaseConstants.tableUserFriends)
+          .select(SupabaseConstants.columnInfluence)
+          .eq(SupabaseConstants.columnFollowerId, user.id)
+          .eq(SupabaseConstants.columnFolloweeId, followeeId)
+          .eq(SupabaseConstants.columnStatus, SupabaseConstants.relationshipStatusAccepted)
+          .maybeSingle();
+
+      if (response == null) return null;
+
+      return response[SupabaseConstants.columnInfluence] as int?;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error getting followee influence: $e');
+      }
+      return null;
+    }
+  }
+
+  /// Get all friends (followees) and their influence values on the current user
+  /// Returns a map of followee_id -> influence
+  Future<Map<String, int?>> getAllFriendsInfluence() async {
+    try {
+      final user = currentUser;
+      if (user == null) return {};
+
+      final response = await _client
+          .from(SupabaseConstants.tableUserFriends)
+          .select('''
+            ${SupabaseConstants.columnFolloweeId},
+            ${SupabaseConstants.columnInfluence}
+          ''')
+          .eq(SupabaseConstants.columnFollowerId, user.id)
+          .eq(SupabaseConstants.columnStatus, SupabaseConstants.relationshipStatusAccepted);
+
+      if ((response as List).isEmpty) {
+        return {};
+      }
+
+      final Map<String, int?> influenceMap = {};
+      for (var item in response as List) {
+        final followeeId = item[SupabaseConstants.columnFolloweeId] as String;
+        final influence = item[SupabaseConstants.columnInfluence] as int?;
+        influenceMap[followeeId] = influence;
+      }
+
+      return influenceMap;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error getting all friends influence: $e');
+      }
+      return {};
     }
   }
 }

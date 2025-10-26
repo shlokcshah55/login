@@ -663,11 +663,11 @@ class LocationHelper {
 
       // Convert to LocationModel and remove duplicates by location_id
       final Map<int, LocationModel> uniqueLocations = {};
-      
+
       for (var item in locationsResponse) {
         final location = item[SupabaseConstants.tableLocations];
         final locationId = location[SupabaseConstants.columnLocationId];
-        
+
         if (!uniqueLocations.containsKey(locationId)) {
           uniqueLocations[locationId] = LocationModel(
             locationId: location[SupabaseConstants.columnLocationId],
@@ -693,6 +693,83 @@ class LocationHelper {
         print('Error fetching locations by user IDs: $e');
       }
       return [];
+    }
+  }
+
+  /// Get all tags for a specific location with their scores
+  /// Returns a list of maps containing tag information and scores
+  Future<List<Map<String, dynamic>>> getLocationTags(int locationId) async {
+    try {
+      final response = await _client
+          .from(SupabaseConstants.tableLocationTags)
+          .select('''
+            ${SupabaseConstants.columnId},
+            ${SupabaseConstants.columnScore},
+            ${SupabaseConstants.tableTags}!inner(
+              ${SupabaseConstants.columnTagId},
+              ${SupabaseConstants.columnText},
+              ${SupabaseConstants.columnPromptDescription},
+              ${SupabaseConstants.columnTagType}
+            )
+          ''')
+          .eq(SupabaseConstants.columnLocationId, locationId)
+          .order(SupabaseConstants.columnScore, ascending: false);
+
+      if ((response as List).isEmpty) {
+        return [];
+      }
+
+      return (response as List).map((item) {
+        final tag = item[SupabaseConstants.tableTags] as Map<String, dynamic>;
+        return {
+          'id': item[SupabaseConstants.columnId],
+          'score': item[SupabaseConstants.columnScore],
+          'tag_id': tag[SupabaseConstants.columnTagId],
+          'text': tag[SupabaseConstants.columnText],
+          'prompt_description': tag[SupabaseConstants.columnPromptDescription],
+          'tag_type': tag[SupabaseConstants.columnTagType],
+        };
+      }).toList();
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error getting location tags: $e');
+      }
+      return [];
+    }
+  }
+
+  /// Get location presence/popularity metrics
+  /// Returns combined metrics from app and social popularity tables
+  Future<Map<String, dynamic>?> getLocationPresence(int locationId) async {
+    try {
+      // Get app popularity metrics
+      final appPopularity = await _client
+          .from(SupabaseConstants.tableLocationPopularityApp)
+          .select()
+          .eq(SupabaseConstants.columnLocationId, locationId)
+          .maybeSingle();
+
+      // Get social popularity metrics
+      final socialPopularity = await _client
+          .from(SupabaseConstants.tableLocationPopularitySocial)
+          .select()
+          .eq(SupabaseConstants.columnLocationId, locationId)
+          .maybeSingle();
+
+      // Combine metrics
+      return {
+        'location_id': locationId,
+        'saves_count': appPopularity?[SupabaseConstants.columnSavesCount] ?? 0,
+        'likes_count': appPopularity?[SupabaseConstants.columnLikesCount] ?? 0,
+        'app_updated_at': appPopularity?[SupabaseConstants.columnUpdatedAt],
+        'mention_count': socialPopularity?[SupabaseConstants.columnMentionCount] ?? 0,
+        'last_scanned': socialPopularity?[SupabaseConstants.columnLastScanned],
+      };
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error getting location presence: $e');
+      }
+      return null;
     }
   }
 }

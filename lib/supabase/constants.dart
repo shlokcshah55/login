@@ -12,6 +12,9 @@ class SupabaseConstants {
   static const String tableBubbles = 'bubbles';
   static const String tableBubbleMembers = 'bubble_members';
   static const String tableBubbleLocations = 'bubble_locations';
+  static const String tableTags = 'tags';
+  static const String tableLocationTags = 'location_tags';
+  static const String tableUserTags = 'user_tags';
 
   // Column names - users
   static const String columnSupabaseId = 'supabase_id';
@@ -46,6 +49,7 @@ class SupabaseConstants {
   static const String columnFolloweeId = 'followee_id';
   static const String columnFollowerId = 'follower_id';
   static const String columnStatus = 'status';
+  static const String columnInfluence = 'influence';
 
   // Column names - user_location_actions
   static const String columnActionId = 'action_id';
@@ -69,6 +73,7 @@ class SupabaseConstants {
   static const String columnBubbleId = 'bubble_id';
   static const String columnCreatedBy = 'created_by';
   static const String columnIsPrivate = 'is_private';
+  static const String columnActivity = 'activity';
 
   // Column names - bubble_members
   static const String columnId = 'id';
@@ -78,6 +83,20 @@ class SupabaseConstants {
   static const String columnBubbleLocationId = 'bubble_location_id';
   static const String columnAddedBy = 'added_by';
   static const String columnNote = 'note';
+
+  // Column names - tags
+  static const String columnTagId = 'tag_id';
+  static const String columnText = 'text';
+  static const String columnPromptDescription = 'prompt_description';
+  static const String columnTagType = 'tag_type';
+
+  // Column names - location_tags
+  // columnId is already defined in bubble_members
+  // columnLocationId and columnTagId are already defined above
+  static const String columnScore = 'score';
+
+  // Column names - user_tags
+  // columnId, columnUserId, and columnTagId are already defined above
 
   // Enum values - action_type
   static const String actionSave = 'save';

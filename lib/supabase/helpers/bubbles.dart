@@ -339,6 +339,43 @@ class BubbleHelper {
     }
   }
 
+  /// Get activity modifiers for all bubbles of a specific user
+  /// Returns a map of bubbleId -> activity modifier
+  Future<Map<String, num?>> getBubbleActivityModifiers(String userId) async {
+    try {
+      // Get all bubbles for the user with their activity modifiers
+      final response = await _client
+          .from(SupabaseConstants.tableBubbleMembers)
+          .select('''
+            ${SupabaseConstants.columnBubbleId},
+            ${SupabaseConstants.tableBubbles}!inner(
+              ${SupabaseConstants.columnBubbleId},
+              ${SupabaseConstants.columnActivity}
+            )
+          ''')
+          .eq(SupabaseConstants.columnUserId, userId);
+
+      if ((response as List).isEmpty) {
+        return {};
+      }
+
+      final Map<String, num?> modifiers = {};
+      for (var item in response as List) {
+        final bubble = item[SupabaseConstants.tableBubbles];
+        final bubbleId = bubble[SupabaseConstants.columnBubbleId] as String;
+        final activity = bubble[SupabaseConstants.columnActivity] as num?;
+        modifiers[bubbleId] = activity;
+      }
+
+      return modifiers;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error fetching bubble activity modifiers: $e');
+      }
+      return {};
+    }
+  }
+
   /// Helper function to format time ago
   String _getTimeAgo(DateTime dateTime) {
     final now = DateTime.now();
