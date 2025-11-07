@@ -14,9 +14,9 @@ enum LocationPreference { saved, recommended, search }
 class LocationModel {
   final int locationId;
   final String name;
-  final String vicinity;
-  final double lat;
-  final double lng;
+  final String? vicinity;
+  final double? lat;
+  final double? lng;
   final DateTime createdAt;
   final String? phoneNumber;
   final String? cuisine;
@@ -30,9 +30,9 @@ class LocationModel {
   LocationModel(
       {required this.locationId,
       required this.name,
-      required this.vicinity,
-      required this.lat,
-      required this.lng,
+      this.vicinity,
+      this.lat,
+      this.lng,
       required this.createdAt,
       this.phoneNumber,
       this.cuisine,
@@ -49,8 +49,12 @@ class LocationModel {
       locationId: json[SupabaseConstants.columnLocationId],
       name: json[SupabaseConstants.columnName],
       vicinity: json[SupabaseConstants.columnVicinity],
-      lat: double.parse(json[SupabaseConstants.columnLat].toString()),
-      lng: double.parse(json[SupabaseConstants.columnLng].toString()),
+      lat: json[SupabaseConstants.columnLat] != null
+          ? double.parse(json[SupabaseConstants.columnLat].toString())
+          : null,
+      lng: json[SupabaseConstants.columnLng] != null
+          ? double.parse(json[SupabaseConstants.columnLng].toString())
+          : null,
       createdAt: DateTime.parse(json[SupabaseConstants.columnCreatedAt]),
       phoneNumber: json[SupabaseConstants.columnPhoneNumber],
       cuisine: json[SupabaseConstants.columnCuisine],
@@ -71,8 +75,12 @@ class LocationModel {
       locationId: json[SupabaseConstants.columnLocationId],
       name: json[SupabaseConstants.columnName],
       vicinity: json[SupabaseConstants.columnVicinity],
-      lat: double.parse(json[SupabaseConstants.columnLat].toString()),
-      lng: double.parse(json[SupabaseConstants.columnLng].toString()),
+      lat: json[SupabaseConstants.columnLat] != null
+          ? double.parse(json[SupabaseConstants.columnLat].toString())
+          : null,
+      lng: json[SupabaseConstants.columnLng] != null
+          ? double.parse(json[SupabaseConstants.columnLng].toString())
+          : null,
       createdAt: DateTime.parse(json[SupabaseConstants.columnCreatedAt]),
     );
   }
@@ -82,12 +90,12 @@ class LocationModel {
     final Map<String, dynamic> data = {
       SupabaseConstants.columnLocationId: locationId,
       SupabaseConstants.columnName: name,
-      SupabaseConstants.columnVicinity: vicinity,
-      SupabaseConstants.columnLat: lat,
-      SupabaseConstants.columnLng: lng,
       SupabaseConstants.columnCreatedAt: createdAt.toIso8601String(),
     };
 
+    if (vicinity != null) data[SupabaseConstants.columnVicinity] = vicinity;
+    if (lat != null) data[SupabaseConstants.columnLat] = lat;
+    if (lng != null) data[SupabaseConstants.columnLng] = lng;
     if (phoneNumber != null)
       data[SupabaseConstants.columnPhoneNumber] = phoneNumber;
     if (cuisine != null) data[SupabaseConstants.columnCuisine] = cuisine;
@@ -119,13 +127,16 @@ class LocationModel {
     int? priceLevel,
     String? photoReference,
     int? savedCount,
+    bool clearVicinity = false,
+    bool clearLat = false,
+    bool clearLng = false,
   }) {
     return LocationModel(
       locationId: locationId ?? this.locationId,
       name: name ?? this.name,
-      vicinity: vicinity ?? this.vicinity,
-      lat: lat ?? this.lat,
-      lng: lng ?? this.lng,
+      vicinity: clearVicinity ? null : (vicinity ?? this.vicinity),
+      lat: clearLat ? null : (lat ?? this.lat),
+      lng: clearLng ? null : (lng ?? this.lng),
       createdAt: createdAt ?? this.createdAt,
       phoneNumber: phoneNumber ?? this.phoneNumber,
       cuisine: cuisine ?? this.cuisine,
@@ -138,7 +149,7 @@ class LocationModel {
   }
 
   // UI helper fields that make this model compatible with the UI
-  LatLng get position => LatLng(lat, lng);
+  LatLng? get position => (lat != null && lng != null) ? LatLng(lat!, lng!) : null;
 
   // Static marker icon for all locations
   static BitmapDescriptor? _customMarkerIcon;
@@ -157,6 +168,9 @@ class LocationModel {
 
   /// Static method to check if a location is within a given radius
   bool isWithinRadius(int r, double currentLat, double currentLng) {
+    // Return false if coordinates are not available
+    if (lat == null || lng == null) return false;
+
     const double earthRadius = 6371; // Radius of the Earth in km
 
     double calculateDistance(
@@ -175,8 +189,8 @@ class LocationModel {
 
     // Calculate the distance from the current point to the location
     double distance = calculateDistance(
-      lat,
-      lng,
+      lat!,
+      lng!,
       currentLat,
       currentLng,
     );
@@ -191,14 +205,17 @@ class LocationModel {
   }
 
   /// Creates a map marker from this location
-  Marker toMarker() {
+  Marker? toMarker() {
+    // Return null if coordinates are not available
+    if (lat == null || lng == null) return null;
+
     return Marker(
       markerId: MarkerId(locationId.toString()),
-      position: LatLng(lat, lng),
+      position: LatLng(lat!, lng!),
       icon: _customMarkerIcon ?? BitmapDescriptor.defaultMarker,
       infoWindow: InfoWindow(
         title: name,
-        snippet: vicinity,
+        snippet: vicinity ?? '',
       ),
     );
   }

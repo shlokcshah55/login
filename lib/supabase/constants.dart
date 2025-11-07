@@ -22,6 +22,7 @@ class SupabaseConstants {
   static const String columnEmail = 'email';
   static const String columnBio = 'bio';
   static const String columnProfileImageUrl = 'profile_image_url';
+  static const String columnWizardCompleted = 'wizard_completed';
 
   // Column names - locations
   static const String columnLocationId = 'location_id';
@@ -89,7 +90,7 @@ class SupabaseConstants {
   static const String columnText = 'text';
   static const String columnPromptDescription = 'prompt_description';
   static const String columnTagType = 'tag_type';
-
+  static const String columnColour = 'Colour';
   // Column names - location_tags
   // columnId is already defined in bubble_members
   // columnLocationId and columnTagId are already defined above
@@ -102,6 +103,7 @@ class SupabaseConstants {
   static const String actionSave = 'save';
   static const String actionLike = 'like';
   static const String actionSharedVideo = 'shared_video';
+  static const String actionDislike = 'dislike';
 
   // Enum values - saved_method
   static const String savedMethodTikTok = 'tiktok';
@@ -111,4 +113,10 @@ class SupabaseConstants {
   static const String relationshipStatusAccepted = 'accepted';
   static const String relationshipStatusPending = 'pending';
   static const String relationshipStatusBlocked = 'blocked';
+
+  // Enum values - tag_type
+  static const String tagTypeDietaryRequirement = 'dietary_requirement';
+  static const String tagTypeVibe = 'vibe';
+  static const String tagTypeCuisine = 'cuisine';
+
 }

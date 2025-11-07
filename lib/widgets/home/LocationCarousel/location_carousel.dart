@@ -96,7 +96,7 @@ class _LocationCarouselState extends State<LocationCarousel> {
               triggeredByCarousel: true,
             );
             mapState.animateCamera(
-              CameraUpdate.newLatLng(location.position),
+              CameraUpdate.newLatLng(location.position!),
             );
           },
         ),
@@ -123,7 +123,7 @@ class _LocationCarouselState extends State<LocationCarousel> {
         // Set the selected marker and animate the camera
         mapState.setSelectedMarkerId(MarkerId(location.locationId.toString()));
         mapState.animateCamera(
-          CameraUpdate.newLatLng(location.position),
+          CameraUpdate.newLatLng(location.position!),
         );
 
         // Directly open the expanded location card

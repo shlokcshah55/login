@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import 'package:googleapis/mybusinessbusinessinformation/v1.dart';
+import 'package:login/models/locations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../supabase_client.dart';
@@ -37,6 +39,7 @@ class AuthHelper {
         SupabaseConstants.columnEmail: email,
         SupabaseConstants.name: name,
         SupabaseConstants.columnCreatedAt: DateTime.now().toIso8601String(),
+        SupabaseConstants.columnWizardCompleted: false, // New users must complete the wizard
       });
 
       return UserModel(
@@ -148,6 +151,7 @@ class AuthHelper {
           SupabaseConstants.columnEmail: user.email,
           SupabaseConstants.name: user.userMetadata?['name'] ?? user.userMetadata?['full_name'],
           SupabaseConstants.columnCreatedAt: DateTime.now().toIso8601String(),
+          SupabaseConstants.columnWizardCompleted: false, // New OAuth users must complete the wizard
         });
 
         if (kDebugMode) {
@@ -607,4 +611,75 @@ class AuthHelper {
       return {};
     }
   }
+
+  /// Add multiple tags for a user (used for signup wizard)
+  /// Batch inserts tags into user_tags table
+  Future<void> addUserTags(String userId, List<String> tagIds) async {
+    try {
+      if (tagIds.isEmpty) return;
+
+      // Prepare batch insert data
+      final tagInserts = tagIds.map((tagId) => {
+        SupabaseConstants.columnUserId: userId,
+        SupabaseConstants.columnTagId: tagId,
+      }).toList();
+
+      await _client
+          .from(SupabaseConstants.tableUserTags)
+          .insert(tagInserts);
+
+      if (kDebugMode) {
+        print('Added ${tagIds.length} tags for user $userId');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error adding user tags: $e');
+      }
+      rethrow;
+    }
+  }
+
+  /// Complete wizard onboarding for a user
+  /// Updates user profile with spice tolerance and marks wizard as completed
+  Future<void> AddSpiceTolerance(String userId, int spiceTolerance) async {
+    try {
+      await _client
+          .from(SupabaseConstants.tableUsers)
+          .update({
+            'spice_tolerance': spiceTolerance,
+            SupabaseConstants.columnWizardCompleted: true,
+          })
+          .eq(SupabaseConstants.columnSupabaseId, userId);
+
+      if (kDebugMode) {
+        print('Added spice for $userId');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error completing wizard onboarding: $e');
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> completeSignupWizard(String userId) async {
+    try {
+      await _client
+          .from(SupabaseConstants.tableUsers)
+          .update({
+            SupabaseConstants.columnWizardCompleted: true,
+          })
+          .eq(SupabaseConstants.columnSupabaseId, userId);
+
+      if (kDebugMode) {
+        print('Wizard completed for $userId');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error updating spice tolerance: $e');
+      }
+      rethrow;
+    }
+  }
+
 }

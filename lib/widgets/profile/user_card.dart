@@ -4,6 +4,7 @@ import 'package:login/supabase/service.dart';
 import 'package:login/themes/app_colors.dart';
 import 'package:login/themes/app_dimensions.dart';
 import 'package:login/themes/app_typography.dart';
+import 'package:provider/provider.dart';
 
 class UserCard extends StatefulWidget {
   final UserModel user;
@@ -22,7 +23,6 @@ enum FollowStatus { idle, requested, following, unfollowing }
 
 class _UserCardState extends State<UserCard> {
   FollowStatus _followStatus = FollowStatus.idle;
-  final SupabaseService _supabaseProvider = SupabaseService();
   bool _isLoading = false; // To handle loading state for API calls
 
   @override
@@ -39,7 +39,8 @@ class _UserCardState extends State<UserCard> {
         if (mounted) setState(() => _followStatus = FollowStatus.idle);
         return;
       }
-      final status = await _supabaseProvider.users.getFollowStatus(widget.user.supabaseId!);
+      final supabaseProvider = Provider.of<SupabaseService>(context, listen: false);
+      final status = await supabaseProvider.users.getFollowStatus(widget.user.supabaseId!);
       if (mounted) {
         setState(() {
           if (status == 'requested') {
@@ -76,12 +77,14 @@ class _UserCardState extends State<UserCard> {
         return;
       }
 
+      final supabaseProvider = Provider.of<SupabaseService>(context, listen: false);
+
       if (_followStatus == FollowStatus.idle) {
-        await _supabaseProvider.users.followUser(widget.user.supabaseId!);
+        await supabaseProvider.users.followUser(widget.user.supabaseId!);
         if (mounted) setState(() => _followStatus = FollowStatus.requested);
       } else if (_followStatus == FollowStatus.requested || _followStatus == FollowStatus.following) {
         // For both 'requested' and 'following', the action is to unfollow
-        await _supabaseProvider.users.unfollowUser(widget.user.supabaseId!);
+        await supabaseProvider.users.unfollowUser(widget.user.supabaseId!);
         if (mounted) setState(() => _followStatus = FollowStatus.idle);
       }
     } catch (e) {

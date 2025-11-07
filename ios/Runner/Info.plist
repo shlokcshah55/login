@@ -19,7 +19,7 @@
 	<key>CFBundleName</key>
 	<string>Pinit</string>
 	<key>CFBundlePackageType</key>
-	<string>APPL</string>
+	<string>APPL</string> 
 	<key>CFBundleShortVersionString</key>
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleURLTypes</key>

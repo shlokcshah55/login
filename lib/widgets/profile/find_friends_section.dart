@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:login/models/users.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/widgets/profile/user_card.dart';
+import 'package:provider/provider.dart';
 
 class FindFriendsSection extends StatefulWidget {
   final ThemeData theme;
@@ -16,7 +17,6 @@ class FindFriendsSection extends StatefulWidget {
 }
 
 class _FindFriendsSectionState extends State<FindFriendsSection> {
-  final SupabaseService _supabaseService = SupabaseService();
   List<UserModel> _suggestedUsers = [];
   bool _isLoading = false;
   bool _isExpanded = false;
@@ -30,7 +30,8 @@ class _FindFriendsSectionState extends State<FindFriendsSection> {
   Future<void> _fetchSuggestedUsers() async {
     setState(() => _isLoading = true);
     try {
-      final users = await _supabaseService.users.getSuggestedUsers();
+      final supabaseService = Provider.of<SupabaseService>(context, listen: false);
+      final users = await supabaseService.users.getSuggestedUsers();
       if (mounted) {
         setState(() {
           _suggestedUsers = users;

@@ -6,7 +6,6 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/services/google_place_service.dart';
 import 'package:login/supabase/service.dart';
-import 'package:login/supabase/helpers/location.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 // Enum to represent the different types of location lists
@@ -98,7 +97,7 @@ class LocationListManager with ChangeNotifier {
         _savedLocations = {
           for (var location in supabaseSavedLocations)
             location:
-                location.setPreference(LocationPreference.saved).toMarker()
+                location.setPreference(LocationPreference.saved).toMarker()!
         };
         print(
             "Fetched ${supabaseSavedLocations.length} saved locations from Supabase.");
@@ -133,7 +132,7 @@ class LocationListManager with ChangeNotifier {
           for (var location in nearbyLocations)
             location: location
                 .setPreference(LocationPreference.recommended)
-                .toMarker()
+                .toMarker()!
         };
         log("Fetched ${nearbyLocations.length} nearby locations from Supabase.");
       } else {
@@ -147,7 +146,7 @@ class LocationListManager with ChangeNotifier {
           for (var location in recommendations)
             location: location
                 .setPreference(LocationPreference.recommended)
-                .toMarker()
+                .toMarker()!
         };
         print(
             "Fetched ${recommendations.length} recommended locations from Google Places.");
@@ -172,7 +171,7 @@ class LocationListManager with ChangeNotifier {
           for (var location in recommendations)
             location: location
                 .setPreference(LocationPreference.recommended)
-                .toMarker()
+                .toMarker()!
         };
         log("Fallback: Fetched ${recommendations.length} recommended locations from Google Places.");
         notifyListeners();
@@ -187,7 +186,7 @@ class LocationListManager with ChangeNotifier {
     final Map<LocationModel, Marker> newLocations = {
       for (var location in locations)
         location:
-            location.setPreference(LocationPreference.recommended).toMarker()
+            location.setPreference(LocationPreference.recommended).toMarker()!
     };
     _recommendedLocations.addEntries(newLocations.entries);
     if (_currentListType == LocationListType.recommended) {
@@ -248,7 +247,7 @@ class LocationListManager with ChangeNotifier {
 
     // Add location to local state
     _savedLocations.putIfAbsent(location,
-        () => location.setPreference(LocationPreference.saved).toMarker());
+        () => location.setPreference(LocationPreference.saved).toMarker()!);
 
     // Try to save in Supabase first
 
@@ -287,7 +286,7 @@ class LocationListManager with ChangeNotifier {
       
       _searchLocations = {
         for (var location in searchModels)
-          location: location.setPreference(LocationPreference.search).toMarker()
+          location: location.setPreference(LocationPreference.search).toMarker()!
       };
       
       log("LocationListManager: Magic search returned ${searchModels.length} results for '$query'.");

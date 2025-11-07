@@ -366,7 +366,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard> {
                             context,
                             Icons.location_on_rounded,
                             'Address',
-                            widget.location.vicinity,
+                            widget.location.vicinity!,
                             colorScheme.primary,
                           ),
 
@@ -405,8 +405,8 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard> {
                                 // Directions Button
                                 InkWell(
                                   onTap: () => _openInMaps(
-                                      widget.location.lat,
-                                      widget.location.lng,
+                                      widget.location.lat!,
+                                      widget.location.lng!,
                                       widget.location.name),
                                   borderRadius: const BorderRadius.vertical(
                                       top: Radius.circular(16)),

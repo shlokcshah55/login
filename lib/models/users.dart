@@ -11,6 +11,8 @@ class UserModel {
   final String? bio;
   final int followersCount;
   final int followingCount;
+  final int? spiceTolerance; // 1-5 scale
+  final bool wizardCompleted;
 
   UserModel({
     this.supabaseId,
@@ -22,6 +24,8 @@ class UserModel {
     this.bio = '',
     this.followersCount = 0,
     this.followingCount = 0,
+    this.spiceTolerance,
+    this.wizardCompleted = false,
   });
 
   /// Create a UserModel from a JSON map
@@ -40,6 +44,8 @@ class UserModel {
       bio: json['bio'] ?? '',
       followersCount: json['followers_count'] ?? 0,
       followingCount: json['following_count'] ?? 0,
+      spiceTolerance: json['spice_tolerance'],
+      wizardCompleted: json['wizard_completed'] ?? false,
     );
   }
 
@@ -69,6 +75,8 @@ class UserModel {
     DateTime? lastLogin,
     int? followersCount,
     int? followingCount,
+    int? spiceTolerance,
+    bool? wizardCompleted,
   }) {
     return UserModel(
       supabaseId: supabaseId ?? this.supabaseId,
@@ -79,6 +87,8 @@ class UserModel {
       lastLogin: lastLogin ?? this.lastLogin,
       followersCount: followersCount ?? this.followersCount,
       followingCount: followingCount ?? this.followingCount,
+      spiceTolerance: spiceTolerance ?? this.spiceTolerance,
+      wizardCompleted: wizardCompleted ?? this.wizardCompleted,
     );
   }
 }

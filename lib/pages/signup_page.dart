@@ -36,13 +36,13 @@ class _SignupPageState extends State<SignupPage> {
       final supabaseProvider = Provider.of<SupabaseService>(context, listen: false);
       
       // Attempt sign up with Supabase
-      bool supabaseSignUpSuccess = await supabaseProvider.signUp(
+      String userID = await supabaseProvider.signUp(
         emailController.text,
         passwordController.text,
         name: nameController.text,
       );
       
-      if (supabaseSignUpSuccess) {
+      if (userID != '') {
         // Supabase sign-up successful
         signUpFailedNotifier.value = false;
         errorMessageNotifier.value = '';

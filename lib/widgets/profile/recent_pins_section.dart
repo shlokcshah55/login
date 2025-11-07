@@ -155,10 +155,10 @@ class RecentPinsSection extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                if (pin.vicinity.isNotEmpty) ...[
+                if (pin.vicinity != Null) ...[
                   const SizedBox(height: 4),
                   Text(
-                    pin.vicinity,
+                    pin.vicinity!,
                     style: TextStyle(
                       fontSize: 11,
                       color: Colors.grey[600],

@@ -242,6 +242,32 @@ class LocationHelper {
     }
   }
 
+    /// Disike a location for the current user
+  Future<bool> dislikeLocation(int locationId) async {
+    try {
+      final user = SupabaseClientManager().currentUser;
+
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Create the action
+      await _client.from(SupabaseConstants.tableUserLocationActions).upsert({
+        SupabaseConstants.columnUserId: user.id,
+        SupabaseConstants.columnLocationId: locationId,
+        SupabaseConstants.columnAction: SupabaseConstants.actionDislike,
+        SupabaseConstants.columnCreatedAt: DateTime.now().toIso8601String(),
+      });
+
+      return true;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error liking location: $e');
+      }
+      return false;
+    }
+  }
+  
   /// Check if a location is saved by the current user
   Future<bool> isLocationSaved(int locationId) async {
     try {

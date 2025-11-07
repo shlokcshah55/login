@@ -594,7 +594,7 @@ class _UrlProcessingPopoverState extends State<UrlProcessingPopover>
 
                   // Address
                   Text(
-                    location.vicinity,
+                    location.vicinity!,
                     style: TextStyle(
                       fontSize: 14,
                       color: AppColors.textSecondary,

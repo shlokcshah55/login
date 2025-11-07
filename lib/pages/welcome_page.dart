@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'login_page.dart';
-import 'signup_page.dart';
+import 'signup_wizard/signup_wizard_page.dart';
 import '../supabase/service.dart';
 
 class WelcomePage extends StatelessWidget {
@@ -106,7 +106,7 @@ class WelcomePage extends StatelessWidget {
                   onPressed: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (context) => const SignupPage(),
+                        builder: (context) => const SignupWizardPage(),
                       ),
                     );
                   },

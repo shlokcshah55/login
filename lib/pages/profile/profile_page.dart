@@ -22,7 +22,6 @@ class ProfilePage extends StatefulWidget {
 
 class _PinitProfileScreenState extends State<ProfilePage>
     with SingleTickerProviderStateMixin {
-  final SupabaseService supabaseProvider = SupabaseService();
   late ScrollController _scrollController;
   double _scrollOffset = 0.0;
 

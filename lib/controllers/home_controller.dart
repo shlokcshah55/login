@@ -87,8 +87,8 @@ class HomeController {
         final currentPosition = locationListManager.currentPosition;
 
         if (isFlipped.value && currentPosition != null) {
-          _adjustCameraToFit(currentPosition, location.position);
-          _drawRoute(currentPosition, location.position);
+          _adjustCameraToFit(currentPosition, location.position!);
+          _drawRoute(currentPosition, location.position!);
         } else {
           mapStateProvider.clearPolylines(); // Use MapStateProvider
         }
@@ -132,7 +132,7 @@ class HomeController {
               onTap: () async {
                 // Animate camera using MapStateProvider
                 await mapStateProvider.animateCamera(
-                  CameraUpdate.newLatLng(location.position),
+                  CameraUpdate.newLatLng(location.position!),
                 );
                 // Showing marker info window might need direct controller access or a new MapStateProvider method
                 final controller = mapStateProvider.mapController;

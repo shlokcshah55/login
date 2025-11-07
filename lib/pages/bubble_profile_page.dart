@@ -86,7 +86,7 @@ class _BubbleProfilePageState extends State<BubbleProfilePage>
     markers = allMemberLocations.map((location) {
       return Marker(
         markerId: MarkerId(location.locationId.toString()),
-        position: LatLng(location.lat, location.lng),
+        position: LatLng(location.lat!, location.lng!),
         infoWindow: InfoWindow(
           title: location.name,
           snippet: location.vicinity,
@@ -151,7 +151,7 @@ class _BubbleProfilePageState extends State<BubbleProfilePage>
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
-                          location.vicinity,
+                          location.vicinity!,
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: Colors.grey[600],
                           ),
@@ -230,16 +230,16 @@ class _BubbleProfilePageState extends State<BubbleProfilePage>
     if (mapController == null || allMemberLocations.isEmpty) return;
 
     final locations = allMemberLocations;
-    double minLat = locations.first.lat;
-    double maxLat = locations.first.lat;
-    double minLng = locations.first.lng;
-    double maxLng = locations.first.lng;
+    double minLat = locations.first.lat!;
+    double maxLat = locations.first.lat!;
+    double minLng = locations.first.lng!;
+    double maxLng = locations.first.lng!;
 
     for (final location in locations) {
-      minLat = minLat < location.lat ? minLat : location.lat;
-      maxLat = maxLat > location.lat ? maxLat : location.lat;
-      minLng = minLng < location.lng ? minLng : location.lng;
-      maxLng = maxLng > location.lng ? maxLng : location.lng;
+      minLat = minLat < location.lat! ? minLat : location.lat!;
+      maxLat = maxLat > location.lat! ? maxLat : location.lat!;
+      minLng = minLng < location.lng! ? minLng : location.lng!;
+      maxLng = maxLng > location.lng! ? maxLng : location.lng!;
     }
 
     mapController!.animateCamera(
@@ -502,8 +502,8 @@ class _BubbleProfilePageState extends State<BubbleProfilePage>
           initialCameraPosition: CameraPosition(
             target: allMemberLocations.isNotEmpty
                 ? LatLng(
-                    allMemberLocations.first.lat,
-                    allMemberLocations.first.lng,
+                    allMemberLocations.first.lat!,
+                    allMemberLocations.first.lng!,
                   )
                 : const LatLng(37.7749, -122.4194),
             zoom: 12,
