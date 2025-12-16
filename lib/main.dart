@@ -38,7 +38,6 @@ void main() async {
 
   // await NotificationService().initialize();
   // await BackgroundTaskService().initialize();
-
   // Instantiate services
   final googlePlacesService = GooglePlacesService();
 
@@ -223,10 +222,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       throw Exception("You must be logged in to process URLs");
     }
 
-    // TODO: Replace this URL with your deployed Cloud Run URL
-    // Deploy tiktok-processor/ to Cloud Run and update this endpoint
     final apiUrl =
-        'https://tiktok-processor-lqmy33nkaa-nw.a.run.app/process';
+        'https://tiktok-processor-107523489868.europe-west1.run.app/process';
 
     try {
       // Send request to TikTok processor service
