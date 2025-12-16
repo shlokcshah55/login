@@ -13,6 +13,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
+# Playwright environment variables for better cloud compatibility
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+
 # Expose port (Cloud Run uses PORT env var)
 ENV PORT=8080
 EXPOSE 8080
