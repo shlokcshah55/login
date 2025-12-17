@@ -46,6 +46,7 @@ class _RestaurantSwipeStepState extends State<RestaurantSwipeStep> {
         wizardState.userId!,
         wizardState.spiceTolerance,
       );
+      
       final likedLocationIds = wizardState.likedRestaurantIds;
       if (likedLocationIds.isNotEmpty) {
         likedLocationIds.map(supabase.locations.likeLocation);
@@ -232,7 +233,7 @@ class _RestaurantSwipeStepState extends State<RestaurantSwipeStep> {
                         onPressed: _isSaving ? null : widget.onBack,
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
-                          side: const BorderSide(color: Color(0xFF6A1B9A)),
+                          side: const BorderSide(color: Color(0xFF42143d)),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
                           ),
@@ -242,7 +243,7 @@ class _RestaurantSwipeStepState extends State<RestaurantSwipeStep> {
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFF6A1B9A),
+                            color: Color(0xFF42143d),
                           ),
                         ),
                       ),
@@ -255,7 +256,7 @@ class _RestaurantSwipeStepState extends State<RestaurantSwipeStep> {
                         onPressed: _isSaving ? null : _completeWizard,
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
-                          backgroundColor: const Color(0xFF6A1B9A),
+                          backgroundColor: const Color(0xFF42143d),
                           foregroundColor: Colors.white,
                           elevation: 4,
                           shape: RoundedRectangleBorder(

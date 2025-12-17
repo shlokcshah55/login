@@ -35,10 +35,6 @@ void main() async {
 
   // Initialize Supabase
   await SupabaseClientManager.initialize();
-
-  // await NotificationService().initialize();
-  // await BackgroundTaskService().initialize();
-  // Instantiate services
   final googlePlacesService = GooglePlacesService();
 
   // Debug API key loading
@@ -54,7 +50,6 @@ void main() async {
         // Supabase Provider
         ChangeNotifierProvider.value(value: supabaseProvider),
 
-        // Legacy Firebase providers for gradual migration
         ChangeNotifierProvider(create: (_) => UserDataProvider()),
         ChangeNotifierProvider(
             create: (_) => LocationListManager(googlePlacesService)),

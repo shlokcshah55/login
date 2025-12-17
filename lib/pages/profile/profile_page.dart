@@ -1,17 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:login/models/users.dart';
-import 'package:login/supabase/helpers/auth.dart';
 import 'package:login/supabase/service.dart';
 import 'package:provider/provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:login/providers/location_list_provider.dart';
-import 'package:login/pages/login_page.dart';
+import 'package:login/pages/auth_handler.dart';
 import 'package:login/widgets/profile/profile_stats_card.dart';
 import 'package:login/widgets/profile/activity_insights_card.dart';
 import 'package:login/widgets/profile/quick_actions_card.dart';
 import 'package:login/widgets/profile/recent_pins_section.dart';
-import 'package:login/widgets/profile/find_friends_section.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({Key? key}) : super(key: key);
@@ -49,15 +47,15 @@ class _PinitProfileScreenState extends State<ProfilePage>
 
   Future<void> _handleSignOut(BuildContext context) async {
     try {
-      final authService = AuthHelper();
-      await authService.signOut();
+      final supabaseProvider = Provider.of<SupabaseService>(context, listen: false);
+      await supabaseProvider.signOut();
 
       if (mounted) {
         Provider.of<UserDataProvider>(context, listen: false).clearUserData();
         Provider.of<LocationListManager>(context, listen: false).clearData();
 
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => LoginPage()),
+          MaterialPageRoute(builder: (context) => const AuthHandler()),
           (route) => false,
         );
       }
@@ -102,7 +100,22 @@ class _PinitProfileScreenState extends State<ProfilePage>
             children: [
               Icon(Icons.person_off, size: 80, color: Colors.grey[400]),
               const SizedBox(height: 16),
-              Text('Please log in', style: theme.textTheme.titleLarge),
+              Text('User data unavailable', style: theme.textTheme.titleLarge),
+              const SizedBox(height: 8),
+              if (userDataProvider.error != null)
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(
+                    userDataProvider.error!,
+                    style: theme.textTheme.bodyMedium?.copyWith(color: Colors.red),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => _handleSignOut(context),
+                child: const Text('Sign Out'),
+              ),
             ],
           ),
         ),

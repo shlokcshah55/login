@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:googleapis/compute/v1.dart';
 import 'package:login/models/users.dart';
 import 'package:login/supabase/helpers/auth.dart';
 import 'package:login/supabase/helpers/location.dart';
@@ -18,6 +17,7 @@ class SupabaseService extends ChangeNotifier {
   final TagsHelper _tagsService = TagsHelper();
 
   bool _isLoading = false;
+  bool _isInitializing = true;
   String? _error;
   StreamSubscription? _authSubscription;
 
@@ -28,7 +28,7 @@ class SupabaseService extends ChangeNotifier {
   TagsHelper get tags => _tagsService;
 
   // Status getters
-  bool get isLoading => _isLoading;
+  bool get isLoading => _isLoading || _isInitializing;
   String? get error => _error;
   bool get isAuthenticated => _authService.isAuthenticated;
 
@@ -46,11 +46,25 @@ class SupabaseService extends ChangeNotifier {
     try {
       await SupabaseClientManager.initialize();
       _setError(null);
+      await ensureAuthStateReady();
+
+      // If user is already authenticated (restored session), ensure DB record exists
+      if (_authService.isAuthenticated) {
+        await _authService.ensureUserRecordExists();
+      }
     } catch (e) {
       _setError('Failed to initialize Supabase: $e');
     } finally {
       _setLoading(false);
     }
+  }
+
+  // Ensure auth state is ready before routing decisions
+  Future<void> ensureAuthStateReady() async {
+    // Wait briefly for auth state stream to emit initial state
+    await Future.delayed(Duration(milliseconds: 100));
+    _isInitializing = false;
+    notifyListeners();
   }
   
   // Authentication methods
@@ -68,11 +82,11 @@ class SupabaseService extends ChangeNotifier {
       _setLoading(false);
     }
   }
-  
-  Future<String> signUp(String email, String password, {String? name}) async {
+
+  Future<String> signUp(String email, String password, {String? name, String? username}) async {
     _setLoading(true);
     try {
-      UserModel user = await _authService.signUp(email: email, password: password, name: name);
+      UserModel user = await _authService.signUp(email: email, password: password, name: name, username: username);
       _setError(null);
       notifyListeners();
       return user.supabaseId ?? '';

@@ -6,6 +6,7 @@ class SignupWizardState extends ChangeNotifier {
   String? _userId;
   String _name = '';
   String _email = '';
+  String? _profilePictureUrl;
 
   // Step 2: Dietary Preferences
   List<String> _selectedDietaryTagIds = [];
@@ -21,6 +22,7 @@ class SignupWizardState extends ChangeNotifier {
   String? get userId => _userId;
   String get name => _name;
   String get email => _email;
+  String? get profilePictureUrl => _profilePictureUrl;
   List<String> get selectedDietaryTagIds => List.unmodifiable(_selectedDietaryTagIds);
   int get spiceTolerance => _spiceTolerance;
   List<String> get selectedVibeTagIds => List.unmodifiable(_selectedVibeTagIds);
@@ -43,6 +45,11 @@ class SignupWizardState extends ChangeNotifier {
   void setAccountInfo(String name, String email) {
     _name = name;
     _email = email;
+    notifyListeners();
+  }
+
+  void setProfilePicture(String? url) {
+    _profilePictureUrl = url;
     notifyListeners();
   }
 
@@ -122,6 +129,7 @@ class SignupWizardState extends ChangeNotifier {
     _userId = null;
     _name = '';
     _email = '';
+    _profilePictureUrl = null;
     _selectedDietaryTagIds.clear();
     _spiceTolerance = 3;
     _selectedVibeTagIds.clear();

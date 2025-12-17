@@ -176,7 +176,7 @@ class _VibeStepState extends State<VibeStep> {
                               decoration: BoxDecoration(
                                 color: selectedCount >= 10
                                     ? Colors.orange.shade100
-                                    : const Color(0xFF6A1B9A).withOpacity(0.1),
+                                    : const Color(0xFF42143d).withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
@@ -186,7 +186,7 @@ class _VibeStepState extends State<VibeStep> {
                                   fontWeight: FontWeight.w600,
                                   color: selectedCount >= 10
                                       ? Colors.orange.shade900
-                                      : const Color(0xFF6A1B9A),
+                                      : const Color(0xFF42143d),
                                 ),
                               ),
                             ),
@@ -223,12 +223,12 @@ class _VibeStepState extends State<VibeStep> {
                                     }
                                   },
                                   backgroundColor: Colors.grey.shade100,
-                                  selectedColor: const Color(0xFF6A1B9A)
+                                  selectedColor: const Color(0xFF42143d)
                                       .withOpacity(0.2),
-                                  checkmarkColor: const Color(0xFF6A1B9A),
+                                  checkmarkColor: const Color(0xFF42143d),
                                   labelStyle: TextStyle(
                                     color: isSelected
-                                        ? const Color(0xFF6A1B9A)
+                                        ? const Color(0xFF42143d)
                                         : Colors.black87,
                                     fontWeight: isSelected
                                         ? FontWeight.w600
@@ -238,7 +238,7 @@ class _VibeStepState extends State<VibeStep> {
                                     borderRadius: BorderRadius.circular(12),
                                     side: BorderSide(
                                       color: isSelected
-                                          ? const Color(0xFF6A1B9A)
+                                          ? const Color(0xFF42143d)
                                           : Colors.grey.shade300,
                                       width: isSelected ? 2 : 1,
                                     ),
@@ -274,7 +274,7 @@ class _VibeStepState extends State<VibeStep> {
                     onPressed: widget.onBack,
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      side: const BorderSide(color: Color(0xFF6A1B9A)),
+                      side: const BorderSide(color: Color(0xFF42143d)),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
@@ -284,7 +284,7 @@ class _VibeStepState extends State<VibeStep> {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF6A1B9A),
+                        color: Color(0xFF42143d),
                       ),
                     ),
                   ),
@@ -297,7 +297,7 @@ class _VibeStepState extends State<VibeStep> {
                     onPressed: (_isLoading || widget.isLoadingRestaurants) ? null : _handleNext,
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: const Color(0xFF6A1B9A),
+                      backgroundColor: const Color(0xFF42143d),
                       foregroundColor: Colors.white,
                       elevation: 4,
                       shape: RoundedRectangleBorder(

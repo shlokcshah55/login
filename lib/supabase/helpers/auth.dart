@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:googleapis/mybusinessbusinessinformation/v1.dart';
 import 'package:login/models/locations.dart';
@@ -14,11 +16,15 @@ class AuthHelper {
   bool get isAuthenticated => currentUser != null;
   Stream<AuthState> get onAuthStateChange => _client.auth.onAuthStateChange;
 
+
+ 
+
   /// Sign up a new user with email and password
   Future<UserModel> signUp({
     required String email,
     required String password,
     String? name,
+    String? username
   }) async {
     try {
       final response = await _client.auth.signUp(
@@ -33,13 +39,11 @@ class AuthHelper {
 
       final user = response.user!;
 
-      // Create a user record in your users table (if needed)
-      await _client.from(SupabaseConstants.tableUsers).insert({
-        SupabaseConstants.columnSupabaseId: user.id,
-        SupabaseConstants.columnEmail: email,
-        SupabaseConstants.name: name,
-        SupabaseConstants.columnCreatedAt: DateTime.now().toIso8601String(),
-        SupabaseConstants.columnWizardCompleted: false, // New users must complete the wizard
+      await _client.rpc('create_user_profile', params: {
+        'p_supabase_id': user.id,
+        'p_email': email,
+        'p_name': name ?? '',
+        'p_username': username ?? '',
       });
 
       return UserModel(
@@ -327,10 +331,10 @@ class AuthHelper {
         return;
       }
 
-      await _client.from(SupabaseConstants.tableUserFriends).insert({
-        SupabaseConstants.columnFollowerId: followingId,
-        SupabaseConstants.columnFolloweeId: followeeId,
-        SupabaseConstants.columnStatus: SupabaseConstants.relationshipStatusPending,
+      await _client.rpc('create_friendship', params: {
+      'p_follower_id': followingId,
+      'p_followee_id': followeeId,
+      'p_status': SupabaseConstants.relationshipStatusPending,
       });
 
       if (kDebugMode) {
@@ -677,6 +681,98 @@ class AuthHelper {
     } catch (e) {
       if (kDebugMode) {
         print('Error updating spice tolerance: $e');
+      }
+      rethrow;
+    }
+  }
+
+  Future<bool> isWizardCompleted(String userId) async {
+    try {
+      final response = await _client
+          .from(SupabaseConstants.tableUsers)
+          .select(SupabaseConstants.columnWizardCompleted)
+          .eq(SupabaseConstants.columnSupabaseId, userId)
+          .single();
+
+      return response[SupabaseConstants.columnWizardCompleted] as bool? ?? false;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error checking wizard completion: $e');
+      }
+      return false;
+    }
+  }
+
+  Future<bool> emailExists(String email) async {
+    try {
+      final response = await _client
+          .from(SupabaseConstants.tableUsers)
+          .select()
+          .eq(SupabaseConstants.columnEmail, email)
+          .maybeSingle();
+
+      return response != null;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error checking if email exists: $e');
+      }
+      return false;
+    }
+  }
+
+  Future<bool> usernameExists(String username) async {
+    try {
+      final response = await _client
+          .from(SupabaseConstants.tableUsers)
+          .select()
+          .eq(SupabaseConstants.columnUsername, username)
+          .maybeSingle();
+
+      return response != null;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error checking if username exists: $e');
+      }
+      return false;
+    }
+  }
+
+  Future<String> uploadImage(File file, String filePath, String userId) async {
+    try {
+    final user = _client.auth.currentUser;
+    print(user);
+    if (user == null) {
+      if (kDebugMode) print('Upload failed: No authenticated user found.');
+      throw Exception('You must be logged in to upload a profile picture.');
+    }
+      // Upload file to Supabase storage
+      final response = await _client.storage
+          .from(SupabaseConstants.supabaseStorageBucketProfileImages)
+          .upload(filePath, file);
+
+      print(response);
+      // Get public URL for the uploaded file
+      final publicUrl = _client.storage
+          .from(SupabaseConstants.supabaseStorageBucketProfileImages)
+          .getPublicUrl(filePath);
+
+    
+      await _client
+          .from(SupabaseConstants.tableUsers)
+          .update({
+            SupabaseConstants.columnProfileImageUrl: publicUrl,
+          })
+          .eq(SupabaseConstants.columnSupabaseId, userId);
+
+    
+      if (kDebugMode) {
+        print('Image uploaded successfully: $publicUrl');
+      }
+
+      return publicUrl;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error uploading image: $e');
       }
       rethrow;
     }

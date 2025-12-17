@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/main.dart';
 import 'package:login/pages/welcome_page.dart';
+import 'package:login/pages/signup_wizard/signup_wizard_page.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:login/widgets/loading_widget.dart';
@@ -17,6 +18,7 @@ class AuthHandler extends StatefulWidget {
 
 class _AuthHandlerState extends State<AuthHandler> {
   bool _hasInitializedData = false;
+  bool _isInitializing = false;
 
   @override
   void initState() {
@@ -27,10 +29,14 @@ class _AuthHandlerState extends State<AuthHandler> {
     });
   }
 
-  void _initializeUserData() {
+  Future<void> _initializeUserData() async {
     final supabaseProvider = Provider.of<SupabaseService>(context, listen: false);
 
     if (supabaseProvider.isAuthenticated && !_hasInitializedData) {
+      setState(() {
+        _isInitializing = true;
+      });
+
       log("AuthHandler: Initializing user data");
       final supabaseUser = supabaseProvider.users.currentUser!;
 
@@ -39,13 +45,19 @@ class _AuthHandlerState extends State<AuthHandler> {
 
       // Initialize user data and locations
       locationListManager.setUserId(supabaseUser.id);
-      userDataProvider.setUserIdAndFetchData(supabaseUser.id);
+      await userDataProvider.setUserIdAndFetchData(supabaseUser.id);
       locationListManager.fetchSavedLocations();
 
       _hasInitializedData = true;
+      if (mounted) {
+        setState(() {
+          _isInitializing = false;
+        });
+      }
     } else if (!supabaseProvider.isAuthenticated) {
       // Reset flag when user logs out
       _hasInitializedData = false;
+      _isInitializing = false;
     }
   }
 
@@ -64,12 +76,23 @@ class _AuthHandlerState extends State<AuthHandler> {
     return Scaffold(
       body: Builder(builder: (context) {
         // Check Supabase authentication
-        if (supabaseProvider.isLoading) {
-          log("AuthHandler: Waiting for Supabase auth state...");
-          return const LoadingWidget();
-        } else if (supabaseProvider.isAuthenticated) {
+        if (supabaseProvider.isAuthenticated) {
+          // Show loading while initializing user data
+          final userDataProvider = Provider.of<UserDataProvider>(context, listen: false);
+          if (_isInitializing || (userDataProvider.isLoading && userDataProvider.supabaseUserData == null)) {
+            return const LoadingWidget();
+          }
+
           // User is logged in with Supabase
           log("AuthHandler: User logged in with Supabase");
+
+          // Check if user has completed signup wizard
+          final wizardCompleted = userDataProvider.supabaseUserData?.wizardCompleted ?? false;
+
+          if (!wizardCompleted) {
+            return const SignupWizardPage();
+          }
+
           return const MainScreen();
         } else {
           // Not authenticated - show welcome page

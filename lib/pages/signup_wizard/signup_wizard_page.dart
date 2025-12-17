@@ -17,6 +17,7 @@ class SignupWizardPage extends StatefulWidget {
 class _SignupWizardPageState extends State<SignupWizardPage> {
   final PageController _pageController = PageController();
   int _currentStep = 0;
+  int _accountSubStep = 1; // Track account sub-steps (1-4)
   List<LocationModel>? _restaurants;
   bool _isLoadingRestaurants = false;
 
@@ -85,12 +86,32 @@ class _SignupWizardPageState extends State<SignupWizardPage> {
     }
   }
 
+  void _updateAccountSubStep(int subStep) {
+    setState(() {
+      _accountSubStep = subStep;
+    });
+  }
+
+  double _calculateProgress() {
+    // Total: 7 units (4 for account sub-steps + 3 for other steps)
+    if (_currentStep == 0) {
+      return _accountSubStep / 7.0; // 1-4
+    } else if (_currentStep == 1) {
+      return 4.0 / 7.0;
+    } else if (_currentStep == 2) {
+      return 5.0 / 7.0;
+    } else if (_currentStep == 3) {
+      return 6.0 / 7.0;
+    }
+    return 1.0;
+  }
+
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) => SignupWizardState(),
       child: Scaffold(
-        backgroundColor: const Color(0xFF6A1B9A), // Purple background
+        backgroundColor: const Color(0xFF42143d), // App primary color
         body: SafeArea(
           child: Column(
             children: [
@@ -99,24 +120,24 @@ class _SignupWizardPageState extends State<SignupWizardPage> {
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   children: [
-                    Row(
-                      children: List.generate(
-                        4,
-                        (index) => Expanded(
-                          child: Container(
-                            margin: EdgeInsets.only(
-                              left: index == 0 ? 0 : 4,
-                              right: index == 3 ? 0 : 4,
-                            ),
-                            height: 4,
+                    Container(
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          return AnimatedContainer(
+                            duration: const Duration(milliseconds: 400),
+                            curve: Curves.easeOutQuint,
+                            width: constraints.maxWidth * _calculateProgress(),
                             decoration: BoxDecoration(
-                              color: index <= _currentStep
-                                  ? Colors.white
-                                  : Colors.white.withOpacity(0.3),
+                              color: Colors.white,
                               borderRadius: BorderRadius.circular(2),
                             ),
-                          ),
-                        ),
+                          );
+                        },
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -149,7 +170,10 @@ class _SignupWizardPageState extends State<SignupWizardPage> {
                     });
                   },
                   children: [
-                    AccountStep(onNext: _nextStep),
+                    AccountStep(
+                      onNext: _nextStep,
+                      onSubStepChanged: _updateAccountSubStep,
+                    ),
                     DietaryStep(
                       onNext: _nextStep,
                       onBack: _previousStep,
