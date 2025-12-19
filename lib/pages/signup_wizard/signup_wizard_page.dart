@@ -22,7 +22,7 @@ class _SignupWizardPageState extends State<SignupWizardPage> {
   bool _isLoadingRestaurants = false;
 
   final List<String> _stepTitles = [
-    'Create Account',
+    'Create Account', // After finishing this step we actually creates the account
     'Dietary Preferences',
     'Your Vibe',
     'Find Your Restaurants',
@@ -37,6 +37,15 @@ class _SignupWizardPageState extends State<SignupWizardPage> {
   void _nextStep() {
     if (_currentStep < 3) {
       _pageController.nextPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _previousStep() {
+    if (_currentStep > 0) {
+      _pageController.previousPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
@@ -74,15 +83,6 @@ class _SignupWizardPageState extends State<SignupWizardPage> {
           );
         }
       }
-    }
-  }
-
-  void _previousStep() {
-    if (_currentStep > 0) {
-      _pageController.previousPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
     }
   }
 

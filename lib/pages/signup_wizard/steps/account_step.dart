@@ -122,7 +122,6 @@ class _AccountStepState extends State<AccountStep>
     );
   }
 
-
   Future<bool> _validateUserName() async{
     final username = usernameController.text.trim();
     if (username.isEmpty) {
@@ -278,7 +277,8 @@ class _AccountStepState extends State<AccountStep>
     }
   }
 
-  Future<void> _completeSignup() async {
+  // We create have already created the account before this step, but this stores the profile pic
+  Future<void> _addProfilePic() async {
     setState(() => isLoading = true);
 
     try {
@@ -586,7 +586,6 @@ class _AccountStepState extends State<AccountStep>
     );
   }
 
-
   // Sub-Step 2: Username Field
   Widget _buildUserNameSubStep() {
     return _buildAnimatedSubStep(
@@ -682,7 +681,6 @@ class _AccountStepState extends State<AccountStep>
     );
   }
   
-
   // Sub-Step 2: Email Field
   Widget _buildEmailSubStep() {
     return _buildAnimatedSubStep(
@@ -771,7 +769,6 @@ class _AccountStepState extends State<AccountStep>
       ),
     );
   }
-
 
   // Sub-Step 3: Password Fields
   Widget _buildPasswordSubStep() {
@@ -964,7 +961,7 @@ class _AccountStepState extends State<AccountStep>
                     width: double.infinity,
                     height: 56,
                     child: ElevatedButton(
-                      onPressed: isLoading ? null : _completeSignup,
+                      onPressed: isLoading ? null : _addProfilePic,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF42143d),
                         foregroundColor: Colors.white,
