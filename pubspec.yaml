@@ -100,6 +100,12 @@ flutter:
     - lib/assets/logo.jpg
     - lib/assets/background.jpg
     - lib/assets/logo-transparent.png
+    - lib/assets/vibe/brunchy.png
+    - lib/assets/vibe/cozy.png
+    - lib/assets/vibe/localSpot.png
+    - lib/assets/vibe/rooftop.jpg
+    - lib/assets/vibe/rusticLocal.png
+    - lib/assets/vibe/upscaleGuy.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware
