@@ -144,12 +144,12 @@ class _DietaryStepState extends State<DietaryStep> {
                                   backgroundColor: tag['colour'] != null
                                       ? Color(int.parse(tag['colour'].toString().replaceAll('#', '0xFF')))
                                       : Colors.grey.shade100,
-                                  selectedColor: const Color(0xFF6A1B9A)
+                                  selectedColor: const Color(0xFF42143d)
                                       .withOpacity(0.2),
-                                  checkmarkColor: const Color(0xFF6A1B9A),
+                                  checkmarkColor: const Color(0xFF42143d),
                                   labelStyle: TextStyle(
                                     color: isSelected
-                                        ? const Color(0xFF6A1B9A)
+                                        ? const Color(0xFF42143d)
                                         : Colors.black87,
                                     fontWeight: isSelected
                                         ? FontWeight.w600
@@ -159,7 +159,7 @@ class _DietaryStepState extends State<DietaryStep> {
                                     borderRadius: BorderRadius.circular(12),
                                     side: BorderSide(
                                       color: isSelected
-                                          ? const Color(0xFF6A1B9A)
+                                          ? const Color(0xFF42143d)
                                           : Colors.grey.shade300,
                                       width: isSelected ? 2 : 1,
                                     ),
@@ -189,7 +189,7 @@ class _DietaryStepState extends State<DietaryStep> {
                                   vertical: 12,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF6A1B9A).withOpacity(0.1),
+                                  color: const Color(0xFF42143d).withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(16),
                                 ),
                                 child: Text(
@@ -197,7 +197,7 @@ class _DietaryStepState extends State<DietaryStep> {
                                   style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w600,
-                                    color: Color(0xFF6A1B9A),
+                                    color: Color(0xFF42143d),
                                     height: 1.4,
                                   ),
                                   textAlign: TextAlign.center,
@@ -210,12 +210,12 @@ class _DietaryStepState extends State<DietaryStep> {
                             // Spice slider
                             SliderTheme(
                               data: SliderTheme.of(context).copyWith(
-                                activeTrackColor: const Color(0xFF6A1B9A),
+                                activeTrackColor: const Color(0xFF42143d),
                                 inactiveTrackColor:
-                                    const Color(0xFF6A1B9A).withOpacity(0.2),
-                                thumbColor: const Color(0xFF6A1B9A),
+                                    const Color(0xFF42143d).withOpacity(0.2),
+                                thumbColor: const Color(0xFF42143d),
                                 overlayColor:
-                                    const Color(0xFF6A1B9A).withOpacity(0.2),
+                                    const Color(0xFF42143d).withOpacity(0.2),
                                 trackHeight: 8,
                                 thumbShape: const RoundSliderThumbShape(
                                   enabledThumbRadius: 14,
@@ -251,7 +251,7 @@ class _DietaryStepState extends State<DietaryStep> {
                                           : FontWeight.normal,
                                       color: wizardState.spiceTolerance ==
                                               (index + 1)
-                                          ? const Color(0xFF6A1B9A)
+                                          ? const Color(0xFF42143d)
                                           : Colors.grey.shade600,
                                     ),
                                   ),
@@ -286,7 +286,7 @@ class _DietaryStepState extends State<DietaryStep> {
                     onPressed: widget.onBack,
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      side: const BorderSide(color: Color(0xFF6A1B9A)),
+                      side: const BorderSide(color: Color(0xFF42143d)),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
@@ -296,7 +296,7 @@ class _DietaryStepState extends State<DietaryStep> {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF6A1B9A),
+                        color: Color(0xFF42143d),
                       ),
                     ),
                   ),
@@ -309,7 +309,7 @@ class _DietaryStepState extends State<DietaryStep> {
                     onPressed: _isLoading ? null : widget.onNext,
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: const Color(0xFF6A1B9A),
+                      backgroundColor: const Color(0xFF42143d),
                       foregroundColor: Colors.white,
                       elevation: 4,
                       shape: RoundedRectangleBorder(

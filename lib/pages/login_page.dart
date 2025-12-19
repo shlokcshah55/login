@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:login/pages/signup_wizard/signup_wizard_page.dart';
 import 'package:provider/provider.dart';
 import '../supabase/service.dart';
-import 'signup_page.dart';
 import 'auth_handler.dart';
 
 class LoginPage extends StatefulWidget {
@@ -335,7 +335,7 @@ class _LoginPageState extends State<LoginPage> {
                     onPressed: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (context) => const SignupPage(),
+                          builder: (context) => const SignupWizardPage(),
                         ),
                       );
                     },

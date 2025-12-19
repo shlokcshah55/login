@@ -179,23 +179,16 @@ class LocationHelper {
         locationId = addedlocation.locationId;
       }
 
-      // Check if the location is already saved
-
       // Create the action
-      await _client.from(SupabaseConstants.tableUserLocationActions).upsert({
-        SupabaseConstants.columnUserId: user.id,
-        SupabaseConstants.columnLocationId: locationId,
-        SupabaseConstants.columnAction: SupabaseConstants.actionSave,
-        SupabaseConstants.columnSavedMethod: savedMethod,
-        SupabaseConstants.columnCreatedAt: DateTime.now().toIso8601String(),
-        SupabaseConstants.columnAcked: true,
-      });
+      await _client.rpc('create_user_location_action', params: {
+      'p_user_id': user.id,
+      'p_location_id': locationId,
+      'p_action': SupabaseConstants.actionSave,
+      'p_saved_method': savedMethod,
+      'p_acked': true,
+    });
 
       incrementSaveCount(locationId);
-      // Update location popularity counter
-      // await _client.rpc('increment_saves_count', params: {
-      //   'loc_id': location.locationId,
-      // });
 
       return true;
     } catch (e) {
@@ -222,13 +215,12 @@ class LocationHelper {
         return true;
       }
 
-      // Create the action
-      await _client.from(SupabaseConstants.tableUserLocationActions).upsert({
-        SupabaseConstants.columnUserId: user.id,
-        SupabaseConstants.columnLocationId: locationId,
-        SupabaseConstants.columnAction: SupabaseConstants.actionLike,
-        SupabaseConstants.columnCreatedAt: DateTime.now().toIso8601String(),
-      });
+      await _client.rpc('create_user_location_action', params: {
+      'p_user_id': user.id,
+      'p_location_id': locationId,
+      'p_action': SupabaseConstants.actionLike,
+      'p_acked': true,
+    });
 
       // Update location popularity counter using direct method instead of RPC
       await incrementLikesCount(locationId);
@@ -251,13 +243,13 @@ class LocationHelper {
         throw Exception('User not authenticated');
       }
 
-      // Create the action
-      await _client.from(SupabaseConstants.tableUserLocationActions).upsert({
-        SupabaseConstants.columnUserId: user.id,
-        SupabaseConstants.columnLocationId: locationId,
-        SupabaseConstants.columnAction: SupabaseConstants.actionDislike,
-        SupabaseConstants.columnCreatedAt: DateTime.now().toIso8601String(),
-      });
+      await _client.rpc('create_user_location_action', params: {
+      'p_user_id': user.id,
+      'p_location_id': locationId,
+      'p_action': SupabaseConstants.actionDislike,
+      'p_acked': true,
+    });
+
 
       return true;
     } catch (e) {

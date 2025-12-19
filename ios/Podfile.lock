@@ -12,6 +12,8 @@ PODS:
   - GoogleMaps (9.4.0):
     - GoogleMaps/Maps (= 9.4.0)
   - GoogleMaps/Maps (9.4.0)
+  - image_picker_ios (0.0.1):
+    - Flutter
   - location (0.0.1):
     - Flutter
   - map_launcher (0.0.1):
@@ -38,6 +40,7 @@ DEPENDENCIES:
   - geolocator_apple (from `.symlinks/plugins/geolocator_apple/ios`)
   - google_maps_flutter_ios (from `.symlinks/plugins/google_maps_flutter_ios/ios`)
   - GoogleMaps
+  - image_picker_ios (from `.symlinks/plugins/image_picker_ios/ios`)
   - location (from `.symlinks/plugins/location/ios`)
   - map_launcher (from `.symlinks/plugins/map_launcher/ios`)
   - path_provider_foundation (from `.symlinks/plugins/path_provider_foundation/darwin`)
@@ -62,6 +65,8 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/geolocator_apple/ios"
   google_maps_flutter_ios:
     :path: ".symlinks/plugins/google_maps_flutter_ios/ios"
+  image_picker_ios:
+    :path: ".symlinks/plugins/image_picker_ios/ios"
   location:
     :path: ".symlinks/plugins/location/ios"
   map_launcher:
@@ -86,6 +91,7 @@ SPEC CHECKSUMS:
   geolocator_apple: 1560c3c875af2a412242c7a923e15d0d401966ff
   google_maps_flutter_ios: be1b329323e0ed8911ff3c3b405b08ec2b649a14
   GoogleMaps: 0608099d4870cac8754bdba9b6953db543432438
+  image_picker_ios: e0ece4aa2a75771a7de3fa735d26d90817041326
   location: 155caecf9da4f280ab5fe4a55f94ceccfab838f8
   map_launcher: fe43bda6720bb73c12fcc1bdd86123ff49a4d4d6
   path_provider_foundation: 080d55be775b7414fd5a5ef3ac137b97b097e564

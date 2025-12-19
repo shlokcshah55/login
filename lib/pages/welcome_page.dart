@@ -44,156 +44,172 @@ class WelcomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF42143d),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Spacer(flex: 2),
-
-              // Logo
-              Image.asset(
-                'lib/assets/logo.jpg',
-                height: 400,
-                width: 400,
-                fit: BoxFit.cover,
-              ),
-
-              const Spacer(flex: 3),
-
-              // Login Button (Primary Action - Outlined)
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: OutlinedButton(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => const LoginPage(),
-                      ),
-                    );
-                  },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: const BorderSide(
-                      color: Colors.white,
-                      width: 2,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: const Text(
-                    'Login',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1.0,
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // Sign Up Button (matching Google style)
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => const SignupWizardPage(),
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: Colors.black87,
-                    elevation: 4,
-                    shadowColor: Colors.black.withOpacity(0.3),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: const Text(
-                    'Sign Up',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 32),
-
-              // Divider with "Or continue with" text
-              Row(
+      body: Stack(
+        children: [
+          // Background image that fills the screen and scales with cover
+          Positioned.fill(
+            child: Image.asset(
+              'lib/assets/background.jpg',
+              fit: BoxFit.cover,
+              alignment: Alignment.center,
+            ),
+          ),
+          // Optional dark overlay to improve contrast over the image
+          Positioned.fill(
+            child: Container(color: Colors.black.withOpacity(0.35)),
+          ),
+          // Foreground content (kept same as before)
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Expanded(
-                    child: Divider(
-                      color: Colors.white54,
-                      thickness: 1,
-                    ),
+                  const Spacer(flex: 2),
+
+                  // Logo
+                  Image.asset(
+                    'lib/assets/logo-transparent.png',
+                    height: 400,
+                    width: 400,
+                    fit: BoxFit.cover,
                   ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Text(
-                      'Or continue with',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.8),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
+
+                  const Spacer(flex: 3),
+
+                  // Login Button (Primary Action - Outlined)
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: OutlinedButton(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => const LoginPage(),
+                          ),
+                        );
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(
+                          color: Colors.white,
+                          width: 2,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: const Text(
+                        'Login',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.0,
+                        ),
                       ),
                     ),
                   ),
-                  const Expanded(
-                    child: Divider(
-                      color: Colors.white54,
-                      thickness: 1,
+
+                  const SizedBox(height: 20),
+
+                  // Sign Up Button (matching Google style)
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => const SignupWizardPage(),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black87,
+                        elevation: 4,
+                        shadowColor: Colors.black.withOpacity(0.3),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: const Text(
+                        'Sign Up',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
                     ),
                   ),
+
+                  const SizedBox(height: 32),
+
+                  // Divider with "Or continue with" text
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Divider(
+                          color: Colors.white54,
+                          thickness: 1,
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          'Or continue with',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.8),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      const Expanded(
+                        child: Divider(
+                          color: Colors.white54,
+                          thickness: 1,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Continue with Google Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _signInWithGoogle(context),
+                      icon: const Icon(Icons.g_mobiledata, size: 32),
+                      label: const Text(
+                        'Continue with Google',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black87,
+                        elevation: 4,
+                        shadowColor: Colors.black.withOpacity(0.3),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const Spacer(flex: 2),
                 ],
               ),
-
-              const SizedBox(height: 32),
-
-              // Continue with Google Button
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton.icon(
-                  onPressed: () => _signInWithGoogle(context),
-                  icon: const Icon(Icons.g_mobiledata, size: 32),
-                  label: const Text(
-                    'Continue with Google',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: Colors.black87,
-                    elevation: 4,
-                    shadowColor: Colors.black.withOpacity(0.3),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                ),
-              ),
-
-              const Spacer(flex: 2),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

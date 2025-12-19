@@ -4,8 +4,6 @@ import 'package:login/models/users.dart';
 import 'package:login/supabase/service.dart';
 
 class UserDataProvider with ChangeNotifier {
-  // Keep Firebase service for backward compatibility during migration
-
   // Add Supabase repository
   final SupabaseService _supabaseProvider = SupabaseService();
 
@@ -54,6 +52,10 @@ class UserDataProvider with ChangeNotifier {
           _isLoading = false;
           notifyListeners();
           return;
+        } else {
+          // getUserProfile returned null - user record may not exist
+          log('UserDataProvider: getUserProfile returned null - user record may not exist');
+          _error = 'User profile not found. Please complete setup.';
         }
       }
 

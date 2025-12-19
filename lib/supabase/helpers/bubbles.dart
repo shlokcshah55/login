@@ -164,24 +164,12 @@ class BubbleHelper {
     bool isPrivate = false,
   }) async {
     try {
-      final response = await _client
-          .from(SupabaseConstants.tableBubbles)
-          .insert({
-            SupabaseConstants.columnName: name,
-            SupabaseConstants.columnCreatedBy: createdBy,
-            SupabaseConstants.columnIsPrivate: isPrivate,
-          })
-          .select()
-          .single();
 
-      final bubbleId = response[SupabaseConstants.columnBubbleId];
-
-      // Add creator as a member
-      await _client.from(SupabaseConstants.tableBubbleMembers).insert({
-        SupabaseConstants.columnBubbleId: bubbleId,
-        SupabaseConstants.columnUserId: createdBy,
-      });
-
+      final bubbleId = await _client.rpc('create_bubble_with_member', params: {
+      'p_name': name,
+      'p_created_by': createdBy,
+      'p_is_private': isPrivate,
+    });
       return bubbleId;
     } catch (e) {
       if (kDebugMode) {
@@ -199,12 +187,12 @@ class BubbleHelper {
     String? note,
   }) async {
     try {
-      await _client.from(SupabaseConstants.tableBubbleLocations).insert({
-        SupabaseConstants.columnBubbleId: bubbleId,
-        SupabaseConstants.columnLocationId: locationId,
-        SupabaseConstants.columnAddedBy: addedBy,
-        SupabaseConstants.columnNote: note,
-      });
+      await _client.rpc('add_bubble_location', params: {
+      'p_bubble_id': bubbleId,
+      'p_location_id': locationId,
+      'p_added_by': addedBy,
+      'p_note': note,
+    });
       return true;
     } catch (e) {
       if (kDebugMode) {
@@ -259,10 +247,10 @@ class BubbleHelper {
     required String userId,
   }) async {
     try {
-      await _client.from(SupabaseConstants.tableBubbleMembers).insert({
-        SupabaseConstants.columnBubbleId: bubbleId,
-        SupabaseConstants.columnUserId: userId,
-      });
+      await _client.rpc('add_bubble_member', params: {
+      'p_bubble_id': bubbleId,
+      'p_user_id': userId,
+    });
       return true;
     } catch (e) {
       if (kDebugMode) {

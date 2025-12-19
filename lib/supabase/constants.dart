@@ -23,6 +23,8 @@ class SupabaseConstants {
   static const String columnBio = 'bio';
   static const String columnProfileImageUrl = 'profile_image_url';
   static const String columnWizardCompleted = 'wizard_completed';
+  static const String columnUsername = 'username';
+
 
   // Column names - locations
   static const String columnLocationId = 'location_id';
@@ -118,5 +120,8 @@ class SupabaseConstants {
   static const String tagTypeDietaryRequirement = 'dietary_requirement';
   static const String tagTypeVibe = 'vibe';
   static const String tagTypeCuisine = 'cuisine';
+
+  static const String supabaseStorageBucketProfileImages =
+      'profile_photos';
 
 }
