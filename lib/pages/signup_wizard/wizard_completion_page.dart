@@ -4,6 +4,7 @@ import '../../models/signup_wizard_state.dart';
 import '../../models/locations.dart';
 import '../../supabase/service.dart';
 import '../../supabase/supabase_client.dart';
+import '../../supabase/constants.dart';
 import '../auth_handler.dart';
 import 'steps/dietary_step.dart';
 import 'steps/vibe_step.dart';
@@ -133,15 +134,21 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
       await supabase.tags.updateUserTagsPhotos(userId, wizardState.selectedVibeTagIds);
 
 
-      // Step 2: Process restaurant decisions in parallel
+      // Step 2: Process restaurant decisions
 
       for (final entry in wizardState.restaurantDecisions.entries) {
         final locationId = entry.key;
-        final liked = entry.value;
+        final saved = entry.value;
 
-        // Add like/dislike action
-        if (liked) {
-          await supabase.locations.likeLocation(locationId); 
+        if (saved) {
+          await supabase.locations.saveLocation(
+            locationId,
+            savedMethod: SupabaseConstants.savedMethodInApp,
+          );
+          // CRITICAL: Update tag affinities (+8 weight)
+          if (wizardState.userId != null) {
+            await supabase.tags.updateUserTagsSaving(wizardState.userId!, locationId);
+          }
         } else {
           await supabase.locations.dislikeLocation(locationId);
         }

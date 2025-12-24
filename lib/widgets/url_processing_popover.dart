@@ -192,7 +192,7 @@ class _UrlProcessingPopoverState extends State<UrlProcessingPopover>
 
         // Save location using the Supabase service
        await _supabaseService.locations.saveLocation(
-          locationModel,
+          locationModel.locationId,
           savedMethod: 'tiktok',
         );
 

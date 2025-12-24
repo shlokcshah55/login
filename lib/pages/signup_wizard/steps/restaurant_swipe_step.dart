@@ -26,9 +26,9 @@ class RestaurantSwipeStep extends StatefulWidget {
 class _RestaurantSwipeStepState extends State<RestaurantSwipeStep> {
   final GlobalKey<SwipeCardStackState> _swipeKey = GlobalKey();
 
-  void _handleSwipe(LocationModel location, bool liked) {
+  void _handleSwipe(LocationModel location, bool saved) {
     final wizardState = Provider.of<SignupWizardState>(context, listen: false);
-    wizardState.recordRestaurantDecision(location.locationId, liked);
+    wizardState.recordRestaurantDecision(location.locationId, saved);
   }
 
   @override
@@ -145,7 +145,7 @@ class _RestaurantSwipeStepState extends State<RestaurantSwipeStep> {
                         ),
                       ),
                       const SizedBox(width: 48),
-                      // Like button
+                      // Save button
                       Container(
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,

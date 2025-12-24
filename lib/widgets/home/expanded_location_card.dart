@@ -71,7 +71,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard> {
       } else {
         // Save location
         final success = await supabaseProvider.locations
-            .saveLocation(widget.location);
+            .saveLocation(widget.location.locationId);
         if (success) {
           setState(() => _isSaved = true);
 

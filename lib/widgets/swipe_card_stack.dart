@@ -4,7 +4,7 @@ import '../models/locations.dart';
 /// A Tinder-style swipeable card stack for locations
 class SwipeCardStack extends StatefulWidget {
   final List<LocationModel> locations;
-  final Function(LocationModel location, bool liked) onSwipe;
+  final Function(LocationModel location, bool saved) onSwipe;
   final VoidCallback? onComplete;
 
   const SwipeCardStack({
@@ -70,8 +70,8 @@ class SwipeCardStackState extends State<SwipeCardStack>
 
     if (_dragOffset.dx.abs() > threshold) {
       // Swipe decision made
-      final liked = _dragOffset.dx > 0;
-      _animateSwipe(liked);
+      final saved = _dragOffset.dx > 0;
+      _animateSwipe(saved);
     } else {
       // Return to center
       setState(() {
@@ -81,10 +81,10 @@ class SwipeCardStackState extends State<SwipeCardStack>
     }
   }
 
-  void _animateSwipe(bool liked) {
+  void _animateSwipe(bool saved) {
     final screenWidth = MediaQuery.of(context).size.width;
     final endOffset = Offset(
-      liked ? screenWidth * 1.5 : -screenWidth * 1.5,
+      saved ? screenWidth * 1.5 : -screenWidth * 1.5,
       _dragOffset.dy,
     );
 
@@ -101,7 +101,7 @@ class SwipeCardStackState extends State<SwipeCardStack>
     _animationController.forward(from: 0).then((_) {
       if (mounted) {
         // Notify about the swipe
-        widget.onSwipe(widget.locations[_currentIndex], liked);
+        widget.onSwipe(widget.locations[_currentIndex], saved);
 
         // Move to next card
         setState(() {
@@ -210,7 +210,7 @@ class SwipeCardStackState extends State<SwipeCardStack>
                     child!,
                     // Swipe indicators
                     if (_isDragging || _animationController.isAnimating) ...[
-                      // Like indicator (right swipe)
+                      // Save indicator (right swipe)
                       if (offset.dx > 0)
                         Positioned.fill(
                           child: Container(
@@ -236,7 +236,7 @@ class SwipeCardStackState extends State<SwipeCardStack>
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: const Text(
-                                    'LIKE',
+                                    'SAVE',
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontSize: 24,

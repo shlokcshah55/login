@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/signup_wizard_state.dart';
 import '../../models/locations.dart';
 import '../../supabase/service.dart';
+import '../../supabase/constants.dart';
 import '../auth_handler.dart';
 import 'account_step.dart';
 import 'steps/dietary_step.dart';
@@ -136,11 +137,10 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
 
       for (final entry in wizardState.restaurantDecisions.entries) {
         final locationId = entry.key;
-        final liked = entry.value;
+        final saved = entry.value;
 
-        // Add like/dislike action
-        if (liked) {
-          restaurantFutures.add(supabase.locations.likeLocation(locationId));
+        if (saved) {
+          restaurantFutures.add(supabase.locations.saveLocation(locationId, savedMethod: SupabaseConstants.savedMethodInApp));
         } else {
           restaurantFutures.add(supabase.locations.dislikeLocation(locationId));
         }

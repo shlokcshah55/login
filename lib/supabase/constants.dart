@@ -88,7 +88,6 @@ class SupabaseConstants {
 
   // Column names - location_popularity_app
   static const String columnSavesCount = 'saves_count';
-  static const String columnLikesCount = 'likes_count';
   static const String columnUpdatedAt = 'updated_at';
 
   // Column names - location_popularity_social
@@ -126,7 +125,6 @@ class SupabaseConstants {
 
   // Enum values - action_type
   static const String actionSave = 'save';
-  static const String actionLike = 'like';
   static const String actionSharedVideo = 'shared_video';
   static const String actionDislike = 'dislike';
 
