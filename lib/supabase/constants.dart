@@ -14,7 +14,8 @@ class SupabaseConstants {
   static const String tableBubbleLocations = 'bubble_locations';
   static const String tableTags = 'tags';
   static const String tableLocationTags = 'location_tags';
-  static const String tableUserTags = 'user_tags';
+  static const String tableUserTags = 'user_tag_affinities';
+  static const String tableUserTagAffinities = 'user_tag_affinities';
 
   // Column names - users
   static const String columnSupabaseId = 'supabase_id';
@@ -41,6 +42,28 @@ class SupabaseConstants {
   static const String columnPhotoReference = 'photo_reference';
   static const String columnSavedCount = 'saved_count';
   static const String columnGooglePlaceId = 'google_place_id';
+  static const String columnBusinessStatus = 'business_status';
+  static const String columnEditorialSummary = 'editorial_summary';
+  static const String columnWebsite = 'website';
+  static const String columnInternationalPhoneNumber = 'international_phone_number';
+  static const String columnTypes = 'types';
+  static const String columnOpeningHoursText = 'opening_hours_text';
+  static const String columnOpeningHoursPeriods = 'opening_hours_periods';
+  static const String columnOpenNow = 'open_now';
+  static const String columnCuisineDetected = 'cuisine_detected';
+  static const String columnCuisineSource = 'cuisine_source';
+  static const String columnCuisinePrimary = 'cuisine_primary';
+  static const String columnTopReviewLanguage = 'top_review_language';
+  static const String columnTopLanguageShare = 'top_language_share';
+  static const String columnReviewLanguageCountsJson = 'review_language_counts_json';
+  static const String columnIsOpenLate = 'is_open_late';
+  static const String columnIsOpenEarly = 'is_open_early';
+  static const String columnIsSundayOpen = 'is_sunday_open';
+  static const String columnPriceBucket = 'price_bucket';
+  static const String columnLogReviews = 'log_reviews';
+  static const String columnDerivedAttributes = 'derived_attributes';
+  static const String columnDataVersion = 'data_version';
+  static const String columnIngestedAt = 'ingested_at';
 
   // Column names - videos
   static const String columnVideoId = 'video_id';
@@ -65,7 +88,6 @@ class SupabaseConstants {
 
   // Column names - location_popularity_app
   static const String columnSavesCount = 'saves_count';
-  static const String columnLikesCount = 'likes_count';
   static const String columnUpdatedAt = 'updated_at';
 
   // Column names - location_popularity_social
@@ -103,7 +125,6 @@ class SupabaseConstants {
 
   // Enum values - action_type
   static const String actionSave = 'save';
-  static const String actionLike = 'like';
   static const String actionSharedVideo = 'shared_video';
   static const String actionDislike = 'dislike';
 
@@ -123,5 +144,8 @@ class SupabaseConstants {
 
   static const String supabaseStorageBucketProfileImages =
       'profile_photos';
+
+  static const String columnUserTagAffinity = 'affinity';
+  static const String columnUserTagEvidence = 'evidence';
 
 }

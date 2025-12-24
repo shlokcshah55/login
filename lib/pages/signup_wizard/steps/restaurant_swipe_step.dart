@@ -2,18 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../models/signup_wizard_state.dart';
 import '../../../models/locations.dart';
-import '../../../supabase/service.dart';
 import '../../../widgets/loading_widget.dart';
 import '../../../widgets/swipe_card_stack.dart';
-import '../../auth_handler.dart';
 
 class RestaurantSwipeStep extends StatefulWidget {
   final VoidCallback onBack;
+  final VoidCallback onComplete;
+  final bool isCompleting;
   final List<LocationModel> restaurants;
 
   const RestaurantSwipeStep({
     super.key,
     required this.onBack,
+    required this.onComplete,
+    required this.isCompleting,
     required this.restaurants,
   });
 
@@ -22,67 +24,11 @@ class RestaurantSwipeStep extends StatefulWidget {
 }
 
 class _RestaurantSwipeStepState extends State<RestaurantSwipeStep> {
-  bool _isSaving = false;
   final GlobalKey<SwipeCardStackState> _swipeKey = GlobalKey();
 
-  void _handleSwipe(LocationModel location, bool liked) {
+  void _handleSwipe(LocationModel location, bool saved) {
     final wizardState = Provider.of<SignupWizardState>(context, listen: false);
-    wizardState.recordRestaurantDecision(location.locationId, liked);
-  }
-
-  Future<void> _completeWizard() async {
-    setState(() => _isSaving = true);
-
-    try {
-      final wizardState = Provider.of<SignupWizardState>(context, listen: false);
-      final supabase = Provider.of<SupabaseService>(context, listen: false);
-
-      final combinedTags = [
-        ...wizardState.selectedDietaryTagIds,
-        ...wizardState.selectedVibeTagIds,
-      ];
-      await supabase.users.addUserTags(wizardState.userId!, combinedTags);
-      await supabase.users.AddSpiceTolerance(
-        wizardState.userId!,
-        wizardState.spiceTolerance,
-      );
-      final likedLocationIds = wizardState.likedRestaurantIds;
-      if (likedLocationIds.isNotEmpty) {
-        likedLocationIds.map(supabase.locations.likeLocation);
-      }
-
-      final dislikedLocationIds = wizardState.restaurantDecisions.entries
-          .where((entry) => entry.value == false)
-          .map((entry) => entry.key)
-          .toList();
-      if (dislikedLocationIds.isNotEmpty) {
-        dislikedLocationIds.map(supabase.locations.dislikeLocation);
-      }
-      
-      await supabase.users.completeSignupWizard(
-        wizardState.userId!,
-      );
-
-      // Navigate to main app
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const AuthHandler(),
-          ),
-        );
-      }
-    } catch (e) {
-      setState(() => _isSaving = false);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to save preferences: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
+    wizardState.recordRestaurantDecision(location.locationId, saved);
   }
 
   @override
@@ -199,7 +145,7 @@ class _RestaurantSwipeStepState extends State<RestaurantSwipeStep> {
                         ),
                       ),
                       const SizedBox(width: 48),
-                      // Like button
+                      // Save button
                       Container(
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
@@ -229,7 +175,7 @@ class _RestaurantSwipeStepState extends State<RestaurantSwipeStep> {
                     // Back button
                     Expanded(
                       child: OutlinedButton(
-                        onPressed: _isSaving ? null : widget.onBack,
+                        onPressed: widget.isCompleting ? null : widget.onBack,
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           side: const BorderSide(color: Color(0xFF6A1B9A)),
@@ -252,7 +198,7 @@ class _RestaurantSwipeStepState extends State<RestaurantSwipeStep> {
                     Expanded(
                       flex: 2,
                       child: ElevatedButton(
-                        onPressed: _isSaving ? null : _completeWizard,
+                        onPressed: widget.isCompleting ? null : widget.onComplete,
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           backgroundColor: const Color(0xFF6A1B9A),
@@ -262,7 +208,7 @@ class _RestaurantSwipeStepState extends State<RestaurantSwipeStep> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        child: _isSaving
+                        child: widget.isCompleting
                             ? const LoadingWidget(width: 24, height: 24)
                             : const Text(
                                 'Complete Setup',

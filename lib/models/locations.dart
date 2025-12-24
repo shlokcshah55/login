@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../supabase/constants.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'dart:developer';
+import 'dart:convert';
 
 enum LocationType { restaurant, hotel, museum, park, other }
 
@@ -25,46 +26,116 @@ class LocationModel {
   final int? priceLevel;
   final String? photoReference;
   final int? savedCount;
+  // Additional fields from the DB schema
+  final DateTime? ingestedAt;
+  final String? googlePlaceId;
+  final String? businessStatus;
+  final String? editorialSummary;
+  final String? website;
+  final String? internationalPhoneNumber;
+  final String? types; // stored as text in DB, could be comma-separated
+  final List<String>? openingHoursText;
+  final bool? openNow;
+  final String? cuisineDetected;
+  final String? cuisineSource;
+  final String? cuisinePrimary;
+  final String? topReviewLanguage;
+  final double? topLanguageShare;
+  final Map<String, dynamic>? reviewLanguageCountsJson;
+  final bool? isOpenLate;
+  final bool? isOpenEarly;
+  final bool? isSundayOpen;
+  final String? priceBucket;
+  final double? logReviews;
+  final String dataVersion;
   LocationPreference? preference;
 
   LocationModel(
-      {required this.locationId,
-      required this.name,
-      this.vicinity,
-      this.lat,
-      this.lng,
-      required this.createdAt,
-      this.phoneNumber,
-      this.cuisine,
-      this.rating,
-      this.userRatingsTotal,
-      this.priceLevel,
-      this.photoReference,
-      this.savedCount,
-      this.preference});
+    {required this.locationId,
+    required this.name,
+    this.vicinity,
+    this.lat,
+    this.lng,
+    required this.createdAt,
+    this.ingestedAt,
+    this.phoneNumber,
+    this.cuisine,
+    this.rating,
+    this.userRatingsTotal,
+    this.priceLevel,
+    this.photoReference,
+    this.savedCount,
+    this.googlePlaceId,
+    this.businessStatus,
+    this.editorialSummary,
+    this.website,
+    this.internationalPhoneNumber,
+    this.types,
+    this.openingHoursText,
+    this.openNow,
+    this.cuisineDetected,
+    this.cuisineSource,
+    this.cuisinePrimary,
+    this.topReviewLanguage,
+    this.topLanguageShare,
+    this.reviewLanguageCountsJson,
+    this.isOpenLate,
+    this.isOpenEarly,
+    this.isSundayOpen,
+    this.priceBucket,
+    this.logReviews,
+    this.dataVersion = 'v1',
+    this.preference});
 
-  /// Create a LocationModel from a JSON map
   factory LocationModel.fromJson(Map<String, dynamic> json) {
     return LocationModel(
-      locationId: json[SupabaseConstants.columnLocationId],
-      name: json[SupabaseConstants.columnName],
+      locationId: json[SupabaseConstants.columnLocationId] as int,
+      name: json[SupabaseConstants.columnName] ?? 'Unknown',
       vicinity: json[SupabaseConstants.columnVicinity],
-      lat: json[SupabaseConstants.columnLat] != null
-          ? double.parse(json[SupabaseConstants.columnLat].toString())
-          : null,
-      lng: json[SupabaseConstants.columnLng] != null
-          ? double.parse(json[SupabaseConstants.columnLng].toString())
-          : null,
+      lat: (json[SupabaseConstants.columnLat] as num?)?.toDouble(),
+      lng: (json[SupabaseConstants.columnLng] as num?)?.toDouble(),
       createdAt: DateTime.parse(json[SupabaseConstants.columnCreatedAt]),
+      ingestedAt: json[SupabaseConstants.columnIngestedAt] != null
+          ? DateTime.tryParse(json[SupabaseConstants.columnIngestedAt].toString())
+          : null,
       phoneNumber: json[SupabaseConstants.columnPhoneNumber],
       cuisine: json[SupabaseConstants.columnCuisine],
-      rating: json[SupabaseConstants.columnRating] != null
-          ? double.parse(json[SupabaseConstants.columnRating].toString())
-          : null,
-      userRatingsTotal: json[SupabaseConstants.columnUserRatingsTotal],
-      priceLevel: json[SupabaseConstants.columnPriceLevel],
+      rating: (json[SupabaseConstants.columnRating] as num?)?.toDouble(),
+      userRatingsTotal: (json[SupabaseConstants.columnUserRatingsTotal] as num?)?.toInt(),
+      priceLevel: (json[SupabaseConstants.columnPriceLevel] as num?)?.toInt(),
       photoReference: json[SupabaseConstants.columnPhotoReference],
-      savedCount: json[SupabaseConstants.columnSavedCount],
+      savedCount: (json[SupabaseConstants.columnSavedCount] as num?)?.toInt(),
+      googlePlaceId: json[SupabaseConstants.columnGooglePlaceId],
+      businessStatus: json[SupabaseConstants.columnBusinessStatus],
+      editorialSummary: json[SupabaseConstants.columnEditorialSummary],
+      website: json[SupabaseConstants.columnWebsite],
+      internationalPhoneNumber: json[SupabaseConstants.columnInternationalPhoneNumber],
+      types: json[SupabaseConstants.columnTypes]?.toString(),
+      
+
+      // Correctly handle Postgres Arrays
+      openingHoursText: json[SupabaseConstants.columnOpeningHoursText] != null
+          ? List<String>.from(json[SupabaseConstants.columnOpeningHoursText])
+          : null,
+    
+      
+      openNow: json[SupabaseConstants.columnOpenNow] as bool?,
+      cuisineDetected: json[SupabaseConstants.columnCuisineDetected],
+      cuisineSource: json[SupabaseConstants.columnCuisineSource],
+      cuisinePrimary: json[SupabaseConstants.columnCuisinePrimary],
+      topReviewLanguage: json[SupabaseConstants.columnTopReviewLanguage],
+      topLanguageShare: (json[SupabaseConstants.columnTopLanguageShare] as num?)?.toDouble(),
+      
+      reviewLanguageCountsJson: json[SupabaseConstants.columnReviewLanguageCountsJson],
+      
+      isOpenLate: json[SupabaseConstants.columnIsOpenLate] as bool?,
+      isOpenEarly: json[SupabaseConstants.columnIsOpenEarly] as bool?,
+      isSundayOpen: json[SupabaseConstants.columnIsSundayOpen] as bool?,
+      priceBucket: json[SupabaseConstants.columnPriceBucket],
+      logReviews: (json[SupabaseConstants.columnLogReviews] as num?)?.toDouble(),
+      
+      
+      dataVersion: json[SupabaseConstants.columnDataVersion]?.toString() ?? 'v1',
     );
   }
 
@@ -96,18 +167,35 @@ class LocationModel {
     if (vicinity != null) data[SupabaseConstants.columnVicinity] = vicinity;
     if (lat != null) data[SupabaseConstants.columnLat] = lat;
     if (lng != null) data[SupabaseConstants.columnLng] = lng;
-    if (phoneNumber != null)
-      data[SupabaseConstants.columnPhoneNumber] = phoneNumber;
+    if (phoneNumber != null) data[SupabaseConstants.columnPhoneNumber] = phoneNumber;
     if (cuisine != null) data[SupabaseConstants.columnCuisine] = cuisine;
     if (rating != null) data[SupabaseConstants.columnRating] = rating;
-    if (userRatingsTotal != null)
-      data[SupabaseConstants.columnUserRatingsTotal] = userRatingsTotal;
-    if (priceLevel != null)
-      data[SupabaseConstants.columnPriceLevel] = priceLevel;
-    if (photoReference != null)
-      data[SupabaseConstants.columnPhotoReference] = photoReference;
-    if (savedCount != null)
-      data[SupabaseConstants.columnSavedCount] = savedCount;
+    if (userRatingsTotal != null) data[SupabaseConstants.columnUserRatingsTotal] = userRatingsTotal;
+    if (priceLevel != null) data[SupabaseConstants.columnPriceLevel] = priceLevel;
+    if (photoReference != null) data[SupabaseConstants.columnPhotoReference] = photoReference;
+    if (savedCount != null) data[SupabaseConstants.columnSavedCount] = savedCount;
+
+    // Additional fields
+    if (googlePlaceId != null) data[SupabaseConstants.columnGooglePlaceId] = googlePlaceId;
+    if (businessStatus != null) data[SupabaseConstants.columnBusinessStatus] = businessStatus;
+    if (editorialSummary != null) data[SupabaseConstants.columnEditorialSummary] = editorialSummary;
+    if (website != null) data[SupabaseConstants.columnWebsite] = website;
+    if (internationalPhoneNumber != null) data[SupabaseConstants.columnInternationalPhoneNumber] = internationalPhoneNumber;
+    if (types != null) data[SupabaseConstants.columnTypes] = types;
+    if (openingHoursText != null) data[SupabaseConstants.columnOpeningHoursText] = openingHoursText;
+    if (openNow != null) data[SupabaseConstants.columnOpenNow] = openNow;
+    if (cuisineDetected != null) data[SupabaseConstants.columnCuisineDetected] = cuisineDetected;
+    if (cuisineSource != null) data[SupabaseConstants.columnCuisineSource] = cuisineSource;
+    if (cuisinePrimary != null) data[SupabaseConstants.columnCuisinePrimary] = cuisinePrimary;
+    if (topReviewLanguage != null) data[SupabaseConstants.columnTopReviewLanguage] = topReviewLanguage;
+    if (topLanguageShare != null) data[SupabaseConstants.columnTopLanguageShare] = topLanguageShare;
+    if (reviewLanguageCountsJson != null) data[SupabaseConstants.columnReviewLanguageCountsJson] = reviewLanguageCountsJson;
+    if (isOpenLate != null) data[SupabaseConstants.columnIsOpenLate] = isOpenLate;
+    if (isOpenEarly != null) data[SupabaseConstants.columnIsOpenEarly] = isOpenEarly;
+    if (isSundayOpen != null) data[SupabaseConstants.columnIsSundayOpen] = isSundayOpen;
+    if (priceBucket != null) data[SupabaseConstants.columnPriceBucket] = priceBucket;
+    if (logReviews != null) data[SupabaseConstants.columnLogReviews] = logReviews;
+    data[SupabaseConstants.columnDataVersion] = dataVersion;
 
     return data;
   }
@@ -130,6 +218,28 @@ class LocationModel {
     bool clearVicinity = false,
     bool clearLat = false,
     bool clearLng = false,
+    String? googlePlaceId,
+    String? businessStatus,
+    String? editorialSummary,
+    String? website,
+    String? internationalPhoneNumber,
+    String? types,
+    List<String>? openingHoursText,
+    Map<String, dynamic>? openingHoursPeriods,
+    bool? openNow,
+    String? cuisineDetected,
+    String? cuisineSource,
+    String? cuisinePrimary,
+    String? topReviewLanguage,
+    double? topLanguageShare,
+    Map<String, dynamic>? reviewLanguageCountsJson,
+    bool? isOpenLate,
+    bool? isOpenEarly,
+    bool? isSundayOpen,
+    String? priceBucket,
+    double? logReviews,
+    Map<String, dynamic>? derivedAttributes,
+    String? dataVersion,
   }) {
     return LocationModel(
       locationId: locationId ?? this.locationId,
@@ -145,6 +255,26 @@ class LocationModel {
       priceLevel: priceLevel ?? this.priceLevel,
       photoReference: photoReference ?? this.photoReference,
       savedCount: savedCount ?? this.savedCount,
+      googlePlaceId: googlePlaceId ?? this.googlePlaceId,
+      businessStatus: businessStatus ?? this.businessStatus,
+      editorialSummary: editorialSummary ?? this.editorialSummary,
+      website: website ?? this.website,
+      internationalPhoneNumber: internationalPhoneNumber ?? this.internationalPhoneNumber,
+      types: types ?? this.types,
+      openingHoursText: openingHoursText ?? this.openingHoursText,
+      openNow: openNow ?? this.openNow,
+      cuisineDetected: cuisineDetected ?? this.cuisineDetected,
+      cuisineSource: cuisineSource ?? this.cuisineSource,
+      cuisinePrimary: cuisinePrimary ?? this.cuisinePrimary,
+      topReviewLanguage: topReviewLanguage ?? this.topReviewLanguage,
+      topLanguageShare: topLanguageShare ?? this.topLanguageShare,
+      reviewLanguageCountsJson: reviewLanguageCountsJson ?? this.reviewLanguageCountsJson,
+      isOpenLate: isOpenLate ?? this.isOpenLate,
+      isOpenEarly: isOpenEarly ?? this.isOpenEarly,
+      isSundayOpen: isSundayOpen ?? this.isSundayOpen,
+      priceBucket: priceBucket ?? this.priceBucket,
+      logReviews: logReviews ?? this.logReviews,
+      dataVersion: dataVersion ?? this.dataVersion,
     );
   }
 

@@ -393,8 +393,8 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
           _buildActivityItem(
             theme,
             Icons.favorite,
-            'Pin liked',
-            'Mike liked "Best Pizza Place"',
+            'Pin Saved',
+            'Mike saved "Best Pizza Place"',
             '5 hours ago',
           ),
           const Divider(height: 24),

@@ -2,13 +2,14 @@ import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../animations/animation_builders.dart';
-import '../../../animations/common_animations.dart';
-import '../../../animations/animation_constants.dart';
-import '../../../models/signup_wizard_state.dart';
-import '../../../supabase/service.dart';
-import '../../../widgets/loading_widget.dart';
-import '../../../widgets/profile/profile_photo_selector.dart';
+import '../../animations/animation_builders.dart';
+import '../../animations/common_animations.dart';
+import '../../animations/animation_constants.dart';
+import '../../models/signup_wizard_state.dart';
+import '../../supabase/service.dart';
+import '../../widgets/loading_widget.dart';
+import '../../widgets/profile/profile_photo_selector.dart';
+import '../auth_handler.dart';
 
 class AccountStep extends StatefulWidget {
   final VoidCallback onNext;
@@ -237,7 +238,6 @@ class _AccountStepState extends State<AccountStep>
     errorNotifier.value = null;
 
     try {
-      // Get providers
       final supabaseProvider =
           Provider.of<SupabaseService>(context, listen: false);
       final wizardState =
@@ -250,6 +250,7 @@ class _AccountStepState extends State<AccountStep>
         name: nameController.text,
         username: usernameController.text,
       );
+      await supabaseProvider.tags.initializeVibeTagsForUser(userID);
 
       // Spinning for user to be fully registered
       int retryCount = 0;
@@ -262,12 +263,11 @@ class _AccountStepState extends State<AccountStep>
         throw Exception('Failed to create account');
       }
 
-      // Save account info to wizard state
       wizardState.setUserId(userID);
       wizardState.setAccountInfo(nameController.text, emailController.text);
 
-      // Move to profile picture step
-      await _advanceToNextSubStep();
+      // Add profile picture step
+      if (userID.isNotEmpty) await _addProfilePic();
     } catch (e) {
       errorNotifier.value = 'Sign up failed: ${e.toString()}';
     } finally {
@@ -301,7 +301,13 @@ class _AccountStepState extends State<AccountStep>
         wizardState.setProfilePicture(profilePictureUrl);
       }
 
-      widget.onNext();
+      // Navigate to MainScreen via AuthHandler (which will show wizard completion popover)
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const AuthHandler()),
+          (route) => false,
+        );
+      }
     } catch (e) {
       errorNotifier.value = 'Failed to complete signup: ${e.toString()}';
     } finally {
@@ -892,7 +898,7 @@ class _AccountStepState extends State<AccountStep>
                     width: double.infinity,
                     height: 48,
                     child: ElevatedButton(
-                      onPressed: isLoading ? null : _createAccountAndAdvance,
+                      onPressed: isLoading ? null : _advanceToNextSubStep,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF42143d),
                         foregroundColor: Colors.white,
@@ -961,7 +967,7 @@ class _AccountStepState extends State<AccountStep>
                     width: double.infinity,
                     height: 56,
                     child: ElevatedButton(
-                      onPressed: isLoading ? null : _addProfilePic,
+                      onPressed: isLoading ? null : _createAccountAndAdvance,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF42143d),
                         foregroundColor: Colors.white,

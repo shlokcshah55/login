@@ -150,12 +150,11 @@ class AuthHelper {
           print('Creating database record for new OAuth user: ${user.email}');
         }
 
-        await _client.from(SupabaseConstants.tableUsers).insert({
-          SupabaseConstants.columnSupabaseId: user.id,
-          SupabaseConstants.columnEmail: user.email,
-          SupabaseConstants.name: user.userMetadata?['name'] ?? user.userMetadata?['full_name'],
-          SupabaseConstants.columnCreatedAt: DateTime.now().toIso8601String(),
-          SupabaseConstants.columnWizardCompleted: false, // New OAuth users must complete the wizard
+        await _client.rpc('ensure_user_record_exists', params: {
+          'p_supabase_id': user.id,
+          'p_email': user.email,
+          'p_name': user.userMetadata?['name'] ?? user.userMetadata?['full_name'],
+          'p_username': user.userMetadata?['username'] ?? '',
         });
 
         if (kDebugMode) {
@@ -271,14 +270,23 @@ class AuthHelper {
       final user = currentUser;
       if (user == null) return null;
 
-      final response = await _client
-          .from(SupabaseConstants.tableUsers)
-          .update(userData)
-          .eq(SupabaseConstants.columnSupabaseId, user.id)
-          .select()
-          .single();
+      // Add user_id to params and call RPC
+      final params = {
+        'p_user_id': user.id,
+        if (userData.containsKey(SupabaseConstants.name))
+          'p_name': userData[SupabaseConstants.name],
+        if (userData.containsKey(SupabaseConstants.columnUsername))
+          'p_username': userData[SupabaseConstants.columnUsername],
+        if (userData.containsKey(SupabaseConstants.columnBio))
+          'p_bio': userData[SupabaseConstants.columnBio],
+        if (userData.containsKey(SupabaseConstants.columnProfileImageUrl))
+          'p_profile_image_url': userData[SupabaseConstants.columnProfileImageUrl],
+      };
 
-      return UserModel.fromJson(response);
+      final response = await _client.rpc('update_user_profile', params: params);
+
+      if (response == null || (response as List).isEmpty) return null;
+      return UserModel.fromJson((response as List).first);
     } catch (e) {
       if (kDebugMode) {
         print('Error updating user profile: $e');
@@ -357,11 +365,10 @@ class AuthHelper {
       }
       final followeeId = user.id;
 
-      await _client
-          .from(SupabaseConstants.tableUserFriends)
-          .delete()
-          .eq(SupabaseConstants.columnFollowerId, followingId)
-          .eq(SupabaseConstants.columnFolloweeId, followeeId);
+      await _client.rpc('unfollow_user', params: {
+        'p_follower_id': followingId,
+        'p_followee_id': followeeId,
+      });
 
       if (kDebugMode) {
         print("Unfollowed user $followingId from $followeeId");
@@ -622,15 +629,10 @@ class AuthHelper {
     try {
       if (tagIds.isEmpty) return;
 
-      // Prepare batch insert data
-      final tagInserts = tagIds.map((tagId) => {
-        SupabaseConstants.columnUserId: userId,
-        SupabaseConstants.columnTagId: tagId,
-      }).toList();
-
-      await _client
-          .from(SupabaseConstants.tableUserTags)
-          .insert(tagInserts);
+      await _client.rpc('add_user_tags_batch', params: {
+        'p_user_id': userId,
+        'p_tag_ids': tagIds,
+      });
 
       if (kDebugMode) {
         print('Added ${tagIds.length} tags for user $userId');
@@ -647,13 +649,10 @@ class AuthHelper {
   /// Updates user profile with spice tolerance and marks wizard as completed
   Future<void> AddSpiceTolerance(String userId, int spiceTolerance) async {
     try {
-      await _client
-          .from(SupabaseConstants.tableUsers)
-          .update({
-            'spice_tolerance': spiceTolerance,
-            SupabaseConstants.columnWizardCompleted: true,
-          })
-          .eq(SupabaseConstants.columnSupabaseId, userId);
+      await _client.rpc('complete_signup_wizard', params: {
+        'p_user_id': userId,
+        'p_spice_tolerance': spiceTolerance,
+      });
 
       if (kDebugMode) {
         print('Added spice for $userId');
@@ -668,12 +667,9 @@ class AuthHelper {
 
   Future<void> completeSignupWizard(String userId) async {
     try {
-      await _client
-          .from(SupabaseConstants.tableUsers)
-          .update({
-            SupabaseConstants.columnWizardCompleted: true,
-          })
-          .eq(SupabaseConstants.columnSupabaseId, userId);
+      await _client.rpc('complete_signup_wizard', params: {
+        'p_user_id': userId,
+      });
 
       if (kDebugMode) {
         print('Wizard completed for $userId');
@@ -756,13 +752,11 @@ class AuthHelper {
           .from(SupabaseConstants.supabaseStorageBucketProfileImages)
           .getPublicUrl(filePath);
 
-    
-      await _client
-          .from(SupabaseConstants.tableUsers)
-          .update({
-            SupabaseConstants.columnProfileImageUrl: publicUrl,
-          })
-          .eq(SupabaseConstants.columnSupabaseId, userId);
+
+      await _client.rpc('update_user_profile', params: {
+        'p_user_id': userId,
+        'p_profile_image_url': publicUrl,
+      });
 
     
       if (kDebugMode) {

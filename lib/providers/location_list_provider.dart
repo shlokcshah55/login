@@ -252,7 +252,7 @@ class LocationListManager with ChangeNotifier {
     // Try to save in Supabase first
 
     bool supabaseSuccess =
-        await _supabaseService.locations.saveLocation(location, savedMethod: 'in-app');
+        await _supabaseService.locations.saveLocation(location.locationId, savedMethod: 'in-app');
 
     if (supabaseSuccess) {
       log("Saved location to Supabase: ${location.name}");
@@ -300,26 +300,6 @@ class LocationListManager with ChangeNotifier {
     // No need for notifyListeners() here as setCurrentListType calls it
   }
 
-  /// Adds a new location to Supabase
-  Future<LocationModel?> addNewLocation(LocationModel location) async {
-    try {
-      // Add location to Supabase
-      LocationModel? addedLocation =
-          await _supabaseService.locations.addLocation(location);
-      if (addedLocation != null) {
-        log("Added new location to Supabase: ${location.name}");
-
-        // Also save it for the current user
-        await saveLocation(addedLocation);
-
-        return addedLocation;
-      }
-      return null;
-    } catch (e) {
-      log('Error adding new location: $e');
-      return null;
-    }
-  }
 
   /// Check if location is saved by current user
   Future<bool> isLocationSaved(LocationModel location) async {

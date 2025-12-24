@@ -1,4 +1,7 @@
+import 'dart:math';
+
 import 'package:flutter/foundation.dart';
+import 'package:login/supabase/helpers/location.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../constants.dart';
@@ -6,7 +9,7 @@ import '../supabase_client.dart';
 
 /// Service for handling Supabase tags operations
 class TagsHelper {
-  final SupabaseClient _client = SupabaseClientManager().client;
+  final SupabaseClient _client = SupabaseClientManager().client;  
 
   /// Get all tags, optionally filtered by type
   Future<List<Map<String, dynamic>>> getAllTags({String? tagType}) async {
@@ -318,4 +321,196 @@ class TagsHelper {
       return [];
     }
   }
+
+  Future<List<Map<String, dynamic>>> getUserTagScores(String userId) async {
+    try {
+      print("Getting user tag scores for user: $userId");
+
+      final response = await _client.rpc('get_user_tag_scores', params: {
+        'p_user_id': userId,
+      });
+
+      print("User tag scores response: $response");
+
+      if (response is List) {
+      return response
+          .whereType<Map<String, dynamic>>() 
+          .toList();
+    } else {
+      return [];
+    }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error getting user tag scores: $e');
+      }
+      return [];
+    }
+  }
+
+  /// Returns a weight in the range 0.0 - 1.0 where more interactions -> lower weight.
+  ///
+  /// Uses an inverse-log style decay so the weight decreases slowly at first
+  /// (the first ~50 interactions keep the weight near 0.9-1.0) and then
+  /// decays more for larger counts. Adjust the `decayCoefficient` to
+  /// tune the curve.
+  Future<double> getInteractionWeight(String userId) async {
+    try {
+      final response = await _client
+          .from(SupabaseConstants.tableUserLocationActions)
+          .select()
+          .eq(SupabaseConstants.columnUserId, userId);
+
+      final int count = (response as List).length;
+
+      // TODO:
+      // Tweak this formula as needs be, currently uses inverse-log style: weight = 1 / (1 + c * ln(1 + n))
+      const double decayCoefficient = 0.0135;
+      final double weight = 1.0 / (1.0 + decayCoefficient * log(1 + count));
+
+      // Ensure numeric bounds [0.0, 1.0]
+      return weight.clamp(0.0, 1.0);
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error getting interaction weight: $e');
+      }
+      return 1.0; 
+    }
+  }
+
+  // Initalise all vibe tags for a user
+  Future<bool> initializeVibeTagsForUser(String userId) async {
+   try {
+      await _client.rpc('initialize_vibe_tags_for_user', params: {
+        'p_user_id': userId,
+      });
+
+      return true;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error initializing vibe tags for user: $e');
+      }
+      return false;
+    }
+  }
+
+  // Value is how much we want to adjust the affinity by, tagAffinities is a map of tagID to affinity weight that is affecting that one
+  Future<bool> updateUserTagAffinityByWeight(String userID, int value, Map<String,double> tagAffinities, {required String action, int? locationId}) async {
+    try {
+      var user_tags = await getUserTagScores(userID);
+      var tagIds = tagAffinities.keys.toList();
+
+      // Filter to only relevant tags
+      user_tags = user_tags.where((map) {
+        return tagIds.contains(map[SupabaseConstants.columnTagId]);
+      }).toList(); 
+
+      var weight = await getInteractionWeight(userID);
+      List<Map<String, dynamic>> updatedAffinities = [];
+
+      // Get current timestamp in ISO 8601 format
+      final timestamp = DateTime.now().toUtc().toIso8601String();
+
+      for (final map in user_tags) {
+        final currentAffinity = (map[SupabaseConstants.columnUserTagAffinity] as num).toDouble();
+        final locationAffinity = tagAffinities[map[SupabaseConstants.columnTagId]]!;
+
+        // Value is maximum the affinity should shift by
+        // Weight scales it down based on user interactions [0, 1]
+        // Delta is how much to shift the affinity based on the location [-1, 1]
+        final delta = value * weight * ((locationAffinity - 50) / 50);
+        final computedAffinity = currentAffinity + delta;
+
+        // Build evidence object for this update
+        final evidence = {
+          'action': action,
+          'location_id': locationId,
+          'timestamp': timestamp,
+          'value': value,
+          'delta': delta,
+          'weight': weight,
+        };
+
+        updatedAffinities.add({
+          SupabaseConstants.columnTagId: map[SupabaseConstants.columnTagId],
+          SupabaseConstants.columnUserTagAffinity: computedAffinity,
+          SupabaseConstants.columnUserTagEvidence: evidence,
+        });
+      }
+
+      // Convert updatedAffinities to JSONB format for RPC
+      final jsonbAffinities = updatedAffinities.map((item) => {
+        SupabaseConstants.columnTagId: item[SupabaseConstants.columnTagId],
+        SupabaseConstants.columnUserTagAffinity: item[SupabaseConstants.columnUserTagAffinity],
+        SupabaseConstants.columnUserTagEvidence: item[SupabaseConstants.columnUserTagEvidence],
+      }).toList();
+      
+
+      await _client.rpc('update_user_tag_affinity', params: {
+        'p_user_id': userID,
+        'p_tag_affinities': jsonbAffinities,
+      });
+
+      return true;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error updating user tag affinity by weight: $e');
+      }
+      return false;
+    }
+
+  }
+
+  Future<bool> updateUserTagsSharing(String userId, int locationID) async {
+    final LocationHelper locationHelper = LocationHelper();
+    List<Map<String, dynamic>> tags = await locationHelper.getLocationTags(locationID, "vibe");
+    
+    
+    Map<String, double> tagMap = {};
+    for (var tag in tags) {
+      tagMap[tag[SupabaseConstants.columnTagId].toString()] = (tag[SupabaseConstants.columnScore] as num).toDouble();
+    }
+    // Set sharing score to be 10
+    return updateUserTagAffinityByWeight(userId, 10, tagMap, action: 'shared', locationId: locationID);
+  }
+
+  Future<bool> updateUserTagsSaving(String userId, int locationID) async {
+    final LocationHelper locationHelper = LocationHelper();
+    List<Map<String, dynamic>> tags = await locationHelper.getLocationTags(locationID, "vibe");
+    
+    Map<String, double> tagMap = {};
+    for (var tag in tags) {
+      tagMap[tag[SupabaseConstants.columnTagId].toString()] = (tag[SupabaseConstants.columnScore] as num).toDouble();
+    }
+    // Set saving score to be 5
+    return updateUserTagAffinityByWeight(userId, 5, tagMap, action: 'saved', locationId: locationID);
+  }
+
+  Future<bool> updateUserTagsDismissGavel(String userId, int locationID) async {
+    final LocationHelper locationHelper = LocationHelper();
+    List<Map<String, dynamic>> tags = await locationHelper.getLocationTags(locationID, "vibe");
+
+    Map<String, double> tagMap = {};
+    for (var tag in tags) {
+      tagMap[tag[SupabaseConstants.columnTagId].toString()] = (tag[SupabaseConstants.columnScore] as num).toDouble();
+    }
+    return updateUserTagAffinityByWeight(userId, -5, tagMap, action: 'disliked', locationId: locationID);
+  }
+
+  
+  Future<bool> updateUserTagsPhotos(String userID, List<String> tags) async {
+    Map<String, double> tagMap = {};
+    for (var tag in tags) {
+      tagMap[tag] = 80;
+    }
+    print("updating user tags based on vibe photos");
+    return updateUserTagAffinityByWeight(userID, 5, tagMap, action: 'initialisation vibes');
+  }
+
+
+  // TODO:
+  // Future<bool> updateUserTagsRating(String userId, int locationID) async
+  // Future<bool> updateUserTagsMagicSearch(String userId, int locationID) async
+  // Future<bool> updateUserTagsSpiceTolerance(String userId, int spiceTolerance) async {
+
+
 }

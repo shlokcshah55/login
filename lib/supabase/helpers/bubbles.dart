@@ -266,11 +266,10 @@ class BubbleHelper {
     required int locationId,
   }) async {
     try {
-      await _client
-          .from(SupabaseConstants.tableBubbleLocations)
-          .delete()
-          .eq(SupabaseConstants.columnBubbleId, bubbleId)
-          .eq(SupabaseConstants.columnLocationId, locationId);
+      await _client.rpc('remove_location_from_bubble', params: {
+        'p_bubble_id': bubbleId,
+        'p_location_id': locationId,
+      });
       return true;
     } catch (e) {
       if (kDebugMode) {
@@ -286,11 +285,10 @@ class BubbleHelper {
     required String userId,
   }) async {
     try {
-      await _client
-          .from(SupabaseConstants.tableBubbleMembers)
-          .delete()
-          .eq(SupabaseConstants.columnBubbleId, bubbleId)
-          .eq(SupabaseConstants.columnUserId, userId);
+      await _client.rpc('leave_bubble', params: {
+        'p_bubble_id': bubbleId,
+        'p_user_id': userId,
+      });
       return true;
     } catch (e) {
       if (kDebugMode) {

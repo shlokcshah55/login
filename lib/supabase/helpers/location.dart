@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:login/supabase/helpers/tags.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../constants.dart';
@@ -17,6 +18,8 @@ class LocationHelper {
           .select()
           .order(SupabaseConstants.columnCreatedAt, ascending: false);
 
+
+      print((response as List)[0]);
       return (response as List)
           .map((data) => LocationModel.fromJson(data))
           .toList();
@@ -71,35 +74,6 @@ class LocationHelper {
     }
   }
 
-  /// Add a new location
-  Future<LocationModel?> addLocation(LocationModel location) async {
-    try {
-      final responseLocation = await _client
-          .from(SupabaseConstants.tableLocations)
-          .insert(location.toJson())
-          .select()
-          .single();
-
-      await _client
-          .from(SupabaseConstants.tableLocationPopularityApp)
-          .insert({
-            SupabaseConstants.columnLocationId:
-                responseLocation[SupabaseConstants.columnLocationId],
-            SupabaseConstants.columnSavesCount: 0,
-            SupabaseConstants.columnLikesCount: 0,
-            SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
-          })
-          .select()
-          .single();
-
-      return LocationModel.fromJson(responseLocation);
-    } catch (e) {
-      if (kDebugMode) {
-        print('Error adding location: $e');
-      }
-      return null;
-    }
-  }
 
   /// Get saved locations for the current user
   Future<List<LocationModel>> getSavedLocations() async {
@@ -149,46 +123,40 @@ class LocationHelper {
   }
 
   /// Save a location for the current user
-  Future<bool> saveLocation(LocationModel location,
-      {String? savedMethod}) async {
+  Future<bool> saveLocation(int locationId, {String? savedMethod}) async {
     try {
       final user = SupabaseClientManager().currentUser;
-
+      final TagsHelper tagsHelper = TagsHelper();
       if (user == null) {
         throw Exception('User not authenticated');
       }
-      final isSaved = await isLocationSaved(location.locationId);
+
+      final isSaved = await isLocationSaved(locationId);
       if (isSaved) {
         // If already saved, return true
         return true;
       }
-      var locationId;
-      locationId = location.locationId;
-
-      // Check if location exists first
-      final locationExists = await _client
-          .from(SupabaseConstants.tableLocations)
-          .select(SupabaseConstants.columnLocationId)
-          .eq(SupabaseConstants.columnLocationId, location.locationId)
-          .maybeSingle();
-      if (locationExists == null) {
-        LocationModel? addedlocation = await addLocation(location);
-        if (addedlocation == null) {
-          throw Exception('Failed to add location');
-        }
-        locationId = addedlocation.locationId;
-      }
 
       // Create the action
       await _client.rpc('create_user_location_action', params: {
-      'p_user_id': user.id,
-      'p_location_id': locationId,
-      'p_action': SupabaseConstants.actionSave,
-      'p_saved_method': savedMethod,
-      'p_acked': true,
-    });
+        'p_user_id': user.id,
+        'p_location_id': locationId,
+        'p_action': SupabaseConstants.actionSave,
+        'p_saved_method': savedMethod,
+        'p_acked': true,
+      });
 
       incrementSaveCount(locationId);
+      if (savedMethod != null) {
+        if (savedMethod == SupabaseConstants.savedMethodInApp) {
+          await tagsHelper.updateUserTagsSaving(user.id, locationId);
+        }
+        if (savedMethod == SupabaseConstants.savedMethodTikTok) {
+          await tagsHelper.updateUserTagsSharing(user.id, locationId);
+
+        }
+      }
+      tagsHelper.updateUserTagsSaving(user.id, locationId);
 
       return true;
     } catch (e) {
@@ -199,44 +167,10 @@ class LocationHelper {
     }
   }
 
-  /// Like a location for the current user
-  Future<bool> likeLocation(int locationId) async {
-    try {
-      final user = SupabaseClientManager().currentUser;
-
-      if (user == null) {
-        throw Exception('User not authenticated');
-      }
-
-      // Check if the location is already liked
-      final isLiked = await isLocationLiked(locationId);
-      if (isLiked) {
-        // If already liked, return true
-        return true;
-      }
-
-      await _client.rpc('create_user_location_action', params: {
-      'p_user_id': user.id,
-      'p_location_id': locationId,
-      'p_action': SupabaseConstants.actionLike,
-      'p_acked': true,
-    });
-
-      // Update location popularity counter using direct method instead of RPC
-      await incrementLikesCount(locationId);
-
-      return true;
-    } catch (e) {
-      if (kDebugMode) {
-        print('Error liking location: $e');
-      }
-      return false;
-    }
-  }
-
-    /// Disike a location for the current user
+  /// Disike a location for the current user
   Future<bool> dislikeLocation(int locationId) async {
     try {
+      final TagsHelper tagsHelper = TagsHelper();
       final user = SupabaseClientManager().currentUser;
 
       if (user == null) {
@@ -250,7 +184,7 @@ class LocationHelper {
       'p_acked': true,
     });
 
-
+      await tagsHelper.updateUserTagsDismissGavel(user.id, locationId);
       return true;
     } catch (e) {
       if (kDebugMode) {
@@ -295,12 +229,10 @@ class LocationHelper {
         throw Exception('User not authenticated');
       }
 
-      await _client
-          .from(SupabaseConstants.tableUserLocationActions)
-          .delete()
-          .eq(SupabaseConstants.columnUserId, user.id)
-          .eq(SupabaseConstants.columnLocationId, locationId)
-          .eq(SupabaseConstants.columnAction, SupabaseConstants.actionSave);
+      await _client.rpc('unsave_location', params: {
+        'p_user_id': user.id,
+        'p_location_id': locationId,
+      });
 
       // Update location popularity counter
       decrementSaveCount(locationId);
@@ -317,34 +249,10 @@ class LocationHelper {
   /// Increment the save count for a location
   Future<bool> incrementSaveCount(int locationId) async {
     try {
-      // First check if a row exists for this location in the popularity table
-      final existingRow = await _client
-          .from(SupabaseConstants.tableLocationPopularityApp)
-          .select()
-          .eq(SupabaseConstants.columnLocationId, locationId)
-          .maybeSingle();
-
-      if (existingRow != null) {
-        // Update existing row
-        final currentCount =
-            existingRow[SupabaseConstants.columnSavesCount] as int? ?? 0;
-        await _client
-            .from(SupabaseConstants.tableLocationPopularityApp)
-            .update({
-          SupabaseConstants.columnSavesCount: currentCount + 1,
-          SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
-        }).eq(SupabaseConstants.columnLocationId, locationId);
-      } else {
-        // Create new row with initial count of 1
-        await _client
-            .from(SupabaseConstants.tableLocationPopularityApp)
-            .insert({
-          SupabaseConstants.columnLocationId: locationId,
-          SupabaseConstants.columnSavesCount: 1,
-          SupabaseConstants.columnLikesCount: 0,
-          SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
-        });
-      }
+      await _client.rpc('update_location_popularity', params: {
+        'p_location_id': locationId,
+        'p_saves_delta': 1,
+      });
       return true;
     } catch (e) {
       if (kDebugMode) {
@@ -357,36 +265,10 @@ class LocationHelper {
   /// Decrement the save count for a location
   Future<bool> decrementSaveCount(int locationId) async {
     try {
-      // First check if a row exists for this location
-      final existingRow = await _client
-          .from(SupabaseConstants.tableLocationPopularityApp)
-          .select()
-          .eq(SupabaseConstants.columnLocationId, locationId)
-          .maybeSingle();
-
-      if (existingRow != null) {
-        // Update existing row (ensure count doesn't go below 0)
-        final currentCount =
-            existingRow[SupabaseConstants.columnSavesCount] as int? ?? 0;
-        final newCount = currentCount > 0 ? currentCount - 1 : 0;
-
-        await _client
-            .from(SupabaseConstants.tableLocationPopularityApp)
-            .update({
-          SupabaseConstants.columnSavesCount: newCount,
-          SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
-        }).eq(SupabaseConstants.columnLocationId, locationId);
-      } else {
-        // Create new row with count of 0 (rare case, but handled for completeness)
-        await _client
-            .from(SupabaseConstants.tableLocationPopularityApp)
-            .insert({
-          SupabaseConstants.columnLocationId: locationId,
-          SupabaseConstants.columnSavesCount: 0,
-          SupabaseConstants.columnLikesCount: 0,
-          SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
-        });
-      }
+      await _client.rpc('update_location_popularity', params: {
+        'p_location_id': locationId,
+        'p_saves_delta': -1,
+      });
       return true;
     } catch (e) {
       if (kDebugMode) {
@@ -396,141 +278,7 @@ class LocationHelper {
     }
   }
 
-  /// Check if a location is liked by the current user
-  Future<bool> isLocationLiked(int locationId) async {
-    try {
-      final user = SupabaseClientManager().currentUser;
-
-      if (user == null) {
-        return false;
-      }
-
-      final response = await _client
-          .from(SupabaseConstants.tableUserLocationActions)
-          .select()
-          .eq(SupabaseConstants.columnUserId, user.id)
-          .eq(SupabaseConstants.columnLocationId, locationId)
-          .eq(SupabaseConstants.columnAction, SupabaseConstants.actionLike)
-          .maybeSingle();
-
-      return response != null;
-    } catch (e) {
-      if (kDebugMode) {
-        print('Error checking if location is liked: $e');
-      }
-      return false;
-    }
-  }
-
-  /// Unlike a location for the current user
-  Future<bool> unlikeLocation(int locationId) async {
-    try {
-      final user = SupabaseClientManager().currentUser;
-
-      if (user == null) {
-        throw Exception('User not authenticated');
-      }
-
-      await _client
-          .from(SupabaseConstants.tableUserLocationActions)
-          .delete()
-          .eq(SupabaseConstants.columnUserId, user.id)
-          .eq(SupabaseConstants.columnLocationId, locationId)
-          .eq(SupabaseConstants.columnAction, SupabaseConstants.actionLike);
-
-      // Update location popularity counter
-      await decrementLikesCount(locationId);
-
-      return true;
-    } catch (e) {
-      if (kDebugMode) {
-        print('Error unliking location: $e');
-      }
-      return false;
-    }
-  }
-
-  /// Increment the likes count for a location
-  Future<bool> incrementLikesCount(int locationId) async {
-    try {
-      // First check if a row exists for this location in the popularity table
-      final existingRow = await _client
-          .from(SupabaseConstants.tableLocationPopularityApp)
-          .select()
-          .eq(SupabaseConstants.columnLocationId, locationId)
-          .maybeSingle();
-
-      if (existingRow != null) {
-        // Update existing row
-        final currentCount =
-            existingRow[SupabaseConstants.columnLikesCount] as int? ?? 0;
-        await _client
-            .from(SupabaseConstants.tableLocationPopularityApp)
-            .update({
-          SupabaseConstants.columnLikesCount: currentCount + 1,
-          SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
-        }).eq(SupabaseConstants.columnLocationId, locationId);
-      } else {
-        // Create new row with initial count of 1
-        await _client
-            .from(SupabaseConstants.tableLocationPopularityApp)
-            .insert({
-          SupabaseConstants.columnLocationId: locationId,
-          SupabaseConstants.columnSavesCount: 0,
-          SupabaseConstants.columnLikesCount: 1,
-          SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
-        });
-      }
-      return true;
-    } catch (e) {
-      if (kDebugMode) {
-        print('Error incrementing likes count: $e');
-      }
-      return false;
-    }
-  }
-
-  /// Decrement the likes count for a location
-  Future<bool> decrementLikesCount(int locationId) async {
-    try {
-      // First check if a row exists for this location
-      final existingRow = await _client
-          .from(SupabaseConstants.tableLocationPopularityApp)
-          .select()
-          .eq(SupabaseConstants.columnLocationId, locationId)
-          .maybeSingle();
-
-      if (existingRow != null) {
-        // Update existing row (ensure count doesn't go below 0)
-        final currentCount =
-            existingRow[SupabaseConstants.columnLikesCount] as int? ?? 0;
-        final newCount = currentCount > 0 ? currentCount - 1 : 0;
-
-        await _client
-            .from(SupabaseConstants.tableLocationPopularityApp)
-            .update({
-          SupabaseConstants.columnLikesCount: newCount,
-          SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
-        }).eq(SupabaseConstants.columnLocationId, locationId);
-      } else {
-        // Create new row with count of 0 (rare case, but handled for completeness)
-        await _client
-            .from(SupabaseConstants.tableLocationPopularityApp)
-            .insert({
-          SupabaseConstants.columnLocationId: locationId,
-          SupabaseConstants.columnSavesCount: 0,
-          SupabaseConstants.columnLikesCount: 0,
-          SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
-        });
-      }
-      return true;
-    } catch (e) {
-      if (kDebugMode) {
-        print('Error decrementing likes count: $e');
-      }
-      return false;
-    }
-  }
+  
 
   /// Get popular locations based on app-wide metrics
   Future<List<LocationModel>> getPopularLocations({int limit = 10}) async {
@@ -548,8 +296,6 @@ class LocationHelper {
         // Add popularity metrics
         locationData[SupabaseConstants.columnSavesCount] =
             data[SupabaseConstants.columnSavesCount];
-        locationData[SupabaseConstants.columnLikesCount] =
-            data[SupabaseConstants.columnLikesCount];
 
         return LocationModel.fromJson(locationData);
       }).toList();
@@ -625,11 +371,11 @@ class LocationHelper {
         throw Exception('User not authenticated');
       }
 
-      await _client
-          .from(SupabaseConstants.tableUserLocationActions)
-          .update({SupabaseConstants.columnAcked: value})
-          .eq(SupabaseConstants.columnUserId, user.id)
-          .eq(SupabaseConstants.columnLocationId, locationId);
+      await _client.rpc('acknowledge_location', params: {
+        'p_user_id': user.id,
+        'p_location_id': locationId,
+        'p_acked': value,
+      });
 
       return true;
     } catch (e) {
@@ -716,9 +462,9 @@ class LocationHelper {
 
   /// Get all tags for a specific location with their scores
   /// Returns a list of maps containing tag information and scores
-  Future<List<Map<String, dynamic>>> getLocationTags(int locationId) async {
+  Future<List<Map<String, dynamic>>> getLocationTags(int locationId, String? type) async {
     try {
-      final response = await _client
+      var query = _client
           .from(SupabaseConstants.tableLocationTags)
           .select('''
             ${SupabaseConstants.columnId},
@@ -730,8 +476,13 @@ class LocationHelper {
               ${SupabaseConstants.columnTagType}
             )
           ''')
-          .eq(SupabaseConstants.columnLocationId, locationId)
-          .order(SupabaseConstants.columnScore, ascending: false);
+          .eq(SupabaseConstants.columnLocationId, locationId);
+
+      if (type != null) {
+        query = query.eq('${SupabaseConstants.tableTags}.${SupabaseConstants.columnTagType}', type);
+      }
+
+      final response = await query.order(SupabaseConstants.columnScore, ascending: false);
 
       if ((response as List).isEmpty) {
         return [];
@@ -778,7 +529,6 @@ class LocationHelper {
       return {
         'location_id': locationId,
         'saves_count': appPopularity?[SupabaseConstants.columnSavesCount] ?? 0,
-        'likes_count': appPopularity?[SupabaseConstants.columnLikesCount] ?? 0,
         'app_updated_at': appPopularity?[SupabaseConstants.columnUpdatedAt],
         'mention_count': socialPopularity?[SupabaseConstants.columnMentionCount] ?? 0,
         'last_scanned': socialPopularity?[SupabaseConstants.columnLastScanned],

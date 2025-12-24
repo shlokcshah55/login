@@ -16,7 +16,7 @@ class SignupWizardState extends ChangeNotifier {
   List<String> _selectedVibeTagIds = [];
 
   // Step 4: Restaurant Swipes
-  Map<int, bool> _restaurantDecisions = {}; // locationId -> liked (true) or passed (false)
+  Map<int, bool> _restaurantDecisions = {}; // locationId -> saved (true) or passed (false)
 
   // Getters
   String? get userId => _userId;
@@ -28,8 +28,8 @@ class SignupWizardState extends ChangeNotifier {
   List<String> get selectedVibeTagIds => List.unmodifiable(_selectedVibeTagIds);
   Map<int, bool> get restaurantDecisions => Map.unmodifiable(_restaurantDecisions);
 
-  // Get list of restaurant IDs that were liked
-  List<int> get likedRestaurantIds {
+  // Get list of restaurant IDs that were saved
+  List<int> get savedRestaurantIds {
     return _restaurantDecisions.entries
         .where((entry) => entry.value == true)
         .map((entry) => entry.key)
@@ -99,6 +99,7 @@ class SignupWizardState extends ChangeNotifier {
     return _selectedVibeTagIds.length < 10;
   }
 
+  // Record a restaurant decision: true = saved, false = passed
   void recordRestaurantDecision(int locationId, bool liked) {
     _restaurantDecisions[locationId] = liked;
     notifyListeners();
