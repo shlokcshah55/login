@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:login/supabase/helpers/tags.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../constants.dart';
@@ -17,6 +18,8 @@ class LocationHelper {
           .select()
           .order(SupabaseConstants.columnCreatedAt, ascending: false);
 
+
+      print((response as List)[0]);
       return (response as List)
           .map((data) => LocationModel.fromJson(data))
           .toList();
@@ -202,8 +205,9 @@ class LocationHelper {
   /// Like a location for the current user
   Future<bool> likeLocation(int locationId) async {
     try {
+      print('liking location $locationId');
       final user = SupabaseClientManager().currentUser;
-
+      final tagsHelper = TagsHelper();
       if (user == null) {
         throw Exception('User not authenticated');
       }
@@ -224,6 +228,7 @@ class LocationHelper {
 
       // Update location popularity counter using direct method instead of RPC
       await incrementLikesCount(locationId);
+      await tagsHelper.updateUserTagsSaving(user.id, locationId);
 
       return true;
     } catch (e) {
@@ -237,6 +242,7 @@ class LocationHelper {
     /// Disike a location for the current user
   Future<bool> dislikeLocation(int locationId) async {
     try {
+      final TagsHelper tagsHelper = TagsHelper();
       final user = SupabaseClientManager().currentUser;
 
       if (user == null) {
@@ -250,7 +256,7 @@ class LocationHelper {
       'p_acked': true,
     });
 
-
+      await tagsHelper.updateUserTagsDismissGavel(user.id, locationId);
       return true;
     } catch (e) {
       if (kDebugMode) {
@@ -295,12 +301,10 @@ class LocationHelper {
         throw Exception('User not authenticated');
       }
 
-      await _client
-          .from(SupabaseConstants.tableUserLocationActions)
-          .delete()
-          .eq(SupabaseConstants.columnUserId, user.id)
-          .eq(SupabaseConstants.columnLocationId, locationId)
-          .eq(SupabaseConstants.columnAction, SupabaseConstants.actionSave);
+      await _client.rpc('unsave_location', params: {
+        'p_user_id': user.id,
+        'p_location_id': locationId,
+      });
 
       // Update location popularity counter
       decrementSaveCount(locationId);
@@ -317,34 +321,10 @@ class LocationHelper {
   /// Increment the save count for a location
   Future<bool> incrementSaveCount(int locationId) async {
     try {
-      // First check if a row exists for this location in the popularity table
-      final existingRow = await _client
-          .from(SupabaseConstants.tableLocationPopularityApp)
-          .select()
-          .eq(SupabaseConstants.columnLocationId, locationId)
-          .maybeSingle();
-
-      if (existingRow != null) {
-        // Update existing row
-        final currentCount =
-            existingRow[SupabaseConstants.columnSavesCount] as int? ?? 0;
-        await _client
-            .from(SupabaseConstants.tableLocationPopularityApp)
-            .update({
-          SupabaseConstants.columnSavesCount: currentCount + 1,
-          SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
-        }).eq(SupabaseConstants.columnLocationId, locationId);
-      } else {
-        // Create new row with initial count of 1
-        await _client
-            .from(SupabaseConstants.tableLocationPopularityApp)
-            .insert({
-          SupabaseConstants.columnLocationId: locationId,
-          SupabaseConstants.columnSavesCount: 1,
-          SupabaseConstants.columnLikesCount: 0,
-          SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
-        });
-      }
+      await _client.rpc('update_location_popularity', params: {
+        'p_location_id': locationId,
+        'p_saves_delta': 1,
+      });
       return true;
     } catch (e) {
       if (kDebugMode) {
@@ -357,36 +337,10 @@ class LocationHelper {
   /// Decrement the save count for a location
   Future<bool> decrementSaveCount(int locationId) async {
     try {
-      // First check if a row exists for this location
-      final existingRow = await _client
-          .from(SupabaseConstants.tableLocationPopularityApp)
-          .select()
-          .eq(SupabaseConstants.columnLocationId, locationId)
-          .maybeSingle();
-
-      if (existingRow != null) {
-        // Update existing row (ensure count doesn't go below 0)
-        final currentCount =
-            existingRow[SupabaseConstants.columnSavesCount] as int? ?? 0;
-        final newCount = currentCount > 0 ? currentCount - 1 : 0;
-
-        await _client
-            .from(SupabaseConstants.tableLocationPopularityApp)
-            .update({
-          SupabaseConstants.columnSavesCount: newCount,
-          SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
-        }).eq(SupabaseConstants.columnLocationId, locationId);
-      } else {
-        // Create new row with count of 0 (rare case, but handled for completeness)
-        await _client
-            .from(SupabaseConstants.tableLocationPopularityApp)
-            .insert({
-          SupabaseConstants.columnLocationId: locationId,
-          SupabaseConstants.columnSavesCount: 0,
-          SupabaseConstants.columnLikesCount: 0,
-          SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
-        });
-      }
+      await _client.rpc('update_location_popularity', params: {
+        'p_location_id': locationId,
+        'p_saves_delta': -1,
+      });
       return true;
     } catch (e) {
       if (kDebugMode) {
@@ -453,34 +407,10 @@ class LocationHelper {
   /// Increment the likes count for a location
   Future<bool> incrementLikesCount(int locationId) async {
     try {
-      // First check if a row exists for this location in the popularity table
-      final existingRow = await _client
-          .from(SupabaseConstants.tableLocationPopularityApp)
-          .select()
-          .eq(SupabaseConstants.columnLocationId, locationId)
-          .maybeSingle();
-
-      if (existingRow != null) {
-        // Update existing row
-        final currentCount =
-            existingRow[SupabaseConstants.columnLikesCount] as int? ?? 0;
-        await _client
-            .from(SupabaseConstants.tableLocationPopularityApp)
-            .update({
-          SupabaseConstants.columnLikesCount: currentCount + 1,
-          SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
-        }).eq(SupabaseConstants.columnLocationId, locationId);
-      } else {
-        // Create new row with initial count of 1
-        await _client
-            .from(SupabaseConstants.tableLocationPopularityApp)
-            .insert({
-          SupabaseConstants.columnLocationId: locationId,
-          SupabaseConstants.columnSavesCount: 0,
-          SupabaseConstants.columnLikesCount: 1,
-          SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
-        });
-      }
+      await _client.rpc('update_location_popularity', params: {
+        'p_location_id': locationId,
+        'p_likes_delta': 1,
+      });
       return true;
     } catch (e) {
       if (kDebugMode) {
@@ -493,36 +423,10 @@ class LocationHelper {
   /// Decrement the likes count for a location
   Future<bool> decrementLikesCount(int locationId) async {
     try {
-      // First check if a row exists for this location
-      final existingRow = await _client
-          .from(SupabaseConstants.tableLocationPopularityApp)
-          .select()
-          .eq(SupabaseConstants.columnLocationId, locationId)
-          .maybeSingle();
-
-      if (existingRow != null) {
-        // Update existing row (ensure count doesn't go below 0)
-        final currentCount =
-            existingRow[SupabaseConstants.columnLikesCount] as int? ?? 0;
-        final newCount = currentCount > 0 ? currentCount - 1 : 0;
-
-        await _client
-            .from(SupabaseConstants.tableLocationPopularityApp)
-            .update({
-          SupabaseConstants.columnLikesCount: newCount,
-          SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
-        }).eq(SupabaseConstants.columnLocationId, locationId);
-      } else {
-        // Create new row with count of 0 (rare case, but handled for completeness)
-        await _client
-            .from(SupabaseConstants.tableLocationPopularityApp)
-            .insert({
-          SupabaseConstants.columnLocationId: locationId,
-          SupabaseConstants.columnSavesCount: 0,
-          SupabaseConstants.columnLikesCount: 0,
-          SupabaseConstants.columnUpdatedAt: DateTime.now().toIso8601String(),
-        });
-      }
+      await _client.rpc('update_location_popularity', params: {
+        'p_location_id': locationId,
+        'p_likes_delta': -1,
+      });
       return true;
     } catch (e) {
       if (kDebugMode) {
@@ -625,11 +529,11 @@ class LocationHelper {
         throw Exception('User not authenticated');
       }
 
-      await _client
-          .from(SupabaseConstants.tableUserLocationActions)
-          .update({SupabaseConstants.columnAcked: value})
-          .eq(SupabaseConstants.columnUserId, user.id)
-          .eq(SupabaseConstants.columnLocationId, locationId);
+      await _client.rpc('acknowledge_location', params: {
+        'p_user_id': user.id,
+        'p_location_id': locationId,
+        'p_acked': value,
+      });
 
       return true;
     } catch (e) {
@@ -716,9 +620,9 @@ class LocationHelper {
 
   /// Get all tags for a specific location with their scores
   /// Returns a list of maps containing tag information and scores
-  Future<List<Map<String, dynamic>>> getLocationTags(int locationId) async {
+  Future<List<Map<String, dynamic>>> getLocationTags(int locationId, String? type) async {
     try {
-      final response = await _client
+      var query = _client
           .from(SupabaseConstants.tableLocationTags)
           .select('''
             ${SupabaseConstants.columnId},
@@ -730,8 +634,13 @@ class LocationHelper {
               ${SupabaseConstants.columnTagType}
             )
           ''')
-          .eq(SupabaseConstants.columnLocationId, locationId)
-          .order(SupabaseConstants.columnScore, ascending: false);
+          .eq(SupabaseConstants.columnLocationId, locationId);
+
+      if (type != null) {
+        query = query.eq('${SupabaseConstants.tableTags}.${SupabaseConstants.columnTagType}', type);
+      }
+
+      final response = await query.order(SupabaseConstants.columnScore, ascending: false);
 
       if ((response as List).isEmpty) {
         return [];

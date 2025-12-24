@@ -13,6 +13,7 @@ class UserModel {
   final int followingCount;
   final int? spiceTolerance; // 1-5 scale
   final bool wizardCompleted;
+  final String? username;
 
   UserModel({
     this.supabaseId,
@@ -26,6 +27,7 @@ class UserModel {
     this.followingCount = 0,
     this.spiceTolerance,
     this.wizardCompleted = false,
+    this.username,
   });
 
   /// Create a UserModel from a JSON map
@@ -46,6 +48,7 @@ class UserModel {
       followingCount: json['following_count'] ?? 0,
       spiceTolerance: json['spice_tolerance'],
       wizardCompleted: json['wizard_completed'] ?? false,
+      username: json['username'] ?? '',
     );
   }
 

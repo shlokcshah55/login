@@ -86,13 +86,8 @@ class _AuthHandlerState extends State<AuthHandler> {
           // User is logged in with Supabase
           log("AuthHandler: User logged in with Supabase");
 
-          // Check if user has completed signup wizard
-          final wizardCompleted = userDataProvider.supabaseUserData?.wizardCompleted ?? false;
-
-          if (!wizardCompleted) {
-            return const SignupWizardPage();
-          }
-
+          // Always show MainScreen for authenticated users
+          // Wizard completion is now optional and handled via popover
           return const MainScreen();
         } else {
           // Not authenticated - show welcome page

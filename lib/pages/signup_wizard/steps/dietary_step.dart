@@ -66,6 +66,7 @@ class _DietaryStepState extends State<DietaryStep> {
 
   @override
   Widget build(BuildContext context) {
+    // Need to listen to wizardState to rebuild when tags are selected/deselected
     final wizardState = Provider.of<SignupWizardState>(context);
 
     return Container(

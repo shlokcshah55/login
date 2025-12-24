@@ -2,24 +2,39 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/signup_wizard_state.dart';
 import '../../models/locations.dart';
-import 'steps/account_step.dart';
+import '../../supabase/service.dart';
+import '../auth_handler.dart';
+import 'account_step.dart';
 import 'steps/dietary_step.dart';
 import 'steps/vibe_step.dart';
 import 'steps/restaurant_swipe_step.dart';
 
-class SignupWizardPage extends StatefulWidget {
+class SignupWizardPage extends StatelessWidget {
   const SignupWizardPage({super.key});
 
   @override
-  State<SignupWizardPage> createState() => _SignupWizardPageState();
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) => SignupWizardState(),
+      child: const _SignupWizardContent(),
+    );
+  }
 }
 
-class _SignupWizardPageState extends State<SignupWizardPage> {
+class _SignupWizardContent extends StatefulWidget {
+  const _SignupWizardContent();
+
+  @override
+  State<_SignupWizardContent> createState() => _SignupWizardContentState();
+}
+
+class _SignupWizardContentState extends State<_SignupWizardContent> {
   final PageController _pageController = PageController();
   int _currentStep = 0;
   int _accountSubStep = 1; // Track account sub-steps (1-4)
   List<LocationModel>? _restaurants;
   bool _isLoadingRestaurants = false;
+  bool _isCompletingWizard = false;
 
   final List<String> _stepTitles = [
     'Create Account', // After finishing this step we actually creates the account
@@ -86,6 +101,85 @@ class _SignupWizardPageState extends State<SignupWizardPage> {
     }
   }
 
+  Future<void> _completeWizard() async {
+    setState(() {
+      _isCompletingWizard = true;
+    });
+
+    try {
+      // Use this.context from the State class, not the build method's context
+      final wizardState = Provider.of<SignupWizardState>(this.context, listen: false);
+      final supabase = Provider.of<SupabaseService>(this.context, listen: false);
+
+      // Validate required data
+      if (wizardState.userId == null) {
+        throw Exception('User ID is required to complete wizard');
+      }
+
+      // Step 1: Save tags and spice tolerance in parallel
+      final combinedTags = [
+        ...wizardState.selectedDietaryTagIds,
+        ...wizardState.selectedVibeTagIds,
+      ];
+
+      await Future.wait([
+        if (combinedTags.isNotEmpty)
+          supabase.users.addUserTags(wizardState.userId!, combinedTags),
+        supabase.users.AddSpiceTolerance(
+          wizardState.userId!,
+          wizardState.spiceTolerance,
+        ),
+      ]);
+
+      // Step 2: Process restaurant decisions in parallel
+      final restaurantFutures = <Future>[];
+
+      for (final entry in wizardState.restaurantDecisions.entries) {
+        final locationId = entry.key;
+        final liked = entry.value;
+
+        // Add like/dislike action
+        if (liked) {
+          restaurantFutures.add(supabase.locations.likeLocation(locationId));
+        } else {
+          restaurantFutures.add(supabase.locations.dislikeLocation(locationId));
+        }
+      }
+
+      // Wait for all restaurant operations to complete
+      if (restaurantFutures.isNotEmpty) {
+        await Future.wait(restaurantFutures);
+      }
+
+      // Step 3: Mark wizard as complete
+      await supabase.users.completeSignupWizard(wizardState.userId!);
+
+      // Step 4: Navigate to main app
+      if (mounted) {
+        Navigator.of(this.context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => const AuthHandler(),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isCompletingWizard = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(this.context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to complete setup: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    }
+    // Note: Don't set _isCompletingWizard = false on success since we're navigating away
+  }
+
   void _updateAccountSubStep(int subStep) {
     setState(() {
       _accountSubStep = subStep;
@@ -108,11 +202,9 @@ class _SignupWizardPageState extends State<SignupWizardPage> {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => SignupWizardState(),
-      child: Scaffold(
-        backgroundColor: const Color(0xFF42143d), // App primary color
-        body: SafeArea(
+    return Scaffold(
+      backgroundColor: const Color(0xFF42143d), // App primary color
+      body: SafeArea(
           child: Column(
             children: [
               // Progress Indicator
@@ -186,6 +278,8 @@ class _SignupWizardPageState extends State<SignupWizardPage> {
                     ),
                     RestaurantSwipeStep(
                       onBack: _previousStep,
+                      onComplete: _completeWizard,
+                      isCompleting: _isCompletingWizard,
                       restaurants: _restaurants ?? [],
                     ),
                   ],
@@ -194,7 +288,6 @@ class _SignupWizardPageState extends State<SignupWizardPage> {
             ],
           ),
         ),
-      ),
     );
   }
 }

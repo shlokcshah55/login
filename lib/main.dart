@@ -14,6 +14,7 @@ import 'package:login/pages/alerts_page.dart';
 import 'package:login/pages/splash_screen.dart';
 import 'package:login/pages/home_page.dart';
 import 'package:login/pages/profile/profile_page.dart';
+import 'package:login/pages/signup_wizard/wizard_completion_page.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
@@ -22,6 +23,7 @@ import 'package:login/providers/nav_bar/dynamic_nav_provider.dart';
 import 'package:login/services/google_place_service.dart';
 import 'package:login/widgets/navigation/bottom_nav_bar.dart';
 import 'package:login/widgets/url_processing_popover.dart';
+import 'package:login/widgets/wizard_completion_popover.dart';
 import 'package:provider/provider.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:flutter/services.dart';
@@ -35,6 +37,7 @@ void main() async {
 
   // Initialize Supabase
   await SupabaseClientManager.initialize();
+
   final googlePlacesService = GooglePlacesService();
 
   // Debug API key loading
@@ -346,6 +349,7 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
   bool _hasUnreadNotifications = false;
+  bool _hasShownWizardPopover = false;
 
   final List<Widget> _pages = [
     const HomePage(),
@@ -360,6 +364,16 @@ class _MainScreenState extends State<MainScreen> {
     _checkForPendingNotifications();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // Show wizard completion popover once per session if wizard incomplete
+    if (!_hasShownWizardPopover) {
+      _checkAndShowWizardPopover();
+    }
+  }
+
   Future<void> _checkForPendingNotifications() async {
     final locationManager =
         Provider.of<LocationListManager>(context, listen: false);
@@ -368,6 +382,80 @@ class _MainScreenState extends State<MainScreen> {
     setState(() {
       _hasUnreadNotifications = locations.isNotEmpty;
     });
+  }
+
+  Future<void> _checkAndShowWizardPopover() async {
+    _hasShownWizardPopover = true;
+
+    final userDataProvider = Provider.of<UserDataProvider>(context, listen: false);
+    final wizardCompleted = userDataProvider.supabaseUserData?.wizardCompleted ?? false;
+
+    if (!wizardCompleted) {
+      // Delay to ensure screen is built
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      if (mounted) {
+        _showWizardCompletionPopover();
+      }
+    }
+  }
+
+  void _showWizardCompletionPopover() {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Complete Profile',
+      barrierColor: Colors.black.withOpacity(0.6),
+      transitionDuration: const Duration(milliseconds: 800),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return WizardCompletionPopover(
+          onComplete: () {
+            Navigator.pop(context);
+            _navigateToWizardCompletion();
+          },
+          onDismiss: () => Navigator.pop(context),
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        // Scale animation with overshoot (0.0 → 1.1 → 1.0)
+        final scaleAnimation = TweenSequence<double>([
+          TweenSequenceItem(
+            tween: Tween(begin: 0.0, end: 1.1)
+                .chain(CurveTween(curve: Curves.easeOutBack)),
+            weight: 70.0,
+          ),
+          TweenSequenceItem(
+            tween: Tween(begin: 1.1, end: 1.0)
+                .chain(CurveTween(curve: Curves.easeInOut)),
+            weight: 30.0,
+          ),
+        ]).animate(animation);
+
+        // Fade in (0.0 → 1.0)
+        final fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+          CurvedAnimation(
+            parent: animation,
+            curve: const Interval(0.0, 0.5, curve: Curves.easeOut),
+          ),
+        );
+
+        return ScaleTransition(
+          scale: scaleAnimation,
+          child: FadeTransition(
+            opacity: fadeAnimation,
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
+  void _navigateToWizardCompletion() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const WizardCompletionPage(),
+      ),
+    );
   }
 
   @override
