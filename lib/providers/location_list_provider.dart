@@ -311,15 +311,6 @@ class LocationListManager with ChangeNotifier {
     }
   }
 
-  /// Get saved locations since last time the app was opened
-  Future<List<LocationModel>> getSavedLocationsSinceLastOpened() async {
-    try {
-      return await _supabaseService.locations.getSavedLocationsSinceLastOpened();
-    } catch (e) {
-      log('Error fetching saved locations since last opened: $e');
-      return [];
-    }
-  }
 
   /// Acknowledge if a location is right or not
   Future<void> acknowledgeLocation(int locationId, bool value) async {

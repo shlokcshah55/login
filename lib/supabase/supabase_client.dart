@@ -35,14 +35,28 @@ class SupabaseClientManager {
       );
 
       // Listen for auth errors and handle token refresh failures
-      Supabase.instance.client.auth.onAuthStateChange.listen((data) {
-        final event = data.event;
-        if (event == AuthChangeEvent.tokenRefreshed) {
-          if (kDebugMode) {
-            print('Token refreshed successfully');
+      Supabase.instance.client.auth.onAuthStateChange.listen(
+        (data) {
+          final event = data.event;
+          if (event == AuthChangeEvent.tokenRefreshed) {
+            if (kDebugMode) {
+              print('Token refreshed successfully');
+            }
           }
-        }
-      });
+        },
+        onError: (error) {
+          // Catch token refresh failures at the SDK level
+          if (kDebugMode) {
+            print('SupabaseClientManager: Auth error: $error');
+
+            // Check for specific oauth_client_id error
+            if (error.toString().contains('oauth_client_id') ||
+                error.toString().contains('AuthRetryableFetchException')) {
+              print('SupabaseClientManager: Token refresh failed - session may be invalid');
+            }
+          }
+        },
+      );
 
       if (kDebugMode) {
         print('Supabase client initialized successfully with OAuth support');

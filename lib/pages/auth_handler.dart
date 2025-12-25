@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/main.dart';
 import 'package:login/pages/welcome_page.dart';
-import 'package:login/pages/signup_wizard/signup_wizard_page.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:login/widgets/loading_widget.dart';
@@ -37,7 +36,23 @@ class _AuthHandlerState extends State<AuthHandler> {
         _isInitializing = true;
       });
 
-      log("AuthHandler: Initializing user data");
+      log("AuthHandler: Validating session before initializing user data");
+
+      // Validate session before proceeding
+      final isValid = await supabaseProvider.validateAndRefreshSession();
+
+      if (!isValid) {
+        log("AuthHandler: Session validation failed, aborting initialization");
+        if (mounted) {
+          setState(() {
+            _isInitializing = false;
+            _hasInitializedData = false;
+          });
+        }
+        return;
+      }
+
+      log("AuthHandler: Session valid, initializing user data");
       final supabaseUser = supabaseProvider.users.currentUser!;
 
       final userDataProvider = Provider.of<UserDataProvider>(context, listen: false);
@@ -75,23 +90,27 @@ class _AuthHandlerState extends State<AuthHandler> {
 
     return Scaffold(
       body: Builder(builder: (context) {
-        // Check Supabase authentication
-        if (supabaseProvider.isAuthenticated) {
+        // Show loading during session validation
+        if (supabaseProvider.isValidatingSession) {
+          return const LoadingWidget();
+        }
+
+        // Check Supabase authentication and session validity
+        if (supabaseProvider.isAuthenticated && supabaseProvider.hasValidSession) {
           // Show loading while initializing user data
           final userDataProvider = Provider.of<UserDataProvider>(context, listen: false);
           if (_isInitializing || (userDataProvider.isLoading && userDataProvider.supabaseUserData == null)) {
             return const LoadingWidget();
           }
 
-          // User is logged in with Supabase
-          log("AuthHandler: User logged in with Supabase");
+          // User is logged in with valid session
+          log("AuthHandler: User logged in with valid session, showing MainScreen");
 
-          // Always show MainScreen for authenticated users
-          // Wizard completion is now optional and handled via popover
+          // Show MainScreen - wizard completion handled via popover
           return const MainScreen();
         } else {
-          // Not authenticated - show welcome page
-          log("AuthHandler: User not authenticated, showing welcome page");
+          // Not authenticated or session invalid - show welcome page
+          log("AuthHandler: User not authenticated or session invalid, showing welcome page");
           return const WelcomePage();
         }
       }),

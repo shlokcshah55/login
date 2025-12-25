@@ -30,6 +30,7 @@ class ChatGroupModel {
   });
 
   factory ChatGroupModel.fromJson(Map<String, dynamic> json) {
+
     return ChatGroupModel(
       id: json['id'] ?? '',
       name: json['name'] ?? '',
@@ -41,7 +42,7 @@ class ChatGroupModel {
       isOnline: json['is_online'] ?? false,
       unreadCount: json['unread_count'] ?? 0,
       groupLocations: (json['group_locations'] as List<dynamic>?)
-          ?.map((loc) => LocationModel.fromJson(loc))
+          ?.map((loc) => LocationModel.fromJson(loc, ""))
           .toList() ?? [],
       description: json['description'] ?? '',
       memberIds: List<String>.from(json['member_ids'] ?? []),

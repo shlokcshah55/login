@@ -304,6 +304,8 @@ class SwipeCardStackState extends State<SwipeCardStack>
   }
 
   Widget _buildCard(LocationModel location) {
+    print('lcoations coming');
+    print(location.photoReference);
     return Container(
       margin: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -340,7 +342,7 @@ class SwipeCardStackState extends State<SwipeCardStack>
                 ),
                 child: location.photoReference != null
                     ? Image.network(
-                        'https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${location.photoReference}&key=YOUR_API_KEY',
+                        location.photoReference!,
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
                           return Container(

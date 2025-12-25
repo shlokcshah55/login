@@ -22,23 +22,25 @@ class LocationCard extends StatelessWidget {
     String? imageUrl;
     bool isGooglePlacePhoto = location.photoReference != null && location.photoReference!.isNotEmpty;
 
-    if (isGooglePlacePhoto) {
-      final apiKey = dotenv.env['GOOGLE_PLACE_API_KEY'];
-      if (apiKey != null) {
-        imageUrl =
-            'https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${location.photoReference}&key=\$apiKey';
-      } else {
-        log('GOOGLE_PLACE_API_KEY is not set in .env file');
-      }
-    } 
+    // if (isGooglePlacePhoto) {
+    //   final apiKey = dotenv.env['GOOGLE_PLACE_API_KEY'];
+    //   if (apiKey != null) {
+    //     imageUrl =
+    //         'https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${location.photoReference}&key=\$apiKey';
+    //   } else {
+    //     log('GOOGLE_PLACE_API_KEY is not set in .env file');
+    //   }
+    // } 
+    print('Building the locationCard and then getting this');
+    print(location.photoReference);
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(12.0)), // Rounded corners for the top of the image
       child: SizedBox(
         height: 120, // Adjust height as needed for grid view
         width: double.infinity,
-        child: imageUrl != null
+        child: location.photoReference != null
             ? Image.network(
-                imageUrl,
+                location.photoReference!,
                 fit: BoxFit.cover,
                 loadingBuilder: (context, child, progress) {
                   if (progress == null) return child;

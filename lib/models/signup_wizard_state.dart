@@ -100,8 +100,8 @@ class SignupWizardState extends ChangeNotifier {
   }
 
   // Record a restaurant decision: true = saved, false = passed
-  void recordRestaurantDecision(int locationId, bool liked) {
-    _restaurantDecisions[locationId] = liked;
+  void recordRestaurantDecision(int locationId, bool saved) {
+    _restaurantDecisions[locationId] = saved;
     notifyListeners();
   }
 

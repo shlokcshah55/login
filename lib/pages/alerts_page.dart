@@ -17,22 +17,6 @@ class _AlertsPageState extends State<AlertsPage> {
   @override
   void initState() {
     super.initState();
-    _fetchPotentialLocations();
-  }
-
-  Future<void> _fetchPotentialLocations() async {
-    final locationManager = Provider.of<LocationListManager>(context, listen: false);
-    
-    setState(() {
-      _isLoading = true;
-    });
-    
-    final locations = await locationManager.getSavedLocationsSinceLastOpened();
-    
-    setState(() {
-      _potentialTiktokVideos = locations;
-      _isLoading = false;
-    });
   }
 
   @override
@@ -41,14 +25,6 @@ class _AlertsPageState extends State<AlertsPage> {
       appBar: AppBar(
         title: const Text('Notifications'),
         elevation: 0,
-      ),
-      body: RefreshIndicator(
-        onRefresh: _fetchPotentialLocations,
-        child: _isLoading 
-          ? const Center(child: CircularProgressIndicator())
-          : _potentialTiktokVideos.isEmpty 
-            ? _buildEmptyState()
-            : _buildNotificationList(),
       ),
     );
   }
@@ -102,8 +78,6 @@ class _AlertsPageState extends State<AlertsPage> {
     final locationManager = Provider.of<LocationListManager>(context, listen: false);
     await locationManager.acknowledgeLocation(locationId, value);
     
-    // Refresh the list after acknowledgment
-    _fetchPotentialLocations();
   }
 }
 

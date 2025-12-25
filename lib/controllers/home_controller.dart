@@ -168,7 +168,7 @@ class HomeController {
         children: [
           location.photoReference != null
               ? Image.network(
-                  googlePlacesService.getPhotoUrl(location.photoReference) ?? '',
+                  location.photoReference!,
                   fit: BoxFit.cover,
                   height: 80,
                   width: double.infinity,

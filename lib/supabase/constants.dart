@@ -88,6 +88,7 @@ class SupabaseConstants {
 
   // Column names - location_popularity_app
   static const String columnSavesCount = 'saves_count';
+  static const String columnDislikeCount = 'dislikes_count';
   static const String columnUpdatedAt = 'updated_at';
 
   // Column names - location_popularity_social

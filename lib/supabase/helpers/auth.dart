@@ -221,6 +221,55 @@ class AuthHelper {
     }
   }
 
+  /// Validates the current session and attempts to refresh if needed
+  /// Returns true if session is valid, false otherwise
+  Future<bool> validateSession() async {
+    try {
+      final session = await getSession();
+
+      if (session == null) {
+        if (kDebugMode) {
+          print('AuthHelper.validateSession: No session exists');
+        }
+        return false;
+      }
+
+      // Check if token is expired
+      final expiresAt = DateTime.fromMillisecondsSinceEpoch(session.expiresAt! * 1000);
+      final now = DateTime.now();
+
+      if (expiresAt.isBefore(now)) {
+        if (kDebugMode) {
+          print('AuthHelper.validateSession: Session expired, attempting refresh');
+        }
+
+        // Try to refresh the session
+        final response = await _client.auth.refreshSession();
+
+        if (response.session == null) {
+          if (kDebugMode) {
+            print('AuthHelper.validateSession: Token refresh failed');
+          }
+          return false;
+        }
+
+        if (kDebugMode) {
+          print('AuthHelper.validateSession: Token refreshed successfully');
+        }
+        return true;
+      }
+
+      if (kDebugMode) {
+        print('AuthHelper.validateSession: Session is valid');
+      }
+      return true;
+    } catch (e) {
+      if (kDebugMode) {
+        print('AuthHelper.validateSession: Validation failed with error: $e');
+      }
+      return false;
+    }
+  }
 
   /// Get user profile data for the current user
   Future<UserModel?> getUserProfile() async {

@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:googleapis/connectors/v1.dart';
+import 'package:login/supabase/service.dart';
 
 import '../supabase/constants.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -87,7 +89,8 @@ class LocationModel {
     this.dataVersion = 'v1',
     this.preference});
 
-  factory LocationModel.fromJson(Map<String, dynamic> json) {
+  factory LocationModel.fromJson(Map<String, dynamic> json, String? locationImage) {
+    
     return LocationModel(
       locationId: json[SupabaseConstants.columnLocationId] as int,
       name: json[SupabaseConstants.columnName] ?? 'Unknown',
@@ -103,7 +106,7 @@ class LocationModel {
       rating: (json[SupabaseConstants.columnRating] as num?)?.toDouble(),
       userRatingsTotal: (json[SupabaseConstants.columnUserRatingsTotal] as num?)?.toInt(),
       priceLevel: (json[SupabaseConstants.columnPriceLevel] as num?)?.toInt(),
-      photoReference: json[SupabaseConstants.columnPhotoReference],
+      photoReference: locationImage,
       savedCount: (json[SupabaseConstants.columnSavedCount] as num?)?.toInt(),
       googlePlaceId: json[SupabaseConstants.columnGooglePlaceId],
       businessStatus: json[SupabaseConstants.columnBusinessStatus],
@@ -349,4 +352,7 @@ class LocationModel {
       ),
     );
   }
+
+
+  
 }

@@ -359,12 +359,6 @@ class _MainScreenState extends State<MainScreen> {
   ];
 
   @override
-  void initState() {
-    super.initState();
-    _checkForPendingNotifications();
-  }
-
-  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
 
@@ -374,16 +368,6 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
-  Future<void> _checkForPendingNotifications() async {
-    final locationManager =
-        Provider.of<LocationListManager>(context, listen: false);
-    final locations = await locationManager.getSavedLocationsSinceLastOpened();
-
-    setState(() {
-      _hasUnreadNotifications = locations.isNotEmpty;
-    });
-  }
-
   Future<void> _checkAndShowWizardPopover() async {
     _hasShownWizardPopover = true;
 
@@ -391,8 +375,8 @@ class _MainScreenState extends State<MainScreen> {
     final wizardCompleted = userDataProvider.supabaseUserData?.wizardCompleted ?? false;
 
     if (!wizardCompleted) {
-      // Delay to ensure screen is built
-      await Future.delayed(const Duration(milliseconds: 500));
+      // Delay to ensure screen is built and give user time to see the app
+      await Future.delayed(const Duration(seconds: 2));
 
       if (mounted) {
         _showWizardCompletionPopover();
