@@ -425,7 +425,7 @@ class _LocationCarouselState extends State<LocationCarousel> {
       width: double.infinity,
       child: location.photoReference != null
           ? Image.network(
-              'https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${location.photoReference}&key=${dotenv.env['GOOGLE_PLACE_API_KEY']}',
+              location.photoReference!,
               fit: BoxFit.cover,
               loadingBuilder: (context, child, progress) {
                 if (progress == null) return child;

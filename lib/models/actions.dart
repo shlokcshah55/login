@@ -5,7 +5,7 @@ class UserLocationActionModel {
   final int? actionId;
   final int userId;
   final int locationId;
-  final String action; // 'save', 'like', 'shared_video'
+  final String action; // 'save', 'shared_video'
   final int? sourceVideoId;
   final DateTime? createdAt;
   final String? savedMethod; // 'tiktok', 'in-app'

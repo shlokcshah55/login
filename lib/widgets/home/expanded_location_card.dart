@@ -162,7 +162,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard> {
                           ),
                           child: widget.location.photoReference != null
                               ? Image.network(
-                                  'https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${widget.location.photoReference}&key=${dotenv.env['GOOGLE_PLACE_API_KEY']}',
+                                  widget.location.photoReference!,
                                   fit: BoxFit.cover,
                                   width: double.infinity,
                                   errorBuilder: (context, error, stackTrace) {

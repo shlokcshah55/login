@@ -116,7 +116,7 @@ class _VibeStepState extends State<VibeStep> {
     await widget.onNextWithRestaurants(() async {
     
       // TODO: Replace this with custom recommendation function
-      final allLocations = await supabase.locations.getAllLocations();
+      final allLocations = await supabase.locations.getFiveLocations();
       return allLocations.take(5).toList();
     });
   }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:login/models/users.dart';
 import 'package:login/supabase/helpers/auth.dart';
@@ -20,6 +21,8 @@ class SupabaseService extends ChangeNotifier {
   bool _isInitializing = true;
   String? _error;
   StreamSubscription? _authSubscription;
+  bool _hasValidSession = false;
+  bool _isValidatingSession = false;
 
   // Getters for repositories
   AuthHelper get users => _authService;
@@ -31,6 +34,8 @@ class SupabaseService extends ChangeNotifier {
   bool get isLoading => _isLoading || _isInitializing;
   String? get error => _error;
   bool get isAuthenticated => _authService.isAuthenticated;
+  bool get hasValidSession => _hasValidSession;
+  bool get isValidatingSession => _isValidatingSession;
 
   // Create single instance of this provider
   static final SupabaseService _instance = SupabaseService._internal();
@@ -48,9 +53,24 @@ class SupabaseService extends ChangeNotifier {
       _setError(null);
       await ensureAuthStateReady();
 
-      // If user is already authenticated (restored session), ensure DB record exists
+      // If user is already authenticated (restored session), validate it
       if (_authService.isAuthenticated) {
-        await _authService.ensureUserRecordExists();
+        if (kDebugMode) {
+          print('SupabaseService: Found existing session, validating...');
+        }
+
+        final isValid = await _authService.validateSession();
+
+        if (isValid) {
+          await _authService.ensureUserRecordExists();
+          _hasValidSession = true;
+        } else {
+          if (kDebugMode) {
+            print('SupabaseService: Restored session is invalid, signing out');
+          }
+          await _authService.signOut();
+          _hasValidSession = false;
+        }
       }
     } catch (e) {
       _setError('Failed to initialize Supabase: $e');
@@ -130,19 +150,101 @@ class SupabaseService extends ChangeNotifier {
       _setLoading(false);
     }
   }
-  
-  // Set up auth state listener
-  void _setupAuthListener() {
-    _authSubscription = _authService.onAuthStateChange.listen((state) async {
-      // Notify all listeners when auth state changes
-      notifyListeners();
 
-      // If user just signed in, ensure their database record exists
-      // This is especially important for OAuth users
-      if (state.event == AuthChangeEvent.signedIn) {
-        await _authService.ensureUserRecordExists();
+  /// Validate current session and sign out if invalid
+  Future<bool> validateAndRefreshSession() async {
+    if (!_authService.isAuthenticated) {
+      _hasValidSession = false;
+      return false;
+    }
+
+    _isValidatingSession = true;
+    notifyListeners();
+
+    try {
+      final isValid = await _authService.validateSession();
+
+      if (!isValid) {
+        if (kDebugMode) {
+          print('SupabaseService: Session validation failed, signing out user');
+        }
+        await signOut();
+        _hasValidSession = false;
+        return false;
       }
-    });
+
+      _hasValidSession = true;
+      return true;
+    } finally {
+      _isValidatingSession = false;
+      notifyListeners();
+    }
+  }
+
+  // Set up auth state listener with comprehensive error handling
+  void _setupAuthListener() {
+    _authSubscription = _authService.onAuthStateChange.listen(
+      (state) async {
+        if (kDebugMode) {
+          print('SupabaseService: Auth state changed: ${state.event}');
+        }
+
+        // Handle different auth events
+        switch (state.event) {
+          case AuthChangeEvent.signedIn:
+            // User just signed in
+            await _authService.ensureUserRecordExists();
+            _hasValidSession = true;
+            notifyListeners();
+            break;
+
+          case AuthChangeEvent.signedOut:
+            // User signed out
+            _hasValidSession = false;
+            notifyListeners();
+            break;
+
+          case AuthChangeEvent.tokenRefreshed:
+            // Token was successfully refreshed
+            if (kDebugMode) {
+              print('SupabaseService: Token refreshed successfully');
+            }
+            _hasValidSession = true;
+            notifyListeners();
+            break;
+
+          case AuthChangeEvent.userUpdated:
+            // User data updated
+            notifyListeners();
+            break;
+
+          default:
+            // For other events, validate the session
+            if (_authService.isAuthenticated) {
+              final isValid = await _authService.validateSession();
+              if (!isValid) {
+                if (kDebugMode) {
+                  print('SupabaseService: Session validation failed after auth event, signing out');
+                }
+                await signOut();
+              } else {
+                _hasValidSession = true;
+                notifyListeners();
+              }
+            }
+        }
+      },
+      onError: (error) {
+        // Handle auth stream errors (e.g., token refresh failures)
+        if (kDebugMode) {
+          print('SupabaseService: Auth state error: $error');
+        }
+
+        // If we get an error in the auth stream, sign out the user
+        _hasValidSession = false;
+        signOut();
+      },
+    );
   }
 
   // Helper methods
