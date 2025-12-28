@@ -97,7 +97,9 @@ class LocationModel {
       vicinity: json[SupabaseConstants.columnVicinity],
       lat: (json[SupabaseConstants.columnLat] as num?)?.toDouble(),
       lng: (json[SupabaseConstants.columnLng] as num?)?.toDouble(),
-      createdAt: DateTime.parse(json[SupabaseConstants.columnCreatedAt]),
+      createdAt: json[SupabaseConstants.columnCreatedAt] != null
+          ? DateTime.parse(json[SupabaseConstants.columnCreatedAt])
+          : DateTime.now(),
       ingestedAt: json[SupabaseConstants.columnIngestedAt] != null
           ? DateTime.tryParse(json[SupabaseConstants.columnIngestedAt].toString())
           : null,
@@ -155,7 +157,9 @@ class LocationModel {
       lng: json[SupabaseConstants.columnLng] != null
           ? double.parse(json[SupabaseConstants.columnLng].toString())
           : null,
-      createdAt: DateTime.parse(json[SupabaseConstants.columnCreatedAt]),
+      createdAt: json[SupabaseConstants.columnCreatedAt] != null
+          ? DateTime.parse(json[SupabaseConstants.columnCreatedAt])
+          : DateTime.now(),
     );
   }
 

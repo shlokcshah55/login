@@ -2,8 +2,6 @@ PODS:
   - app_links (0.0.2):
     - Flutter
   - Flutter (1.0.0)
-  - flutter_local_notifications (0.0.1):
-    - Flutter
   - geolocator_apple (1.2.0):
     - Flutter
   - google_maps_flutter_ios (0.0.1):
@@ -30,13 +28,10 @@ PODS:
     - FlutterMacOS
   - url_launcher_ios (0.0.1):
     - Flutter
-  - workmanager (0.0.1):
-    - Flutter
 
 DEPENDENCIES:
   - app_links (from `.symlinks/plugins/app_links/ios`)
   - Flutter (from `Flutter`)
-  - flutter_local_notifications (from `.symlinks/plugins/flutter_local_notifications/ios`)
   - geolocator_apple (from `.symlinks/plugins/geolocator_apple/ios`)
   - google_maps_flutter_ios (from `.symlinks/plugins/google_maps_flutter_ios/ios`)
   - GoogleMaps
@@ -48,7 +43,6 @@ DEPENDENCIES:
   - receive_sharing_intent (from `.symlinks/plugins/receive_sharing_intent/ios`)
   - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
   - url_launcher_ios (from `.symlinks/plugins/url_launcher_ios/ios`)
-  - workmanager (from `.symlinks/plugins/workmanager/ios`)
 
 SPEC REPOS:
   trunk:
@@ -59,8 +53,6 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/app_links/ios"
   Flutter:
     :path: Flutter
-  flutter_local_notifications:
-    :path: ".symlinks/plugins/flutter_local_notifications/ios"
   geolocator_apple:
     :path: ".symlinks/plugins/geolocator_apple/ios"
   google_maps_flutter_ios:
@@ -81,13 +73,10 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/shared_preferences_foundation/darwin"
   url_launcher_ios:
     :path: ".symlinks/plugins/url_launcher_ios/ios"
-  workmanager:
-    :path: ".symlinks/plugins/workmanager/ios"
 
 SPEC CHECKSUMS:
   app_links: 76b66b60cc809390ca1ad69bfd66b998d2387ac7
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
-  flutter_local_notifications: 395056b3175ba4f08480a7c5de30cd36d69827e4
   geolocator_apple: 1560c3c875af2a412242c7a923e15d0d401966ff
   google_maps_flutter_ios: be1b329323e0ed8911ff3c3b405b08ec2b649a14
   GoogleMaps: 0608099d4870cac8754bdba9b6953db543432438
@@ -99,7 +88,6 @@ SPEC CHECKSUMS:
   receive_sharing_intent: 222384f00ffe7e952bbfabaa9e3967cb87e5fe00
   shared_preferences_foundation: 9e1978ff2562383bd5676f64ec4e9aa8fa06a6f7
   url_launcher_ios: 694010445543906933d732453a59da0a173ae33d
-  workmanager: 01be2de7f184bd15de93a1812936a2b7f42ef07e
 
 PODFILE CHECKSUM: 7a9af14da59212d27dd5363cc8a8fca49c17453d
 

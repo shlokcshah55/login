@@ -82,10 +82,14 @@ class LocationHelper {
           .inFilter(SupabaseConstants.columnLocationId, locationIds);
 
       List<LocationModel> locationModels = [];
+      print('locations $locations');
       for (var item in locations as List) {
+        print('item $item');
         var locationImage = await getLocationImage(item[SupabaseConstants.columnLocationId], item[SupabaseConstants.columnGooglePlaceId]);
+        print('locationIMAGE link $locationImage');
         locationModels.add(LocationModel.fromJson(item, locationImage));
       }
+      print('All the locations $locations');
       return locationModels;
     } catch (e) {
       if (kDebugMode) {
@@ -543,7 +547,7 @@ class LocationHelper {
     }
   }
 
-  Future<String?> getLocationImage(int locationId, String google_place_id) async {
+  Future<String?> getLocationImage(int locationId, String? google_place_id) async {
     try {
       // Step 1: Query Supabase for location data
       final locationData = await _client
@@ -581,6 +585,8 @@ class LocationHelper {
       return null;
     }
   }
+
+
 
 
   // TODO : Get the recommended locations (Applying the masks onto the locaitons table)
