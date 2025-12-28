@@ -4,23 +4,34 @@ import 'package:lottie/lottie.dart';
 import 'dart:async';
 import 'auth_handler.dart';
 
-class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
+class SplashScreenActual extends StatefulWidget {
+  const SplashScreenActual({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  State<SplashScreenActual> createState() => _SplashScreenActualState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenActualState extends State<SplashScreenActual> {
+  // 1. Define the state for the background color
+  bool _isDark = false;
+
   @override
   void initState() {
     super.initState();
-    // Hide system UI overlays for fullscreen experience
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
 
+    // 2. The "Color Change" Timer - triggers after 3 seconds
+    Timer(const Duration(seconds: 2), () {
+      if (mounted) {
+        setState(() {
+          _isDark = true;
+        });
+      }
+    });
+
+    // 3. Navigation Timer
     Timer(const Duration(milliseconds: 4000), () {
       if (mounted) {
-        // Restore system UI before navigating away
         SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => const AuthHandler()),
@@ -30,17 +41,23 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   @override
+  void dispose() {
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: MediaQuery.removePadding(
-        context: context,
-        removeTop: true,
-        removeBottom: true,
+      // 4. Use AnimatedContainer for a smooth fade effect
+      body: AnimatedContainer(
+        duration: const Duration(milliseconds: 10), // How fast the color fades
+        color: _isDark ? const Color(0xFF42133D) : const Color(0xFFEFEFEF),
         child: SizedBox.expand(
           child: Lottie.asset(
             'lib/assets/splashscren.json',
             fit: BoxFit.contain,
+            alignment: Alignment.center,
           ),
         ),
       ),
