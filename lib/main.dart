@@ -12,7 +12,7 @@ import 'package:login/supabase/supabase_client.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/pages/alerts_page.dart';
 import 'package:login/pages/splash_screen.dart';
-import 'package:login/pages/SplashScreenActual.dart';
+import 'package:login/pages/splash_screen.dart';
 import 'package:login/pages/home_page.dart';
 import 'package:login/pages/profile/profile_page.dart';
 import 'package:login/pages/signup_wizard/wizard_completion_page.dart';
