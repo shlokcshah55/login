@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -11,7 +10,6 @@ import 'package:login/models/locations.dart';
 import 'package:login/supabase/supabase_client.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/pages/alerts_page.dart';
-import 'package:login/pages/splash_screen.dart';
 import 'package:login/pages/splash_screen.dart';
 import 'package:login/pages/home_page.dart';
 import 'package:login/pages/profile/profile_page.dart';
@@ -212,20 +210,27 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   /// Process a single TikTok URL
   Future<Map<String, dynamic>> _processTikTokURL(String url) async {
-    print("Background Task Service: Processing TikTok link: $url");
-
-    // Get current user ID
-    final userId = SupabaseClientManager().currentUser?.id;
-    if (userId == null) {
-      log("Error: User not logged in. Cannot process TikTok links.");
-      throw Exception("You must be logged in to process URLs");
-    }
-
-    final apiUrl =
-        'https://tiktok-processor-107523489868.europe-west1.run.app/process';
+    print("🚀 START: Processing TikTok link: $url");
 
     try {
-      // Send request to TikTok processor service
+      print("🔍 Step 1: Getting current user ID...");
+      // Get current user ID
+      final userId = SupabaseClientManager().currentUser?.id;
+      if (userId == null) {
+        print("❌ Error: User not logged in. Cannot process TikTok links.");
+        throw Exception("You must be logged in to process URLs");
+      }
+
+      print("✅ Step 2: User ID obtained: $userId");
+
+      final apiUrl =
+          'https://tiktok-processor-107523489868.europe-west1.run.app/process';
+
+      print("📡 Step 3: Sending request to: $apiUrl");
+      print("📤 Step 4: Request body: ${jsonEncode({'url': url, 'userId': userId})}");
+
+      print("⏳ Step 5: Making HTTP POST request...");
+      print("⏳ Step 5: Making HTTP POST request...");
       final response = await http.post(
         Uri.parse(apiUrl),
         headers: <String, String>{
@@ -235,15 +240,34 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           'url': url,
           'userId': userId,
         }),
+      ).timeout(
+        const Duration(seconds: 90),
+        onTimeout: () {
+          print("⏱️ ERROR: Request timed out after 90 seconds");
+          throw Exception("Request timed out - API took too long to respond");
+        },
       );
 
+      print("✅ Step 6: Response received!");
+      print("📥 Step 7: Response status: ${response.statusCode}");
+      print("📥 Step 8: Response body length: ${response.body.length} chars");
+      print("📥 Step 9: Response body preview: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}...");
+
       if (response.statusCode == 200) {
+        print("✅ Step 10: Status 200 - Parsing JSON response...");
         final responseData = jsonDecode(response.body);
 
+        print("✅ Step 11: JSON parsed successfully");
+        print("📊 Step 12: Response success field: ${responseData['success']}");
+
         if (responseData['success'] == true) {
+          print("✅ Step 13: Processing successful response...");
           final locationsRaw = responseData['locations'] as List;
 
+          print("✅ Step 14: Found ${locationsRaw.length} location(s) in response");
+
           // Parse each location and convert to a structured format
+          print("🔄 Step 15: Parsing ${locationsRaw.length} locations...");
           final parsedLocations = locationsRaw.map((loc) {
             final placeData = loc['place'] as Map<String, dynamic>;
             final videoData = loc['video_data'] as Map<String, dynamic>;
@@ -258,7 +282,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             };
           }).toList();
 
-          log("Successfully extracted ${parsedLocations.length} location(s)");
+          print("✅ Step 16: Successfully extracted ${parsedLocations.length} location(s)");
+          print("🎉 COMPLETE: Returning success result");
 
           return {
             'success': true,
@@ -267,21 +292,21 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           };
         } else {
           final error = responseData['error'] ?? 'Unknown error';
-          log("TikTok processing returned error: $error");
+          print("❌ Step 13-ERROR: TikTok processing returned error: $error");
           throw Exception("Could not extract location: $error");
         }
       } else {
-        log("Failed to process TikTok link: ${response.statusCode} - ${response.body}");
+        print("❌ Step 10-ERROR: Failed - Status: ${response.statusCode}");
+        print("❌ Response body: ${response.body}");
         throw Exception("Failed to process URL: ${response.statusCode}");
       }
-    } catch (e) {
-      log("Error processing TikTok link: $e");
-      // Re-throw if it's already an Exception, otherwise wrap it
-      if (e is Exception) {
-        rethrow;
-      } else {
-        throw Exception("Error processing URL: $e");
-      }
+    } catch (e, stackTrace) {
+      print("❌❌❌ EXCEPTION CAUGHT in _processTikTokURL ❌❌❌");
+      print("❌ Error type: ${e.runtimeType}");
+      print("❌ Error message: $e");
+      print("❌ Stack trace: $stackTrace");
+      // Re-throw to let the popover handle it
+      rethrow;
     }
   }
 

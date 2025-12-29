@@ -126,6 +126,7 @@ class _UrlProcessingPopoverState extends State<UrlProcessingPopover>
   }
 
   Future<void> _processUrl() async {
+    print("🎬 Popover: Starting URL processing...");
     setState(() {
       _state = ProcessingState.loading;
       _result = null;
@@ -133,7 +134,11 @@ class _UrlProcessingPopoverState extends State<UrlProcessingPopover>
     });
 
     try {
+      print("🎬 Popover: Calling onProcess callback...");
       final result = await widget.onProcess(widget.url);
+      print("🎬 Popover: onProcess completed successfully!");
+      print("🎬 Popover: Result: $result");
+      
       if (mounted) {
         // Animate to 100% completion
         setState(() => _statusMessage = 'Complete!');
@@ -147,13 +152,19 @@ class _UrlProcessingPopoverState extends State<UrlProcessingPopover>
         await Future.delayed(Duration(milliseconds: 200));
 
         if (mounted) {
+          print("🎬 Popover: Setting state to completed");
           setState(() {
             _state = ProcessingState.completed;
             _result = result;
           });
         }
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print("🎬❌ Popover: ERROR caught in _processUrl!");
+      print("🎬❌ Error type: ${e.runtimeType}");
+      print("🎬❌ Error: $e");
+      print("🎬❌ Stack trace: $stackTrace");
+      
       if (mounted) {
         setState(() {
           _state = ProcessingState.error;
@@ -177,7 +188,15 @@ class _UrlProcessingPopoverState extends State<UrlProcessingPopover>
 
   /// Save selected locations to the database
   Future<void> _saveSelectedLocations() async {
-    if (_result == null || _selectedIndices.isEmpty) return;
+    print("💾 SAVE: Starting save process...");
+    print("💾 Result null? ${_result == null}");
+    print("💾 Selected indices: $_selectedIndices");
+    print("💾 Selected count: ${_selectedIndices.length}");
+    
+    if (_result == null || _selectedIndices.isEmpty) {
+      print("❌ SAVE: Cannot save - result is null or no locations selected");
+      return;
+    }
 
     setState(() {
       _isSaving = true;
@@ -185,26 +204,31 @@ class _UrlProcessingPopoverState extends State<UrlProcessingPopover>
 
     try {
       final locations = _result!['locations'] as List;
+      print("💾 SAVE: Total locations available: ${locations.length}");
 
       for (int index in _selectedIndices) {
         final loc = locations[index];
         final locationModel = loc['location'] as LocationModel;
 
+        print("💾 SAVE: Saving location #$index: ${locationModel.name} (ID: ${locationModel.locationId})");
+
         // Save location using the Supabase service
-       await _supabaseService.locations.saveLocation(
+        final success = await _supabaseService.locations.saveLocation(
           locationModel.locationId,
           savedMethod: 'tiktok',
         );
 
-        // TODO: Save video data
+        print("💾 SAVE: Location #$index save result: $success");
       }
+
+      print("✅ SAVE: All locations saved successfully!");
 
       // Show success message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Succesfully added locations'
+              'Successfully added locations'
             ),
             backgroundColor: AppColors.success,
             duration: Duration(seconds: 3),
@@ -214,7 +238,10 @@ class _UrlProcessingPopoverState extends State<UrlProcessingPopover>
         // Close the popover
         _handleClose();
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print("❌ SAVE ERROR: $e");
+      print("❌ SAVE Stack trace: $stackTrace");
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -454,7 +481,12 @@ class _UrlProcessingPopoverState extends State<UrlProcessingPopover>
           child: ElevatedButton(
             onPressed: _isSaving || _selectedIndices.isEmpty
                 ? null
-                : _saveSelectedLocations,
+                : () {
+                    print("🔘 BUTTON: Save button pressed!");
+                    print("🔘 BUTTON: Selected indices: $_selectedIndices");
+                    print("🔘 BUTTON: Is saving: $_isSaving");
+                    _saveSelectedLocations();
+                  },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
@@ -526,7 +558,6 @@ class _UrlProcessingPopoverState extends State<UrlProcessingPopover>
     bool isSelected,
   ) {
     final author = videoData['author'] as String? ?? 'Unknown';
-    final description = videoData['description'] as String? ?? '';
 
     return GestureDetector(
       onTap: () {

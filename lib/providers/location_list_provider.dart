@@ -7,6 +7,7 @@ import 'package:login/models/locations.dart';
 import 'package:login/services/google_place_service.dart';
 import 'package:login/supabase/service.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 // Enum to represent the different types of location lists
 enum LocationListType { saved, recommended, search }
@@ -50,6 +51,11 @@ class LocationListManager with ChangeNotifier {
   // Method to update the user ID when the user logs in
   void setUserId(String? userId) {
     _userId = userId;
+    
+    // Unsubscribe from previous realtime channel
+    log('Unsubscribing from realtime updates');
+    _supabaseService.locations.unsubscribeFromUserLocationActions();
+    
     // Potentially clear locations if user logs out (userId is null)
     if (_userId == null) {
       _savedLocations = {};
@@ -60,6 +66,120 @@ class LocationListManager with ChangeNotifier {
     } else {
       // Fetch initial data if needed, e.g., saved locations
       fetchSavedLocations();
+      
+      // Subscribe to realtime updates for this user
+      _subscribeToRealtime();
+    }
+  }
+  
+  /// Subscribe to realtime changes on user_location_actions
+  void _subscribeToRealtime() {
+    if (_userId == null) return;
+    
+    log('Subscribing to realtime updates for user: $_userId');
+    
+    _supabaseService.locations.subscribeToUserLocationActions(
+      _userId!,
+      (payload) {
+        log('Realtime event received: ${payload.eventType}');
+        _handleRealtimeEvent(payload);
+      },
+    );
+  }
+
+
+  /// Handle realtime events (INSERT, UPDATE, DELETE)
+  void _handleRealtimeEvent(PostgresChangePayload payload) async {
+    final record = payload.newRecord;
+    final oldRecord = payload.oldRecord;
+    
+    switch (payload.eventType) {
+      case PostgresChangeEvent.insert:
+        // New location saved
+        if (record['action'] == 'saved' && record['acked'] == true) {
+          log('Location saved realtime: ${record['location_id']}');
+          await _addLocationToSaved(record['location_id']);
+        }
+        break;
+        
+      case PostgresChangeEvent.delete:
+        // Location unsaved
+        log('Location unsaved realtime: ${oldRecord['location_id']}');
+        await _removeLocationFromSaved(oldRecord['location_id']);
+        break;
+        
+      case PostgresChangeEvent.update:
+        // Handle acked status change
+        if (record['action'] == 'saved') {
+          if (record['acked'] == true && oldRecord['acked'] == false) {
+            log('Location acknowledged: ${record['location_id']}');
+            await _addLocationToSaved(record['location_id']);
+          } else if (record['acked'] == false && oldRecord['acked'] == true) {
+            log('Location unacknowledged: ${record['location_id']}');
+            await _removeLocationFromSaved(record['location_id']);
+          }
+        }
+        break;
+        
+      default:
+        // Ignore all events (includes 'select')
+        log('Ignoring realtime event: ${payload.eventType}');
+        break;
+    }
+  }
+  
+  /// Add a location to saved list by fetching its details
+  Future<void> _addLocationToSaved(int locationId) async {
+    try {
+      // Fetch location details from Supabase
+      final locationData = await Supabase.instance.client
+          .from('locations')
+          .select()
+          .eq('location_id', locationId)
+          .single();
+      
+      final locationImage = await _supabaseService.locations
+          .getLocationImage(locationId, locationData['google_place_id']);
+      
+      final location = LocationModel.fromJson(locationData, locationImage);
+      final marker = location.setPreference(LocationPreference.saved).toMarker();
+      
+      if (marker != null) {
+        _savedLocations[location] = marker;
+        
+        // Update current items if viewing saved locations
+        if (_currentListType == LocationListType.saved) {
+          _currentItems = _savedLocations;
+        }
+        
+        notifyListeners();
+        log('Added location to saved: ${location.name}');
+      }
+    } catch (e) {
+      log('Error adding location realtime: $e');
+    }
+  }
+  
+  /// Remove a location from saved list
+  Future<void> _removeLocationFromSaved(int locationId) async {
+    try {
+      // Find and remove the location
+      final locationToRemove = _savedLocations.keys.firstWhere(
+        (loc) => loc.locationId == locationId,
+        orElse: () => throw Exception('Location not found'),
+      );
+      
+      _savedLocations.remove(locationToRemove);
+      
+      // Update current items if viewing saved locations
+      if (_currentListType == LocationListType.saved) {
+        _currentItems = _savedLocations;
+      }
+      
+      notifyListeners();
+      log('Removed location from saved: ${locationToRemove.name}');
+    } catch (e) {
+      log('Error removing location realtime: $e');
     }
   }
 
@@ -453,6 +573,8 @@ class LocationListManager with ChangeNotifier {
   @override
   void dispose() {
     stopLocationUpdates(); // Ensure stream is cancelled
+    log('Unsubscribing from realtime updates');
+    _supabaseService.locations.unsubscribeFromUserLocationActions();
     log("LocationListManager: Disposed.");
     super.dispose();
   }

@@ -12,6 +12,7 @@ import '../supabase_client.dart';
 // Service for handling Supabase location operations
 class LocationHelper {
   final SupabaseClient _client = SupabaseClientManager().client;
+  RealtimeChannel? _realtimeChannel;
 
   // This is temporary until we replace this with reccomendation call 
   Future<List<LocationModel>> getFiveLocations() async {
@@ -592,8 +593,47 @@ class LocationHelper {
   // TODO : Get the recommended locations (Applying the masks onto the locaitons table)
   // Future<List<LocationModel>> getRecommendedLocations(String userId) async {}
 
+  
+  
+  /// Subscribe to realtime changes on user_location_actions table
+  /// Calls the provided callback when INSERT, UPDATE, or DELETE events occur
+  void subscribeToUserLocationActions(
+    String userId,
+    void Function(PostgresChangePayload) onEvent,
+  ) {
+    // Clean up any existing subscription first
+    unsubscribeFromUserLocationActions();
+    
+    if (kDebugMode) {
+      print('LocationHelper: Subscribing to realtime updates for user: $userId');
+    }
+    
+    _realtimeChannel = _client
+        .channel('user_location_actions:$userId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: SupabaseConstants.tableUserLocationActions,
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: SupabaseConstants.columnUserId,
+            value: userId,
+          ),
+          callback: onEvent,
+        )
+        .subscribe();
+  }
 
-
+  /// Unsubscribe from realtime updates on user_location_actions
+  void unsubscribeFromUserLocationActions() {
+    if (_realtimeChannel != null) {
+      if (kDebugMode) {
+        print('LocationHelper: Unsubscribing from realtime updates');
+      }
+      _client.removeChannel(_realtimeChannel!);
+      _realtimeChannel = null;
+    }
+  }
 }
 
 

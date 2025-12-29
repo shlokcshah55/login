@@ -54,9 +54,14 @@ class ShareViewController: UIViewController {
         for item in inputItems {
             if let attachments = item.attachments {
                 for provider in attachments {
+                    print("🔍 Share Extension: Provider registered type identifiers: \(provider.registeredTypeIdentifiers)")
+                    
                     // Handle URLs
                     if provider.hasItemConformingToTypeIdentifier("public.url") {
                         provider.loadItem(forTypeIdentifier: "public.url", options: nil) { (item, error) in
+                            if let error = error {
+                                print("❌ Share Extension: Error loading URL: \(error)")
+                            }
                             if let url = item as? URL {
                                 sharedURLs.append(url.absoluteString)
                                 print("📎 Share Extension: Found URL: \(url.absoluteString)")
@@ -71,6 +76,9 @@ class ShareViewController: UIViewController {
                     // Handle text (in case URL is shared as text)
                     else if provider.hasItemConformingToTypeIdentifier("public.plain-text") {
                         provider.loadItem(forTypeIdentifier: "public.plain-text", options: nil) { (item, error) in
+                            if let error = error {
+                                print("❌ Share Extension: Error loading text: \(error)")
+                            }
                             if let text = item as? String {
                                 sharedURLs.append(text)
                                 print("📎 Share Extension: Found text: \(text)")
@@ -84,6 +92,7 @@ class ShareViewController: UIViewController {
                     }
                     else {
                         // Not a supported type, just increment counter
+                        print("⚠️ Share Extension: Unsupported type, skipping")
                         processedCount += 1
                         if processedCount == totalProviders {
                             self.saveAndOpenApp(urls: sharedURLs)
@@ -106,7 +115,7 @@ class ShareViewController: UIViewController {
         print("🔗 Share Extension: URLs to save: \(urls)")
 
         // Save to App Group UserDefaults (replace, don't append)
-        if let userDefaults = UserDefaults(suiteName: "group.com.example.srishlok.pinit") {
+        if let userDefaults = UserDefaults(suiteName: "group.sriharsha.srishlok.pinit") {
             // Replace any existing URLs with the new ones
             userDefaults.set(urls, forKey: "shared_url")
             userDefaults.synchronize()
