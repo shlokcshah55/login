@@ -24,6 +24,11 @@ class LocationListManager with ChangeNotifier {
   bool _isTracking = false;
   bool _permissionGranted = false;
   String? _error;
+  
+  // Flags to prevent duplicate data fetches
+  bool _isLoadingSaved = false;
+  bool _savedLocationsLoaded = false;
+  bool _isSubscribed = false;
 
   LocationListManager(this._googlePlacesService);
 
@@ -50,11 +55,22 @@ class LocationListManager with ChangeNotifier {
 
   // Method to update the user ID when the user logs in
   void setUserId(String? userId) {
+    // Prevent redundant calls if userId hasn't changed
+    if (_userId == userId) {
+      log('UserId unchanged, skipping initialization');
+      return;
+    }
+    
     _userId = userId;
     
     // Unsubscribe from previous realtime channel
     log('Unsubscribing from realtime updates');
     _supabaseService.locations.unsubscribeFromUserLocationActions();
+    _isSubscribed = false;
+    
+    // Reset flags when user changes
+    _savedLocationsLoaded = false;
+    _isLoadingSaved = false;
     
     // Potentially clear locations if user logs out (userId is null)
     if (_userId == null) {
@@ -64,10 +80,11 @@ class LocationListManager with ChangeNotifier {
       _currentItems = {};
       notifyListeners();
     } else {
-      // Fetch initial data if needed, e.g., saved locations
+      // Fetch initial data ONCE when user logs in
       fetchSavedLocations();
       
       // Subscribe to realtime updates for this user
+      // This will handle all future changes without needing to refetch
       _subscribeToRealtime();
     }
   }
@@ -75,6 +92,12 @@ class LocationListManager with ChangeNotifier {
   /// Subscribe to realtime changes on user_location_actions
   void _subscribeToRealtime() {
     if (_userId == null) return;
+    
+    // Prevent duplicate subscriptions
+    if (_isSubscribed) {
+      log('Already subscribed to realtime updates, skipping');
+      return;
+    }
     
     log('Subscribing to realtime updates for user: $_userId');
     
@@ -85,6 +108,8 @@ class LocationListManager with ChangeNotifier {
         _handleRealtimeEvent(payload);
       },
     );
+    
+    _isSubscribed = true;
   }
 
 
@@ -131,6 +156,13 @@ class LocationListManager with ChangeNotifier {
   /// Add a location to saved list by fetching its details
   Future<void> _addLocationToSaved(int locationId) async {
     try {
+      // Check if location already exists in saved locations
+      final alreadyExists = _savedLocations.keys.any((loc) => loc.locationId == locationId);
+      if (alreadyExists) {
+        log('Location $locationId already in saved list, skipping');
+        return;
+      }
+      
       // Fetch location details from Supabase
       final locationData = await Supabase.instance.client
           .from('locations')
@@ -208,6 +240,19 @@ class LocationListManager with ChangeNotifier {
       return;
     }
 
+    // Prevent duplicate fetches
+    if (_isLoadingSaved) {
+      log("Already loading saved locations, skipping duplicate request");
+      return;
+    }
+    
+    if (_savedLocationsLoaded && _savedLocations.isNotEmpty) {
+      log("Saved locations already loaded (${_savedLocations.length} items), skipping fetch");
+      return;
+    }
+
+    _isLoadingSaved = true;
+    
     try {
       List<LocationModel> supabaseSavedLocations =
           await _supabaseService.locations.getSavedLocations();
@@ -219,8 +264,8 @@ class LocationListManager with ChangeNotifier {
             location:
                 location.setPreference(LocationPreference.saved).toMarker()!
         };
-        print(
-            "Fetched ${supabaseSavedLocations.length} saved locations from Supabase.");
+        log("Fetched ${supabaseSavedLocations.length} saved locations from Supabase.");
+        _savedLocationsLoaded = true;
       }
 
       // If the current type is saved, update currentItems
@@ -230,6 +275,8 @@ class LocationListManager with ChangeNotifier {
       notifyListeners();
     } catch (e) {
       log('Error fetching saved locations: $e');
+    } finally {
+      _isLoadingSaved = false;
     }
   }
 
@@ -573,9 +620,17 @@ class LocationListManager with ChangeNotifier {
   @override
   void dispose() {
     stopLocationUpdates(); // Ensure stream is cancelled
-    log('Unsubscribing from realtime updates');
+    log('Unsubscribing from realtime updates on dispose');
     _supabaseService.locations.unsubscribeFromUserLocationActions();
+    _isSubscribed = false;
     log("LocationListManager: Disposed.");
     super.dispose();
+  }
+  
+  /// Force refresh saved locations (use sparingly, realtime handles most updates)
+  Future<void> refreshSavedLocations() async {
+    log('Force refreshing saved locations');
+    _savedLocationsLoaded = false;
+    await fetchSavedLocations();
   }
 }

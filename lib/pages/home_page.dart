@@ -128,23 +128,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ),
 
           // 3. Location Carousel (positioned higher above bottom bar) - wrapped with scroll detection
-          Positioned(
-            bottom: 30, // Adjusted, assuming no system bottom navigation bar for now
-                       // If you have a bottom nav bar, increase this value
-            left: 0,
-            right: 0,
-            child: NotificationListener<ScrollNotification>(
-              onNotification: (ScrollNotification scrollInfo) {
-                // Hide bottom nav when user starts scrolling the carousel
-                if (scrollInfo is ScrollStartNotification) {
-                  bottomNavProvider_.hide();
-                }
-                return false; // Allow the scroll to continue
-              },
-              child: LocationCarousel(
-                pageController: _pageController,
-                locations: locations,
-              ),
+          NotificationListener<ScrollNotification>(
+            onNotification: (ScrollNotification scrollInfo) {
+              // Hide bottom nav when user starts scrolling the carousel
+              if (scrollInfo is ScrollStartNotification) {
+                bottomNavProvider_.hide();
+              }
+              return false; // Allow the scroll to continue
+            },
+            child: LocationCarousel(
+              pageController: _pageController,
+              locations: locations,
             ),
           ),
 

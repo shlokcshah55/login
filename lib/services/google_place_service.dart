@@ -11,7 +11,15 @@ class GooglePlacesService {
 
   // Debug method to check API key
   void debugApiKey() {
-    log('GooglePlaceService: API Key loaded: ${apiKey != null ? "YES (${apiKey!.substring(0, 10)}...)" : "NO"}');
+    if (apiKey == null) {
+      log('GooglePlaceService: API Key loaded: NO');
+    } else if (apiKey!.isEmpty) {
+      log('GooglePlaceService: API Key loaded: EMPTY STRING');
+    } else if (apiKey!.length < 10) {
+      log('GooglePlaceService: API Key loaded: YES (${apiKey!.length} chars - TOO SHORT)');
+    } else {
+      log('GooglePlaceService: API Key loaded: YES (${apiKey!.substring(0, 10)}...)');
+    }
     log('GooglePlaceService: All env vars: ${dotenv.env.keys.toList()}');
   }
 

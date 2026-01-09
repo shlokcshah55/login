@@ -59,9 +59,9 @@ class _AuthHandlerState extends State<AuthHandler> {
       final locationListManager = Provider.of<LocationListManager>(context, listen: false);
 
       // Initialize user data and locations
+      // setUserId already calls fetchSavedLocations() internally, no need to call it again
       locationListManager.setUserId(supabaseUser.id);
       await userDataProvider.setUserIdAndFetchData(supabaseUser.id);
-      locationListManager.fetchSavedLocations();
 
       _hasInitializedData = true;
       if (mounted) {
