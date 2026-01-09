@@ -139,7 +139,7 @@ class LocationListManager with ChangeNotifier {
           .single();
       
       final locationImage = await _supabaseService.locations
-          .getLocationImage(locationId, locationData['google_place_id']);
+          .getLocationImage(locationId, locationData['google_place_id'], locationData['photo_reference']);
       
       final location = LocationModel.fromJson(locationData, locationImage);
       final marker = location.setPreference(LocationPreference.saved).toMarker();
@@ -219,8 +219,6 @@ class LocationListManager with ChangeNotifier {
             location:
                 location.setPreference(LocationPreference.saved).toMarker()!
         };
-        print(
-            "Fetched ${supabaseSavedLocations.length} saved locations from Supabase.");
       }
 
       // If the current type is saved, update currentItems

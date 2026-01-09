@@ -3,7 +3,6 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
 import 'package:login/pages/bubbles_page.dart';
 import 'package:login/themes/app_theme.dart';
 import 'package:login/models/locations.dart';
@@ -21,30 +20,78 @@ import 'package:login/providers/nav_bar/visibility_provider.dart';
 import 'package:login/providers/nav_bar/dynamic_nav_provider.dart';
 import 'package:login/services/google_place_service.dart';
 import 'package:login/widgets/navigation/bottom_nav_bar.dart';
-import 'package:login/widgets/url_processing_popover.dart';
 import 'package:login/widgets/wizard_completion_popover.dart';
 import 'package:provider/provider.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'firebase_options.dart';
+import 'package:login/services/fcm_service.dart';
+
+/// Background message handler - must be top-level function
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  print('📲 Background message: ${message.notification?.title}');
+  print('📲 Background message body: ${message.notification?.body}');
+  print('📲 Background message data: ${message.data}');
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Firebase is already initialized in AppDelegate.swift for iOS
+  // For Android, we still need to initialize it here
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    print('✅ Firebase initialized');
+  } catch (e) {
+    // Firebase may already be initialized by native code (iOS)
+    print('⚠️ Firebase initialization skipped (may already be initialized): $e');
+  }
+
+  // Set up background message handler
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+  // Request notification permissions (non-blocking)
+  FirebaseMessaging.instance.requestPermission(
+    alert: true,
+    badge: true,
+    sound: true,
+  ).then((settings) {
+    print('✅ Notification permissions: ${settings.authorizationStatus}');
+  }).catchError((e) {
+    print('❌ Error requesting notification permissions: $e');
+  });
+
   // Permission request might be better handled within DeviceLocationProvider or on first use
   // await requestLocationPermission();
+  print('🔧 Initializing custom marker...');
   await LocationModel.initializeCustomMarker();
-  await dotenv.load();
 
-  // Initialize Supabase
-  await SupabaseClientManager.initialize();
+  print('🔧 Loading .env file...');
+  await dotenv.load();
 
   final googlePlacesService = GooglePlacesService();
 
   // Debug API key loading
   googlePlacesService.debugApiKey();
 
-  // Initialize Supabase Provider
+  // Initialize Supabase Provider (this handles SupabaseClientManager initialization)
+  print('🔧 Initializing Supabase...');
   final supabaseProvider = SupabaseService();
   await supabaseProvider.initialize();
+
+  print('✅ All initialization complete!');
+
+  // Initialize FCM Service in background (non-blocking)
+  // This prevents blocking app startup if token fetch is slow
+  FCMService().initialize().catchError((e) {
+    print('❌ Error initializing FCM: $e');
+  });
 
   runApp(
     MultiProvider(
@@ -85,14 +132,20 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
 
-    // Add lifecycle observer to detect when app resumes
-    WidgetsBinding.instance.addObserver(this);
+    // Listen to auth state changes to save/clear user ID for share extension
+    SupabaseClientManager().client.auth.onAuthStateChange.listen((data) {
+      final session = data.session;
+      if (session != null) {
+        _saveUserIdToAppGroup();
+      } else {
+        _clearUserIdFromAppGroup();
+      }
+    });
 
-    // Setup listener for share extension deep link notifications
-    platform.setMethodCallHandler(_handleNativeMethodCall);
-
-    // Check for URLs from share extension on startup
-    _checkSharedURLs();
+    // Save user ID on app start if already logged in
+    if (SupabaseClientManager().currentUser != null) {
+      _saveUserIdToAppGroup();
+    }
 
     // Listen to media sharing coming from outside the app while the app is in the memory.
     _intentSub = ReceiveSharingIntent.instance.getMediaStream().listen((value) {
@@ -102,10 +155,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         print("found shared files while app is open");
         print(_sharedFiles.map((f) => f.toMap()));
 
-        // Process files when app is open
-        if (_sharedFiles.isNotEmpty) {
-          addFilesToProcess(_sharedFiles);
-        }
+        // Note: TikTok sharing now handled by iOS share extension + backend
+        // No need to process here
       });
     }, onError: (err) {
       print("getIntentDataStream error: $err");
@@ -126,7 +177,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               f.path
             ))}");
 
-        addFilesToProcess(_sharedFiles);
+        // Note: TikTok sharing now handled by iOS share extension + backend
+        // No need to process here
 
         // Tell the library that we are done processing the intent.
         ReceiveSharingIntent.instance.reset();
@@ -134,215 +186,29 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     });
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
-
-    // Check for shared URLs when app resumes from background
-    if (state == AppLifecycleState.resumed) {
-      _checkSharedURLs();
-    }
-  }
-
-  /// Handle method calls from native iOS code
-  Future<dynamic> _handleNativeMethodCall(MethodCall call) async {
-    print("📲 Flutter: Received method call from native: ${call.method}");
-
-    if (call.method == 'onSharedData') {
-      print("📲 Flutter: Share extension deep link detected - checking for shared URLs");
-      await _checkSharedURLs();
-    }
-
-    return null;
-  }
-
-  /// Check for URLs shared from the share extension
-  Future<void> _checkSharedURLs() async {
+  /// Save user ID to App Group UserDefaults for share extension access
+  Future<void> _saveUserIdToAppGroup() async {
     try {
-      final List<dynamic> urls = await platform.invokeMethod('getSharedURLs');
-      if (urls.isNotEmpty) {
-        print("📲 Found ${urls.length} shared URLs from extension: $urls");
-
-        // Get the URL to process (only the first one)
-        final urlToProcess = urls.first as String;
-
-        // Clear URLs from storage immediately
-        await platform.invokeMethod('clearSharedURLs');
-        print("✅ Cleared shared URLs from storage");
-
-        // Show popover with the URL
-        _showSharePopover(urlToProcess);
-      }
-    } catch (e) {
-      print("Error checking shared URLs: $e");
-    }
-  }
-
-  /// Show popover overlay with shared content
-  void _showSharePopover(String url) {
-    print("📲 Showing popover for URL: $url");
-
-    // Wait a bit to ensure the navigator is ready
-    Future.delayed(Duration(milliseconds: 300), () {
-      final context = navigatorKey.currentContext;
-      if (context != null) {
-        showModalBottomSheet(
-          context: context,
-          isScrollControlled: true,
-          backgroundColor: Colors.transparent,
-          builder: (context) => UrlProcessingPopover(
-            url: url,
-            onProcess: (urlToProcess) async {
-              // Process the URL and return location data
-              return await _processTikTokURL(urlToProcess);
-            },
-            onDismiss: () async {
-              // URLs already cleared immediately after reading
-              // No need to clear again
-            },
-          ),
-        );
-      }
-    });
-  }
-
-
-
-  /// Process a single TikTok URL
-  Future<Map<String, dynamic>> _processTikTokURL(String url) async {
-    print("🚀 START: Processing TikTok link: $url");
-
-    try {
-      print("🔍 Step 1: Getting current user ID...");
-      // Get current user ID
       final userId = SupabaseClientManager().currentUser?.id;
       if (userId == null) {
-        print("❌ Error: User not logged in. Cannot process TikTok links.");
-        throw Exception("You must be logged in to process URLs");
+        print("⚠️ Cannot save user ID: No user logged in");
+        return;
       }
 
-      print("✅ Step 2: User ID obtained: $userId");
-
-      final apiUrl =
-          'https://tiktok-processor-107523489868.europe-west1.run.app/process';
-
-      print("📡 Step 3: Sending request to: $apiUrl");
-      print("📤 Step 4: Request body: ${jsonEncode({'url': url, 'userId': userId})}");
-
-      print("⏳ Step 5: Making HTTP POST request...");
-      print("⏳ Step 5: Making HTTP POST request...");
-      final response = await http.post(
-        Uri.parse(apiUrl),
-        headers: <String, String>{
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(<String, String>{
-          'url': url,
-          'userId': userId,
-        }),
-      ).timeout(
-        const Duration(seconds: 90),
-        onTimeout: () {
-          print("⏱️ ERROR: Request timed out after 90 seconds");
-          throw Exception("Request timed out - API took too long to respond");
-        },
-      );
-
-      print("✅ Step 6: Response received!");
-      print("📥 Step 7: Response status: ${response.statusCode}");
-      print("📥 Step 8: Response body length: ${response.body.length} chars");
-      print("📥 Step 9: Response body preview: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}...");
-
-      if (response.statusCode == 200) {
-        print("✅ Step 10: Status 200 - Parsing JSON response...");
-        final responseData = jsonDecode(response.body);
-
-        print("✅ Step 11: JSON parsed successfully");
-        print("📊 Step 12: Response success field: ${responseData['success']}");
-
-        if (responseData['success'] == true) {
-          print("✅ Step 13: Processing successful response...");
-          final locationsRaw = responseData['locations'] as List;
-
-          print("✅ Step 14: Found ${locationsRaw.length} location(s) in response");
-
-          // Parse each location and convert to a structured format
-          print("🔄 Step 15: Parsing ${locationsRaw.length} locations...");
-          final parsedLocations = locationsRaw.map((loc) {
-            final placeData = loc['place'] as Map<String, dynamic>;
-            final videoData = loc['video_data'] as Map<String, dynamic>;
-
-            // Convert to LocationModel for consistency
-            final locationModel = _googlePlaceToLocationModel(placeData);
-
-            return {
-              'location': locationModel,
-              'place': placeData,
-              'video_data': videoData,
-            };
-          }).toList();
-
-          print("✅ Step 16: Successfully extracted ${parsedLocations.length} location(s)");
-          print("🎉 COMPLETE: Returning success result");
-
-          return {
-            'success': true,
-            'locations': parsedLocations,
-            'url': url,
-          };
-        } else {
-          final error = responseData['error'] ?? 'Unknown error';
-          print("❌ Step 13-ERROR: TikTok processing returned error: $error");
-          throw Exception("Could not extract location: $error");
-        }
-      } else {
-        print("❌ Step 10-ERROR: Failed - Status: ${response.statusCode}");
-        print("❌ Response body: ${response.body}");
-        throw Exception("Failed to process URL: ${response.statusCode}");
-      }
-    } catch (e, stackTrace) {
-      print("❌❌❌ EXCEPTION CAUGHT in _processTikTokURL ❌❌❌");
-      print("❌ Error type: ${e.runtimeType}");
-      print("❌ Error message: $e");
-      print("❌ Stack trace: $stackTrace");
-      // Re-throw to let the popover handle it
-      rethrow;
+      await platform.invokeMethod('saveUserId', {'userId': userId});
+      print("✅ Saved user ID to App Group for share extension: $userId");
+    } catch (e) {
+      print("❌ Error saving user ID to App Group: $e");
     }
   }
 
-  /// Convert Google Places API response to LocationModel
-  LocationModel _googlePlaceToLocationModel(Map<String, dynamic> placeData) {
-    final placeId = placeData['place_id'] as String;
-    final location = placeData['location'] as Map<String, dynamic>;
-
-    return LocationModel(
-      locationId: placeId.hashCode.abs(), // Stable int ID from place_id
-      name: placeData['name'] as String,
-      vicinity: placeData['address'] as String? ?? '',
-      lat: (location['lat'] as num).toDouble(),
-      lng: (location['lng'] as num).toDouble(),
-      createdAt: DateTime.now(),
-      rating: (placeData['rating'] as num?)?.toDouble(),
-      photoReference: placeData['photo_reference'] as String?,
-      priceLevel: placeData['price_level'] as int?,
-    );
-  }
-
-  /// Process received shared links from social media and publish them to Pub/Sub
-  Future<void> addFilesToProcess(List<SharedMediaFile> sharedFiles) async {
-    print("Background Task Service: Processing shared files");
-    List<String> urls = sharedFiles.map((f) => f.path).toList();
-    print("These are the urls, $urls");
-
-    for (String url in urls) {
-      if (url.contains("tiktok.com")) {
-        try {
-          final result = await _processTikTokURL(url);
-          print("Processing result: $result");
-        } catch (e) {
-          print("Error processing URL: $e");
-        }
-      }
+  /// Clear user ID from App Group UserDefaults when user logs out
+  Future<void> _clearUserIdFromAppGroup() async {
+    try {
+      await platform.invokeMethod('clearUserId');
+      print("🗑️ Cleared user ID from App Group");
+    } catch (e) {
+      print("❌ Error clearing user ID from App Group: $e");
     }
   }
 
@@ -374,13 +240,11 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
-  bool _hasUnreadNotifications = false;
   bool _hasShownWizardPopover = false;
 
   final List<Widget> _pages = [
     const HomePage(),
     BubblesPage(),
-    const AlertsPage(),
     ProfilePage(),
   ];
 
@@ -482,13 +346,9 @@ class _MainScreenState extends State<MainScreen> {
             bottom: 24,
             child: BottomNavBar(
               currentIndex: _currentIndex,
-              hasUnreadNotifications: _hasUnreadNotifications,
               onIndexChanged: (index) {
                 setState(() {
                   _currentIndex = index;
-                  if (index == 2 && _hasUnreadNotifications) {
-                    _hasUnreadNotifications = false;
-                  }
                 });
               },
             ),

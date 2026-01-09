@@ -51,6 +51,8 @@ dependencies:
   receive_sharing_intent: ^1.8.1
   google_fonts: ^4.0.4
   supabase_flutter: ^2.9.0
+  firebase_core: ^3.8.1
+  firebase_messaging: ^15.1.5
   url_launcher: ^6.2.5
   map_launcher: ^3.5.0
   shared_preferences: 2.2.2

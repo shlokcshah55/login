@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:login/models/locations.dart';
-import 'package:login/services/google_place_service.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class CarouselTile extends StatelessWidget {
   final LocationModel item;
@@ -9,8 +9,6 @@ class CarouselTile extends StatelessWidget {
   final VoidCallback onRemove;
   final VoidCallback onSave;
   final VoidCallback onTap;
-  
-  static final GooglePlacesService _googlePlacesService = GooglePlacesService();
 
   const CarouselTile({
     super.key,
@@ -57,27 +55,22 @@ class CarouselTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Image at the top
-              item.photoReference != null
-                  ? Image.network(
-                      _googlePlacesService.getPhotoUrl(item.photoReference) ?? '',
-                      fit: BoxFit.cover,
+              item.imageUrl != null
+                  ? SizedBox(
                       width: double.infinity,
-                      height: 200, // Adjust to your desired height
-                      loadingBuilder: (context, child, progress) {
-                        if (progress == null) return child;
-                        return const Center(
+                      height: 200,
+                      child: CachedNetworkImage(
+                        imageUrl: item.imageUrl!,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => const Center(
                           child: CircularProgressIndicator(),
-                        );
-                      },
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
+                        ),
+                        errorWidget: (context, url, error) => Container(
                           color: Colors.grey[300],
-                          height: 200,
-                          width: double.infinity,
                           child: const Icon(FeatherIcons.image,
                               size: 50, color: Colors.grey),
-                        );
-                      },
+                        ),
+                      ),
                     )
                   : Container(
                       height: 200,

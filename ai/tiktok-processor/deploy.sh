@@ -1,102 +1,91 @@
 #!/bin/bash
 
-# TikTok Processor - Docker Hub + Render Deployment Script
-# This script builds and deploys the TikTok processor to Render via Docker Hub
+# TikTok Processor API - GCP Cloud Run Deployment Script
+# This script builds and deploys the Docker image to Google Cloud Run
 
 set -e  # Exit on error
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+# ===== Configuration =====
+# You can modify these or pass them as environment variables
 
-echo -e "${GREEN}🚀 TikTok Processor Deployment Script${NC}"
-echo ""
+PROJECT_ID="${GCP_PROJECT_ID:-pinit-a97eb}"
+REGION="${GCP_REGION:-us-central1}"
+SERVICE_NAME="${SERVICE_NAME:-tiktok-processor}"
+IMAGE_NAME="gcr.io/${PROJECT_ID}/${SERVICE_NAME}"
 
-# Check if docker is installed
-if ! command -v docker &> /dev/null; then
-    echo -e "${RED}❌ Error: Docker is not installed${NC}"
-    echo "Install from: https://docs.docker.com/get-docker/"
+echo "======================================"
+echo "TikTok Processor - Cloud Run Deployment"
+echo "======================================"
+echo "Project ID: $PROJECT_ID"
+echo "Region: $REGION"
+echo "Service Name: $SERVICE_NAME"
+echo "Image: $IMAGE_NAME"
+echo "======================================"
+
+# Check if gcloud is installed
+if ! command -v gcloud &> /dev/null; then
+    echo "Error: gcloud CLI is not installed"
+    echo "Install from: https://cloud.google.com/sdk/docs/install"
     exit 1
 fi
 
-# Configuration
-DOCKER_USERNAME="shlokshah5532"
-IMAGE_NAME="tiktok-processor"
-FULL_IMAGE="${DOCKER_USERNAME}/${IMAGE_NAME}:latest"
-
-# Optional: Render Deploy Hook (get this from Render dashboard -> Settings -> Deploy Hook)
-# Uncomment and set if you want automatic redeployment
-# RENDER_DEPLOY_HOOK="https://api.render.com/deploy/srv-xxxxx?key=xxxxx"
-
-echo -e "${GREEN}📦 Image: ${FULL_IMAGE}${NC}"
-
-# Load API keys from .env file
-echo ""
-echo -e "${YELLOW}🔑 Loading API Keys from .env file...${NC}"
-
+# Check if .env file exists
 if [ ! -f .env ]; then
-    echo -e "${RED}❌ Error: .env file not found${NC}"
-    echo "Create a .env file based on .env.example with your API keys"
+    echo "Error: .env file not found"
+    echo "Please create a .env file with required environment variables"
     exit 1
 fi
 
-# Source the .env file
-export $(cat .env | grep -v '^#' | xargs)
+# Load environment variables from .env file
+echo ""
+echo "Loading environment variables from .env file..."
+set -a
+source .env
+set +a
 
-# Validate that keys were loaded
-if [ -z "$OPENAI_API_KEY" ] || [ -z "$GOOGLE_PLACES_API_KEY" ]; then
-    echo -e "${RED}❌ Error: OPENAI_API_KEY or GOOGLE_PLACES_API_KEY not found in .env file${NC}"
-    echo "Make sure your .env file contains both keys"
-    exit 1
-fi
+# Set the GCP project
+echo ""
+echo "Setting GCP project..."
+gcloud config set project $PROJECT_ID
 
-OPENAI_KEY=$OPENAI_API_KEY
-PLACES_KEY=$GOOGLE_PLACES_API_KEY
+# Enable required APIs (if not already enabled)
+echo ""
+echo "Enabling required GCP APIs..."
+gcloud services enable cloudbuild.googleapis.com
+gcloud services enable run.googleapis.com
+gcloud services enable containerregistry.googleapis.com
 
-echo -e "${GREEN}✓ API keys loaded successfully${NC}"
+# Build the Docker image using Cloud Build
+echo ""
+echo "Building Docker image with Cloud Build..."
+gcloud builds submit --tag $IMAGE_NAME
 
-# Check if logged into Docker Hub
+# Deploy to Cloud Run
 echo ""
-echo -e "${YELLOW}🔐 Checking Docker Hub authentication...${NC}"
-if ! docker info | grep -q "Username: ${DOCKER_USERNAME}"; then
-    echo -e "${YELLOW}⚠️  Not logged into Docker Hub${NC}"
-    echo "Logging in..."
-    docker login
-fi
-echo -e "${GREEN}✓ Docker Hub authenticated${NC}"
+echo "Deploying to Cloud Run..."
+gcloud run deploy $SERVICE_NAME \
+  --image $IMAGE_NAME \
+  --platform managed \
+  --region $REGION \
+  --allow-unauthenticated \
+  --memory 4Gi \
+  --cpu 2 \
+  --timeout 300 \
+  --concurrency 10 \
+  --max-instances 10 \
+  --set-env-vars "PLAYWRIGHT_BROWSERS_PATH=/ms-playwright,PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1,DISPLAY=:99,DBUS_SESSION_BUS_ADDRESS=/dev/null,OPENAI_API_KEY=${OPENAI_API_KEY},GOOGLE_PLACES_API_KEY=${GOOGLE_PLACES_API_KEY},SUPABASE_URL=${SUPABASE_URL},SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY},APPIFY_KEY=${APPIFY_KEY}"
 
-# Build the image for linux/amd64 (Render platform)
 echo ""
-echo -e "${GREEN}🔨 Building container for linux/amd64...${NC}"
-docker build --platform linux/amd64 -t ${FULL_IMAGE} .
+echo "======================================"
+echo "Deployment complete!"
+echo "======================================"
 
-# Push to Docker Hub
+# Get the service URL
+SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region $REGION --format 'value(status.url)')
 echo ""
-echo -e "${GREEN}📤 Pushing to Docker Hub...${NC}"
-docker push ${FULL_IMAGE}
-
-echo -e "${GREEN}✓ Image pushed successfully${NC}"
-
-# Optional: Trigger Render deployment via webhook
+echo "Service URL: $SERVICE_URL"
 echo ""
-echo -e "${GREEN}✅ Build and push complete!${NC}"
+echo "Test endpoints:"
+echo "  Health check: curl $SERVICE_URL/health"
+echo "  Process TikTok: curl -X POST $SERVICE_URL/process -H 'Content-Type: application/json' -d '{\"url\":\"TIKTOK_URL\"}'"
 echo ""
-echo -e "${GREEN}📝 Environment Variables for Render:${NC}"
-echo "Make sure these are set in your Render service (Settings -> Environment):"
-echo ""
-echo -e "${YELLOW}OPENAI_API_KEY${NC}=${OPENAI_KEY:0:10}...${OPENAI_KEY: -4}"
-echo -e "${YELLOW}GOOGLE_PLACES_API_KEY${NC}=${PLACES_KEY:0:10}...${PLACES_KEY: -4}"
-echo ""
-echo -e "${GREEN}🔍 To get your Render service URL:${NC}"
-echo "1. Go to your Render dashboard"
-echo "2. Click on your service"
-echo "3. Copy the URL (e.g., https://tiktok-processor-xxxx.onrender.com)"
-echo ""
-echo -e "${GREEN}📝 Test your endpoint:${NC}"
-echo "curl -X POST https://your-service.onrender.com/process \\"
-echo "  -H 'Content-Type: application/json' \\"
-echo "  -d '{\"url\": \"YOUR_TIKTOK_URL\", \"userId\": \"test-user\"}'"
-echo ""
-echo -e "${GREEN}🎉 Done!${NC}"

@@ -40,6 +40,7 @@ class SupabaseConstants {
   static const String columnUserRatingsTotal = 'user_ratings_total';
   static const String columnPriceLevel = 'price_level';
   static const String columnPhotoReference = 'photo_reference';
+  static const String columnImageUrl = 'image_url';
   static const String columnSavedCount = 'saved_count';
   static const String columnGooglePlaceId = 'google_place_id';
   static const String columnBusinessStatus = 'business_status';
