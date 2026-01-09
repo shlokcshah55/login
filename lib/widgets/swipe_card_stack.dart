@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/locations.dart';
 
 /// A Tinder-style swipeable card stack for locations
@@ -340,11 +341,17 @@ class SwipeCardStackState extends State<SwipeCardStack>
                     stops: const [0.5, 1.0],
                   ),
                 ),
-                child: location.photoReference != null
-                    ? Image.network(
-                        location.photoReference!,
+                child: location.imageUrl != null
+                    ? CachedNetworkImage(
+                        imageUrl: location.imageUrl!,
                         fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
+                        placeholder: (context, url) => Container(
+                          color: Colors.grey.shade300,
+                          child: const Center(
+                            child: CircularProgressIndicator(),
+                          ),
+                        ),
+                        errorWidget: (context, url, error) {
                           return Container(
                             color: Colors.grey.shade300,
                             child: const Icon(

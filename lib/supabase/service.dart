@@ -5,6 +5,7 @@ import 'package:login/models/users.dart';
 import 'package:login/supabase/helpers/auth.dart';
 import 'package:login/supabase/helpers/location.dart';
 import 'package:login/supabase/helpers/tags.dart';
+import 'package:login/services/fcm_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'helpers/bubbles.dart';
@@ -12,10 +13,11 @@ import 'supabase_client.dart';
 
 /// Provider class for Supabase services
 class SupabaseService extends ChangeNotifier {
-  final AuthHelper _authService = AuthHelper();
-  final LocationHelper _locationService = LocationHelper();
-  final BubbleHelper _bubbleService = BubbleHelper();
-  final TagsHelper _tagsService = TagsHelper();
+  // Lazy-initialized helpers (created after Supabase is initialized)
+  late final AuthHelper _authService;
+  late final LocationHelper _locationService;
+  late final BubbleHelper _bubbleService;
+  late final TagsHelper _tagsService;
 
   bool _isLoading = false;
   bool _isInitializing = true;
@@ -41,8 +43,7 @@ class SupabaseService extends ChangeNotifier {
   static final SupabaseService _instance = SupabaseService._internal();
   factory SupabaseService() => _instance;
   SupabaseService._internal() {
-    // Set up auth state listener to automatically notify listeners
-    _setupAuthListener();
+    // Auth listener will be set up after initialization
   }
   
   // Initialize Supabase
@@ -50,6 +51,16 @@ class SupabaseService extends ChangeNotifier {
     _setLoading(true);
     try {
       await SupabaseClientManager.initialize();
+
+      // Create helpers AFTER Supabase is initialized
+      _authService = AuthHelper();
+      _locationService = LocationHelper();
+      _bubbleService = BubbleHelper();
+      _tagsService = TagsHelper();
+
+      // Set up auth state listener now that helpers are created
+      _setupAuthListener();
+
       _setError(null);
       await ensureAuthStateReady();
 
@@ -195,11 +206,18 @@ class SupabaseService extends ChangeNotifier {
             // User just signed in
             await _authService.ensureUserRecordExists();
             _hasValidSession = true;
+
+            // Save FCM token to new user account
+            await FCMService().refreshAndSaveToken();
+
             notifyListeners();
             break;
 
           case AuthChangeEvent.signedOut:
             // User signed out
+            // Clear FCM token from backend to prevent notifications to logged-out user
+            await FCMService().clearFCMToken();
+
             _hasValidSession = false;
             notifyListeners();
             break;

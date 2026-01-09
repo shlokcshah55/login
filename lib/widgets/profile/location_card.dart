@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:login/models/locations.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // Required for GOOGLE_PLACE_API_KEY
+import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:developer';
 
 class LocationCard extends StatelessWidget {
@@ -18,49 +18,31 @@ class LocationCard extends StatelessWidget {
 
   Widget _buildCardImage(LocationModel location, ThemeData theme) {
     final colorScheme = theme.colorScheme;
-    // Use photoReference for Google Places photos, or the first imageUrl for Supabase-stored images
-    String? imageUrl;
-    bool isGooglePlacePhoto = location.photoReference != null && location.photoReference!.isNotEmpty;
-
-    // if (isGooglePlacePhoto) {
-    //   final apiKey = dotenv.env['GOOGLE_PLACE_API_KEY'];
-    //   if (apiKey != null) {
-    //     imageUrl =
-    //         'https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${location.photoReference}&key=\$apiKey';
-    //   } else {
-    //     log('GOOGLE_PLACE_API_KEY is not set in .env file');
-    //   }
-    // } 
-    print('Building the locationCard and then getting this');
-    print(location.photoReference);
     return ClipRRect(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(12.0)), // Rounded corners for the top of the image
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(12.0)),
       child: SizedBox(
-        height: 120, // Adjust height as needed for grid view
+        height: 120,
         width: double.infinity,
-        child: location.photoReference != null
-            ? Image.network(
-                location.photoReference!,
+        child: location.imageUrl != null
+            ? CachedNetworkImage(
+                imageUrl: location.imageUrl!,
                 fit: BoxFit.cover,
-                loadingBuilder: (context, child, progress) {
-                  if (progress == null) return child;
-                  return Container(
-                    color: Colors.grey[200],
-                    child: Center(
-                      child: CircularProgressIndicator(
-                        strokeWidth: 1.5,
-                        valueColor:
-                            AlwaysStoppedAnimation<Color>(colorScheme.primary),
-                      ),
+                placeholder: (context, url) => Container(
+                  color: Colors.grey[200],
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.5,
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(colorScheme.primary),
                     ),
-                  );
-                },
-                errorBuilder: (context, error, stackTrace) {
-                  log("Error loading image for ${location.name}: \$error");
+                  ),
+                ),
+                errorWidget: (context, url, error) {
+                  log("Error loading image for ${location.name}: $error");
                   return Container(
                     color: Colors.grey[200],
                     child: Icon(
-                      FeatherIcons.mapPin, // Fallback icon
+                      FeatherIcons.mapPin,
                       size: 30,
                       color: Colors.grey[400],
                     ),
@@ -70,7 +52,7 @@ class LocationCard extends StatelessWidget {
             : Container(
                 color: Colors.grey[200],
                 child: Icon(
-                  FeatherIcons.mapPin, // Fallback icon if no image URL
+                  FeatherIcons.mapPin,
                   size: 30,
                   color: Colors.grey[400],
                 ),

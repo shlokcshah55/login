@@ -27,6 +27,7 @@ class LocationModel {
   final int? userRatingsTotal;
   final int? priceLevel;
   final String? photoReference;
+  final String? imageUrl;  // Permanent Supabase Storage URL
   final int? savedCount;
   // Additional fields from the DB schema
   final DateTime? ingestedAt;
@@ -52,6 +53,9 @@ class LocationModel {
   final String dataVersion;
   LocationPreference? preference;
 
+  static final Map<int, Future<String?>> _activeDownloads = {};
+
+
   LocationModel(
     {required this.locationId,
     required this.name,
@@ -66,6 +70,7 @@ class LocationModel {
     this.userRatingsTotal,
     this.priceLevel,
     this.photoReference,
+    this.imageUrl,
     this.savedCount,
     this.googlePlaceId,
     this.businessStatus,
@@ -108,7 +113,8 @@ class LocationModel {
       rating: (json[SupabaseConstants.columnRating] as num?)?.toDouble(),
       userRatingsTotal: (json[SupabaseConstants.columnUserRatingsTotal] as num?)?.toInt(),
       priceLevel: (json[SupabaseConstants.columnPriceLevel] as num?)?.toInt(),
-      photoReference: locationImage,
+      photoReference: json[SupabaseConstants.columnPhotoReference],
+      imageUrl: locationImage,  // This comes from getLocationImage() - permanent Supabase URL
       savedCount: (json[SupabaseConstants.columnSavedCount] as num?)?.toInt(),
       googlePlaceId: json[SupabaseConstants.columnGooglePlaceId],
       businessStatus: json[SupabaseConstants.columnBusinessStatus],
@@ -356,7 +362,5 @@ class LocationModel {
       ),
     );
   }
-
-
   
 }

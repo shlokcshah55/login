@@ -14,7 +14,11 @@ class LocationHelper {
   final SupabaseClient _client = SupabaseClientManager().client;
   RealtimeChannel? _realtimeChannel;
 
-  // This is temporary until we replace this with reccomendation call 
+  // In-memory lock to prevent duplicate downloads for the same location
+  // Key: location_id, Value: Future that completes when download is done
+  static final Map<int, Future<String?>> _activeDownloads = {};
+
+  // This is temporary until we replace this with reccomendation call
   Future<List<LocationModel>> getFiveLocations() async {
     try {
       final response = await _client
@@ -26,8 +30,18 @@ class LocationHelper {
       List<LocationModel> locations = [];
       for (var item in response as List) {
         print(item[SupabaseConstants.columnLocationId]);
-        var locationImage = await getLocationImage(item[SupabaseConstants.columnLocationId], item[SupabaseConstants.columnGooglePlaceId]);
-        print(locationImage);
+
+        // Check if image_url already exists in the database
+        String? locationImage = item[SupabaseConstants.columnImageUrl];
+
+        // Then make a call to get the location image from google places API 
+        if (locationImage == null || locationImage.isEmpty) {
+          locationImage = await getLocationImage(
+            item[SupabaseConstants.columnLocationId],
+            item[SupabaseConstants.columnGooglePlaceId],
+            item[SupabaseConstants.columnPhotoReference]
+          );
+        }
         locations.add(LocationModel.fromJson(item, locationImage));
       }
       return locations;
@@ -76,21 +90,26 @@ class LocationHelper {
         return [];
       }
 
-      // Then fetch the actual location data
+      // Then fetch the actual location data (including image_url!)
       final locations = await _client
           .from(SupabaseConstants.tableLocations)
           .select()
           .inFilter(SupabaseConstants.columnLocationId, locationIds);
 
       List<LocationModel> locationModels = [];
-      print('locations $locations');
       for (var item in locations as List) {
-        print('item $item');
-        var locationImage = await getLocationImage(item[SupabaseConstants.columnLocationId], item[SupabaseConstants.columnGooglePlaceId]);
-        print('locationIMAGE link $locationImage');
+        String? locationImage = item[SupabaseConstants.columnImageUrl];
+
+        if (locationImage == null || locationImage.isEmpty) {
+          locationImage = await getLocationImage(
+            item[SupabaseConstants.columnLocationId],
+            item[SupabaseConstants.columnGooglePlaceId],
+            item[SupabaseConstants.columnPhotoReference]
+          );
+        }
+
         locationModels.add(LocationModel.fromJson(item, locationImage));
       }
-      print('All the locations $locations');
       return locationModels;
     } catch (e) {
       if (kDebugMode) {
@@ -110,7 +129,16 @@ class LocationHelper {
 
       List<LocationModel> locations = [];
       for (var item in response as List) {
-        var locationImage = await getLocationImage(item[SupabaseConstants.columnLocationId], item[SupabaseConstants.columnGooglePlaceId]);
+        String? locationImage = item[SupabaseConstants.columnImageUrl];
+
+        if (locationImage == null || locationImage.isEmpty) {
+          locationImage = await getLocationImage(
+            item[SupabaseConstants.columnLocationId],
+            item[SupabaseConstants.columnGooglePlaceId],
+            item[SupabaseConstants.columnPhotoReference]
+          );
+        }
+
         locations.add(LocationModel.fromJson(item, locationImage));
       }
       return locations;
@@ -457,48 +485,32 @@ class LocationHelper {
     }
   }
 
-
-  // Helper function to try fetching image from Google Places API v1 media endpoint
-  Future<String?> _tryMediaApi(String photoReference) async {
+  Future<String?> getLocationImage(int locationId, String google_place_id, String? photoReference) async {
     try {
-      final apiKey = dotenv.env["GOOGLE_PLACE_API_KEY"];
-      if (apiKey == null || apiKey.isEmpty) {
-        if (kDebugMode) print('GOOGLE_PLACE_API_KEY not found');
+      if (photoReference == null || photoReference.isEmpty) {
         return null;
       }
 
-      final url = 'https://places.googleapis.com/v1/$photoReference/media?maxHeightPx=400&maxWidthPx=400&key=$apiKey';
+      // Check if another call is already downloading this location
+      if (_activeDownloads.containsKey(locationId)) {
+        if (kDebugMode) {
+          print('⏳ DUPLICATE REQUEST DETECTED!');
+          print('   Another call is already downloading location $locationId');
+        }
+        return await _activeDownloads[locationId];
+      }
 
-      // Create a client to manually handle redirects
-      final client = http.Client();
+      // Download from Google and upload to Supabase
+      final downloadFuture = _performImageDownload(locationId, photoReference, google_place_id);
+      _activeDownloads[locationId] = downloadFuture;
+
       try {
-        final request = http.Request('GET', Uri.parse(url))
-          ..followRedirects = false; // Don't follow redirects automatically
-
-        final streamedResponse = await client.send(request);
-
-        // Check for redirect status codes
-        if (streamedResponse.statusCode == 302 || streamedResponse.statusCode == 301 || streamedResponse.statusCode == 307) {
-          final redirectUrl = streamedResponse.headers['location'];
-          if (redirectUrl != null) {
-            if (kDebugMode) print('Media API redirected to: $redirectUrl');
-            return redirectUrl;
-          }
-        }
-
-        // If it's a direct 200, the URL itself might be usable
-        if (streamedResponse.statusCode == 200) {
-          if (kDebugMode) print('Media API returned 200 for URL: $url');
-          return url;
-        }
-
-        if (kDebugMode) print('Media API returned status: ${streamedResponse.statusCode}');
-        return null;
+        final result = await downloadFuture;
+        return result;
       } finally {
-        client.close();
+        _activeDownloads.remove(locationId);
       }
     } catch (e) {
-      if (kDebugMode) print('Error fetching media from API: $e');
       return null;
     }
   }
@@ -518,7 +530,6 @@ class LocationHelper {
         'X-Goog-Api-Key': apiKey,
         'X-Goog-FieldMask': 'id,displayName,photos',
       };
-
       final response = await http.get(Uri.parse(url), headers: headers);
 
       if (response.statusCode == 200) {
@@ -528,65 +539,165 @@ class LocationHelper {
         }
       }
 
-      if (kDebugMode) print('Places API returned status: ${response.statusCode}');
+      if (kDebugMode) print('⚠️  Places API returned status: ${response.statusCode}');
       return null;
     } catch (e) {
-      if (kDebugMode) print('Error fetching new photo reference: $e');
+      if (kDebugMode) print('❌ Error in Places API call: $e');
       return null;
     }
   }
 
-  // Helper function to update photo reference in Supabase
-  Future<void> _updatePhotoReference(int locationId, String photoReference) async {
+    // Method that performs the actual download (called only once per location)
+  Future<String?> _performImageDownload(int locationId, String photoReference, String placeId) async {
     try {
-      await _client
-          .from(SupabaseConstants.tableLocations)
-          .update({SupabaseConstants.columnPhotoReference: photoReference})
-          .eq(SupabaseConstants.columnLocationId, locationId);
+      if (photoReference.isEmpty) {
+          String? obtainedPhotoReference = await _fetchNewPhotoReference(placeId);
+          if (obtainedPhotoReference != null) {
+            photoReference = obtainedPhotoReference;
+            await _client.rpc('update_location_photo_reference', params: {
+              'p_location_id': locationId,
+              'p_photo_reference': photoReference,
+            },
+            );
+          }
+      } else {
+        if (kDebugMode) print('✓ Photo reference found in database');
+      }
+
+      // Download image bytes and upload to Supabase (pass locationId for filename)
+      final permanentUrl = await _downloadAndUploadImage(photoReference, locationId);
+      if (permanentUrl != null) {
+        await _client.rpc('update_location_image_url', params: {
+          'p_location_id': locationId,
+          'p_image_url': permanentUrl,
+          },
+          );
+      }
+      return permanentUrl;
     } catch (e) {
-      if (kDebugMode) print('Error updating photo reference: $e');
+      if (kDebugMode) print('❌ Error in _performImageDownload: $e');
+      return null;
     }
   }
 
-  Future<String?> getLocationImage(int locationId, String? google_place_id) async {
+    // Helper function to download image from Google and upload to Supabase Storage
+  Future<String?> _downloadAndUploadImage(String photoReference, int locationId) async {
     try {
-      // Step 1: Query Supabase for location data
-      final locationData = await _client
-          .from(SupabaseConstants.tableLocations)
-          .select('${SupabaseConstants.columnPhotoReference}, ${SupabaseConstants.columnGooglePlaceId}')
-          .eq(SupabaseConstants.columnLocationId, locationId)
-          .maybeSingle();
+      if (kDebugMode) {
+        print('');
+        print('🔄 Starting image download and upload process...');
+      }
 
-      if (locationData == null) {
-        if (kDebugMode) print('Location not found: $locationId');
+      // Use location_id as the filename for easy identification and deduplication
+      final filename = '$locationId.jpg';
+
+      // Check if file already exists in storage
+      try {
+        final existingFiles = await _client.storage
+            .from('location_photos')
+            .list(path: '', searchOptions: SearchOptions(search: filename));
+
+        if (existingFiles.isNotEmpty && existingFiles.any((file) => file.name == filename)) {
+          if (kDebugMode) {
+            print('✅ Image already exists in Supabase Storage!');
+            print('   Filename: $filename');
+            print('   Skipping upload - using existing file');
+          }
+
+          // Return the URL of the existing file
+          final existingUrl = _client.storage
+              .from('location_photos')
+              .getPublicUrl(filename);
+
+          return existingUrl;
+        }
+      } catch (e) {
+        if (kDebugMode) print('⚠️  Could not check for existing file: $e (will proceed with upload)');
+      }
+
+      // 1. Get temporary signed URL from Google Media API (1 API call)
+      final tempImageUrl = await _tryMediaApi(photoReference);
+      if (tempImageUrl == null) {
         return null;
       }
 
-      // Step 2: Try media API if photo reference exists
-      final photoReference = locationData[SupabaseConstants.columnPhotoReference] as String?;
-      if (photoReference != null && photoReference.isNotEmpty) {
-        final imageUrl = await _tryMediaApi(photoReference);
-        if (imageUrl != null) return imageUrl;
+      // 2. Download actual image before the URL expires
+      final response = await http.get(Uri.parse(tempImageUrl));
+      if (response.statusCode != 200) {
+        return null;
       }
+      final imageBytes = response.bodyBytes;  // The actual image data
 
-      // Step 3: Fetch new photo reference if needed
-      final placeId = locationData[SupabaseConstants.columnGooglePlaceId] as String?;
-      if (placeId != null && placeId.isNotEmpty) {
-        final newPhotoRef = await _fetchNewPhotoReference(placeId);
-        if (newPhotoRef != null) {
-          await _updatePhotoReference(locationId, newPhotoRef);
-          return await _tryMediaApi(newPhotoRef);
-        }
-      }
+      // 3. Upload image bytes to Supabase Storage
+      await _client.storage
+          .from('location_photos')  // Existing bucket name
+          .uploadBinary(filename, imageBytes);
 
-      if (kDebugMode) print('No photo available for location: $locationId');
-      return null;
+      final permanentUrl = _client.storage
+          .from('location_photos')  // Existing bucket name
+          .getPublicUrl(filename);
+      return permanentUrl;  // This URL will work forever
     } catch (e) {
-      if (kDebugMode) print('Error getting location image: $e');
+      if (kDebugMode) print('❌ Error downloading and uploading image: $e');
       return null;
     }
   }
 
+
+   // Helper function to try fetching image from Google Places API v1 media endpoint
+  Future<String?> _tryMediaApi(String photoReference) async {
+    try {
+      final apiKey = dotenv.env["GOOGLE_PLACE_API_KEY"];
+      if (apiKey == null || apiKey.isEmpty) {
+        if (kDebugMode) print('GOOGLE_PLACE_API_KEY not found');
+        return null;
+      }
+
+      final url = 'https://places.googleapis.com/v1/$photoReference/media?maxHeightPx=400&maxWidthPx=400&key=$apiKey';
+
+      // ===== 💰 BILLABLE API CALL =====
+      if (kDebugMode) {
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        print('💰 GOOGLE API CALL #1: Places Photo Media API');
+        print('   Endpoint: Media API v1');
+        print('   Purpose: Get photo URL from reference');
+        print('   Cost: ~\$0.007 per call');
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      }
+
+      // Create a client to manually handle redirects
+      final client = http.Client();
+      try {
+        final request = http.Request('GET', Uri.parse(url))
+          ..followRedirects = false; // Don't follow redirects automatically
+
+        final streamedResponse = await client.send(request);
+
+        // Check for redirect status codes
+        if (streamedResponse.statusCode == 302 || streamedResponse.statusCode == 301 || streamedResponse.statusCode == 307) {
+          final redirectUrl = streamedResponse.headers['location'];
+          if (redirectUrl != null) {
+            if (kDebugMode) print('✅ Media API call successful - Got redirect URL');
+            return redirectUrl;
+          }
+        }
+
+        // If it's a direct 200, the URL itself might be usable
+        if (streamedResponse.statusCode == 200) {
+          if (kDebugMode) print('✅ Media API call successful - Status 200');
+          return url;
+        }
+
+        if (kDebugMode) print('⚠️  Media API returned status: ${streamedResponse.statusCode}');
+        return null;
+      } finally {
+        client.close();
+      }
+    } catch (e) {
+      if (kDebugMode) print('❌ Error in Media API call: $e');
+      return null;
+    }
+  }
 
 
 

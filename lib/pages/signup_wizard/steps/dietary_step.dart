@@ -50,7 +50,6 @@ class _DietaryStepState extends State<DietaryStep> {
 
       final supabase = Provider.of<SupabaseService>(context, listen: false);
       final tags = await supabase.tags.getDietaryRequirementTags();
-      print('Fetched dietary tags: $tags');
 
       setState(() {
         _dietaryTags = tags;

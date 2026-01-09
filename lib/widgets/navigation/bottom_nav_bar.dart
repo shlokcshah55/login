@@ -8,13 +8,11 @@ import 'package:provider/provider.dart';
 
 class BottomNavBar extends StatefulWidget {
   final int currentIndex;
-  final bool hasUnreadNotifications;
   final Function(int) onIndexChanged;
 
   const BottomNavBar({
     Key? key,
     required this.currentIndex,
-    required this.hasUnreadNotifications,
     required this.onIndexChanged,
   }) : super(key: key);
 
@@ -135,14 +133,7 @@ class _BottomNavBarState extends State<BottomNavBar>
       children: [
         _buildNavItem(FeatherIcons.home, 0, 'Home', theme),
         _buildNavItem(FontAwesomeIcons.comments, 1, 'Bubbles', theme),
-        _buildNavItem(
-          FeatherIcons.bell,
-          2,
-          'Alerts',
-          theme,
-          hasBadge: widget.hasUnreadNotifications,
-        ),
-        _buildNavItem(FeatherIcons.user, 3, 'Profile', theme),
+        _buildNavItem(FeatherIcons.user, 2, 'Profile', theme),
       ],
     );
   }
