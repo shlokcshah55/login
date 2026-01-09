@@ -8,6 +8,7 @@ import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:login/supabase/service.dart';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../models/locations.dart';
 
 class ExpandedLocationCard extends StatefulWidget {
@@ -186,25 +187,47 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard> {
                               ),
                             ],
                           ),
-                          child: SingleChildScrollView(
+                          child: ListView(
                             controller: scrollController,
-                            padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                _DragHandle(),
-                                const SizedBox(height: 12),
+                            padding: const EdgeInsets.all(20),
+                            children: [
+                              _DragHandle(),
+                              const SizedBox(height: 16),
+                              _Header(
+                                name: widget.location.name,
+                                address: widget.location.vicinity ?? 'Address not available',
+                                onClose: widget.onClose,
+                              ),
+                              const SizedBox(height: 20),
 
-                                _Header(
-                                  name: widget.location.name,
-                                  address: widget.location.vicinity ??
-                                      'Address unavailable',
-                                  onClose: widget.onClose,
+                              if (widget.location.photoReference != null)
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(20),
+                                  child: CachedNetworkImage(
+                                    imageUrl: widget.location.photoReference!,
+                                    fit: BoxFit.cover,
+                                    width: double.infinity,
+                                    height: size.height * 0.25,
+                                    placeholder: (context, url) => Center(
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white.withOpacity(0.7),
+                                      ),
+                                    ),
+                                    errorWidget: (context, url, error) {
+                                      return Center(
+                                        child: Icon(
+                                          Icons.restaurant,
+                                          size: 80,
+                                          color: Colors.white.withOpacity(0.7),
+                                        ),
+                                      );
+                                    },
+                                  ),
                                 ),
 
-                                const SizedBox(height: 12),
+                              const SizedBox(height: 12),
 
-                                Wrap(
+                              Wrap(
                                   spacing: 8,
                                   runSpacing: 8,
                                   children: [
@@ -344,8 +367,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard> {
                                 _buildAddReviewSection(theme, colorScheme),
 
                                 const SizedBox(height: 80),
-                              ],
-                            ),
+                            ],
                           ),
                         ),
                       );

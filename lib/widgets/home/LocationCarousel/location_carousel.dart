@@ -6,6 +6,7 @@ import 'package:login/providers/nav_bar/visibility_provider.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:developer';
 
 class LocationCarousel extends StatefulWidget {
@@ -433,44 +434,41 @@ class _LocationCarouselState extends State<LocationCarousel> {
       height: double.infinity,
       width: double.infinity,
       child: location.photoReference != null
-          ? Image.network(
-              location.photoReference!,
+          ? CachedNetworkImage(
+              imageUrl: location.photoReference!,
               fit: BoxFit.cover,
-              loadingBuilder: (context, child, progress) {
-                if (progress == null) return child;
-                return Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        colorScheme.surfaceVariant,
-                        colorScheme.surfaceVariant.withOpacity(0.8),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
+              placeholder: (context, url) => Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      colorScheme.surfaceVariant,
+                      colorScheme.surfaceVariant.withOpacity(0.8),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircularProgressIndicator(
-                          strokeWidth: 2.0,
-                          valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+                ),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(
+                        strokeWidth: 2.0,
+                        valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Loading...',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                          fontSize: 10,
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Loading...',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                );
-              },
-              errorBuilder: (context, error, stackTrace) {
+                ),
+              ),
+              errorWidget: (context, url, error) {
                 log("Error loading image for ${location.name}: $error");
                 return Container(
                   decoration: BoxDecoration(
