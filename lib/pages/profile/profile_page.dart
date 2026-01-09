@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:login/models/users.dart';
@@ -10,6 +11,9 @@ import 'package:login/widgets/profile/profile_stats_card.dart';
 import 'package:login/widgets/profile/activity_insights_card.dart';
 import 'package:login/widgets/profile/quick_actions_card.dart';
 import 'package:login/widgets/profile/recent_pins_section.dart';
+import 'package:login/widgets/profile/notifications_popover.dart';
+import 'package:login/services/fcm_service.dart';
+import 'package:login/models/notifications/base_notification.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({Key? key}) : super(key: key);
@@ -22,6 +26,7 @@ class _PinitProfileScreenState extends State<ProfilePage>
     with SingleTickerProviderStateMixin {
   late ScrollController _scrollController;
   double _scrollOffset = 0.0;
+  late StreamSubscription<BaseNotification> _notificationSubscription;
 
   @override
   void initState() {
@@ -32,7 +37,12 @@ class _PinitProfileScreenState extends State<ProfilePage>
         _scrollOffset = _scrollController.offset;
       });
     });
-    
+
+    // Listen for notifications to update badge
+    _notificationSubscription = FCMService().notificationStream.listen((_) {
+      setState(() {}); // Rebuild to update badge count
+    });
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<LocationListManager>(context, listen: false)
           .fetchSavedLocations();
@@ -42,6 +52,7 @@ class _PinitProfileScreenState extends State<ProfilePage>
   @override
   void dispose() {
     _scrollController.dispose();
+    _notificationSubscription.cancel();
     super.dispose();
   }
 
@@ -163,26 +174,74 @@ class _PinitProfileScreenState extends State<ProfilePage>
                       opacity: 1 - headerOpacity,
                       child: Column(
                         children: [
-                          Hero(
-                            tag: 'profile_avatar',
-                            child: Container(
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 4),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.2),
-                                    blurRadius: 12,
-                                    spreadRadius: 2,
+                          GestureDetector(
+                            onTap: () => _showNotificationsPopover(context),
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Hero(
+                                  tag: 'profile_avatar',
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: Colors.white, width: 4),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.2),
+                                          blurRadius: 12,
+                                          spreadRadius: 2,
+                                        ),
+                                      ],
+                                    ),
+                                    child: CircleAvatar(
+                                      radius: 50,
+                                      backgroundImage: user.profileImageUrl != null && user.profileImageUrl!.isNotEmpty
+                                          ? NetworkImage(user.profileImageUrl!)
+                                          : const AssetImage('lib/assets/default_avatar.png') as ImageProvider,
+                                    ),
                                   ),
-                                ],
-                              ),
-                              child: CircleAvatar(
-                                radius: 50,
-                                backgroundImage: user.profileImageUrl != null && user.profileImageUrl!.isNotEmpty
-                                    ? NetworkImage(user.profileImageUrl!)
-                                    : const AssetImage('lib/assets/default_avatar.png') as ImageProvider,
-                              ),
+                                ),
+                                // Notification Badge
+                                if (FCMService().unreadCount > 0)
+                                  Positioned(
+                                    right: -4,
+                                    top: -4,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: Colors.white,
+                                          width: 2,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(0.2),
+                                            blurRadius: 4,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      constraints: const BoxConstraints(
+                                        minWidth: 24,
+                                        minHeight: 24,
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          FCMService().unreadCount > 99
+                                              ? '99+'
+                                              : FCMService().unreadCount.toString(),
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
                           const SizedBox(height: 12),
@@ -300,6 +359,42 @@ class _PinitProfileScreenState extends State<ProfilePage>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showNotificationsPopover(BuildContext context) {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            const NotificationsPopover(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(0.0, 1.0);
+          const end = Offset.zero;
+          const curve = Curves.easeOutCubic;
+
+          var tween = Tween(begin: begin, end: end).chain(
+            CurveTween(curve: curve),
+          );
+          var offsetAnimation = animation.drive(tween);
+
+          var fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+            CurvedAnimation(
+              parent: animation,
+              curve: const Interval(0.0, 0.5, curve: Curves.easeOut),
+            ),
+          );
+
+          return SlideTransition(
+            position: offsetAnimation,
+            child: FadeTransition(
+              opacity: fadeAnimation,
+              child: child,
+            ),
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 300),
+        fullscreenDialog: true,
       ),
     );
   }

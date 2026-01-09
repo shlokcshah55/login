@@ -1,0 +1,44 @@
+# Environment variables (sensitive!)
+.env
+
+# Python virtual environment
+venv/
+env/
+ENV/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Playwright cache
+.playwright/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Test files
+test_*.py
+*_test.py
+
+# Documentation (optional - remove if you want to include)
+README.md
+
+# Deployment scripts
+deploy.sh
