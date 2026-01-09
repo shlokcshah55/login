@@ -3,11 +3,9 @@ import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:login/providers/nav_bar/visibility_provider.dart';
-import 'package:login/providers/nav_bar/dynamic_nav_provider.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:developer';
 
 class LocationCarousel extends StatefulWidget {
@@ -113,7 +111,6 @@ class _LocationCarouselState extends State<LocationCarousel> {
   ) {
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
-    final dynamicNavProvider = context.read<DynamicNavProvider>();
     final bottomNavVisible = context.watch<BottomNavVisibilityProvider>().isVisible;
 
     return InkWell(
@@ -126,13 +123,25 @@ class _LocationCarouselState extends State<LocationCarousel> {
           CameraUpdate.newLatLng(location.position!),
         );
 
-        // Directly open the expanded location card
-        showDialog(
+        // Open the expanded location card with slide-up animation
+        showGeneralDialog(
           context: context,
-          builder: (context) => ExpandedLocationCard(
-            location: location,
-            onClose: () => Navigator.of(context).pop(),
-          ),
+          barrierDismissible: true,
+          barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+          barrierColor: Colors.transparent,
+          transitionDuration: const Duration(milliseconds: 300),
+          pageBuilder: (context, animation, secondaryAnimation) {
+            return ExpandedLocationCard(
+              location: location,
+              onClose: () => Navigator.of(context).pop(),
+            );
+          },
+          transitionBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(
+              opacity: animation,
+              child: child,
+            );
+          },
         );
       },
       child: Card(
@@ -146,7 +155,7 @@ class _LocationCarouselState extends State<LocationCarousel> {
               : BorderSide.none,
         ),
         elevation: isSelected ? 12.0 : 6.0, // Higher elevation for more depth
-        shadowColor: colorScheme.shadow.withOpacity(0.3),
+        shadowColor: colorScheme.shadow.withValues(alpha: isSelected ? 100 : 50),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOutQuint,

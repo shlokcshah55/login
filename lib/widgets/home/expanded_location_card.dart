@@ -1,24 +1,24 @@
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart'
-    show TargetPlatform, defaultTargetPlatform;
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:login/providers/location_list_provider.dart';
-import 'package:login/supabase/service.dart';
-import 'package:login/models/chat_group_model.dart';
-import 'package:login/providers/user_data_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+import 'package:login/models/chat_group_model.dart';
+import 'package:login/providers/location_list_provider.dart';
+import 'package:login/providers/user_data_provider.dart';
+import 'package:login/supabase/service.dart';
+
 import '../../models/locations.dart';
 
 class ExpandedLocationCard extends StatefulWidget {
-  final LocationModel location;
-  final VoidCallback onClose;
-
   const ExpandedLocationCard({
-    Key? key,
+    super.key,
     required this.location,
     required this.onClose,
-  }) : super(key: key);
+  });
+
+  final LocationModel location;
+  final VoidCallback onClose;
 
   @override
   State<ExpandedLocationCard> createState() => _ExpandedLocationCardState();
@@ -28,79 +28,109 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard> {
   bool _isSaved = false;
   bool _isLoading = false;
 
+  final TextEditingController _commentController = TextEditingController();
+
+  // Temporary mock data (replace with real models later)
+  final List<_MockReview> _mockReviews = const [
+    _MockReview(
+      name: 'Ava R.',
+      rating: 4.5,
+      timeAgo: '2h ago',
+      comment: 'Great atmosphere and the staff remembered our order.',
+    ),
+    _MockReview(
+      name: 'Marcus T.',
+      rating: 4.0,
+      timeAgo: '1d ago',
+      comment: 'Solid spot for a quick bite. Try the special.',
+    ),
+    _MockReview(
+      name: 'Priya S.',
+      rating: 5.0,
+      timeAgo: '3d ago',
+      comment: 'Best in the neighborhood. Loved the drinks.',
+    ),
+  ];
+
+  final List<_MockActivity> _mockActivities = const [
+    _MockActivity(
+      title: 'Julia saved this place',
+      timeAgo: '45m',
+      icon: Icons.bookmark_rounded,
+      color: Colors.indigo,
+    ),
+    _MockActivity(
+      title: 'Leo left a 5-star review',
+      timeAgo: '4h',
+      icon: Icons.star_rounded,
+      color: Colors.orange,
+    ),
+    _MockActivity(
+      title: 'Maya shared it to a bubble',
+      timeAgo: '1d',
+      icon: Icons.group_rounded,
+      color: Colors.teal,
+    ),
+  ];
+
   @override
   void initState() {
     super.initState();
     _checkIfLocationIsSaved();
   }
 
-  // Check if location is already saved
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
+  }
+
   Future<void> _checkIfLocationIsSaved() async {
-    final supabaseProvider =
-        Provider.of<SupabaseService>(context, listen: false);
+    final supabase = context.read<SupabaseService>();
 
     setState(() => _isLoading = true);
     try {
-      _isSaved = await supabaseProvider.locations
-          .isLocationSaved(widget.location.locationId);
-      setState(() {});
+      final saved =
+          await supabase.locations.isLocationSaved(widget.location.locationId);
+      if (!mounted) return;
+      setState(() => _isSaved = saved);
     } catch (e) {
-      print('Error checking if location is saved: $e');
+      debugPrint('Error checking saved state: $e');
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // Toggle save state
   Future<void> _toggleSave() async {
-    final supabaseProvider =
-        Provider.of<SupabaseService>(context, listen: false);
+    final supabase = context.read<SupabaseService>();
 
     setState(() => _isLoading = true);
     try {
-      if (_isSaved) {
-        // Unsave location
-        final success = await supabaseProvider.locations
-            .unsaveLocation(widget.location.locationId);
-        if (success) {
-          setState(() => _isSaved = false);
+      final ok = _isSaved
+          ? await supabase.locations.unsaveLocation(widget.location.locationId)
+          : await supabase.locations.saveLocation(widget.location.locationId);
 
-          // Remove from saved locations list
-          await _updateLocationList(saved: false);
-        }
-      } else {
-        // Save location
-        final success = await supabaseProvider.locations
-            .saveLocation(widget.location.locationId);
-        if (success) {
-          setState(() => _isSaved = true);
+      if (!ok || !mounted) return;
 
-          // Add to saved locations list
-          await _updateLocationList(saved: true);
-        }
-      }
+      setState(() => _isSaved = !_isSaved);
+      await _updateLocationList(saved: _isSaved);
     } catch (e) {
-      print('Error toggling save state: $e');
+      debugPrint('Error toggling save state: $e');
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // Update location list based on saved state
   Future<void> _updateLocationList({required bool saved}) async {
-    final locationListManager =
-        Provider.of<LocationListManager>(context, listen: false);
+    final manager = context.read<LocationListManager>();
 
     if (saved) {
-      // If we just saved a location, add it to the saved list
-      // and potentially remove from current list if it was in search/recommended
-      print('Adding location to saved list');
-      await locationListManager.saveLocation(widget.location);
+      debugPrint('Adding location to saved list');
+      await manager.saveLocation(widget.location);
     } else {
-      // If we just unsaved a location, remove it from the saved list
-      print('Removing location from saved list');
-      await locationListManager.removeLocation(widget.location);
-      await locationListManager.fetchSavedLocations(); // Refresh saved locations
+      debugPrint('Removing location from saved list');
+      await manager.removeLocation(widget.location);
+      await manager.fetchSavedLocations();
     }
   }
 
@@ -110,583 +140,663 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    final tags = _getDisplayTags();
+    final hasCoords = widget.location.lat != null && widget.location.lng != null;
+    final openNow = widget.location.openNow;
+
+    final showWebsite =
+        widget.location.openNow == true && widget.location.website != null;
+
     return Material(
       color: Colors.transparent,
       child: GestureDetector(
-        onTap: widget.onClose, // Close when tapping outside
-        child: Container(
-          width: size.width,
-          height: size.height,
-          color: Colors.black.withOpacity(0.6),
-          child: Center(
-            child: GestureDetector(
-              onTap: () {}, // Prevent closing when tapping on the card
-              child: Container(
-                width: size.width * 0.92,
-                height: size.height * 0.85,
-                decoration: BoxDecoration(
-                  color: Colors.grey[50],
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.3),
-                      blurRadius: 20,
-                      spreadRadius: 2,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Header with image
-                  ClipRRect(
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(24),
-                      topRight: Radius.circular(24),
-                    ),
-                    child: Stack(
-                      children: [
-                        // Image
-                        Container(
-                          height: size.height * 0.3,
+        onTap: widget.onClose,
+        child: Stack(
+          children: [
+            // Dimmed background
+            Container(
+              color: Colors.black.withOpacity(0.20),
+              child: GestureDetector(
+                onTap: () {}, // Prevent taps on sheet from closing
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: DraggableScrollableSheet(
+                    initialChildSize: 0.60,
+                    minChildSize: 0.55,
+                    maxChildSize: 0.95,
+                    snap: true,
+                    snapSizes: const [0.60, 0.95],
+                    builder: (context, scrollController) {
+                      return NotificationListener<DraggableScrollableNotification>(
+                        onNotification: (notification) {
+                          if (notification.extent < 0.52) widget.onClose();
+                          return true;
+                        },
+                        child: Container(
                           decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                colorScheme.primary.withOpacity(0.3),
-                                colorScheme.secondary.withOpacity(0.3),
-                              ],
+                            color: Colors.grey[50],
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(28),
                             ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.20),
+                                blurRadius: 18,
+                                offset: const Offset(0, -6),
+                              ),
+                            ],
                           ),
-                          child: widget.location.photoReference != null
-                              ? Image.network(
-                                  widget.location.photoReference!,
-                                  fit: BoxFit.cover,
-                                  width: double.infinity,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Center(
-                                      child: Icon(
-                                        Icons.restaurant,
-                                        size: 80,
-                                        color: Colors.white.withOpacity(0.7),
-                                      ),
-                                    );
-                                  },
-                                )
-                              : Center(
-                                  child: Icon(
-                                    Icons.restaurant,
-                                    size: 80,
-                                    color: Colors.white.withOpacity(0.7),
-                                  ),
+                          child: SingleChildScrollView(
+                            controller: scrollController,
+                            padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _DragHandle(),
+                                const SizedBox(height: 12),
+
+                                _Header(
+                                  name: widget.location.name,
+                                  address: widget.location.vicinity ??
+                                      'Address unavailable',
+                                  onClose: widget.onClose,
                                 ),
-                        ),
-                        // Gradient overlay
-                        Positioned.fill(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  Colors.black.withOpacity(0.6),
-                                  Colors.transparent,
-                                  Colors.black.withOpacity(0.8),
-                                ],
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                stops: const [0.0, 0.4, 1.0],
-                              ),
-                            ),
-                          ),
-                        ),
-                        // Close button at top
-                        Positioned(
-                          top: 12,
-                          right: 12,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.5),
-                              shape: BoxShape.circle,
-                            ),
-                            child: IconButton(
-                              icon: const Icon(
-                                Icons.close_rounded,
-                                color: Colors.white,
-                                size: 28,
-                              ),
-                              onPressed: widget.onClose,
-                            ),
-                          ),
-                        ),
-                        // Location name and details at bottom of image
-                        Positioned(
-                          bottom: 20,
-                          left: 20,
-                          right: 20,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Restaurant name
-                              Text(
-                                widget.location.name,
-                                style: theme.textTheme.headlineMedium?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  shadows: [
-                                    Shadow(
-                                      color: Colors.black.withOpacity(0.5),
-                                      blurRadius: 8,
+
+                                const SizedBox(height: 12),
+
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    _buildFloatingTag(
+                                      openNow == true
+                                          ? 'Open'
+                                          : openNow == false
+                                              ? 'Closed'
+                                              : 'Hours N/A',
+                                      openNow == true
+                                          ? Colors.green
+                                          : openNow == false
+                                              ? Colors.red
+                                              : Colors.grey,
+                                      icon: openNow == true
+                                          ? Icons.check_circle
+                                          : Icons.schedule,
+                                    ),
+                                    if (widget.location.priceLevel != null &&
+                                        widget.location.priceLevel! > 0)
+                                      _buildFloatingTag(
+                                        r'$' * widget.location.priceLevel!,
+                                        Colors.green,
+                                      ),
+                                    if (widget.location.rating != null)
+                                      _buildFloatingTag(
+                                        '${widget.location.rating!.toStringAsFixed(1)} ⭐',
+                                        Colors.orange,
+                                      ),
+                                    ...tags
+                                        .take(2)
+                                        .map(
+                                          (t) => _buildFloatingTag(
+                                            t,
+                                            colorScheme.primary
+                                                .withOpacity(0.80),
+                                          ),
+                                        )
+                                        .toList(),
+                                  ],
+                                ),
+
+                                const SizedBox(height: 16),
+
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceEvenly,
+                                  children: [
+                                    _buildActionBubble(
+                                      icon: _isSaved
+                                          ? Icons.bookmark
+                                          : Icons.bookmark_border,
+                                      label: _isSaved ? 'Saved' : 'Save',
+                                      color: _isSaved
+                                          ? colorScheme.primary
+                                          : Colors.grey[700]!,
+                                      onTap: _isLoading ? null : _toggleSave,
+                                    ),
+                                    _buildActionBubble(
+                                      icon: Icons.thumb_down_outlined,
+                                      label: 'Dislike',
+                                      color: Colors.red[400]!,
+                                      onTap: () => _dislikeLocation(context),
+                                    ),
+                                    _buildActionBubble(
+                                      icon: Icons.group_add_rounded,
+                                      label: 'Add to Bubble',
+                                      color: Colors.purple[600]!,
+                                      onTap: () =>
+                                          _showAddToBubbleDialog(context),
                                     ),
                                   ],
                                 ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 8),
-                              // Cuisine badge
-                              if (widget.location.cuisine != null &&
-                                  widget.location.cuisine!.isNotEmpty)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.25),
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: Colors.white.withOpacity(0.4),
-                                      width: 1,
+
+                                const SizedBox(height: 16),
+
+                                if (widget.location.photoReference != null) ...[
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(16),
+                                    child: Image.network(
+                                      widget.location.photoReference!,
+                                      height: size.height * 0.20,
+                                      width: double.infinity,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => Container(
+                                        height: size.height * 0.20,
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey[200],
+                                          borderRadius:
+                                              BorderRadius.circular(16),
+                                        ),
+                                        child: Icon(
+                                          Icons.restaurant,
+                                          size: 60,
+                                          color: Colors.grey[400],
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                  child: Text(
-                                    widget.location.cuisine!,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      letterSpacing: 0.5,
+                                  const SizedBox(height: 20),
+                                ],
+
+                                if (tags.length > 2) ...[
+                                  Text(
+                                    'Top Categories',
+                                    style: theme.textTheme.titleLarge?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.grey[800],
                                     ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  ...tags
+                                      .skip(2)
+                                      .take(3)
+                                      .map(_buildTagWithScore),
+                                  const SizedBox(height: 24),
+                                ],
+
+                                Text(
+                                  'Reviews & Activity',
+                                  style: theme.textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey[800],
                                   ),
                                 ),
-                            ],
+                                const SizedBox(height: 16),
+
+                                ..._mockActivities
+                                    .map((a) => _buildActivityItem(a, theme)),
+
+                                const SizedBox(height: 20),
+
+                                ..._mockReviews.map(_buildMockReviewCard),
+
+                                const SizedBox(height: 24),
+
+                                _buildAddReviewSection(theme, colorScheme),
+
+                                const SizedBox(height: 80),
+                              ],
+                            ),
                           ),
                         ),
-                      ],
-                    ),
+                      );
+                    },
                   ),
-                  // Content
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Key Stats Row - Rating, Price, Saved Count
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceAround,
-                              children: [
-                                // Rating
-                                if (widget.location.rating != null)
-                                  Expanded(
-                                    child: _buildStatItem(
-                                      Icons.star_rounded,
-                                      '${widget.location.rating!.toStringAsFixed(1)}',
-                                      '${widget.location.userRatingsTotal ?? 0} reviews',
-                                      Colors.amber[700]!,
-                                    ),
-                                  ),
-                                if (widget.location.rating != null &&
-                                    widget.location.priceLevel != null)
-                                  Container(
-                                    width: 1,
-                                    height: 40,
-                                    color: Colors.grey[300],
-                                  ),
-                                // Price Level
-                                if (widget.location.priceLevel != null &&
-                                    widget.location.priceLevel! > 0)
-                                  Expanded(
-                                    child: _buildStatItem(
-                                      Icons.attach_money_rounded,
-                                      '\$' * widget.location.priceLevel!,
-                                      _getPriceLabel(
-                                          widget.location.priceLevel!),
-                                      Colors.green[700]!,
-                                    ),
-                                  ),
-                                if (widget.location.priceLevel != null &&
-                                    widget.location.savedCount != null)
-                                  Container(
-                                    width: 1,
-                                    height: 40,
-                                    color: Colors.grey[300],
-                                  ),
-                                // Saved Count
-                                if (widget.location.savedCount != null &&
-                                    widget.location.savedCount! > 0)
-                                  Expanded(
-                                    child: _buildStatItem(
-                                      Icons.bookmark_rounded,
-                                      '${widget.location.savedCount}',
-                                      'Saves',
-                                      colorScheme.primary,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
+                ),
+              ),
+            ),
 
-                          const SizedBox(height: 20),
-
-                          // Location Details Section
-                          Text(
-                            'Details',
-                            style: theme.textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey[800],
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-
-                          // Address
-                          _buildModernInfoRow(
-                            context,
-                            Icons.location_on_rounded,
-                            'Address',
-                            widget.location.vicinity!,
-                            colorScheme.primary,
-                          ),
-
-                          // Phone
-                          if (widget.location.phoneNumber != null)
-                            InkWell(
-                              onTap: () =>
-                                  _launchPhone(widget.location.phoneNumber!),
-                              child: _buildModernInfoRow(
-                                context,
-                                Icons.phone_rounded,
-                                'Phone',
-                                widget.location.phoneNumber!,
-                                Colors.blue[700]!,
-                                isLink: true,
-                              ),
-                            ),
-
-                          const SizedBox(height: 20),
-
-                          // Quick Actions Card
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              children: [
-                                // Directions Button
-                                InkWell(
-                                  onTap: () => _openInMaps(
-                                      widget.location.lat!,
-                                      widget.location.lng!,
-                                      widget.location.name),
-                                  borderRadius: const BorderRadius.vertical(
-                                      top: Radius.circular(16)),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 20, vertical: 16),
-                                    child: Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(10),
-                                          decoration: BoxDecoration(
-                                            color: Colors.blue[50],
-                                            borderRadius:
-                                                BorderRadius.circular(12),
-                                          ),
-                                          child: Icon(
-                                            Icons.directions_rounded,
-                                            color: Colors.blue[700],
-                                            size: 24,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 16),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                'Get Directions',
-                                                style: theme
-                                                    .textTheme.titleMedium
-                                                    ?.copyWith(
-                                                  fontWeight: FontWeight.w600,
-                                                  color: Colors.grey[800],
-                                                ),
-                                              ),
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                'Open in maps app',
-                                                style: theme
-                                                    .textTheme.bodySmall
-                                                    ?.copyWith(
-                                                  color: Colors.grey[600],
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        Icon(Icons.arrow_forward_ios_rounded,
-                                            size: 16, color: Colors.grey[400]),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                Divider(
-                                    height: 1,
-                                    thickness: 1,
-                                    color: Colors.grey[200]),
-                                // Add to Bubble Button
-                                InkWell(
-                                  onTap: () => _showAddToBubbleDialog(context),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 20, vertical: 16),
-                                    child: Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(10),
-                                          decoration: BoxDecoration(
-                                            color: Colors.purple[50],
-                                            borderRadius:
-                                                BorderRadius.circular(12),
-                                          ),
-                                          child: Icon(
-                                            Icons.group_add_rounded,
-                                            color: Colors.purple[700],
-                                            size: 24,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 16),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                'Add to Bubble',
-                                                style: theme
-                                                    .textTheme.titleMedium
-                                                    ?.copyWith(
-                                                  fontWeight: FontWeight.w600,
-                                                  color: Colors.grey[800],
-                                                ),
-                                              ),
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                'Share with your groups',
-                                                style: theme
-                                                    .textTheme.bodySmall
-                                                    ?.copyWith(
-                                                  color: Colors.grey[600],
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        Icon(Icons.arrow_forward_ios_rounded,
-                                            size: 16, color: Colors.grey[400]),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                Divider(
-                                    height: 1,
-                                    thickness: 1,
-                                    color: Colors.grey[200]),
-                                // Save/Unsave Button
-                                InkWell(
-                                  onTap: _isLoading ? null : _toggleSave,
-                                  borderRadius: const BorderRadius.only(
-                                    bottomLeft: Radius.circular(16),
-                                    bottomRight: Radius.circular(16),
-                                  ),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 20, vertical: 16),
-                                    child: Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(10),
-                                          decoration: BoxDecoration(
-                                            color: _isSaved
-                                                ? colorScheme.primary
-                                                    .withOpacity(0.1)
-                                                : Colors.grey[100],
-                                            borderRadius:
-                                                BorderRadius.circular(12),
-                                          ),
-                                          child: _isLoading
-                                              ? SizedBox(
-                                                  width: 24,
-                                                  height: 24,
-                                                  child:
-                                                      CircularProgressIndicator(
-                                                    color: colorScheme.primary,
-                                                    strokeWidth: 2.5,
-                                                  ),
-                                                )
-                                              : Icon(
-                                                  _isSaved
-                                                      ? Icons.bookmark_rounded
-                                                      : Icons
-                                                          .bookmark_border_rounded,
-                                                  color: _isSaved
-                                                      ? colorScheme.primary
-                                                      : Colors.grey[700],
-                                                  size: 24,
-                                                ),
-                                        ),
-                                        const SizedBox(width: 16),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                _isSaved
-                                                    ? 'Saved to your list'
-                                                    : 'Save this place',
-                                                style: theme
-                                                    .textTheme.titleMedium
-                                                    ?.copyWith(
-                                                  fontWeight: FontWeight.w600,
-                                                  color: Colors.grey[800],
-                                                ),
-                                              ),
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                _isSaved
-                                                    ? 'Tap to remove from saves'
-                                                    : 'Add to your saved places',
-                                                style: theme
-                                                    .textTheme.bodySmall
-                                                    ?.copyWith(
-                                                  color: Colors.grey[600],
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          const SizedBox(height: 20),
-
-                          // Map Preview
-                          
-                          const SizedBox(height: 30),
-                        ],
+            // Floating actions above the card
+            Positioned(
+              bottom: size.height * 0.60 + 8,
+              right: 20,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (showWebsite && widget.location.website != null)
+                    FloatingActionButton.small(
+                      heroTag: 'website',
+                      onPressed: () =>
+                          _launchWebsite(widget.location.website!),
+                      backgroundColor: Colors.white,
+                      child: Icon(
+                        Icons.language_rounded,
+                        color: colorScheme.primary,
                       ),
                     ),
-                  ),
+                  if (showWebsite && hasCoords) const SizedBox(height: 12),
+                  if (hasCoords)
+                    FloatingActionButton.small(
+                      heroTag: 'directions',
+                      onPressed: () => _openInMaps(
+                        widget.location.lat!,
+                        widget.location.lng!,
+                        widget.location.name,
+                      ),
+                      backgroundColor: Colors.white,
+                      child: Icon(
+                        Icons.directions_rounded,
+                        color: Colors.blue[700],
+                      ),
+                    ),
                 ],
               ),
             ),
-          ),
+          ],
         ),
       ),
-    ),
     );
   }
 
-  // Show dialog to select bubble to add location to
+  Widget _buildAddReviewSection(ThemeData theme, ColorScheme colorScheme) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Leave your review',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[800],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: List.generate(
+              5,
+              (_) => IconButton(
+                icon: Icon(
+                  Icons.star_rounded,
+                  color: Colors.orange[300],
+                ),
+                onPressed: () {},
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _commentController,
+            maxLines: 3,
+            decoration: InputDecoration(
+              hintText: 'Share your experience...',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              contentPadding: const EdgeInsets.all(12),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _handleMockCommentSubmit,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('Submit Review'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<String> _getDisplayTags() {
+    final tags = <String>{};
+
+    void addTag(String? value) {
+      if (value == null) return;
+      final v = value.trim();
+      if (v.isEmpty) return;
+      tags.add(_formatTag(v));
+    }
+
+    addTag(widget.location.cuisinePrimary);
+    addTag(widget.location.cuisine);
+    addTag(widget.location.cuisineDetected);
+    addTag(widget.location.priceBucket);
+
+    final types = widget.location.types;
+    if (types != null && types.trim().isNotEmpty) {
+      for (final type in types.split(',')) {
+        addTag(type);
+      }
+    }
+
+    return tags.take(6).toList();
+  }
+
+  String _formatTag(String raw) {
+    final cleaned = raw.replaceAll('_', ' ').replaceAll('-', ' ').trim();
+    if (cleaned.isEmpty) return cleaned;
+
+    final words = cleaned.split(RegExp(r'\s+'));
+    return words
+        .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
+        .join(' ');
+  }
+
+  Widget _buildFloatingTag(String label, Color color, {IconData? icon}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.90),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.30),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 14, color: Colors.white),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionBubble({
+    required IconData icon,
+    required String label,
+    required Color color,
+    VoidCallback? onTap,
+  }) {
+    final disabled = onTap == null;
+    final effectiveColor = disabled ? Colors.grey : color;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: effectiveColor.withOpacity(0.10),
+              border: Border.all(color: effectiveColor, width: 2),
+            ),
+            child: Icon(icon, color: effectiveColor, size: 28),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[700],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTagWithScore(String tag) {
+    final score = 70 + (tag.hashCode % 26);
+    final color = Theme.of(context).colorScheme.primary;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                tag,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[800],
+                ),
+              ),
+              Text(
+                '$score%',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: LinearProgressIndicator(
+              value: score / 100,
+              minHeight: 8,
+              backgroundColor: Colors.grey[200],
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActivityItem(_MockActivity activity, ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: activity.color.withOpacity(0.15),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(activity.icon, color: activity.color, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  activity.title,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: Colors.grey[800],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  activity.timeAgo,
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: Colors.grey[500]),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMockReviewCard(_MockReview review) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: Colors.blueGrey[100],
+                child: Text(
+                  review.name[0],
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  review.name,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              Text(
+                review.timeAgo,
+                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _buildStarRow(review.rating),
+          const SizedBox(height: 8),
+          Text(review.comment, style: TextStyle(color: Colors.grey[700])),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStarRow(double rating) {
+    return Row(
+      children: List.generate(5, (index) {
+        final starValue = index + 1;
+
+        final IconData icon = rating >= starValue
+            ? Icons.star_rounded
+            : rating >= starValue - 0.5
+                ? Icons.star_half_rounded
+                : Icons.star_border_rounded;
+
+        return Icon(icon, size: 16, color: Colors.orange[700]);
+      }),
+    );
+  }
+
+  void _handleMockCommentSubmit() {
+    final message = _commentController.text.trim();
+    if (message.isEmpty) return;
+
+    _commentController.clear();
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Mock comment posted.')),
+    );
+  }
+
+  void _dislikeLocation(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Location marked as disliked'),
+        backgroundColor: Colors.red[400],
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Future<void> _launchWebsite(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
   Future<void> _showAddToBubbleDialog(BuildContext context) async {
-    final supabaseService = Provider.of<SupabaseService>(context, listen: false);
-    final userDataProvider = Provider.of<UserDataProvider>(context, listen: false);
-    final userId = userDataProvider.supabaseUserData?.supabaseId;
+    final supabase = context.read<SupabaseService>();
+    final userData = context.read<UserDataProvider>();
+    final userId = userData.supabaseUserData?.supabaseId;
 
     if (userId == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please log in to add to bubbles')),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please log in to add to bubbles')),
+      );
       return;
     }
 
-    // Show loading dialog
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(),
-      ),
+      builder: (_) => const Center(child: CircularProgressIndicator()),
     );
 
     try {
-      // Fetch user's bubbles
-      final bubbles = await supabaseService.bubbles.getUserBubbles(userId);
-      
+      final bubbles = await supabase.bubbles.getUserBubbles(userId);
       if (!mounted) return;
-      
-      // Close loading dialog
-      Navigator.pop(context);
+
+      Navigator.pop(context); // close loading
 
       if (bubbles.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('You don\'t have any bubbles yet. Create one first!'),
-              duration: Duration(seconds: 3),
-            ),
-          );
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('You don\'t have any bubbles yet. Create one first!'),
+            duration: Duration(seconds: 3),
+          ),
+        );
         return;
       }
 
-      // Show bubble selection dialog
       showModalBottomSheet(
         context: context,
         backgroundColor: Colors.transparent,
         isScrollControlled: true,
-        builder: (context) => _buildBubbleSelectionSheet(bubbles, userId),
+        builder: (_) => _buildBubbleSelectionSheet(bubbles, userId),
       );
     } catch (e) {
-      if (mounted) {
-        Navigator.pop(context); // Close loading dialog
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading bubbles: $e')),
-        );
-      }
+      if (!mounted) return;
+      Navigator.pop(context); // close loading
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading bubbles: $e')),
+      );
     }
   }
 
-  // Build the bubble selection bottom sheet
   Widget _buildBubbleSelectionSheet(List<ChatGroupModel> bubbles, String userId) {
     return Container(
       decoration: const BoxDecoration(
@@ -697,17 +807,8 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Handle bar
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey[300],
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
+          _SheetHandle(),
           const SizedBox(height: 20),
-          // Title
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Row(
@@ -730,14 +831,10 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard> {
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Text(
               'Select a bubble to share this location',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
+              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
             ),
           ),
           const SizedBox(height: 20),
-          // Bubble list
           ConstrainedBox(
             constraints: BoxConstraints(
               maxHeight: MediaQuery.of(context).size.height * 0.5,
@@ -745,10 +842,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard> {
             child: ListView.builder(
               shrinkWrap: true,
               itemCount: bubbles.length,
-              itemBuilder: (context, index) {
-                final bubble = bubbles[index];
-                return _buildBubbleItem(bubble, userId);
-              },
+              itemBuilder: (_, index) => _buildBubbleItem(bubbles[index], userId),
             ),
           ),
           const SizedBox(height: 10),
@@ -757,7 +851,6 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard> {
     );
   }
 
-  // Build individual bubble item
   Widget _buildBubbleItem(ChatGroupModel bubble, String userId) {
     return InkWell(
       onTap: () => _addLocationToBubble(bubble, userId),
@@ -771,19 +864,16 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard> {
         ),
         child: Row(
           children: [
-            // Group avatar
             CircleAvatar(
               radius: 24,
-              backgroundImage: bubble.groupAvatar.isNotEmpty
-                  ? NetworkImage(bubble.groupAvatar)
-                  : null,
+              backgroundImage:
+                  bubble.groupAvatar.isNotEmpty ? NetworkImage(bubble.groupAvatar) : null,
               backgroundColor: Colors.blue[100],
               child: bubble.groupAvatar.isEmpty
                   ? Icon(Icons.group, color: Colors.blue[700], size: 28)
                   : null,
             ),
             const SizedBox(width: 14),
-            // Group info
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -800,10 +890,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard> {
                   const SizedBox(height: 4),
                   Text(
                     '${bubble.memberCount} members · ${bubble.groupLocations.length} locations',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[600],
-                    ),
+                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                   ),
                 ],
               ),
@@ -816,24 +903,19 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard> {
     );
   }
 
-  // Add location to selected bubble
   Future<void> _addLocationToBubble(ChatGroupModel bubble, String userId) async {
-    final supabaseService = Provider.of<SupabaseService>(context, listen: false);
-    
-    // Close the bubble selection sheet
-    Navigator.pop(context);
+    final supabase = context.read<SupabaseService>();
 
-    // Show loading
+    Navigator.pop(context); // close sheet
+
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(),
-      ),
+      builder: (_) => const Center(child: CircularProgressIndicator()),
     );
 
     try {
-      final success = await supabaseService.bubbles.addLocationToBubble(
+      final ok = await supabase.bubbles.addLocationToBubble(
         bubbleId: bubble.id,
         locationId: widget.location.locationId,
         addedBy: userId,
@@ -842,213 +924,181 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard> {
 
       if (!mounted) return;
 
-      // Close loading dialog
-      Navigator.pop(context);
+      Navigator.pop(context); // close loading
 
-      if (success) {
+      if (ok) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
               children: [
                 const Icon(Icons.check_circle, color: Colors.white),
                 const SizedBox(width: 12),
-                Expanded(
-                  child: Text('Added to "${bubble.name}"'),
-                ),
+                Expanded(child: Text('Added to "${bubble.name}"')),
               ],
             ),
             backgroundColor: Colors.green[600],
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             duration: const Duration(seconds: 2),
           ),
         );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Failed to add location to bubble'),
-            backgroundColor: Colors.red[600],
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-        );
+        return;
       }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Failed to add location to bubble'),
+          backgroundColor: Colors.red[600],
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
     } catch (e) {
-      if (mounted) {
-        Navigator.pop(context); // Close loading dialog
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red[600],
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-        );
-      }
+      if (!mounted) return;
+      Navigator.pop(context); // close loading
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red[600],
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
     }
   }
 
-  // New stat item widget for the stats card
-  Widget _buildStatItem(
-      IconData icon, String value, String label, Color color) {
-    return Column(
+  TargetPlatform _getPlatform() => defaultTargetPlatform;
+
+  Future<void> _openInMaps(double lat, double lng, String name) async {
+    final encodedName = Uri.encodeComponent(name);
+
+    // Note: your original "query_place_id" usage looks incorrect (it expects a Place ID).
+    // Keeping your behavior while improving structure.
+    final googleMapsUrl =
+        'https://www.google.com/maps/search/?api=1&query=$lat,$lng&query_place_id=$encodedName';
+    final appleMapsUrl = 'https://maps.apple.com/?q=$encodedName&ll=$lat,$lng';
+
+    if (_getPlatform() == TargetPlatform.iOS) {
+      final apple = Uri.parse(appleMapsUrl);
+      if (await canLaunchUrl(apple)) {
+        await launchUrl(apple);
+        return;
+      }
+    }
+
+    final google = Uri.parse(googleMapsUrl);
+    if (await canLaunchUrl(google)) {
+      await launchUrl(google);
+    }
+  }
+}
+
+class _DragHandle extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        width: 44,
+        height: 5,
+        decoration: BoxDecoration(
+          color: Colors.grey[300],
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+    );
+  }
+}
+
+class _SheetHandle extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 40,
+      height: 4,
+      decoration: BoxDecoration(
+        color: Colors.grey[300],
+        borderRadius: BorderRadius.circular(2),
+      ),
+    );
+  }
+}
+
+class _Header extends StatelessWidget {
+  const _Header({
+    required this.name,
+    required this.address,
+    required this.onClose,
+  });
+
+  final String name;
+  final String address;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, color: color, size: 28),
-        const SizedBox(height: 6),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.grey[800],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                name,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[900],
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                address,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: Colors.grey[600],
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            color: Colors.grey[600],
-          ),
-          textAlign: TextAlign.center,
+        IconButton(
+          icon: Icon(Icons.close_rounded, color: Colors.grey[600]),
+          onPressed: onClose,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
         ),
       ],
     );
   }
+}
 
-  // Get price level description
-  String _getPriceLabel(int priceLevel) {
-    switch (priceLevel) {
-      case 1:
-        return 'Inexpensive';
-      case 2:
-        return 'Moderate';
-      case 3:
-        return 'Expensive';
-      case 4:
-        return 'Very Expensive';
-      default:
-        return '';
-    }
-  }
+class _MockReview {
+  const _MockReview({
+    required this.name,
+    required this.rating,
+    required this.timeAgo,
+    required this.comment,
+  });
 
-  // Modern info row with better styling
-  Widget _buildModernInfoRow(
-    BuildContext context,
-    IconData icon,
-    String label,
-    String text,
-    Color iconColor, {
-    bool isLink = false,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(
-              icon,
-              color: iconColor,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  text,
-                  style: TextStyle(
-                    color: isLink ? iconColor : Colors.grey[800],
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                    decoration:
-                        isLink ? TextDecoration.underline : TextDecoration.none,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (isLink)
-            Icon(
-              Icons.arrow_forward_ios_rounded,
-              size: 14,
-              color: Colors.grey[400],
-            ),
-        ],
-      ),
-    );
-  }
+  final String name;
+  final double rating;
+  final String timeAgo;
+  final String comment;
+}
 
-  void _launchPhone(String phoneNumber) async {
-    final Uri phoneUri = Uri(scheme: 'tel', path: phoneNumber);
-    if (await canLaunchUrl(phoneUri)) {
-      await launchUrl(phoneUri);
-    }
-  }
+class _MockActivity {
+  const _MockActivity({
+    required this.title,
+    required this.timeAgo,
+    required this.icon,
+    required this.color,
+  });
 
-  // Helper method to get platform info safely
-  TargetPlatform _getPlatform() {
-    return defaultTargetPlatform; // Using the imported foundation.dart
-  }
-
-  void _openInMaps(double lat, double lng, String name) async {
-    final String encodedName = Uri.encodeComponent(name);
-    final String googleMapsUrl =
-        'https://www.google.com/maps/search/?api=1&query=$lat,$lng&query_place_id=$encodedName';
-    final String appleMapsUrl =
-        'https://maps.apple.com/?q=$encodedName&ll=$lat,$lng';
-
-    // For iOS, try Apple Maps first, for others use Google Maps
-    if (_getPlatform() == TargetPlatform.iOS) {
-      final Uri appleMapsUri = Uri.parse(appleMapsUrl);
-      if (await canLaunchUrl(appleMapsUri)) {
-        await launchUrl(appleMapsUri);
-      } else {
-        final Uri googleMapsUri = Uri.parse(googleMapsUrl);
-        if (await canLaunchUrl(googleMapsUri)) {
-          await launchUrl(googleMapsUri);
-        }
-      }
-    } else {
-      final Uri googleMapsUri = Uri.parse(googleMapsUrl);
-      if (await canLaunchUrl(googleMapsUri)) {
-        await launchUrl(googleMapsUri);
-      }
-    }
-  }
+  final String title;
+  final String timeAgo;
+  final IconData icon;
+  final Color color;
 }

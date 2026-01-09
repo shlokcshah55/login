@@ -41,7 +41,7 @@ class _PinitMapState extends State<PinitMap> {
 
   Future<void> _loadCustomMarker() async {
     final BitmapDescriptor bitmapDescriptor =
-        await _getCustomMarker('lib/assets/pinitIcon.png');
+        await _getCustomMarker('lib/assets/restaurant_pin.png');
     print('Pinit Map: Custom marker loaded');
     setState(() {
       _customMarkerIcon = bitmapDescriptor;
