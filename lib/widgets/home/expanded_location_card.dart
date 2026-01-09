@@ -8,6 +8,7 @@ import 'package:login/models/chat_group_model.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../models/locations.dart';
 
 class ExpandedLocationCard extends StatefulWidget {
@@ -160,12 +161,17 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard> {
                               ],
                             ),
                           ),
-                          child: widget.location.photoReference != null
-                              ? Image.network(
-                                  widget.location.photoReference!,
+                          child: widget.location.imageUrl != null
+                              ? CachedNetworkImage(
+                                  imageUrl: widget.location.imageUrl!,
                                   fit: BoxFit.cover,
                                   width: double.infinity,
-                                  errorBuilder: (context, error, stackTrace) {
+                                  placeholder: (context, url) => Center(
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white.withOpacity(0.7),
+                                    ),
+                                  ),
+                                  errorWidget: (context, url, error) {
                                     return Center(
                                       child: Icon(
                                         Icons.restaurant,
