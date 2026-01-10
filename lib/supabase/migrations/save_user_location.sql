@@ -1,3 +1,17 @@
+---- THIS IS A COMPLEX TRIGGER SO AM STORING IT AS A FILE INSTEAD OF INLINE ----
+
+DROP FUNCTION save_location_with_tags(uuid,integer,text,boolean,text);
+
+CREATE OR REPLACE FUNCTION save_location_with_tags(
+    p_user_id UUID,
+    p_location_id INTEGER,
+    p_saved_method TEXT,
+    p_acked BOOLEAN,
+    p_source_video_url TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+AS $$
 DECLARE
     v_location_id INTEGER;
     v_action_exists BOOLEAN := FALSE;
@@ -281,3 +295,4 @@ EXCEPTION
             'error', SQLERRM
         );
 END;
+$$;
