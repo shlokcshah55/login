@@ -493,10 +493,6 @@ class LocationHelper {
 
       // Check if another call is already downloading this location
       if (_activeDownloads.containsKey(locationId)) {
-        if (kDebugMode) {
-          print('⏳ DUPLICATE REQUEST DETECTED!');
-          print('   Another call is already downloading location $locationId');
-        }
         return await _activeDownloads[locationId];
       }
 

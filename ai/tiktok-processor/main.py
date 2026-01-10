@@ -28,6 +28,7 @@ GOOGLE_PLACES_API_KEY = os.environ.get('GOOGLE_PLACES_API_KEY')
 SUPABASE_URL = os.environ.get('SUPABASE_URL')
 SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY')
 APPIFY_KEY = os.environ.get('APPIFY_KEY')
+SEND_PUSH_NOTIF_SECRET = os.environ.get('SEND_PUSH_NOTIF_SECRET')
 
 # Validate environment variables
 if not OPENAI_API_KEY or not GOOGLE_PLACES_API_KEY:
@@ -36,6 +37,9 @@ if not OPENAI_API_KEY or not GOOGLE_PLACES_API_KEY:
 
 if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
     logger.warning("Missing Supabase credentials - /process-share endpoint will not work")
+
+if not SEND_PUSH_NOTIF_SECRET:
+    logger.warning("Missing SEND_PUSH_NOTIF_SECRET - error notifications will not be sent")
 
 # Initialize processor (singleton)
 processor = TikTokProcessor(
@@ -52,7 +56,55 @@ if SUPABASE_URL and SUPABASE_SERVICE_KEY:
 
 # ===== Helper Functions =====
 
-def save_location_to_supabase(user_id: str, place_data: dict, video_data: dict, url: str):
+def send_error_notification(user_id: str):
+    """Send push notification to user when processing fails"""
+    try:
+        if not supabase_client:
+            logger.warning("Supabase client not initialized - cannot fetch fcm_token")
+            return
+
+        if not SEND_PUSH_NOTIF_SECRET:
+            logger.warning("SEND_PUSH_NOTIF_SECRET not configured - skipping error notification")
+            return
+
+        # Fetch user's FCM token from Supabase
+        response = supabase_client.table('users').select('fcm_token').eq('supabase_id', user_id).maybe_single().execute()
+
+        if not response or not hasattr(response, 'data') or not response.data:
+            logger.warning(f"User {user_id} not found in database")
+            return
+
+        fcm_token = response.data.get('fcm_token')
+
+        if not fcm_token:
+            logger.warning(f"User {user_id} has no fcm_token - cannot send notification")
+            return
+
+        # Send push notification
+        notification_url = "https://us-central1-pinit-a97eb.cloudfunctions.net/send-push-notification"
+        headers = {
+            "Authorization": f"Bearer {SEND_PUSH_NOTIF_SECRET}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "fcm_token": fcm_token,
+            "title": "Oops something went wrong",
+            "body": "sorry we couldn't find a location from that tiktok that you shared with us"
+        }
+
+        with httpx.Client(timeout=10.0) as client:
+            response = client.post(notification_url, headers=headers, json=payload)
+            response.raise_for_status()
+
+        logger.info(f"Successfully sent error notification to user {user_id}")
+
+    except httpx.HTTPStatusError as e:
+        logger.error(f"Push notification API returned error {e.response.status_code}: {e.response.text}")
+    except Exception as e:
+        logger.error(f"Error sending push notification: {e}", exc_info=True)
+
+
+def save_location_to_supabase(user_id: str, place_data: dict, url: str):
     """Save location to Supabase database"""
     try:
         if not supabase_client:
@@ -60,17 +112,12 @@ def save_location_to_supabase(user_id: str, place_data: dict, video_data: dict, 
             return None
 
         place_id = place_data['place_id']
-        name = place_data['name']
-        address = place_data['address']
-        location = place_data['location']
-        types = place_data.get('types', [])
-        rating = place_data.get('rating')
-
+ 
         # 1. Check if location exists
-        response = supabase_client.table('locations').select('location_id').eq('google_place_id', place_id).maybe_single().execute()
+        response = supabase_client.table('locations').select('location_id').eq('google_place_id', place_id).execute()
 
-        if response and hasattr(response, 'data') and response.data:
-            location_id = response.data['location_id']
+        if response and hasattr(response, 'data') and response.data and len(response.data) > 0:
+            location_id = response.data[0]['location_id']
             logger.info(f"Location already exists: {location_id}")
         else:
             # Create location
@@ -99,6 +146,9 @@ def save_location_to_supabase(user_id: str, place_data: dict, video_data: dict, 
             except Exception as e:
                 logger.error(f"Error calling location API: {e}", exc_info=True)
                 return None
+            
+        logger.info(f"Using location tiktok url: {str(url)}")
+        logger.info(f"All parameters to rpc: 'user_id': {user_id}, 'location_id': {location_id}, 'saved_method': 'tiktok', 'acked': True, 'source_video_url': {str(url)}")
 
         # 3. Save location with tag updates using new RPC
         logger.info(type(location_id))
@@ -106,7 +156,8 @@ def save_location_to_supabase(user_id: str, place_data: dict, video_data: dict, 
             'p_user_id': user_id,
             'p_location_id': location_id,
             'p_saved_method': 'tiktok',  
-            'p_acked': True
+            'p_acked': True,
+            'p_source_video_url': str(url)
         }).execute()
 
         response = result.data
@@ -116,7 +167,6 @@ def save_location_to_supabase(user_id: str, place_data: dict, video_data: dict, 
             logger.info(f"Saved location {location_id} with {tag_count} tag updates (TikTok method)")
             return {
                 'location_id': location_id,
-                'name': name
             }
         else:
             error = response.get('error', 'Unknown error') if response else 'No response'
@@ -137,17 +187,49 @@ def process_and_save_async(url: str, user_id: str):
     try:
         logger.info(f"Background processing started for user {user_id}, URL: {url}")
 
+        # Check if this URL has already been processed by anyone
+        if supabase_client:
+            existing_actions = supabase_client.table('user_location_actions').select('location_id').eq('source_video_url', url).execute()
+            if existing_actions and hasattr(existing_actions, 'data') and existing_actions.data:
+                location_ids = list(set([action['location_id'] for action in existing_actions.data]))
+                saved_locations = []
+                for location_id in location_ids:
+                    try:
+                        result = supabase_client.rpc('save_location_with_tags', {
+                            'p_user_id': user_id,
+                            'p_location_id': location_id,
+                            'p_saved_method': 'tiktok',
+                            'p_acked': True,
+                            'p_source_video_url': url
+                        }).execute()
+
+                        if result.data and result.data.get('success'):
+                            saved_locations.append(location_id)
+                            logger.info(f"Saved existing location {location_id} for user {user_id}")
+                    except Exception as e:
+                        logger.error(f"Error saving existing location {location_id}: {e}", exc_info=True)
+                        continue
+
+                if saved_locations:
+                    logger.info(f"Successfully saved {len(saved_locations)} existing locations for user {user_id}")
+                    return
+                else:
+                    logger.warning(f"Failed to save any existing locations for user {user_id}. Will re-process video.")
+        
+        # Otherwise process via apify and gpt 
         result = asyncio.run(processor.process_url(url))
 
         if not result.get("success"):
             error = result.get("error", "Unknown error")
             logger.error(f"Processing failed: {error}")
+            send_error_notification(user_id)
             return
 
         locations = result.get("locations", [])
 
         if not locations:
             logger.warning("No locations found in video")
+            send_error_notification(user_id)
             return
 
         # Save all locations to database
@@ -158,9 +240,7 @@ def process_and_save_async(url: str, user_id: str):
                 location = save_location_to_supabase(
                     user_id=user_id,
                     place_data=loc_data['place'],
-                    video_data=loc_data['video_data'],
-                    url=url
-                )
+                    url=url,                )
                 if location:
                     saved_locations.append(location)
             except Exception as e:
@@ -169,12 +249,14 @@ def process_and_save_async(url: str, user_id: str):
 
         if not saved_locations:
             logger.error("Failed to save any locations")
+            send_error_notification(user_id)
             return
 
         logger.info(f"Successfully saved {len(saved_locations)} locations for user {user_id}")
 
     except Exception as e:
         logger.error(f"Error in background processing: {e}", exc_info=True)
+        send_error_notification(user_id)
 
 
 # ===== API Endpoints =====
@@ -251,75 +333,6 @@ def process_share():
             "error": str(e)
         }), 500
 
-
-@app.route('/process', methods=['POST'])
-def process_tiktok():
-    """
-    Process a TikTok URL and extract location information
-
-    Request body:
-    {
-        "url": "https://www.tiktok.com/@user/video/123456789",
-    }
-
-    Response:
-    {
-        "success": true,
-        "place": {
-            "place_id": "ChIJ...",
-            "name": "Place Name",
-            "address": "123 Main St, City, Country",
-            "location": {"lat": 40.7128, "lng": -74.0060},
-            "types": ["restaurant", "food"],
-            "rating": 4.5
-        },
-        "video_data": {
-            "id": "123456789",
-            "description": "Video description",
-            "author": "username"
-        },
-        "extracted_query": "Place Name City"
-    }
-    """
-    try:
-        # Parse request body
-        data = request.get_json()
-
-        if not data:
-            return jsonify({
-                "success": False,
-                "error": "Request body must be JSON"
-            }), 400
-
-        # Validate required fields
-        url = data.get('url')
-
-        if not url:
-            return jsonify({
-                "success": False,
-                "error": "Missing required field: url"
-            }), 400
-
-
-        logger.info(f"Processing request for URL: {url}")
-
-        # Process the TikTok URL (run async function in sync context)
-        result = asyncio.run(processor.process_url(url))
-
-        # Return result
-        if result.get("success"):
-            logger.info(f"Successfully processed URL: {url}")
-            return jsonify(result), 200
-        else:
-            logger.warning(f"Failed to process URL: {url}, Error: {result.get('error')}")
-            return jsonify(result), 422  # Unprocessable Entity
-
-    except Exception as e:
-        logger.error(f"Unexpected error in /process endpoint: {e}", exc_info=True)
-        return jsonify({
-            "success": False,
-            "error": f"Internal server error: {str(e)}"
-        }), 500
 
 
 @app.errorhandler(404)
