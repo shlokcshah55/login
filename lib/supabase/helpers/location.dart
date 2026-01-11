@@ -32,7 +32,30 @@ class LocationHelper {
         print(item[SupabaseConstants.columnLocationId]);
 
         // Check if image_url already exists in the database
-        String? locationImage = item[SupabaseConstants.columnImageUrl];
+        var locationImage;
+        var filename = '${item[SupabaseConstants.columnLocationId]}.jpg';
+
+        // Check if file already exists in storage
+        try {
+          final existingFiles = await _client.storage
+              .from('location_photos')
+              .list(path: '', searchOptions: SearchOptions(search: filename));
+
+          if (existingFiles.isNotEmpty && existingFiles.any((file) => file.name == filename)) {
+            if (kDebugMode) {
+              print('✅ Image already exists in Supabase Storage!');
+              print('   Filename: $filename');
+              print('   Skipping upload - using existing file');
+            }
+
+            // Return the URL of the existing file
+            locationImage = _client.storage
+                .from('location_photos')
+                .getPublicUrl(filename);
+          }
+        } catch (e) {
+          if (kDebugMode) print('⚠️  Could not check for existing file: $e (will proceed with upload)');
+        }
 
         // Then make a call to get the location image from google places API 
         if (locationImage == null || locationImage.isEmpty) {
@@ -98,7 +121,31 @@ class LocationHelper {
 
       List<LocationModel> locationModels = [];
       for (var item in locations as List) {
-        String? locationImage = item[SupabaseConstants.columnImageUrl];
+
+        var locationImage;
+        var filename = '${item[SupabaseConstants.columnLocationId]}.jpg';
+        
+        // Check if file already exists in storage
+        try {
+          final existingFiles = await _client.storage
+              .from('location_photos')
+              .list(path: '', searchOptions: SearchOptions(search: filename));
+
+          if (existingFiles.isNotEmpty && existingFiles.any((file) => file.name == filename)) {
+            if (kDebugMode) {
+              print('✅ Image already exists in Supabase Storage!');
+              print('   Filename: $filename');
+              print('   Skipping upload - using existing file');
+            }
+
+            // Return the URL of the existing file
+            locationImage = _client.storage
+                .from('location_photos')
+                .getPublicUrl(filename);
+          }
+        } catch (e) {
+          if (kDebugMode) print('⚠️  Could not check for existing file: $e (will proceed with upload)');
+        }
 
         if (locationImage == null || locationImage.isEmpty) {
           locationImage = await getLocationImage(
@@ -129,7 +176,30 @@ class LocationHelper {
 
       List<LocationModel> locations = [];
       for (var item in response as List) {
-        String? locationImage = item[SupabaseConstants.columnImageUrl];
+        var locationImage;
+        var filename = '${item[SupabaseConstants.columnLocationId]}.jpg';
+        
+        // Check if file already exists in storage
+        try {
+          final existingFiles = await _client.storage
+              .from('location_photos')
+              .list(path: '', searchOptions: SearchOptions(search: filename));
+
+          if (existingFiles.isNotEmpty && existingFiles.any((file) => file.name == filename)) {
+            if (kDebugMode) {
+              print('✅ Image already exists in Supabase Storage!');
+              print('   Filename: $filename');
+              print('   Skipping upload - using existing file');
+            }
+
+            // Return the URL of the existing file
+            locationImage = _client.storage
+                .from('location_photos')
+                .getPublicUrl(filename);
+          }
+        } catch (e) {
+          if (kDebugMode) print('⚠️  Could not check for existing file: $e (will proceed with upload)');
+        }
 
         if (locationImage == null || locationImage.isEmpty) {
           locationImage = await getLocationImage(
@@ -586,30 +656,6 @@ class LocationHelper {
 
       // Use location_id as the filename for easy identification and deduplication
       final filename = '$locationId.jpg';
-
-      // Check if file already exists in storage
-      try {
-        final existingFiles = await _client.storage
-            .from('location_photos')
-            .list(path: '', searchOptions: SearchOptions(search: filename));
-
-        if (existingFiles.isNotEmpty && existingFiles.any((file) => file.name == filename)) {
-          if (kDebugMode) {
-            print('✅ Image already exists in Supabase Storage!');
-            print('   Filename: $filename');
-            print('   Skipping upload - using existing file');
-          }
-
-          // Return the URL of the existing file
-          final existingUrl = _client.storage
-              .from('location_photos')
-              .getPublicUrl(filename);
-
-          return existingUrl;
-        }
-      } catch (e) {
-        if (kDebugMode) print('⚠️  Could not check for existing file: $e (will proceed with upload)');
-      }
 
       // 1. Get temporary signed URL from Google Media API (1 API call)
       final tempImageUrl = await _tryMediaApi(photoReference);

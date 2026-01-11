@@ -16,6 +16,10 @@ class SupabaseConstants {
   static const String tableLocationTags = 'location_tags';
   static const String tableUserTags = 'user_tag_affinities';
   static const String tableUserTagAffinities = 'user_tag_affinities';
+  static const String tableNotifications = 'notifications';
+  static const String tableRecommendationRuns = 'recommendation_runs';
+  static const String tableRecommendationCandidates = 'recommendation_candidates';
+  static const String tableUserRecommendations = 'user_recommendations'; 
 
   // Column names - users
   static const String columnSupabaseId = 'supabase_id';
@@ -25,6 +29,9 @@ class SupabaseConstants {
   static const String columnProfileImageUrl = 'profile_image_url';
   static const String columnWizardCompleted = 'wizard_completed';
   static const String columnUsername = 'username';
+  static const String columnSpiceTolerance = 'spice_tolerance';
+  static const String columnFcmToken = 'fcm_token';
+  static const String columnFcmTokenUpdatedAt = 'fcm_token_updated_at';
 
 
   // Column names - locations
@@ -65,6 +72,8 @@ class SupabaseConstants {
   static const String columnDerivedAttributes = 'derived_attributes';
   static const String columnDataVersion = 'data_version';
   static const String columnIngestedAt = 'ingested_at';
+  static const String columnPhotoReferenceValidUntil = 'photo_reference_valid_until';
+  static const String columnPhotoReferenceScore = 'photo_reference_score';
 
   // Column names - videos
   static const String columnVideoId = 'video_id';
@@ -89,7 +98,7 @@ class SupabaseConstants {
 
   // Column names - location_popularity_app
   static const String columnSavesCount = 'saves_count';
-  static const String columnDislikeCount = 'dislikes_count';
+  static const String columnDislikesCount = 'dislikes_count';
   static const String columnUpdatedAt = 'updated_at';
 
   // Column names - location_popularity_social
@@ -117,13 +126,32 @@ class SupabaseConstants {
   static const String columnPromptDescription = 'prompt_description';
   static const String columnTagType = 'tag_type';
   static const String columnColour = 'Colour';
+
   // Column names - location_tags
   // columnId is already defined in bubble_members
   // columnLocationId and columnTagId are already defined above
   static const String columnScore = 'score';
+  static const String columnSource = 'source';
+  // columnMetadata and columnCreatedAt are already defined above
 
   // Column names - user_tags
   // columnId, columnUserId, and columnTagId are already defined above
+
+  // Column names - user_tag_affinities
+  // columnUserId, columnTagId, columnUpdatedAt are already defined above
+  static const String columnUserTagAffinity = 'affinity';
+  static const String columnUserTagEvidence = 'evidence';
+
+  // Column names - notifications
+  // columnUserId, columnCreatedAt are already defined above
+  static const String columnNotificationId = 'id';
+  static const String columnType = 'type';
+  static const String columnTitle = 'title';
+  static const String columnMessage = 'message';
+  static const String columnMetadata = 'metadata';
+  static const String columnIsRead = 'is_read';
+  static const String columnReadAt = 'read_at';
+
 
   // Enum values - action_type
   static const String actionSave = 'save';
@@ -147,7 +175,6 @@ class SupabaseConstants {
   static const String supabaseStorageBucketProfileImages =
       'profile_photos';
 
-  static const String columnUserTagAffinity = 'affinity';
-  static const String columnUserTagEvidence = 'evidence';
+
 
 }

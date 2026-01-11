@@ -22,15 +22,19 @@ class VideoProcessedNotification extends BaseNotification {
   factory VideoProcessedNotification.fromFCMData(Map<String, dynamic> data) {
     return VideoProcessedNotification(
       id: data['id'] as String,
-      timestamp: DateTime.parse(data['timestamp'] as String),
-      isRead: false, // New notifications are always unread
+      // Handle both String (FCM) and DateTime (DB)
+      timestamp: data['timestamp'] is String
+          ? DateTime.parse(data['timestamp'] as String)
+          : data['timestamp'] as DateTime,
+      // Handle both explicit false and missing field
+      isRead: data['isRead'] == true || data['isRead'] == 'true',
       locationName: data['locationName'] as String,
       locationId: data['locationId'] as String,
     );
   }
 
   @override
-  String getAvatarUrl() => 'lib/assets/default_avatar.png'; // App logo placeholder
+  String getAvatarUrl() => 'lib/assets/restaurant_pin.png'; // App logo placeholder
 
   @override
   String getMessage() => 'We have saved $locationName from the shared TikTok';
