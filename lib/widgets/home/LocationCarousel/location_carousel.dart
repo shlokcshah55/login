@@ -1,102 +1,78 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:login/providers/map_state_provider.dart';
-import 'package:login/providers/nav_bar/visibility_provider.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
-import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:developer';
 
-class LocationCarousel extends StatefulWidget {
+class LocationCarousel extends StatelessWidget {
   final PageController pageController;
   final List<LocationModel> locations;
+  final MarkerId? selectedMarkerId;
+  final bool bottomNavVisible;
+  final ValueChanged<int> onPageChanged;
+  final ValueChanged<LocationModel> onLocationSelected;
 
   const LocationCarousel({
     Key? key,
     required this.pageController,
     required this.locations,
+    required this.selectedMarkerId,
+    required this.bottomNavVisible,
+    required this.onPageChanged,
+    required this.onLocationSelected,
   }) : super(key: key);
 
   @override
-  State<LocationCarousel> createState() => _LocationCarouselState();
-}
-
-class _LocationCarouselState extends State<LocationCarousel> {
-  @override
-  void initState() {
-    super.initState();
-    // Provide the PageController to the MapStateProvider on initialization
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context
-          .read<MapStateProvider>()
-          .setCarouselPageController(widget.pageController);
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
-    print(
-        "Building LocationCarousel with ${widget.locations.length} locations");
+    print("Building LocationCarousel with ${locations.length} locations");
     final theme = Theme.of(context);
-    final mapState = context.watch<MapStateProvider>();
-    final bottomNavVisible = context.watch<BottomNavVisibilityProvider>().isVisible;
 
-    if (widget.locations.isEmpty) return const SizedBox.shrink();
+    if (locations.isEmpty) return const SizedBox.shrink();
 
     return AnimatedPositioned(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOutQuint,
-      bottom: bottomNavVisible ? 90.0 : 20.0, // Position adjusts based on nav visibility
+      bottom: bottomNavVisible ? 90.0 : 20.0,
       left: 0,
       right: 0,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOutQuint,
-        height: bottomNavVisible ? 160.0 : 200.0, // Expand height when nav is hidden
-        padding: const EdgeInsets.symmetric(
-            horizontal: 0), // Ensure no horizontal padding
+        height: bottomNavVisible ? 160.0 : 200.0,
+        padding: const EdgeInsets.symmetric(horizontal: 0),
         child: PageView.builder(
-          controller: widget.pageController,
-          itemCount: widget.locations.length,
+          controller: pageController,
+          itemCount: locations.length,
           pageSnapping: true,
-          // Add better scrolling physics
           physics: const BouncingScrollPhysics(
             parent: AlwaysScrollableScrollPhysics(),
           ),
           itemBuilder: (context, index) {
-            final location = widget.locations[index];
+            final location = locations[index];
             final isSelected =
-                mapState.selectedMarkerId?.value == location.locationId;
+                selectedMarkerId?.value == location.locationId;
             return AnimatedContainer(
               duration: const Duration(milliseconds: 300),
               curve: Curves.easeOutQuint,
-              // Center-align the card with smaller margins to ensure visibility on both sides
               margin: EdgeInsets.symmetric(
                 horizontal: 5.0,
                 vertical: isSelected ? 0 : 10.0,
               ),
               transform: isSelected
                   ? Matrix4.identity()
-                  : (Matrix4.identity()
-                    ..scale(0.95)), // Subtle scale down for non-selected
+                  : (Matrix4.identity()..scale(0.95)),
               child: _buildCarouselCard(
-                  context, theme, location, isSelected, mapState),
+                context,
+                theme,
+                location,
+                isSelected,
+              ),
             );
           },
           onPageChanged: (index) {
-            // Hide bottom nav when page changes (user scrolled)
-            context.read<BottomNavVisibilityProvider>().hide();
-            
-            final location = widget.locations[index];
-            mapState.setSelectedMarkerId(
-              MarkerId(location.locationId.toString()),
-              triggeredByCarousel: true,
-            );
-            mapState.animateCamera(
-              CameraUpdate.newLatLng(location.position!),
-            );
+            onPageChanged(index);
           },
         ),
       ),
@@ -108,21 +84,15 @@ class _LocationCarouselState extends State<LocationCarousel> {
     ThemeData theme,
     LocationModel location,
     bool isSelected,
-    MapStateProvider mapState,
   ) {
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
-    final bottomNavVisible = context.watch<BottomNavVisibilityProvider>().isVisible;
 
     return InkWell(
       onTap: () {
         log("Tapped card for: ${location.name} (ID: ${location.locationId})");
 
-        // Set the selected marker and animate the camera
-        mapState.setSelectedMarkerId(MarkerId(location.locationId.toString()));
-        mapState.animateCamera(
-          CameraUpdate.newLatLng(location.position!),
-        );
+        onLocationSelected(location);
 
         // Open the expanded location card with slide-up animation
         showGeneralDialog(
@@ -160,7 +130,7 @@ class _LocationCarouselState extends State<LocationCarousel> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOutQuint,
-          height: bottomNavVisible ? 140 : 170, // Adjust card height based on nav visibility
+          height: bottomNavVisible ? 140 : 170,
           child: Row(
             children: [
               // --- Text Section (Left Half) ---

@@ -1,10 +1,8 @@
-import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:login/controllers/home_controller.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:provider/provider.dart';
@@ -14,8 +12,9 @@ class PinitMap extends StatefulWidget {
   static const double DEFAULT_LNG = -0.1749;
 
   final VoidCallback? onMapTap;
+  final VoidCallback? onSearchThisArea;
 
-  const PinitMap({super.key, this.onMapTap});
+  const PinitMap({super.key, this.onMapTap, this.onSearchThisArea});
 
   @override
   _PinitMapState createState() => _PinitMapState();
@@ -193,17 +192,7 @@ class _PinitMapState extends State<PinitMap> {
                         child: InkWell(
                           borderRadius: BorderRadius.circular(20.0),
                           onTap: () {
-                            // Call searchThisArea when button is tapped
-                            LatLng newCentre = mapStateReader.searchThisArea();
-
-                            // Create a HomeController instance and use it
-                            final homeController = HomeController(
-                              locationListManager: locationListManager,
-                              mapStateProvider: mapStateReader,
-                            );
-
-                            // Use the controller to fetch recommended pins for this area
-                            homeController.fetchAndPlotRecommendedPins(newCentre);
+                            widget.onSearchThisArea?.call();
                           },
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
