@@ -84,4 +84,46 @@ abstract class BaseNotification {
       return null;
     }
   }
+
+  /// Factory method to create notification from Supabase database row
+  static BaseNotification? fromSupabase(Map<String, dynamic> row) {
+    final type = row['type'];
+
+    if (type == null) return null;
+
+    try {
+      print(row);
+      print(type);
+      // Extract metadata JSONB and flatten it for subclass parsing
+      final metadata = row['metadata'] as Map<String, dynamic>? ?? {};
+
+      // Build flattened data map that subclasses expect
+      final data = <String, dynamic>{
+        'id': row['id'], // Map DB UUID to id field
+        'timestamp': row['created_at'],
+        'isRead': row['is_read'] ?? false,
+        ...metadata, // Spread metadata fields into data map
+      };
+
+      // Route to appropriate subclass based on type
+      switch (type) {
+        case 'video_processed':
+          return VideoProcessedNotification.fromFCMData(data);
+        case 'follow_request':
+          return FollowRequestNotification.fromFCMData(data);
+        case 'follow_accepted':
+          return FollowAcceptedNotification.fromFCMData(data);
+        case 'friend_visited_location':
+          return FriendVisitedLocationNotification.fromFCMData(data);
+        case 'friend_added_bubble':
+          return FriendAddedToBubbleNotification.fromFCMData(data);
+        default:
+          print('Unknown notification type: $type');
+          return null;
+      }
+    } catch (e) {
+      print('Error parsing notification from Supabase: $e');
+      return null;
+    }
+  }
 }

@@ -298,18 +298,178 @@ class ShareViewController: UIViewController {
         print("🎉 Share Extension: showSuccess() called")
         removeLoading()
 
-        let alert = UIAlertController(
-            title: "Success!",
-            message: "TikTok shared successfully!",
-            preferredStyle: .alert
-        )
-        alert.addAction(UIAlertAction(title: "OK", style: .default) { [weak self] _ in
-            print("🔚 Share Extension: User dismissed success alert, closing extension")
-            self?.closeExtension()
-        })
+        // Create card popover
+        let successCard = createSuccessCard()
+        view.addSubview(successCard)
 
-        print("📱 Share Extension: Presenting success alert")
-        present(alert, animated: true)
+        // Fade in with scale
+        successCard.alpha = 0
+        successCard.transform = CGAffineTransform(scaleX: 0.9, y: 0.9)
+        UIView.animate(withDuration: 0.3, delay: 0, usingSpringWithDamping: 0.8, initialSpringVelocity: 0, options: .curveEaseOut) {
+            successCard.alpha = 1
+            successCard.transform = .identity
+        }
+
+        // Start progress bar animation
+        if let progressView = successCard.viewWithTag(100) {
+            animateProgressBar(progressView)
+        }
+
+        // Auto-dismiss after 3 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
+            self?.dismissSuccessCard(successCard)
+        }
+
+        print("✅ Share Extension: Success card displayed")
+    }
+
+    private func createSuccessCard() -> UIView {
+        let cardWidth: CGFloat = 320
+        let cardHeight: CGFloat = 240
+
+        // Card container
+        let card = UIView(frame: CGRect(x: (view.bounds.width - cardWidth) / 2,
+                                       y: (view.bounds.height - cardHeight) / 2,
+                                       width: cardWidth,
+                                       height: cardHeight))
+        card.layer.cornerRadius = 20
+        card.clipsToBounds = true
+        card.layer.shadowColor = UIColor.black.cgColor
+        card.layer.shadowOpacity = 0.3
+        card.layer.shadowOffset = CGSize(width: 0, height: 10)
+        card.layer.shadowRadius = 20
+
+        // Background image view
+        let backgroundImageView = UIImageView(frame: card.bounds)
+        backgroundImageView.contentMode = .scaleAspectFill
+        backgroundImageView.clipsToBounds = true
+
+        // Try to load background.jpg from share extension bundle
+        if let image = UIImage(named: "background.jpg") {
+            backgroundImageView.image = image
+            print("✅ Share Extension: Loaded background.jpg")
+        } else {
+            // Fallback to solid purple color
+            backgroundImageView.backgroundColor = UIColor(red: 0.259, green: 0.078, blue: 0.239, alpha: 1.0) // #42143d
+            print("⚠️ Share Extension: background.jpg not found, using solid color")
+        }
+        card.addSubview(backgroundImageView)
+
+        // Semi-transparent overlay for better text readability
+        let overlay = UIView(frame: card.bounds)
+        overlay.backgroundColor = UIColor.black.withAlphaComponent(0.2)
+        card.addSubview(overlay)
+
+        // Message label
+        let messageLabel = UILabel()
+        messageLabel.text = "Pinning this location...,\nwe will let you know when you are done"
+        messageLabel.numberOfLines = 0
+        messageLabel.textAlignment = .center
+        messageLabel.textColor = .white
+        messageLabel.font = UIFont.systemFont(ofSize: 17, weight: .medium)
+        messageLabel.translatesAutoresizingMaskIntoConstraints = false
+        card.addSubview(messageLabel)
+
+        // Button container (for the progress effect)
+        let buttonHeight: CGFloat = 50
+        let buttonWidth: CGFloat = 220
+
+        let buttonContainer = UIView()
+        buttonContainer.backgroundColor = UIColor.white.withAlphaComponent(0.3)
+        buttonContainer.layer.cornerRadius = 25
+        buttonContainer.clipsToBounds = true
+        buttonContainer.translatesAutoresizingMaskIntoConstraints = false
+        card.addSubview(buttonContainer)
+
+        // Progress fill view (starts at 0 width, animates to full width)
+        let progressView = UIView()
+        progressView.backgroundColor = .white
+        progressView.layer.cornerRadius = 25
+        progressView.tag = 100 // Tag for easy access
+        progressView.translatesAutoresizingMaskIntoConstraints = false
+        buttonContainer.addSubview(progressView)
+
+        // Button label on top
+        let buttonLabel = UILabel()
+        buttonLabel.text = "OK"
+        buttonLabel.textAlignment = .center
+        buttonLabel.textColor = UIColor(red: 0.259, green: 0.078, blue: 0.239, alpha: 1.0) // #42143d
+        buttonLabel.font = UIFont.boldSystemFont(ofSize: 16)
+        buttonLabel.translatesAutoresizingMaskIntoConstraints = false
+        buttonContainer.addSubview(buttonLabel)
+
+        // Tap gesture for button
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(successCardTapped(_:)))
+        buttonContainer.addGestureRecognizer(tapGesture)
+
+        // Layout constraints
+        NSLayoutConstraint.activate([
+            // Message label
+            messageLabel.centerXAnchor.constraint(equalTo: card.centerXAnchor),
+            messageLabel.centerYAnchor.constraint(equalTo: card.centerYAnchor, constant: -40),
+            messageLabel.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 30),
+            messageLabel.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -30),
+
+            // Button container
+            buttonContainer.centerXAnchor.constraint(equalTo: card.centerXAnchor),
+            buttonContainer.topAnchor.constraint(equalTo: messageLabel.bottomAnchor, constant: 35),
+            buttonContainer.widthAnchor.constraint(equalToConstant: buttonWidth),
+            buttonContainer.heightAnchor.constraint(equalToConstant: buttonHeight),
+
+            // Progress view - fills from left to right
+            progressView.leadingAnchor.constraint(equalTo: buttonContainer.leadingAnchor),
+            progressView.topAnchor.constraint(equalTo: buttonContainer.topAnchor),
+            progressView.bottomAnchor.constraint(equalTo: buttonContainer.bottomAnchor),
+
+            // Button label - centered on top of button
+            buttonLabel.centerXAnchor.constraint(equalTo: buttonContainer.centerXAnchor),
+            buttonLabel.centerYAnchor.constraint(equalTo: buttonContainer.centerYAnchor)
+        ])
+
+        // Initial width constraint for progress view (start at 0)
+        let initialWidthConstraint = progressView.widthAnchor.constraint(equalToConstant: 0)
+        initialWidthConstraint.isActive = true
+
+        return card
+    }
+
+    private func animateProgressBar(_ progressView: UIView) {
+        guard let buttonContainer = progressView.superview else { return }
+
+        // Deactivate initial width constraint
+        progressView.constraints.forEach { constraint in
+            if constraint.firstAttribute == .width {
+                constraint.isActive = false
+            }
+        }
+
+        // Create new constraint for full width
+        let fullWidthConstraint = progressView.widthAnchor.constraint(equalTo: buttonContainer.widthAnchor)
+        fullWidthConstraint.isActive = true
+
+        // Animate to full width over 3 seconds
+        UIView.animate(withDuration: 3.0, delay: 0, options: .curveLinear) {
+            buttonContainer.layoutIfNeeded()
+        }
+    }
+
+    @objc private func successCardTapped(_ sender: UITapGestureRecognizer) {
+        print("👆 Share Extension: User tapped success button")
+        if let buttonContainer = sender.view,
+           let card = buttonContainer.superview {
+            dismissSuccessCard(card)
+        }
+    }
+
+    private func dismissSuccessCard(_ card: UIView) {
+        print("🔚 Share Extension: Dismissing success card")
+        UIView.animate(withDuration: 0.3, animations: {
+            card.alpha = 0
+            card.transform = CGAffineTransform(scaleX: 0.9, y: 0.9)
+        }) { [weak self] _ in
+            card.removeFromSuperview()
+            self?.closeExtension()
+        }
     }
 
     private func showError(_ message: String) {

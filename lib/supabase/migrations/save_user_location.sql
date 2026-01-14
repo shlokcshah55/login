@@ -132,13 +132,7 @@ BEGIN
             v_current_affinity := COALESCE(v_current_affinity, 50.0);
 
             -- Calculate delta for SAVE
-            v_delta := calculate_tag_affinity_delta(
-                v_current_affinity,
-                v_location_tags.score,
-                v_save_value,
-                v_interaction_weight
-            );
-
+            v_delta := v_save_value * v_interaction_weight * ((v_location_tags.score - 50.0) / 50.0);
             v_new_affinity := v_current_affinity + v_delta;
 
             -- Build evidence object for SAVE
@@ -175,13 +169,7 @@ BEGIN
             WHERE (elem->>'tag_id')::uuid = v_location_tags.tag_id;
 
             -- Calculate delta for SHARE
-            v_delta := calculate_tag_affinity_delta(
-                v_current_affinity,
-                v_location_tags.score,
-                v_share_value,
-                v_interaction_weight
-            );
-
+            v_delta := v_share_value * v_interaction_weight * ((v_location_tags.score - 50.0) / 50.0);
             v_new_affinity := v_current_affinity + v_delta;
 
             -- Build evidence object for SHARE
@@ -224,13 +212,7 @@ BEGIN
             v_current_affinity := COALESCE(v_current_affinity, 50.0);
 
             -- Calculate delta
-            v_delta := calculate_tag_affinity_delta(
-                v_current_affinity,
-                v_location_tags.score,
-                v_save_value,
-                v_interaction_weight
-            );
-
+            v_delta := v_save_value * v_interaction_weight * ((v_location_tags.score - 50.0) / 50.0);
             v_new_affinity := v_current_affinity + v_delta;
 
             -- Build evidence

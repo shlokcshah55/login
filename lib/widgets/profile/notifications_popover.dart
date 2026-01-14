@@ -29,10 +29,14 @@ class _NotificationsPopoverState extends State<NotificationsPopover> {
   }
 
   Future<void> _handleRefresh() async {
-    // Simulate network delay
-    await Future.delayed(const Duration(seconds: 1));
+    // Actually refresh from database now
+    await FCMService().refreshFromDB();
 
     if (mounted) {
+      setState(() {
+        _notifications = FCMService().notifications;
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Notifications refreshed'),
@@ -42,23 +46,21 @@ class _NotificationsPopoverState extends State<NotificationsPopover> {
     }
   }
 
-  void _markAllAsRead() {
-    setState(() {
-      // For now, just filter to keep only read notifications
-      // In a real app, you would update the backend
-      _notifications = _notifications.map((notif) {
-        // Since notifications are immutable, we would recreate them
-        // For simplicity in the UI demo, we'll just mark them as "processed"
-        return notif; // In real implementation, recreate with isRead: true
-      }).toList();
-    });
+  void _markAllAsRead() async {
+    await FCMService().markAllAsRead();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('All notifications marked as read'),
-        duration: Duration(seconds: 1),
-      ),
-    );
+    if (mounted) {
+      setState(() {
+        _notifications = FCMService().notifications;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('All notifications marked as read'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+    }
   }
 
   @override
@@ -181,16 +183,16 @@ class _NotificationsPopoverState extends State<NotificationsPopover> {
                           final notification = _notifications[index];
                           return SmartNotificationListItem(
                             notification: notification,
-                            onTap: () {
+                            onTap: () async {
                               // Mark as read when tapped
-                              // In a real app, you would update the backend
                               if (!notification.isRead) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Notification marked as read'),
-                                    duration: Duration(milliseconds: 500),
-                                  ),
-                                );
+                                await FCMService().markAsRead(notification.id);
+
+                                if (mounted) {
+                                  setState(() {
+                                    _notifications = FCMService().notifications;
+                                  });
+                                }
                               }
                             },
                             onActionTap: () {

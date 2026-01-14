@@ -9,6 +9,7 @@ import 'package:login/services/fcm_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'helpers/bubbles.dart';
+import 'helpers/notifications.dart';
 import 'supabase_client.dart';
 
 /// Provider class for Supabase services
@@ -18,6 +19,7 @@ class SupabaseService extends ChangeNotifier {
   late final LocationHelper _locationService;
   late final BubbleHelper _bubbleService;
   late final TagsHelper _tagsService;
+  late final NotificationsHelper _notificationsService;
 
   bool _isLoading = false;
   bool _isInitializing = true;
@@ -31,6 +33,7 @@ class SupabaseService extends ChangeNotifier {
   LocationHelper get locations => _locationService;
   BubbleHelper get bubbles => _bubbleService;
   TagsHelper get tags => _tagsService;
+  NotificationsHelper get notifications => _notificationsService;
 
   // Status getters
   bool get isLoading => _isLoading || _isInitializing;
@@ -57,6 +60,7 @@ class SupabaseService extends ChangeNotifier {
       _locationService = LocationHelper();
       _bubbleService = BubbleHelper();
       _tagsService = TagsHelper();
+      _notificationsService = NotificationsHelper();
 
       // Set up auth state listener now that helpers are created
       _setupAuthListener();
@@ -210,6 +214,9 @@ class SupabaseService extends ChangeNotifier {
             // Save FCM token to new user account
             await FCMService().refreshAndSaveToken();
 
+            // Reinitialize notifications (load from DB and setup Realtime)
+            await FCMService().reinitializeAfterLogin();
+
             notifyListeners();
             break;
 
@@ -217,6 +224,9 @@ class SupabaseService extends ChangeNotifier {
             // User signed out
             // Clear FCM token from backend to prevent notifications to logged-out user
             await FCMService().clearFCMToken();
+
+            // Cleanup notifications
+            FCMService().cleanupOnLogout();
 
             _hasValidSession = false;
             notifyListeners();

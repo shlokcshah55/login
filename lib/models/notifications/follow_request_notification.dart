@@ -24,8 +24,12 @@ class FollowRequestNotification extends BaseNotification {
   factory FollowRequestNotification.fromFCMData(Map<String, dynamic> data) {
     return FollowRequestNotification(
       id: data['id'] as String,
-      timestamp: DateTime.parse(data['timestamp'] as String),
-      isRead: false, // New notifications are always unread
+      // Handle both String (FCM) and DateTime (DB)
+      timestamp: data['timestamp'] is String
+          ? DateTime.parse(data['timestamp'] as String)
+          : data['timestamp'] as DateTime,
+      // Handle both explicit false and missing field
+      isRead: data['isRead'] == true || data['isRead'] == 'true',
       username: data['username'] as String,
       userAvatar: data['userAvatar'] as String,
       userId: data['userId'] as String,

@@ -56,8 +56,14 @@ if SUPABASE_URL and SUPABASE_SERVICE_KEY:
 
 # ===== Helper Functions =====
 
-def send_error_notification(user_id: str):
-    """Send push notification to user when processing fails"""
+def send_error_notification(user_id: str, error_type: str = "generic"):
+    """
+    Send push notification to user when processing fails
+
+    Args:
+        user_id: The user's Supabase ID
+        error_type: Type of error - "already_saved", "no_location", or "generic"
+    """
     try:
         if not supabase_client:
             logger.warning("Supabase client not initialized - cannot fetch fcm_token")
@@ -80,6 +86,17 @@ def send_error_notification(user_id: str):
             logger.warning(f"User {user_id} has no fcm_token - cannot send notification")
             return
 
+        # Determine notification content based on error type
+        if error_type == "already_saved":
+            title = "Already saved"
+            body = "you've already saved this location from that tiktok"
+        elif error_type == "no_location":
+            title = "No location found"
+            body = "sorry we couldn't find a location from that tiktok that you shared with us"
+        else:  # generic
+            title = "Oops something went wrong"
+            body = "sorry we couldn't process that tiktok. please try again later"
+
         # Send push notification
         notification_url = "https://us-central1-pinit-a97eb.cloudfunctions.net/send-push-notification"
         headers = {
@@ -88,15 +105,15 @@ def send_error_notification(user_id: str):
         }
         payload = {
             "fcm_token": fcm_token,
-            "title": "Oops something went wrong",
-            "body": "sorry we couldn't find a location from that tiktok that you shared with us"
+            "title": title,
+            "body": body
         }
 
         with httpx.Client(timeout=10.0) as client:
             response = client.post(notification_url, headers=headers, json=payload)
             response.raise_for_status()
 
-        logger.info(f"Successfully sent error notification to user {user_id}")
+        logger.info(f"Successfully sent {error_type} error notification to user {user_id}")
 
     except httpx.HTTPStatusError as e:
         logger.error(f"Push notification API returned error {e.response.status_code}: {e.response.text}")
@@ -155,7 +172,7 @@ def save_location_to_supabase(user_id: str, place_data: dict, url: str):
         result = supabase_client.rpc('save_location_with_tags', {
             'p_user_id': user_id,
             'p_location_id': location_id,
-            'p_saved_method': 'tiktok',  
+            'p_saved_method': 'tiktok',
             'p_acked': True,
             'p_source_video_url': str(url)
         }).execute()
@@ -171,7 +188,12 @@ def save_location_to_supabase(user_id: str, place_data: dict, url: str):
         else:
             error = response.get('error', 'Unknown error') if response else 'No response'
             logger.error(f"Failed to save location via RPC: {error}")
-            return None
+
+            # Return error info so caller can handle "already saved" case
+            return {
+                'error': error,
+                'location_id': location_id
+            }
 
     except Exception as e:
         logger.error(f"Error saving location to Supabase: {e}", exc_info=True)
@@ -222,18 +244,19 @@ def process_and_save_async(url: str, user_id: str):
         if not result.get("success"):
             error = result.get("error", "Unknown error")
             logger.error(f"Processing failed: {error}")
-            send_error_notification(user_id)
+            send_error_notification(user_id, error_type="generic")
             return
 
         locations = result.get("locations", [])
 
         if not locations:
             logger.warning("No locations found in video")
-            send_error_notification(user_id)
+            send_error_notification(user_id, error_type="no_location")
             return
 
         # Save all locations to database
         saved_locations = []
+        already_saved_count = 0
         for loc_data in locations:
             logger.info(loc_data)
             try:
@@ -242,21 +265,32 @@ def process_and_save_async(url: str, user_id: str):
                     place_data=loc_data['place'],
                     url=url,                )
                 if location:
-                    saved_locations.append(location)
+                    # Check if this was an "already saved" error
+                    if 'error' in location and 'Location already saved' in location.get('error', ''):
+                        already_saved_count += 1
+                        logger.info(f"Location {location.get('location_id')} already saved by user")
+                    else:
+                        saved_locations.append(location)
             except Exception as e:
                 logger.error(f"Error saving location: {e}", exc_info=True)
                 continue
 
-        if not saved_locations:
+        # If all locations were already saved, send specific notification
+        if already_saved_count > 0 and not saved_locations:
+            logger.info(f"All {already_saved_count} locations already saved by user {user_id}")
+            send_error_notification(user_id, error_type="already_saved")
+            return
+
+        if not saved_locations and already_saved_count == 0:
             logger.error("Failed to save any locations")
-            send_error_notification(user_id)
+            send_error_notification(user_id, error_type="generic")
             return
 
         logger.info(f"Successfully saved {len(saved_locations)} locations for user {user_id}")
 
     except Exception as e:
         logger.error(f"Error in background processing: {e}", exc_info=True)
-        send_error_notification(user_id)
+        send_error_notification(user_id, error_type="generic")
 
 
 # ===== API Endpoints =====

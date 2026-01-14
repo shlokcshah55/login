@@ -33,18 +33,22 @@ class _PinitMapState extends State<PinitMap> {
 
   Future<void> _loadMapStyle() async {
     final String style = await rootBundle.loadString('lib/assets/map_style.json');
-    setState(() {
-      _mapStyle = style;
-    });
+    if (mounted) {
+      setState(() {
+        _mapStyle = style;
+      });
+    }
   }
 
   Future<void> _loadCustomMarker() async {
     final BitmapDescriptor bitmapDescriptor =
         await _getCustomMarker('lib/assets/restaurant_pin.png');
     print('Pinit Map: Custom marker loaded');
-    setState(() {
-      _customMarkerIcon = bitmapDescriptor;
-    });
+    if (mounted) {
+      setState(() {
+        _customMarkerIcon = bitmapDescriptor;
+      });
+    }
   }
 
   /// Convert an asset image to a BitmapDescriptor
