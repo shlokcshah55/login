@@ -119,13 +119,16 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  void _navigateToWizardCompletion() {
+    navigatorKey.currentState?.pushNamed('/wizardCompletion');
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-      home: const SplashScreen(),
+      home: const SplashScreenActual(),
       routes: {
         '/home': (context) => const HomePage(),
         '/profile': (context) => const ProfilePage(),
@@ -137,7 +140,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         return Stack(
           children: [
             child ?? const SizedBox.shrink(),
-            const WizardCompletionPopover(),
+            WizardCompletionPopover(
+              onComplete: () {
+                Navigator.pop(context);
+                _navigateToWizardCompletion();
+              },
+              onDismiss: () => Navigator.pop(context),
+            ),
           ],
         );
       },

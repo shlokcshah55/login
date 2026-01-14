@@ -7,6 +7,8 @@ import 'package:login/supabase/service.dart';
 import 'package:login/supabase/supabase_client.dart';
 
 class BubblesPage extends StatefulWidget {
+  const BubblesPage({Key? key}) : super(key: key);
+
   @override
   _BubblesPageState createState() => _BubblesPageState();
 }
