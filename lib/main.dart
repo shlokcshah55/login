@@ -225,7 +225,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       navigatorKey: navigatorKey,
       title: 'Pinit',
       debugShowCheckedModeBanner: false,
-      theme: themeData,
+      theme: buildThemeData(),
       home: const SplashScreenActual(),
     );
   }

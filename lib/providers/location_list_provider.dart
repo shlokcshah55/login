@@ -1,13 +1,16 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/services/google_place_service.dart';
+import 'package:login/supabase/constants.dart';
 import 'package:login/supabase/service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:http/http.dart' as http;
 
 // Enum to represent the different types of location lists
 enum LocationListType { saved, recommended, search }
@@ -15,6 +18,8 @@ enum LocationListType { saved, recommended, search }
 class LocationListManager with ChangeNotifier {
   final GooglePlacesService _googlePlacesService;
   final SupabaseService _supabaseService = SupabaseService();
+  static const String _magicSearchEndpoint =
+      'https://pinit-recommendations-api-630839392908.europe-west2.run.app/magic-search';
 
   String? _userId;
 
@@ -437,31 +442,137 @@ class LocationListManager with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Handles the magic search feature - could be enhanced with Supabase PostgreSQL full-text search
-  Future<void> magicSearch(String query) async {
+  Future<List<LocationModel>> _fetchLocationsByIdsInOrder(
+      List<int> locationIds) async {
+    if (locationIds.isEmpty) return [];
+
+    final uniqueIds = locationIds.toSet().toList();
+    final response = await Supabase.instance.client
+        .from(SupabaseConstants.tableLocations)
+        .select()
+        .inFilter(SupabaseConstants.columnLocationId, uniqueIds);
+
+    final Map<int, LocationModel> byId = {};
+    for (var item in response as List) {
+      final int locationId =
+          item[SupabaseConstants.columnLocationId] as int;
+      String? locationImage = item[SupabaseConstants.columnImageUrl];
+      if (locationImage == null || locationImage.isEmpty) {
+        locationImage = await _supabaseService.locations.getLocationImage(
+          locationId,
+          item[SupabaseConstants.columnGooglePlaceId],
+          item[SupabaseConstants.columnPhotoReference],
+        );
+      }
+      byId[locationId] = LocationModel.fromJson(item, locationImage);
+    }
+
+    final List<LocationModel> ordered = [];
+    for (final id in locationIds) {
+      final location = byId[id];
+      if (location != null) {
+        ordered.add(location);
+      } else {
+        log('LocationListManager: Missing location data for id $id');
+      }
+    }
+    return ordered;
+  }
+
+  /// Handles the magic search feature using the recommendations API.
+  Future<void> magicSearch(
+    String query, {
+    double radiusKm = 2.0,
+    int maxResults = 20,
+    bool includeTasteBreakdown = false,
+  }) async {
     if (_userId == null) {
       log("Cannot perform magic search: userId is null.");
       return;
     }
 
-    // Use Google Places API text search instead of external endpoint
-    log("LocationListManager: Starting magic search for query: '$query'");
-    
+    final trimmedQuery = query.trim();
+    if (trimmedQuery.isEmpty) {
+      log("LocationListManager: Magic search query is empty.");
+      return;
+    }
+
+    final currentLocation =
+        _currentPosition ?? await getCurrentLocation();
+    if (currentLocation == null) {
+      log("LocationListManager: Cannot perform magic search without location.");
+      return;
+    }
+
+    log("LocationListManager: Starting magic search for query: '$trimmedQuery'");
+    log(
+      "LocationListManager: Magic search request params - "
+      "userId: $_userId, lat: ${currentLocation.latitude}, "
+      "lng: ${currentLocation.longitude}, radiusKm: $radiusKm, "
+      "maxResults: $maxResults, includeTasteBreakdown: $includeTasteBreakdown",
+    );
+
     try {
-      // Use the improved search method from GooglePlacesService
-      var searchModels = await _googlePlacesService.searchPlaces(query: query);
-      
-      _searchLocations = {
-        for (var location in searchModels)
-          location: location.setPreference(LocationPreference.search).toMarker()!
-      };
-      
-      log("LocationListManager: Magic search returned ${searchModels.length} results for '$query'.");
-      setCurrentListType(LocationListType.search); // Automatically switch view to search results
+      final response = await http.post(
+        Uri.parse(_magicSearchEndpoint),
+        headers: const {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'user_id': _userId,
+          'latitude': currentLocation.latitude,
+          'longitude': currentLocation.longitude,
+          'prompt': trimmedQuery,
+          'radius_km': radiusKm,
+          'max_results': maxResults,
+          'include_taste_breakdown': includeTasteBreakdown,
+        }),
+      );
+
+      log(
+        "LocationListManager: Magic search response status ${response.statusCode}",
+      );
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        log(
+          "LocationListManager: Magic search failed (${response.statusCode}): ${response.body}",
+        );
+        _searchLocations = {};
+        setCurrentListType(LocationListType.search);
+        return;
+      }
+
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      final recommendations = decoded['recommendations'] as List<dynamic>? ?? [];
+      log(
+        "LocationListManager: Magic search returned ${recommendations.length} recommendations",
+      );
+      final locationIds = recommendations
+          .map((item) => (item as Map<String, dynamic>)['location_id'])
+          .where((id) => id != null)
+          .map((id) => (id as num).toInt())
+          .toList();
+
+      log(
+        "LocationListManager: Magic search location IDs count ${locationIds.length}",
+      );
+      final locations = await _fetchLocationsByIdsInOrder(locationIds);
+      log(
+        "LocationListManager: Loaded ${locations.length} locations from Supabase for magic search",
+      );
+      _searchLocations = {};
+      for (final location in locations) {
+        final marker =
+            location.setPreference(LocationPreference.search).toMarker();
+        if (marker != null) {
+          _searchLocations[location] = marker;
+        }
+      }
+
+      log(
+        "LocationListManager: Magic search returned ${_searchLocations.length} results for '$trimmedQuery'.",
+      );
+      setCurrentListType(LocationListType.search);
     } catch (e) {
       log('LocationListManager: Error during magic search: $e');
-      _searchLocations = {}; // Clear previous search results on error
-      // Still update UI to show empty results
+      _searchLocations = {};
       setCurrentListType(LocationListType.search);
     }
     // No need for notifyListeners() here as setCurrentListType calls it

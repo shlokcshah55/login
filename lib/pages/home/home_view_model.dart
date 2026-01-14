@@ -132,6 +132,10 @@ class HomeViewModel extends ChangeNotifier {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return;
     log("HomeViewModel: Triggering magic search for: $trimmed");
+    log(
+      "HomeViewModel: Magic search params - currentListType: ${locationListManager.currentListType}, "
+      "hasLocation: ${locationListManager.currentPosition != null}",
+    );
     locationListManager.magicSearch(trimmed);
     searchController.clear();
     toggleSearchOverlay(false);

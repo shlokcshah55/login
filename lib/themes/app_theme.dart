@@ -4,54 +4,56 @@ import 'app_typography.dart';
 import 'app_widget_themes.dart';
 
 // Application theme
-final themeData = ThemeData(
-  useMaterial3: true,
-  brightness: Brightness.light,
-  
-  // Color scheme
-  colorScheme: ColorScheme(
+ThemeData buildThemeData() {
+  return ThemeData(
+    useMaterial3: true,
     brightness: Brightness.light,
-    primary: AppColors.primary,
-    onPrimary: AppColors.onPrimary,
-    primaryContainer: AppColors.primarySwatch[300]!,
-    onPrimaryContainer: AppColors.primarySwatch[900]!,
-    secondary: AppColors.secondary,
-    onSecondary: AppColors.onSecondary,
-    secondaryContainer: AppColors.secondary.withOpacity(0.2),
-    onSecondaryContainer: AppColors.secondary.withOpacity(0.9),
-    tertiary: AppColors.info,
-    onTertiary: Colors.white,
-    tertiaryContainer: AppColors.info.withOpacity(0.2),
-    onTertiaryContainer: AppColors.info.withOpacity(0.9),
-    error: AppColors.error,
-    onError: AppColors.onError,
-    errorContainer: AppColors.error.withOpacity(0.2),
-    onErrorContainer: AppColors.error.withOpacity(0.9),
-    surface: AppColors.surface,
-    onSurface: AppColors.onSurface,
-    onSurfaceVariant: AppColors.textSecondary,
-    outline: AppColors.divider,
-  ),
 
-  // Typography - Apply the text theme from AppTypography
-  textTheme: AppTypography.textTheme,
+    // Color scheme
+    colorScheme: ColorScheme(
+      brightness: Brightness.light,
+      primary: AppColors.primary,
+      onPrimary: AppColors.onPrimary,
+      primaryContainer: AppColors.primarySwatch[300]!,
+      onPrimaryContainer: AppColors.primarySwatch[900]!,
+      secondary: AppColors.secondary,
+      onSecondary: AppColors.onSecondary,
+      secondaryContainer: AppColors.secondary.withOpacity(0.2),
+      onSecondaryContainer: AppColors.secondary.withOpacity(0.9),
+      tertiary: AppColors.info,
+      onTertiary: Colors.white,
+      tertiaryContainer: AppColors.info.withOpacity(0.2),
+      onTertiaryContainer: AppColors.info.withOpacity(0.9),
+      error: AppColors.error,
+      onError: AppColors.onError,
+      errorContainer: AppColors.error.withOpacity(0.2),
+      onErrorContainer: AppColors.error.withOpacity(0.9),
+      surface: AppColors.surface,
+      onSurface: AppColors.onSurface,
+      onSurfaceVariant: AppColors.textSecondary,
+      outline: AppColors.divider,
+    ),
 
-  // Background color
-  scaffoldBackgroundColor: AppColors.background,
+    // Typography - Apply the text theme from AppTypography
+    textTheme: AppTypography.textTheme,
 
-  // Widget themes - Apply from AppWidgetThemes
-  elevatedButtonTheme: AppWidgetThemes.elevatedButtonTheme,
-  outlinedButtonTheme: AppWidgetThemes.outlinedButtonTheme,
-  textButtonTheme: AppWidgetThemes.textButtonTheme,
-  floatingActionButtonTheme: AppWidgetThemes.floatingActionButtonTheme,
-  // cardTheme: AppWidgetThemes.cardTheme,
-  bottomNavigationBarTheme: AppWidgetThemes.bottomNavigationBarTheme,
-  appBarTheme: AppWidgetThemes.appBarTheme,
-  inputDecorationTheme: AppWidgetThemes.inputDecorationTheme,
-  dividerTheme: AppWidgetThemes.dividerTheme,
-  checkboxTheme: AppWidgetThemes.checkboxTheme,
-  // dialogTheme: AppWidgetThemes.dialogTheme,
-);
+    // Background color
+    scaffoldBackgroundColor: AppColors.background,
+
+    // Widget themes - Apply from AppWidgetThemes
+    elevatedButtonTheme: AppWidgetThemes.elevatedButtonTheme,
+    outlinedButtonTheme: AppWidgetThemes.outlinedButtonTheme,
+    textButtonTheme: AppWidgetThemes.textButtonTheme,
+    floatingActionButtonTheme: AppWidgetThemes.floatingActionButtonTheme,
+    // cardTheme: AppWidgetThemes.cardTheme,
+    bottomNavigationBarTheme: AppWidgetThemes.bottomNavigationBarTheme,
+    appBarTheme: AppWidgetThemes.appBarTheme,
+    inputDecorationTheme: AppWidgetThemes.inputDecorationTheme,
+    dividerTheme: AppWidgetThemes.dividerTheme,
+    checkboxTheme: AppWidgetThemes.checkboxTheme,
+    // dialogTheme: AppWidgetThemes.dialogTheme,
+  );
+}
 
 
 // Helper function to create a MaterialColor from a single color
@@ -74,4 +76,3 @@ MaterialColor createMaterialColor(Color color) {
   });
   return MaterialColor(color.value, swatch);
 }
-
