@@ -1,7 +1,7 @@
 import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:login/supabase/service.dart';
-import 'package:login/main.dart';
+import 'package:login/pages/main_screen.dart';
 import 'package:login/pages/welcome_page.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
