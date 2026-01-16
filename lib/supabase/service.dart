@@ -96,8 +96,9 @@ class SupabaseService extends ChangeNotifier {
 
   // Ensure auth state is ready before routing decisions
   Future<void> ensureAuthStateReady() async {
-    // Wait briefly for auth state stream to emit initial state
-    await Future.delayed(Duration(milliseconds: 100));
+    // Wait for auth state stream to emit initial state
+    // Increased from 100ms to 500ms to handle slower devices/networks
+    await Future.delayed(Duration(milliseconds: 500));
     _isInitializing = false;
     notifyListeners();
   }

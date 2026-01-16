@@ -34,7 +34,13 @@ Future<AppDependencies> bootstrap({
   });
 
   print('🔧 Initializing custom marker...');
-  await LocationModel.initializeCustomMarker();
+  try {
+    await LocationModel.initializeCustomMarker();
+    print('✅ Custom marker initialized');
+  } catch (e) {
+    print('⚠️ Custom marker initialization failed: $e');
+    print('⚠️ App will continue without custom markers');
+  }
 
   print('🔧 Loading .env file...');
   await dotenv.load();
@@ -48,9 +54,14 @@ Future<AppDependencies> bootstrap({
 
   print('✅ All initialization complete!');
 
-  FCMService().initialize().catchError((e) {
-    print('❌ Error initializing FCM: $e');
-  });
+  print('🔧 Initializing FCM...');
+  try {
+    await FCMService().initialize();
+    print('✅ FCM initialized');
+  } catch (e) {
+    print('⚠️ FCM initialization failed: $e');
+    print('⚠️ Push notifications may not work');
+  }
 
   return AppDependencies(
     supabaseService: supabaseService,

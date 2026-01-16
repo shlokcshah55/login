@@ -14,12 +14,6 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _pages = const [
-    HomePage(),
-    BubblesPage(),
-    ProfilePage(),
-  ];
-
   void _onIndexChanged(int index) {
     if (index == _currentIndex) return;
     setState(() {
@@ -29,10 +23,17 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final pages = [
+      HomePage(isActive: _currentIndex == 0),
+      const BubblesPage(),
+      const ProfilePage(),
+    ];
+
     return Scaffold(
+      extendBody: true,
       body: IndexedStack(
         index: _currentIndex,
-        children: _pages,
+        children: pages,
       ),
       bottomNavigationBar: BottomNavBar(
         currentIndex: _currentIndex,

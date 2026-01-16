@@ -299,11 +299,17 @@ class LocationModel {
 
   static Future<void> initializeCustomMarker() async {
     if (_customMarkerIcon == null) {
-      _customMarkerIcon = await BitmapDescriptor.asset(
-        const ImageConfiguration(size: Size(48, 48)),
-        'lib/assets/restaurant_pin.png',
-      );
-      log('LocationModel: Custom marker initialized');
+      try {
+        _customMarkerIcon = await BitmapDescriptor.asset(
+          const ImageConfiguration(size: Size(48, 48)),
+          'lib/assets/restaurant_pin.png',
+        );
+        log('LocationModel: Custom marker initialized');
+      } catch (e) {
+        log('LocationModel: Failed to initialize custom marker: $e');
+        // Set to default marker as fallback
+        _customMarkerIcon = BitmapDescriptor.defaultMarker;
+      }
     }
   }
 

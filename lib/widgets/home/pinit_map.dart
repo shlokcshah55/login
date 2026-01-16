@@ -1,4 +1,3 @@
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
@@ -21,13 +20,11 @@ class PinitMap extends StatefulWidget {
 }
 
 class _PinitMapState extends State<PinitMap> {
-  BitmapDescriptor? _customMarkerIcon;
   String? _mapStyle;
 
   @override
   void initState() {
     super.initState();
-    _loadCustomMarker(); // Load custom marker icon
     _loadMapStyle(); // Load map style from JSON
   }
 
@@ -38,36 +35,6 @@ class _PinitMapState extends State<PinitMap> {
         _mapStyle = style;
       });
     }
-  }
-
-  Future<void> _loadCustomMarker() async {
-    final BitmapDescriptor bitmapDescriptor =
-        await _getCustomMarker('lib/assets/restaurant_pin.png');
-    print('Pinit Map: Custom marker loaded');
-    if (mounted) {
-      setState(() {
-        _customMarkerIcon = bitmapDescriptor;
-      });
-    }
-  }
-
-  /// Convert an asset image to a BitmapDescriptor
-  Future<BitmapDescriptor> _getCustomMarker(String assetPath) async {
-    print('Pinit Map: Loading custom marker');
-    final ByteData data = await rootBundle.load(assetPath);
-    print(data);
-    final Uint8List bytes = data.buffer.asUint8List();
-
-    final ui.Codec codec = await ui.instantiateImageCodec(
-      bytes,
-      targetWidth: 60, // Adjust this width to make it bigger or smaller
-    );
-
-    final ui.FrameInfo frameInfo = await codec.getNextFrame();
-    final ByteData? resizedData =
-        await frameInfo.image.toByteData(format: ui.ImageByteFormat.png);
-
-    return BitmapDescriptor.bytes(resizedData!.buffer.asUint8List());
   }
 
   @override
@@ -113,25 +80,13 @@ class _PinitMapState extends State<PinitMap> {
     final isRecommendedTab =
         locationListManager.currentListType == LocationListType.recommended;
 
-    // Add user's current location marker if available
-    if (currentPosition != null && _customMarkerIcon != null) {
-      // print('Adding current location marker'); // Keep for debugging if needed
-      markers.add(
-        Marker(
-          markerId: const MarkerId('current_location'),
-          position: currentPosition,
-          icon: _customMarkerIcon!, // Use the custom marker icon
-          infoWindow: const InfoWindow(title: 'Your Location'),
-        ),
-      );
-    }
-
     return Stack(
       children: [
         GoogleMap(
                 style: _mapStyle,
                 mapToolbarEnabled: false,
-                myLocationButtonEnabled: false, // We add our own marker
+                myLocationEnabled: true,
+                myLocationButtonEnabled: false, // We add our own button
                 compassEnabled: false,
                 zoomControlsEnabled: false,
                 initialCameraPosition: CameraPosition(

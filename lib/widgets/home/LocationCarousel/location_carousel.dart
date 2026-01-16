@@ -31,50 +31,43 @@ class LocationCarousel extends StatelessWidget {
 
     if (locations.isEmpty) return const SizedBox.shrink();
 
-    return AnimatedPositioned(
+    return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOutQuint,
-      bottom: bottomNavVisible ? 90.0 : 20.0,
-      left: 0,
-      right: 0,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutQuint,
-        height: bottomNavVisible ? 160.0 : 200.0,
-        padding: const EdgeInsets.symmetric(horizontal: 0),
-        child: PageView.builder(
-          controller: pageController,
-          itemCount: locations.length,
-          pageSnapping: true,
-          physics: const BouncingScrollPhysics(
-            parent: AlwaysScrollableScrollPhysics(),
-          ),
-          itemBuilder: (context, index) {
-            final location = locations[index];
-            final isSelected =
-                selectedMarkerId?.value == location.locationId;
-            return AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOutQuint,
-              margin: EdgeInsets.symmetric(
-                horizontal: 5.0,
-                vertical: isSelected ? 0 : 10.0,
-              ),
-              transform: isSelected
-                  ? Matrix4.identity()
-                  : (Matrix4.identity()..scale(0.95)),
-              child: _buildCarouselCard(
-                context,
-                theme,
-                location,
-                isSelected,
-              ),
-            );
-          },
-          onPageChanged: (index) {
-            onPageChanged(index);
-          },
+      height: bottomNavVisible ? 160.0 : 200.0,
+      padding: const EdgeInsets.symmetric(horizontal: 0),
+      child: PageView.builder(
+        controller: pageController,
+        itemCount: locations.length,
+        pageSnapping: true,
+        physics: const BouncingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
         ),
+        itemBuilder: (context, index) {
+          final location = locations[index];
+          final isSelected =
+              selectedMarkerId?.value == location.locationId;
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOutQuint,
+            margin: EdgeInsets.symmetric(
+              horizontal: 5.0,
+              vertical: isSelected ? 0 : 10.0,
+            ),
+            transform: isSelected
+                ? Matrix4.identity()
+                : (Matrix4.identity()..scale(0.95)),
+            child: _buildCarouselCard(
+              context,
+              theme,
+              location,
+              isSelected,
+            ),
+          );
+        },
+        onPageChanged: (index) {
+          onPageChanged(index);
+        },
       ),
     );
   }

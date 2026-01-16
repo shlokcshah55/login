@@ -8,10 +8,17 @@ import 'package:login/pages/home/widgets/magic_search_overlay.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:login/providers/nav_bar/visibility_provider.dart';
+import 'package:login/providers/user_data_provider.dart';
+import 'package:login/widgets/wizard_completion_popover.dart';
 import 'package:provider/provider.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({Key? key}) : super(key: key);
+  final bool isActive;
+
+  const HomePage({
+    Key? key,
+    this.isActive = true,
+  }) : super(key: key);
 
   @override
   _HomePageState createState() => _HomePageState();
@@ -19,6 +26,8 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   late final HomeViewModel _viewModel;
+  bool _wizardPopoverScheduled = false;
+  bool _wizardPopoverShown = false;
 
   @override
   void initState() {
@@ -29,6 +38,54 @@ class _HomePageState extends State<HomePage> {
       bottomNavVisibilityProvider: context.read<BottomNavVisibilityProvider>(),
     );
     _viewModel.init();
+  }
+
+  void _scheduleWizardPopoverIfNeeded(UserDataProvider userDataProvider) {
+    if (_wizardPopoverShown || _wizardPopoverScheduled || !widget.isActive) {
+      return;
+    }
+
+    final userData = userDataProvider.supabaseUserData;
+    if (userData == null || userData.wizardCompleted) {
+      return;
+    }
+
+    _wizardPopoverScheduled = true;
+    final mapStateProvider = context.read<MapStateProvider>();
+    mapStateProvider.controllerFuture.then((_) {
+      if (!mounted) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _showWizardPopoverIfNeeded();
+      });
+    });
+  }
+
+  void _showWizardPopoverIfNeeded() {
+    if (_wizardPopoverShown || !widget.isActive) return;
+
+    final userDataProvider = context.read<UserDataProvider>();
+    final userData = userDataProvider.supabaseUserData;
+    if (userData == null || userData.wizardCompleted) {
+      _wizardPopoverScheduled = false;
+      return;
+    }
+
+    _wizardPopoverShown = true;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        return WizardCompletionPopover(
+          onComplete: () {
+            Navigator.pop(dialogContext);
+            Navigator.of(context, rootNavigator: true)
+                .pushNamed('/wizardCompletion');
+          },
+          onDismiss: () => Navigator.pop(dialogContext),
+        );
+      },
+    );
   }
 
   @override
@@ -43,6 +100,9 @@ class _HomePageState extends State<HomePage> {
       value: _viewModel,
       child: Consumer<HomeViewModel>(
         builder: (context, viewModel, _) {
+          final userDataProvider = context.watch<UserDataProvider>();
+          _scheduleWizardPopoverIfNeeded(userDataProvider);
+
           return Scaffold(
             body: Stack(
               children: [
@@ -61,14 +121,21 @@ class _HomePageState extends State<HomePage> {
                     onListTypeChanged: viewModel.setListType,
                   ),
                 ),
-                HomeCarousel(
-                  pageController: viewModel.pageController,
-                  locations: viewModel.locations,
-                  selectedMarkerId: viewModel.selectedMarkerId,
-                  bottomNavVisible: viewModel.bottomNavVisible,
-                  onPageChanged: viewModel.onCarouselPageChanged,
-                  onScrollStart: viewModel.onCarouselScrollStart,
-                  onLocationSelected: viewModel.onLocationSelected,
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOutQuint,
+                  bottom: viewModel.bottomNavVisible ? 90.0 : 20.0,
+                  left: 0,
+                  right: 0,
+                  child: HomeCarousel(
+                    pageController: viewModel.pageController,
+                    locations: viewModel.locations,
+                    selectedMarkerId: viewModel.selectedMarkerId,
+                    bottomNavVisible: viewModel.bottomNavVisible,
+                    onPageChanged: viewModel.onCarouselPageChanged,
+                    onScrollStart: viewModel.onCarouselScrollStart,
+                    onLocationSelected: viewModel.onLocationSelected,
+                  ),
                 ),
                 Positioned(
                   top: 80,

@@ -12,7 +12,6 @@ import 'package:login/pages/signup_wizard/wizard_completion_page.dart';
 import 'package:login/pages/splash_screen.dart';
 import 'package:login/supabase/supabase_client.dart';
 import 'package:login/themes/app_theme.dart';
-import 'package:login/widgets/wizard_completion_popover.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
 class AppRoot extends StatelessWidget {
@@ -119,15 +118,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  void _navigateToWizardCompletion() {
-    navigatorKey.currentState?.pushNamed('/wizardCompletion');
-  }
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
+      theme: buildThemeData(),
       home: const SplashScreenActual(),
       routes: {
         '/home': (context) => const HomePage(),
@@ -135,20 +131,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         '/alerts': (context) => const AlertsPage(),
         '/bubbles': (context) => const BubblesPage(),
         '/wizardCompletion': (context) => const WizardCompletionPage(),
-      },
-      builder: (context, child) {
-        return Stack(
-          children: [
-            child ?? const SizedBox.shrink(),
-            WizardCompletionPopover(
-              onComplete: () {
-                Navigator.pop(context);
-                _navigateToWizardCompletion();
-              },
-              onDismiss: () => Navigator.pop(context),
-            ),
-          ],
-        );
       },
     );
   }

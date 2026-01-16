@@ -103,7 +103,8 @@ class _BottomNavBarState extends State<BottomNavBar>
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 height: 60,
-                margin: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
+                margin:
+                    const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                 decoration: BoxDecoration(
                   color: theme.cardColor,
                   borderRadius: BorderRadius.circular(24),

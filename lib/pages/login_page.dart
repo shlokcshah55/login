@@ -39,17 +39,14 @@ class _LoginPageState extends State<LoginPage> {
       if (supabaseSignInSuccess) {
         // Supabase sign-in successful
         signInFailedNotifier.value = false;
-
-        // Force a refresh of the auth state
-        supabaseProvider.notifyListeners();
-
-        // Give auth state time to update
-        await Future.delayed(const Duration(milliseconds: 500));
-
-        // Navigate to the home screen by replacing the entire navigation stack
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const AuthHandler()),
-        );
+        
+        // Navigation will be handled automatically by auth state listener
+        // No need to manually navigate - prevents race conditions
+        if (context.mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const AuthHandler()),
+          );
+        }
       }
     } catch (e) {
       print("Login error: $e");
