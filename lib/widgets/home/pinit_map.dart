@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/map_state_provider.dart';
@@ -21,11 +22,22 @@ class PinitMap extends StatefulWidget {
 
 class _PinitMapState extends State<PinitMap> {
   String? _mapStyle;
+  bool _locationTrackingStarted = false;
 
   @override
   void initState() {
     super.initState();
     _loadMapStyle(); // Load map style from JSON
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _startLocationTracking();
+    });
+  }
+
+  Future<void> _startLocationTracking() async {
+    if (_locationTrackingStarted) return;
+    _locationTrackingStarted = true;
+    await context.read<LocationListManager>().startLocationUpdates();
   }
 
   Future<void> _loadMapStyle() async {
@@ -203,17 +215,29 @@ class _PinitMapState extends State<PinitMap> {
                     color: Colors.transparent,
                     child: InkWell(
                       borderRadius: BorderRadius.circular(30.0),
-                      onTap: () {
-                        // Focus camera on user's current location
-                        if (currentPosition != null) {
-                          mapStateReader.focusOnUserLocation(currentPosition, zoom: 15.0);
+                      onTap: () async {
+                        print('My Location button pressed');
+
+                        await _startLocationTracking();
+
+                        LatLng? position = locationListManager.currentPosition;
+                        print('Current position from stream: $position');
+
+                        // If no position yet, fetch it directly via the manager.
+                        position ??= await locationListManager.getCurrentLocation();
+                        
+                        if (position != null) {
+                          await mapStateReader.focusOnUserLocation(position, zoom: 15.0);
+                          print('Focused on position: $position');
                         } else {
-                          // Try to get current position first if not available
-                          locationListManager.getCurrentLocation().then((position) {
-                            if (position != null) {
-                              mapStateReader.focusOnUserLocation(position, zoom: 15.0);
-                            }
-                          });
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Unable to get your location. Please ensure GPS is enabled and try again.'),
+                                duration: Duration(seconds: 3),
+                              ),
+                            );
+                          }
                         }
                       },
                       child: Padding(
@@ -234,6 +258,9 @@ class _PinitMapState extends State<PinitMap> {
 
   @override
   void dispose() {
+    if (_locationTrackingStarted) {
+      context.read<LocationListManager>().stopLocationUpdates();
+    }
     super.dispose();
   }
 }

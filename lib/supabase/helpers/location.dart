@@ -220,7 +220,7 @@ class LocationHelper {
     }
   }
 
-  /// Set a location as acknowledged
+  /// Set a logition as acknowledged
   Future<bool> acknowledgeLocation(int locationId, bool value) async {
     try {
       final user = SupabaseClientManager().currentUser;

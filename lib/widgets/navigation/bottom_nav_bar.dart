@@ -104,7 +104,7 @@ class _BottomNavBarState extends State<BottomNavBar>
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 height: 60,
                 margin:
-                    const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                    const EdgeInsets.only(left: 32, right: 32, bottom: 35, top: 0),
                 decoration: BoxDecoration(
                   color: theme.cardColor,
                   borderRadius: BorderRadius.circular(24),

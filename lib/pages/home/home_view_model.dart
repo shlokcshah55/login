@@ -51,7 +51,6 @@ class HomeViewModel extends ChangeNotifier {
     bottomNavVisibilityProvider.addListener(_onExternalStateChanged);
 
     _homeController.fetchAndPlotRecommendedPins(null);
-    locationListManager.startLocationUpdates();
 
     _lastSelectedMarkerId = mapStateProvider.selectedMarkerId;
   }
@@ -148,7 +147,6 @@ class HomeViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
-    locationListManager.stopLocationUpdates();
     mapStateProvider.removeListener(_onSelectedMarkerChanged);
     locationListManager.removeListener(_onExternalStateChanged);
     bottomNavVisibilityProvider.removeListener(_onExternalStateChanged);
