@@ -310,10 +310,7 @@ class ShareViewController: UIViewController {
             successCard.transform = .identity
         }
 
-        // Start progress bar animation
-        if let progressView = successCard.viewWithTag(100) {
-            animateProgressBar(progressView)
-        }
+        // Progress bar animation removed - button stays static
 
         // Auto-dismiss after 3 seconds
         DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
@@ -370,24 +367,16 @@ class ShareViewController: UIViewController {
         messageLabel.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(messageLabel)
 
-        // Button container (for the progress effect)
+        // Button container (static, no progress effect)
         let buttonHeight: CGFloat = 50
         let buttonWidth: CGFloat = 220
 
         let buttonContainer = UIView()
-        buttonContainer.backgroundColor = UIColor.white.withAlphaComponent(0.3)
+        buttonContainer.backgroundColor = .white
         buttonContainer.layer.cornerRadius = 25
         buttonContainer.clipsToBounds = true
         buttonContainer.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(buttonContainer)
-
-        // Progress fill view (starts at 0 width, animates to full width)
-        let progressView = UIView()
-        progressView.backgroundColor = .white
-        progressView.layer.cornerRadius = 25
-        progressView.tag = 100 // Tag for easy access
-        progressView.translatesAutoresizingMaskIntoConstraints = false
-        buttonContainer.addSubview(progressView)
 
         // Button label on top
         let buttonLabel = UILabel()
@@ -416,19 +405,10 @@ class ShareViewController: UIViewController {
             buttonContainer.widthAnchor.constraint(equalToConstant: buttonWidth),
             buttonContainer.heightAnchor.constraint(equalToConstant: buttonHeight),
 
-            // Progress view - fills from left to right
-            progressView.leadingAnchor.constraint(equalTo: buttonContainer.leadingAnchor),
-            progressView.topAnchor.constraint(equalTo: buttonContainer.topAnchor),
-            progressView.bottomAnchor.constraint(equalTo: buttonContainer.bottomAnchor),
-
-            // Button label - centered on top of button
+            // Button label - centered on button
             buttonLabel.centerXAnchor.constraint(equalTo: buttonContainer.centerXAnchor),
             buttonLabel.centerYAnchor.constraint(equalTo: buttonContainer.centerYAnchor)
         ])
-
-        // Initial width constraint for progress view (start at 0)
-        let initialWidthConstraint = progressView.widthAnchor.constraint(equalToConstant: 0)
-        initialWidthConstraint.isActive = true
 
         return card
     }

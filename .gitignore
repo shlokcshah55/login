@@ -15,6 +15,7 @@ migrate_working_dir/
 pinit_service_account.json
 /venv/
 ai/tiktok-processor/build
+pubspec.lock
 
 # IntelliJ related
 *.iml
