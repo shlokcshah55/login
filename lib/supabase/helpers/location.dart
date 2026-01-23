@@ -267,7 +267,7 @@ class LocationHelper {
               ${SupabaseConstants.columnLat},
               ${SupabaseConstants.columnLng},
               ${SupabaseConstants.columnCreatedAt},
-              ${SupabaseConstants.columnPhoneNumber},
+              ${SupabaseConstants.columnInternationalPhoneNumber},
               ${SupabaseConstants.columnCuisine},
               ${SupabaseConstants.columnRating},
               ${SupabaseConstants.columnUserRatingsTotal},
@@ -298,7 +298,8 @@ class LocationHelper {
             lat: (location[SupabaseConstants.columnLat] as num?)?.toDouble() ?? 0.0,
             lng: (location[SupabaseConstants.columnLng] as num?)?.toDouble() ?? 0.0,
             createdAt: DateTime.parse(location[SupabaseConstants.columnCreatedAt]),
-            phoneNumber: location[SupabaseConstants.columnPhoneNumber],
+            phoneNumber: location[SupabaseConstants.columnPhoneNumber] ??
+                location[SupabaseConstants.columnInternationalPhoneNumber],
             cuisine: location[SupabaseConstants.columnCuisine],
             rating: (location[SupabaseConstants.columnRating] as num?)?.toDouble(),
             userRatingsTotal: location[SupabaseConstants.columnUserRatingsTotal],
@@ -788,6 +789,5 @@ class LocationHelper {
     }
   }
 }
-
 
 

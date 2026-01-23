@@ -22,6 +22,11 @@ class _BubblesPageState extends State<BubblesPage>
   List<ChatGroupModel> _chatGroups = [];
   bool _isLoading = true;
 
+  void _setStateIfMounted(VoidCallback fn) {
+    if (!mounted) return;
+    setState(fn);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -55,14 +60,14 @@ class _BubblesPageState extends State<BubblesPage>
   }
 
   Future<void> _loadChatGroups() async {
-    setState(() => _isLoading = true);
+    _setStateIfMounted(() => _isLoading = true);
     
     try {
       final supabaseProvider = Provider.of<SupabaseService>(context, listen: false);
       final currentUser = SupabaseClientManager().client.auth.currentUser;
       
       if (currentUser == null) {
-        setState(() {
+        _setStateIfMounted(() {
           _chatGroups = [];
           _isLoading = false;
         });
@@ -72,13 +77,13 @@ class _BubblesPageState extends State<BubblesPage>
       // Fetch bubbles from Supabase
       final bubbles = await supabaseProvider.bubbles.getUserBubbles(currentUser.id);
       
-      setState(() {
+      _setStateIfMounted(() {
         _chatGroups = bubbles;
         _isLoading = false;
       });
     } catch (e) {
       print('Error loading chat groups: $e');
-      setState(() {
+      _setStateIfMounted(() {
         _chatGroups = [];
         _isLoading = false;
       });

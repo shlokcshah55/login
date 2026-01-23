@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -180,74 +181,80 @@ class _BottomNavBarState extends State<BottomNavBar>
     final isSelected = widget.currentIndex == index;
     final color = isSelected ? theme.primaryColor : theme.unselectedWidgetColor;
 
-    return Tooltip(
-      message: label,
-      child: InkWell(
-        onTap: () {
-          context.read<BottomNavVisibilityProvider>().show();
-          context.read<DynamicNavProvider>().showStandardNav();
-          widget.onIndexChanged(index);
-        },
-        borderRadius: BorderRadius.circular(24),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOutCubic,
-          padding: EdgeInsets.symmetric(
-            horizontal: isSelected ? 20 : 12,
-            vertical: 10,
-          ),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? theme.primaryColor.withOpacity(0.1)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Icon(
-                    icon,
-                    color: color,
-                    size: 24,
-                  ),
-                  if (hasBadge)
-                    Positioned(
-                      right: -4,
-                      top: -2,
-                      child: Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: Colors.red,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: theme.cardColor,
-                            width: 2,
-                          ),
+    final navItem = InkWell(
+      onTap: () {
+        context.read<BottomNavVisibilityProvider>().show();
+        context.read<DynamicNavProvider>().showStandardNav();
+        widget.onIndexChanged(index);
+      },
+      borderRadius: BorderRadius.circular(24),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+        padding: EdgeInsets.symmetric(
+          horizontal: isSelected ? 20 : 12,
+          vertical: 10,
+        ),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? theme.primaryColor.withOpacity(0.1)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(
+                  icon,
+                  color: color,
+                  size: 24,
+                ),
+                if (hasBadge)
+                  Positioned(
+                    right: -4,
+                    top: -2,
+                    child: Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: theme.cardColor,
+                          width: 2,
                         ),
                       ),
                     ),
-                ],
-              ),
-              if (isSelected) ...[
-                const SizedBox(width: 8),
-                AnimatedDefaultTextStyle(
-                  duration: const Duration(milliseconds: 200),
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    color: color,
                   ),
-                  child: Text(label),
-                ),
               ],
+            ),
+            if (isSelected) ...[
+              const SizedBox(width: 8),
+              AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 200),
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  color: color,
+                ),
+                child: Text(label),
+              ),
             ],
-          ),
+          ],
         ),
       ),
     );
+
+    if (kIsWeb ||
+        defaultTargetPlatform == TargetPlatform.macOS ||
+        defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.linux) {
+      return Tooltip(message: label, child: navItem);
+    }
+
+    return Semantics(label: label, child: navItem);
   }
 }

@@ -127,7 +127,7 @@ class HomeViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void submitMagicSearch(String query) {
+  Future<void> submitMagicSearch(String query) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return;
     log("HomeViewModel: Triggering magic search for: $trimmed");
@@ -135,9 +135,18 @@ class HomeViewModel extends ChangeNotifier {
       "HomeViewModel: Magic search params - currentListType: ${locationListManager.currentListType}, "
       "hasLocation: ${locationListManager.currentPosition != null}",
     );
-    locationListManager.magicSearch(trimmed);
+    
     searchController.clear();
     toggleSearchOverlay(false);
+    
+    // Perform the search
+    await locationListManager.magicSearch(trimmed);
+    
+    // Check for errors after search completes
+    if (locationListManager.error != null) {
+      // Error will be displayed by the UI listening to locationListManager
+      log("HomeViewModel: Magic search error: ${locationListManager.error}");
+    }
   }
 
   void searchThisArea() {

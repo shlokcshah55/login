@@ -26,18 +26,39 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   late final HomeViewModel _viewModel;
+  late final LocationListManager _locationListManager;
+  late final MapStateProvider _mapStateProvider;
+  late final BottomNavVisibilityProvider _bottomNavVisibilityProvider;
   bool _wizardPopoverScheduled = false;
   bool _wizardPopoverShown = false;
 
   @override
   void initState() {
     super.initState();
+    _locationListManager = context.read<LocationListManager>();
+    _mapStateProvider = context.read<MapStateProvider>();
+    _bottomNavVisibilityProvider = context.read<BottomNavVisibilityProvider>();
     _viewModel = HomeViewModel(
-      locationListManager: context.read<LocationListManager>(),
-      mapStateProvider: context.read<MapStateProvider>(),
-      bottomNavVisibilityProvider: context.read<BottomNavVisibilityProvider>(),
+      locationListManager: _locationListManager,
+      mapStateProvider: _mapStateProvider,
+      bottomNavVisibilityProvider: _bottomNavVisibilityProvider,
     );
     _viewModel.init();
+    
+    // Listen to location list manager errors and show snackbar
+    _locationListManager.addListener(_checkForErrors);
+  }
+
+  void _checkForErrors() {
+    if (_locationListManager.error != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_locationListManager.error!),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
   }
 
   void _scheduleWizardPopoverIfNeeded(UserDataProvider userDataProvider) {
@@ -51,8 +72,7 @@ class _HomePageState extends State<HomePage> {
     }
 
     _wizardPopoverScheduled = true;
-    final mapStateProvider = context.read<MapStateProvider>();
-    mapStateProvider.controllerFuture.then((_) {
+    _mapStateProvider.controllerFuture.then((_) {
       if (!mounted) return;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -90,6 +110,7 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
+    _locationListManager.removeListener(_checkForErrors);
     _viewModel.dispose();
     super.dispose();
   }

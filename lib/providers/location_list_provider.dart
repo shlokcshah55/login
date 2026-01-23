@@ -488,6 +488,8 @@ class LocationListManager with ChangeNotifier {
   }) async {
     if (_userId == null) {
       log("Cannot perform magic search: userId is null.");
+      _error = "User not logged in";
+      notifyListeners();
       return;
     }
 
@@ -497,10 +499,14 @@ class LocationListManager with ChangeNotifier {
       return;
     }
 
-    final currentLocation =
-        _currentPosition ?? await getCurrentLocation();
+    // Always fetch fresh location for magic search to ensure accuracy
+    log("LocationListManager: Fetching current location for magic search...");
+    final currentLocation = await getCurrentLocation();
     if (currentLocation == null) {
       log("LocationListManager: Cannot perform magic search without location.");
+      _error = "Unable to get your location. Please check location permissions.";
+      _searchLocations = {};
+      setCurrentListType(LocationListType.search);
       return;
     }
 
@@ -534,10 +540,14 @@ class LocationListManager with ChangeNotifier {
         log(
           "LocationListManager: Magic search failed (${response.statusCode}): ${response.body}",
         );
+        _error = "Search failed: Server returned error ${response.statusCode}";
         _searchLocations = {};
         setCurrentListType(LocationListType.search);
         return;
       }
+      
+      // Clear any previous errors on successful response
+      _error = null;
 
       final decoded = jsonDecode(response.body) as Map<String, dynamic>;
       final recommendations = decoded['recommendations'] as List<dynamic>? ?? [];
@@ -572,6 +582,7 @@ class LocationListManager with ChangeNotifier {
       setCurrentListType(LocationListType.search);
     } catch (e) {
       log('LocationListManager: Error during magic search: $e');
+      _error = "Search error: ${e.toString()}";
       _searchLocations = {};
       setCurrentListType(LocationListType.search);
     }
@@ -707,19 +718,24 @@ class LocationListManager with ChangeNotifier {
     if (!_permissionGranted) {
       log("LocationListManager: Cannot get current location, permission not granted.");
       await checkAndRequestPermission(); // Try asking again
-      if (!_permissionGranted) return null; // Still no permission
+      if (!_permissionGranted) {
+        log("LocationListManager: Permission still denied after request");
+        return null; // Still no permission
+      }
     }
 
     try {
       // Get the current location
       Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 10),
       );
-      _currentPosition = LatLng(position.latitude, position.longitude);
+      final newPosition = LatLng(position.latitude, position.longitude);
+      _currentPosition = newPosition;
       _error = null;
       log("LocationListManager: Fetched current location: $_currentPosition");
       notifyListeners();
-      return _currentPosition;
+      return newPosition;
     } catch (e) {
       _error = "Failed to get current location: $e";
       log("LocationListManager: Error getting current location: $e");

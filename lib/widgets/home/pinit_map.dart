@@ -23,6 +23,7 @@ class PinitMap extends StatefulWidget {
 class _PinitMapState extends State<PinitMap> {
   String? _mapStyle;
   bool _locationTrackingStarted = false;
+  LocationListManager? _locationListManager;
 
   @override
   void initState() {
@@ -34,10 +35,16 @@ class _PinitMapState extends State<PinitMap> {
     });
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _locationListManager ??= context.read<LocationListManager>();
+  }
+
   Future<void> _startLocationTracking() async {
     if (_locationTrackingStarted) return;
     _locationTrackingStarted = true;
-    await context.read<LocationListManager>().startLocationUpdates();
+    await _locationListManager?.startLocationUpdates();
   }
 
   Future<void> _loadMapStyle() async {
@@ -259,7 +266,7 @@ class _PinitMapState extends State<PinitMap> {
   @override
   void dispose() {
     if (_locationTrackingStarted) {
-      context.read<LocationListManager>().stopLocationUpdates();
+      _locationListManager?.stopLocationUpdates();
     }
     super.dispose();
   }
