@@ -26,7 +26,7 @@ class LocationModel {
   final int? userRatingsTotal;
   final int? priceLevel;
   final String? photoReference;
-  final String? imageUrl;  // Permanent Supabase Storage URL
+  final String? imageUrl; // Permanent Supabase Storage URL
   final int? savedCount;
   // Additional fields from the DB schema
   final DateTime? ingestedAt;
@@ -55,48 +55,47 @@ class LocationModel {
 
   static final Map<int, Future<String?>> _activeDownloads = {};
 
-
   LocationModel(
-    {required this.locationId,
-    required this.name,
-    this.vicinity,
-    this.lat,
-    this.lng,
-    required this.createdAt,
-    this.ingestedAt,
-    this.phoneNumber,
-    this.cuisine,
-    this.rating,
-    this.userRatingsTotal,
-    this.priceLevel,
-    this.photoReference,
-    this.imageUrl,
-    this.savedCount,
-    this.googlePlaceId,
-    this.businessStatus,
-    this.editorialSummary,
-    this.website,
-    this.internationalPhoneNumber,
-    this.types,
-    this.openingHoursText,
-    this.openNow,
-    this.cuisineDetected,
-    this.cuisineSource,
-    this.cuisinePrimary,
-    this.topReviewLanguage,
-    this.topLanguageShare,
-    this.reviewLanguageCountsJson,
-    this.isOpenLate,
-    this.isOpenEarly,
-    this.isSundayOpen,
-    this.priceBucket,
-    this.logReviews,
-    this.dataVersion = 'v1',
-    this.emoji,
-    this.preference});
+      {required this.locationId,
+      required this.name,
+      this.vicinity,
+      this.lat,
+      this.lng,
+      required this.createdAt,
+      this.ingestedAt,
+      this.phoneNumber,
+      this.cuisine,
+      this.rating,
+      this.userRatingsTotal,
+      this.priceLevel,
+      this.photoReference,
+      this.imageUrl,
+      this.savedCount,
+      this.googlePlaceId,
+      this.businessStatus,
+      this.editorialSummary,
+      this.website,
+      this.internationalPhoneNumber,
+      this.types,
+      this.openingHoursText,
+      this.openNow,
+      this.cuisineDetected,
+      this.cuisineSource,
+      this.cuisinePrimary,
+      this.topReviewLanguage,
+      this.topLanguageShare,
+      this.reviewLanguageCountsJson,
+      this.isOpenLate,
+      this.isOpenEarly,
+      this.isSundayOpen,
+      this.priceBucket,
+      this.logReviews,
+      this.dataVersion = 'v1',
+      this.emoji,
+      this.preference});
 
-  factory LocationModel.fromJson(Map<String, dynamic> json, String? locationImage) {
-    
+  factory LocationModel.fromJson(
+      Map<String, dynamic> json, String? locationImage) {
     return LocationModel(
       locationId: json[SupabaseConstants.columnLocationId] as int,
       name: json[SupabaseConstants.columnName] ?? 'Unknown',
@@ -107,51 +106,55 @@ class LocationModel {
           ? DateTime.parse(json[SupabaseConstants.columnCreatedAt])
           : DateTime.now(),
       ingestedAt: json[SupabaseConstants.columnIngestedAt] != null
-          ? DateTime.tryParse(json[SupabaseConstants.columnIngestedAt].toString())
+          ? DateTime.tryParse(
+              json[SupabaseConstants.columnIngestedAt].toString())
           : null,
       phoneNumber: json[SupabaseConstants.columnPhoneNumber],
       cuisine: json[SupabaseConstants.columnCuisine],
       rating: (json[SupabaseConstants.columnRating] as num?)?.toDouble(),
-      userRatingsTotal: (json[SupabaseConstants.columnUserRatingsTotal] as num?)?.toInt(),
+      userRatingsTotal:
+          (json[SupabaseConstants.columnUserRatingsTotal] as num?)?.toInt(),
       priceLevel: (json[SupabaseConstants.columnPriceLevel] as num?)?.toInt(),
       photoReference: json[SupabaseConstants.columnPhotoReference],
-      imageUrl: locationImage,  // This comes from getLocationImage() - permanent Supabase URL
+      imageUrl:
+          locationImage, // This comes from getLocationImage() - permanent Supabase URL
       savedCount: (json[SupabaseConstants.columnSavedCount] as num?)?.toInt(),
       googlePlaceId: json[SupabaseConstants.columnGooglePlaceId],
       businessStatus: json[SupabaseConstants.columnBusinessStatus],
       editorialSummary: json[SupabaseConstants.columnEditorialSummary],
       website: json[SupabaseConstants.columnWebsite],
-      internationalPhoneNumber: json[SupabaseConstants.columnInternationalPhoneNumber],
+      internationalPhoneNumber:
+          json[SupabaseConstants.columnInternationalPhoneNumber],
       types: json[SupabaseConstants.columnTypes]?.toString(),
-      
 
       // Correctly handle Postgres Arrays
       openingHoursText: json[SupabaseConstants.columnOpeningHoursText] != null
           ? List<String>.from(json[SupabaseConstants.columnOpeningHoursText])
           : null,
-    
-      
+
       openNow: json[SupabaseConstants.columnOpenNow] as bool?,
       cuisineDetected: json[SupabaseConstants.columnCuisineDetected],
       cuisineSource: json[SupabaseConstants.columnCuisineSource],
       cuisinePrimary: json[SupabaseConstants.columnCuisinePrimary],
       topReviewLanguage: json[SupabaseConstants.columnTopReviewLanguage],
-      topLanguageShare: (json[SupabaseConstants.columnTopLanguageShare] as num?)?.toDouble(),
-      
-      reviewLanguageCountsJson: json[SupabaseConstants.columnReviewLanguageCountsJson],
-      
+      topLanguageShare:
+          (json[SupabaseConstants.columnTopLanguageShare] as num?)?.toDouble(),
+
+      reviewLanguageCountsJson:
+          json[SupabaseConstants.columnReviewLanguageCountsJson],
+
       isOpenLate: json[SupabaseConstants.columnIsOpenLate] as bool?,
       isOpenEarly: json[SupabaseConstants.columnIsOpenEarly] as bool?,
       isSundayOpen: json[SupabaseConstants.columnIsSundayOpen] as bool?,
       priceBucket: json[SupabaseConstants.columnPriceBucket],
-      logReviews: (json[SupabaseConstants.columnLogReviews] as num?)?.toDouble(),
-      
-      
-      dataVersion: json[SupabaseConstants.columnDataVersion]?.toString() ?? 'v1',
+      logReviews:
+          (json[SupabaseConstants.columnLogReviews] as num?)?.toDouble(),
+
+      dataVersion:
+          json[SupabaseConstants.columnDataVersion]?.toString() ?? 'v1',
       emoji: json[SupabaseConstants.columnEmoji],
     );
   }
-
 
   factory LocationModel.fromJsonLocationNotification(
       Map<String, dynamic> json) {
@@ -183,34 +186,57 @@ class LocationModel {
     if (vicinity != null) data[SupabaseConstants.columnVicinity] = vicinity;
     if (lat != null) data[SupabaseConstants.columnLat] = lat;
     if (lng != null) data[SupabaseConstants.columnLng] = lng;
-    if (phoneNumber != null) data[SupabaseConstants.columnPhoneNumber] = phoneNumber;
+    if (phoneNumber != null)
+      data[SupabaseConstants.columnPhoneNumber] = phoneNumber;
     if (cuisine != null) data[SupabaseConstants.columnCuisine] = cuisine;
     if (rating != null) data[SupabaseConstants.columnRating] = rating;
-    if (userRatingsTotal != null) data[SupabaseConstants.columnUserRatingsTotal] = userRatingsTotal;
-    if (priceLevel != null) data[SupabaseConstants.columnPriceLevel] = priceLevel;
-    if (photoReference != null) data[SupabaseConstants.columnPhotoReference] = photoReference;
-    if (savedCount != null) data[SupabaseConstants.columnSavedCount] = savedCount;
+    if (userRatingsTotal != null)
+      data[SupabaseConstants.columnUserRatingsTotal] = userRatingsTotal;
+    if (priceLevel != null)
+      data[SupabaseConstants.columnPriceLevel] = priceLevel;
+    if (photoReference != null)
+      data[SupabaseConstants.columnPhotoReference] = photoReference;
+    if (savedCount != null)
+      data[SupabaseConstants.columnSavedCount] = savedCount;
 
     // Additional fields
-    if (googlePlaceId != null) data[SupabaseConstants.columnGooglePlaceId] = googlePlaceId;
-    if (businessStatus != null) data[SupabaseConstants.columnBusinessStatus] = businessStatus;
-    if (editorialSummary != null) data[SupabaseConstants.columnEditorialSummary] = editorialSummary;
+    if (googlePlaceId != null)
+      data[SupabaseConstants.columnGooglePlaceId] = googlePlaceId;
+    if (businessStatus != null)
+      data[SupabaseConstants.columnBusinessStatus] = businessStatus;
+    if (editorialSummary != null)
+      data[SupabaseConstants.columnEditorialSummary] = editorialSummary;
     if (website != null) data[SupabaseConstants.columnWebsite] = website;
-    if (internationalPhoneNumber != null) data[SupabaseConstants.columnInternationalPhoneNumber] = internationalPhoneNumber;
+    if (internationalPhoneNumber != null)
+      data[SupabaseConstants.columnInternationalPhoneNumber] =
+          internationalPhoneNumber;
     if (types != null) data[SupabaseConstants.columnTypes] = types;
-    if (openingHoursText != null) data[SupabaseConstants.columnOpeningHoursText] = openingHoursText;
+    if (openingHoursText != null)
+      data[SupabaseConstants.columnOpeningHoursText] = openingHoursText;
     if (openNow != null) data[SupabaseConstants.columnOpenNow] = openNow;
-    if (cuisineDetected != null) data[SupabaseConstants.columnCuisineDetected] = cuisineDetected;
-    if (cuisineSource != null) data[SupabaseConstants.columnCuisineSource] = cuisineSource;
-    if (cuisinePrimary != null) data[SupabaseConstants.columnCuisinePrimary] = cuisinePrimary;
-    if (topReviewLanguage != null) data[SupabaseConstants.columnTopReviewLanguage] = topReviewLanguage;
-    if (topLanguageShare != null) data[SupabaseConstants.columnTopLanguageShare] = topLanguageShare;
-    if (reviewLanguageCountsJson != null) data[SupabaseConstants.columnReviewLanguageCountsJson] = reviewLanguageCountsJson;
-    if (isOpenLate != null) data[SupabaseConstants.columnIsOpenLate] = isOpenLate;
-    if (isOpenEarly != null) data[SupabaseConstants.columnIsOpenEarly] = isOpenEarly;
-    if (isSundayOpen != null) data[SupabaseConstants.columnIsSundayOpen] = isSundayOpen;
-    if (priceBucket != null) data[SupabaseConstants.columnPriceBucket] = priceBucket;
-    if (logReviews != null) data[SupabaseConstants.columnLogReviews] = logReviews;
+    if (cuisineDetected != null)
+      data[SupabaseConstants.columnCuisineDetected] = cuisineDetected;
+    if (cuisineSource != null)
+      data[SupabaseConstants.columnCuisineSource] = cuisineSource;
+    if (cuisinePrimary != null)
+      data[SupabaseConstants.columnCuisinePrimary] = cuisinePrimary;
+    if (topReviewLanguage != null)
+      data[SupabaseConstants.columnTopReviewLanguage] = topReviewLanguage;
+    if (topLanguageShare != null)
+      data[SupabaseConstants.columnTopLanguageShare] = topLanguageShare;
+    if (reviewLanguageCountsJson != null)
+      data[SupabaseConstants.columnReviewLanguageCountsJson] =
+          reviewLanguageCountsJson;
+    if (isOpenLate != null)
+      data[SupabaseConstants.columnIsOpenLate] = isOpenLate;
+    if (isOpenEarly != null)
+      data[SupabaseConstants.columnIsOpenEarly] = isOpenEarly;
+    if (isSundayOpen != null)
+      data[SupabaseConstants.columnIsSundayOpen] = isSundayOpen;
+    if (priceBucket != null)
+      data[SupabaseConstants.columnPriceBucket] = priceBucket;
+    if (logReviews != null)
+      data[SupabaseConstants.columnLogReviews] = logReviews;
     data[SupabaseConstants.columnDataVersion] = dataVersion;
     if (emoji != null) data[SupabaseConstants.columnEmoji] = emoji;
 
@@ -277,7 +303,8 @@ class LocationModel {
       businessStatus: businessStatus ?? this.businessStatus,
       editorialSummary: editorialSummary ?? this.editorialSummary,
       website: website ?? this.website,
-      internationalPhoneNumber: internationalPhoneNumber ?? this.internationalPhoneNumber,
+      internationalPhoneNumber:
+          internationalPhoneNumber ?? this.internationalPhoneNumber,
       types: types ?? this.types,
       openingHoursText: openingHoursText ?? this.openingHoursText,
       openNow: openNow ?? this.openNow,
@@ -286,7 +313,8 @@ class LocationModel {
       cuisinePrimary: cuisinePrimary ?? this.cuisinePrimary,
       topReviewLanguage: topReviewLanguage ?? this.topReviewLanguage,
       topLanguageShare: topLanguageShare ?? this.topLanguageShare,
-      reviewLanguageCountsJson: reviewLanguageCountsJson ?? this.reviewLanguageCountsJson,
+      reviewLanguageCountsJson:
+          reviewLanguageCountsJson ?? this.reviewLanguageCountsJson,
       isOpenLate: isOpenLate ?? this.isOpenLate,
       isOpenEarly: isOpenEarly ?? this.isOpenEarly,
       isSundayOpen: isSundayOpen ?? this.isSundayOpen,
@@ -298,7 +326,8 @@ class LocationModel {
   }
 
   // UI helper fields that make this model compatible with the UI
-  LatLng? get position => (lat != null && lng != null) ? LatLng(lat!, lng!) : null;
+  LatLng? get position =>
+      (lat != null && lng != null) ? LatLng(lat!, lng!) : null;
 
   // Static marker icon for all locations
   static BitmapDescriptor? _customMarkerIcon;
@@ -366,13 +395,15 @@ class LocationModel {
 
     BitmapDescriptor markerIcon;
     Offset anchor = const Offset(0.5, 1.0); // Default anchor at bottom center
-    
+
     // Use custom emoji marker if emoji is available
     if (emoji != null && emoji!.isNotEmpty) {
       markerIcon = await PinitMarkers.createPinitMarker(
         emoji: emoji!,
         name: name,
         devicePixelRatio: dpr,
+        types: types,
+        cuisine: cuisine,
       );
       // Static pins use center anchor
       anchor = const Offset(0.5, 0.5);
@@ -392,5 +423,4 @@ class LocationModel {
       ),
     );
   }
-  
 }

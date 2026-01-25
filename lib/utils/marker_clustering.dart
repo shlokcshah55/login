@@ -20,9 +20,12 @@ class MarkerClustering {
   static Future<Map<String, dynamic>> clusterMarkers({
     required Map<LocationModel, Marker> locationMarkers,
     required double devicePixelRatio,
+    double zoom = 15.0,
   }) async {
-    // Calculate clustering distance - static value since zoom is removed
-    const double clusterDistance = 1.0; // 1km clustering distance
+    // Dynamic clustering distance based on zoom
+    // At zoom 10: ~1km, zoom 15: ~80m, zoom 18: ~20m
+    double clusterDistance = 1000 / math.pow(2, zoom - 10); // meters
+    if (clusterDistance < 20) clusterDistance = 20;
 
     final List<LocationModel> locations = locationMarkers.keys.toList();
     final List<MarkerCluster> clusters = [];
@@ -51,7 +54,7 @@ class MarkerClustering {
           location.lng!,
           other.lat!,
           other.lng!,
-        );
+        ) * 1000; // convert km to meters
 
         if (distance <= clusterDistance) {
           clusterLocations.add(other);

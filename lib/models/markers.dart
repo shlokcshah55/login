@@ -1,9 +1,48 @@
+
 import 'dart:collection';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+
+// Color palette for different place types
+class PinitMarkerPalette {
+  static const Color italian = Color(0xFFE57373); // Red
+  static const Color chinese = Color(0xFF64B5F6); // Blue
+  static const Color indian = Color(0xFFFFB74D); // Orange
+  static const Color japanese = Color(0xFFBA68C8); // Purple
+  static const Color mexican = Color(0xFF81C784); // Green
+  static const Color american = Color(0xFF9575CD); // Deep Purple
+  static const Color thai = Color(0xFF4FC3F7); // Light Blue
+  static const Color french = Color(0xFFF06292); // Pink
+  static const Color mediterranean = Color(0xFFFFD54F); // Yellow
+  static const Color cafe = Color(0xFF8D6E63); // Brown
+  static const Color bar = Color(0xFF90A4AE); // Blue Grey
+  static const Color other = Color(0xFFB0BEC5); // Default Grey
+
+  static Color forCuisine(String? cuisine, String? types) {
+    final c = (cuisine ?? '').toLowerCase();
+    if (c.contains('italian')) return italian;
+    if (c.contains('chinese')) return chinese;
+    if (c.contains('indian')) return indian;
+    if (c.contains('japanese') || c.contains('sushi')) return japanese;
+    if (c.contains('mexican')) return mexican;
+    if (c.contains('american')) return american;
+    if (c.contains('thai')) return thai;
+    if (c.contains('french')) return french;
+    if (c.contains('mediterranean')) return mediterranean;
+    if (c.contains('cafe') || c.contains('coffee')) return cafe;
+    if (c.contains('bar') || c.contains('pub')) return bar;
+    // fallback to type
+    final t = (types ?? '').toLowerCase();
+    if (t.contains('restaurant')) return italian;
+    if (t.contains('hotel') || t.contains('lodging')) return american;
+    if (t.contains('museum')) return japanese;
+    if (t.contains('park')) return mexican;
+    return other;
+  }
+}
 
 class PinitMarkers {
   static final _BitmapCache _cache = _BitmapCache(maxEntries: 256);
@@ -13,15 +52,18 @@ class PinitMarkers {
     required String emoji,
     required String name,
     double devicePixelRatio = 3.0,
-    Color surfaceColor = const Color(0xFF42143D),
+    Color? surfaceColor,
     Color textColor = const Color(0xFF6B4A8E),
     bool selected = false,
+    String? types,
+    String? cuisine,
   }) {
+    final color = surfaceColor ?? PinitMarkerPalette.forCuisine(cuisine, types);
     final cacheKey = _pinCacheKey(
       emoji: emoji,
       name: name,
       devicePixelRatio: devicePixelRatio,
-      surfaceColor: surfaceColor,
+      surfaceColor: color,
       textColor: textColor,
       selected: selected,
     );
@@ -32,7 +74,7 @@ class PinitMarkers {
       emoji: emoji,
       name: name,
       devicePixelRatio: devicePixelRatio,
-      surfaceColor: surfaceColor,
+      surfaceColor: color,
       textColor: textColor,
       selected: selected,
     ).then((bitmap) {
@@ -177,11 +219,40 @@ class PinitMarkers {
           bubbleCenterX + style.bubbleDiameter / 2 + style.textGap;
       final double textY = bubbleCenterY - textPainter.height / 2;
 
-      // Draw text directly on transparent background
-      textPainter.paint(
-        canvas,
-        Offset(textX, textY),
-      );
+      // Draw white halo (stroke) first
+      final haloTextPainter = TextPainter(
+        text: TextSpan(
+          text: name,
+          style: GoogleFonts.poppins(
+            fontSize: style.fontSize,
+            fontWeight: FontWeight.w900,
+            foreground: Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.5
+              ..color = Colors.white,
+          ),
+        ),
+        textDirection: ui.TextDirection.ltr,
+        maxLines: 1,
+        ellipsis: '…',
+      )..layout(maxWidth: style.maxTextWidth);
+      haloTextPainter.paint(canvas, Offset(textX, textY));
+
+      // Draw black text fill on top (do NOT use foreground)
+      final fillTextPainter = TextPainter(
+        text: TextSpan(
+          text: name,
+          style: GoogleFonts.poppins(
+            color: Colors.black,
+            fontSize: style.fontSize,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        textDirection: ui.TextDirection.ltr,
+        maxLines: 1,
+        ellipsis: '…',
+      )..layout(maxWidth: style.maxTextWidth);
+      fillTextPainter.paint(canvas, Offset(textX, textY));
     }
 
     final picture = recorder.endRecording();
