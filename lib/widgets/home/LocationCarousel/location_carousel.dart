@@ -27,6 +27,9 @@ class LocationCarousel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     print("Building LocationCarousel with ${locations.length} locations");
+      for (final loc in locations) {
+        print('[CarouselDebug] ${loc.name} | imageUrl: ${loc.imageUrl} | photoReference: ${loc.photoReference}');
+      }
     final theme = Theme.of(context);
 
     if (locations.isEmpty) return const SizedBox.shrink();
@@ -396,9 +399,9 @@ class LocationCarousel extends StatelessWidget {
     return SizedBox(
       height: double.infinity,
       width: double.infinity,
-      child: location.photoReference != null
+      child: location.imageUrl != null
           ? CachedNetworkImage(
-              imageUrl: location.photoReference!,
+              imageUrl: location.imageUrl!,
               fit: BoxFit.cover,
               placeholder: (context, url) => Container(
                 decoration: BoxDecoration(
@@ -467,7 +470,78 @@ class LocationCarousel extends StatelessWidget {
                 );
               },
             )
-          : Container(
+          : location.photoReference != null
+              ? CachedNetworkImage(
+                  imageUrl: location.photoReference!,
+                  fit: BoxFit.cover,
+                  placeholder: (context, url) => Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          colorScheme.surfaceVariant,
+                          colorScheme.surfaceVariant.withOpacity(0.8),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircularProgressIndicator(
+                            strokeWidth: 2.0,
+                            valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Loading...',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  errorWidget: (context, url, error) {
+                    log("Error loading image for ${location.name}: $error");
+                    return Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            colorScheme.errorContainer.withOpacity(0.3),
+                            colorScheme.surfaceVariant,
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              FeatherIcons.image,
+                              size: 32,
+                              color: colorScheme.onSurfaceVariant.withOpacity(0.6),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'No Image',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onSurfaceVariant.withOpacity(0.7),
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                )
+              : Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [

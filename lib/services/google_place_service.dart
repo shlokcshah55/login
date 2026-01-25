@@ -151,6 +151,11 @@ class GooglePlacesService {
       if (result['photos'] != null && result['photos'].isNotEmpty) {
         photoReference = result['photos'][0]['photo_reference'];
       }
+      // Set imageUrl using getPhotoUrl if photoReference is present
+      String? imageUrl;
+      if (photoReference != null) {
+        imageUrl = getPhotoUrl(photoReference);
+      }
       
       var types = result['types'] as List<dynamic>? ?? [];
       String? cuisine = _extractCuisine(types, name);
@@ -170,6 +175,7 @@ class GooglePlacesService {
         userRatingsTotal: userRatingsTotal,
         priceLevel: priceLevel,
         photoReference: photoReference,
+        imageUrl: imageUrl,
         savedCount: 0,
         preference: locationPreference,
       );
