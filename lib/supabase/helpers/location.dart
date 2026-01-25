@@ -121,7 +121,7 @@ class LocationHelper {
 
       List<LocationModel> locationModels = [];
       for (var item in locations as List) {
-
+        print("${item[SupabaseConstants.columnName]} place emoji: ${item[SupabaseConstants.columnEmoji]}");
         var locationImage;
         var filename = '${item[SupabaseConstants.columnLocationId]}.jpg';
         

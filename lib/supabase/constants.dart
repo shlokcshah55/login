@@ -74,6 +74,7 @@ class SupabaseConstants {
   static const String columnIngestedAt = 'ingested_at';
   static const String columnPhotoReferenceValidUntil = 'photo_reference_valid_until';
   static const String columnPhotoReferenceScore = 'photo_reference_score';
+  static const String columnEmoji = 'emoji';
 
   // Column names - videos
   static const String columnVideoId = 'video_id';

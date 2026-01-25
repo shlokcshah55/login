@@ -122,7 +122,10 @@ class MagicSearchOverlay extends StatelessWidget {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () => onSubmit(controller.text),
+                    onPressed: () {
+                      print('🔍 SEARCH BUTTON PRESSED with query: "${controller.text}"');
+                      onSubmit(controller.text);
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       shape: RoundedRectangleBorder(

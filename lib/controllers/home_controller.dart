@@ -42,7 +42,7 @@ class HomeController {
   /// Requires current location.
   Future<void> fetchAndPlotRecommendedPins(LatLng? location) async {
     if (location == null) {
-      // Ensure we have a current location first
+      // Get device GPS location
       LatLng? currentLocation = locationListManager.currentPosition ??
           await locationListManager.getCurrentLocation();
 

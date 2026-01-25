@@ -122,19 +122,22 @@ class HomeViewModel extends ChangeNotifier {
   }
 
   void toggleSearchOverlay(bool visible) {
+    print('🎭 toggleSearchOverlay called with visible=$visible, current=$_showSearchOverlay');
     if (_showSearchOverlay == visible) return;
     _showSearchOverlay = visible;
     notifyListeners();
   }
 
   Future<void> submitMagicSearch(String query) async {
+    print('✨ submitMagicSearch CALLED with query: "$query"');
     final trimmed = query.trim();
-    if (trimmed.isEmpty) return;
+    if (trimmed.isEmpty) {
+      print('❌ Query is empty after trim, aborting');
+      return;
+    }
+    print('✅ Query trimmed: "$trimmed"');
+    
     log("HomeViewModel: Triggering magic search for: $trimmed");
-    log(
-      "HomeViewModel: Magic search params - currentListType: ${locationListManager.currentListType}, "
-      "hasLocation: ${locationListManager.currentPosition != null}",
-    );
     
     searchController.clear();
     toggleSearchOverlay(false);
@@ -144,14 +147,18 @@ class HomeViewModel extends ChangeNotifier {
     
     // Check for errors after search completes
     if (locationListManager.error != null) {
-      // Error will be displayed by the UI listening to locationListManager
       log("HomeViewModel: Magic search error: ${locationListManager.error}");
     }
   }
 
-  void searchThisArea() {
+  Future<void> searchThisArea() async {
     final center = mapStateProvider.searchThisArea();
-    _homeController.fetchAndPlotRecommendedPins(center);
+    final controller = await mapStateProvider.controllerFuture;
+    final bounds = await controller.getVisibleRegion();
+    await locationListManager.searchThisArea(
+      center: center,
+      bounds: bounds,
+    );
   }
 
   @override

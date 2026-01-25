@@ -10,6 +10,7 @@ class MapStateProvider with ChangeNotifier {
   LatLng? _lastFocusedUserLocation; // To track where the user was last centered
   LatLng?
       _currentVisibleCenter; // To track the current visible center of the map
+  double _currentZoom = 15.0; // To track the current zoom level
   MarkerId? _selectedMarkerId; // To track the currently selected marker
   PageController? _carouselPageController; // To control the carousel page view
   bool _isAwayFromUserArea =
@@ -19,12 +20,11 @@ class MapStateProvider with ChangeNotifier {
   // Getters
   Future<GoogleMapController> get controllerFuture =>
       _completeController.future;
-  GoogleMapController? get mapController => _mapController; // Allow null check
+  GoogleMapController? get mapController => _mapController;
   Set<Polyline> get polylines => _polylines;
-  MarkerId? get selectedMarkerId =>
-      _selectedMarkerId; // Getter for selected marker
-  bool get showSearchThisAreaButton =>
-      _showSearchThisAreaButton; // Getter for button visibility
+  MarkerId? get selectedMarkerId => _selectedMarkerId;
+  bool get showSearchThisAreaButton => _showSearchThisAreaButton;
+  double get currentZoom => _currentZoom;
 
   // Set the carousel page controller
   void setCarouselPageController(PageController controller) {
@@ -142,6 +142,7 @@ class MapStateProvider with ChangeNotifier {
   /// Updates the current visible center of the map from camera position
   void updateMapCenter(CameraPosition position) {
     _currentVisibleCenter = position.target;
+    _currentZoom = position.zoom;
     _checkIfAwayFromUserArea();
   }
 

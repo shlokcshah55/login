@@ -14,7 +14,10 @@ class MagicSearchButton extends StatelessWidget {
     return SafeArea(
       child: FloatingActionButton(
         heroTag: "magicButton",
-        onPressed: onPressed,
+        onPressed: () {
+          print('🔮 MAGIC SEARCH BUTTON TAPPED');
+          onPressed();
+        },
         backgroundColor: AppColors.secondary,
         child: const Icon(
           Icons.auto_awesome,

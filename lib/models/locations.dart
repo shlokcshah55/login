@@ -1,13 +1,12 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:googleapis/connectors/v1.dart';
-import 'package:login/supabase/service.dart';
+import 'package:flutter/rendering.dart';
+import 'package:login/models/markers.dart';
 
 import '../supabase/constants.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'dart:developer';
-import 'dart:convert';
 
 enum LocationType { restaurant, hotel, museum, park, other }
 
@@ -51,6 +50,7 @@ class LocationModel {
   final String? priceBucket;
   final double? logReviews;
   final String dataVersion;
+  final String? emoji;
   LocationPreference? preference;
 
   static final Map<int, Future<String?>> _activeDownloads = {};
@@ -92,6 +92,7 @@ class LocationModel {
     this.priceBucket,
     this.logReviews,
     this.dataVersion = 'v1',
+    this.emoji,
     this.preference});
 
   factory LocationModel.fromJson(Map<String, dynamic> json, String? locationImage) {
@@ -147,6 +148,7 @@ class LocationModel {
       
       
       dataVersion: json[SupabaseConstants.columnDataVersion]?.toString() ?? 'v1',
+      emoji: json[SupabaseConstants.columnEmoji],
     );
   }
 
@@ -166,6 +168,7 @@ class LocationModel {
       createdAt: json[SupabaseConstants.columnCreatedAt] != null
           ? DateTime.parse(json[SupabaseConstants.columnCreatedAt])
           : DateTime.now(),
+      emoji: json[SupabaseConstants.columnEmoji],
     );
   }
 
@@ -209,6 +212,7 @@ class LocationModel {
     if (priceBucket != null) data[SupabaseConstants.columnPriceBucket] = priceBucket;
     if (logReviews != null) data[SupabaseConstants.columnLogReviews] = logReviews;
     data[SupabaseConstants.columnDataVersion] = dataVersion;
+    if (emoji != null) data[SupabaseConstants.columnEmoji] = emoji;
 
     return data;
   }
@@ -253,6 +257,7 @@ class LocationModel {
     double? logReviews,
     Map<String, dynamic>? derivedAttributes,
     String? dataVersion,
+    String? emoji,
   }) {
     return LocationModel(
       locationId: locationId ?? this.locationId,
@@ -288,6 +293,7 @@ class LocationModel {
       priceBucket: priceBucket ?? this.priceBucket,
       logReviews: logReviews ?? this.logReviews,
       dataVersion: dataVersion ?? this.dataVersion,
+      emoji: emoji ?? this.emoji,
     );
   }
 
@@ -354,14 +360,32 @@ class LocationModel {
   }
 
   /// Creates a map marker from this location
-  Marker? toMarker() {
+  Future<Marker?> toMarker(double dpr) async {
     // Return null if coordinates are not available
     if (lat == null || lng == null) return null;
+
+    BitmapDescriptor markerIcon;
+    Offset anchor = const Offset(0.5, 1.0); // Default anchor at bottom center
+    
+    // Use custom emoji marker if emoji is available
+    if (emoji != null && emoji!.isNotEmpty) {
+      markerIcon = await PinitMarkers.createPinitMarker(
+        emoji: emoji!,
+        name: name,
+        devicePixelRatio: dpr,
+      );
+      // Static pins use center anchor
+      anchor = const Offset(0.5, 0.5);
+    } else {
+      markerIcon = _customMarkerIcon ?? BitmapDescriptor.defaultMarker;
+      anchor = const Offset(0.5, 1.0);
+    }
 
     return Marker(
       markerId: MarkerId(locationId.toString()),
       position: LatLng(lat!, lng!),
-      icon: _customMarkerIcon ?? BitmapDescriptor.defaultMarker,
+      icon: markerIcon,
+      anchor: anchor, // Set anchor point for proper positioning
       infoWindow: InfoWindow(
         title: name,
         snippet: vicinity ?? '',

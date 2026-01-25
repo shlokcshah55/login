@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/map_state_provider.dart';
+import 'package:login/utils/marker_clustering.dart';
 import 'package:provider/provider.dart';
 
 class PinitMap extends StatefulWidget {
@@ -23,12 +23,14 @@ class PinitMap extends StatefulWidget {
 class _PinitMapState extends State<PinitMap> {
   String? _mapStyle;
   bool _locationTrackingStarted = false;
+  Map<String, Marker> _clusteredMarkers = {};
   LocationListManager? _locationListManager;
 
   @override
   void initState() {
     super.initState();
-    _loadMapStyle(); // Load map style from JSON
+    _loadMapStyle();
+    // Start GPS tracking automatically
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _startLocationTracking();
@@ -56,6 +58,65 @@ class _PinitMapState extends State<PinitMap> {
     }
   }
 
+  void _applyClusteringAsync(
+    Map<dynamic, Marker> currentItems,
+    double zoom,
+    double dpr,
+    LocationListManager locationListManager,
+    MapStateProvider mapStateReader,
+    MapStateProvider mapStateProvider,
+  ) {
+    // Apply clustering in the next frame to avoid blocking the build
+    Future.microtask(() async {
+      final result = await MarkerClustering.clusterMarkers(
+        locationMarkers: Map.fromEntries(
+          currentItems.entries.map((e) => MapEntry(e.key, e.value)),
+        ),
+        devicePixelRatio: dpr,
+      );
+
+      final clusteredMarkers = result['markers'] as Map<dynamic, Marker>;
+
+      // Add onTap handlers to all markers
+      final Map<String, Marker> markersWithHandlers = {};
+      for (final entry in clusteredMarkers.entries) {
+        final originalMarker = entry.value;
+        final isCluster = originalMarker.markerId.value.startsWith('cluster_');
+
+        markersWithHandlers[originalMarker.markerId.value] = originalMarker.copyWith(
+          onTapParam: () {
+            if (isCluster) {
+              // Zoom in on cluster
+              mapStateProvider.animateCamera(
+                CameraUpdate.newLatLngZoom(originalMarker.position, zoom + 2),
+              );
+            } else {
+              // Handle individual marker tap
+              print("Marker tapped: ${originalMarker.markerId.value}");
+              mapStateReader.setSelectedMarkerId(originalMarker.markerId);
+
+              final index = locationListManager.currentItems.keys
+                  .toList()
+                  .indexWhere((loc) =>
+                      loc.locationId.toString() == originalMarker.markerId.value);
+
+              if (index != -1) {
+                mapStateProvider.animateToCarouselItem(index);
+              }
+            }
+          },
+          infoWindowParam: const InfoWindow(title: ""),
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          _clusteredMarkers = markersWithHandlers;
+        });
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     // Listen to providers needed for map display
@@ -64,33 +125,23 @@ class _PinitMapState extends State<PinitMap> {
         .watch<MapStateProvider>(); // Watch for polyline/selection changes
     final mapStateReader =
         context.read<MapStateProvider>(); // Use read for onTap callback
+    
+    // Set device pixel ratio for high-quality marker rendering
+    final dpr = MediaQuery.of(context).devicePixelRatio;
+    locationListManager.setDevicePixelRatio(dpr);
 
-    // Create markers with onTap handlers
-    final Set<Marker> markers =
-        locationListManager.currentItems.entries.map((entry) {
-      final originalMarker = entry.value; // Original Marker
+    // Apply clustering based on current zoom level
+    _applyClusteringAsync(
+      locationListManager.currentItems,
+      mapStateProvider.currentZoom,
+      dpr,
+      locationListManager,
+      mapStateReader,
+      mapStateProvider,
+    );
 
-      // Create a new marker with the onTap handler and no info window
-      return originalMarker.copyWith(
-        onTapParam: () {
-          print("Marker tapped: ${originalMarker.markerId.value}"); // Debug log
-          mapStateReader.setSelectedMarkerId(originalMarker.markerId);
-
-          // Find the index of the location in the current items list
-          final index = locationListManager.currentItems.keys
-              .toList()
-              .indexWhere((loc) =>
-                  loc.locationId.toString() == originalMarker.markerId.value);
-
-          if (index != -1) {
-            // Animate to the corresponding item in the carousel
-            mapStateProvider.animateToCarouselItem(index);
-          }
-        },
-        infoWindowParam:
-            const InfoWindow(title: ""), // Empty info window to prevent popup
-      );
-    }).toSet();
+    // Use clustered markers
+    final Set<Marker> markers = _clusteredMarkers.values.toSet();
 
     // Get current position from LocationListManager
     final currentPosition = locationListManager.currentPosition;
@@ -137,6 +188,7 @@ class _PinitMapState extends State<PinitMap> {
                 onCameraMove: (CameraPosition position) {
                   // Update the map center in MapStateProvider when camera moves
                   mapStateProvider.updateMapCenter(position);
+                  locationListManager.setCameraPosition(position);
                 },
                 onCameraIdle: () {
                   // Optional: Add any actions to perform when camera stops moving

@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:login/models/locations.dart';
+import 'package:login/services/recommendations_api.dart';
 import 'package:login/services/google_place_service.dart';
 import 'package:login/supabase/constants.dart';
 import 'package:login/supabase/service.dart';
@@ -29,6 +31,12 @@ class LocationListManager with ChangeNotifier {
   bool _isTracking = false;
   bool _permissionGranted = false;
   String? _error;
+  double _devicePixelRatio = 1.0; // Default value
+  final RecommendationsApi _recommendationsApi = RecommendationsApi();
+  CameraPosition? _cameraPosition;
+  LatLng? _lastSearchedCenter;
+  bool _areaChanged = false;
+  bool _isSearchingArea = false;
   
   // Flags to prevent duplicate data fetches
   bool _isLoadingSaved = false;
@@ -57,6 +65,31 @@ class LocationListManager with ChangeNotifier {
   bool get isTracking => _isTracking;
   bool get permissionGranted => _permissionGranted;
   String? get error => _error;
+  CameraPosition? get cameraPosition => _cameraPosition;
+  
+  // Set device pixel ratio (should be called once from a widget with context)
+  void setDevicePixelRatio(double dpr) {
+    if (_devicePixelRatio != dpr) {
+      _devicePixelRatio = dpr;
+      log('LocationListManager: Device pixel ratio set to $dpr');
+    }
+  }
+
+  void setCameraPosition(CameraPosition position) {
+    _cameraPosition = position;
+    _areaChanged = true;
+  }
+
+  void setAreaChanged(bool value) {
+    if (_areaChanged != value) {
+      _areaChanged = value;
+      notifyListeners();
+    }
+  }
+
+  bool get areaChanged => _areaChanged;
+  bool get isSearchingArea => _isSearchingArea;
+  LatLng? get lastSearchedCenter => _lastSearchedCenter;
 
   // Method to update the user ID when the user logs in
   void setUserId(String? userId) {
@@ -179,7 +212,9 @@ class LocationListManager with ChangeNotifier {
           .getLocationImage(locationId, locationData['google_place_id'], locationData['photo_reference']);
       
       final location = LocationModel.fromJson(locationData, locationImage);
-      final marker = location.setPreference(LocationPreference.saved).toMarker();
+      final marker = await location
+          .setPreference(LocationPreference.saved)
+          .toMarker(_devicePixelRatio);
       
       if (marker != null) {
         _savedLocations[location] = marker;
@@ -264,11 +299,16 @@ class LocationListManager with ChangeNotifier {
 
       if (supabaseSavedLocations.isNotEmpty) {
         // Use Supabase data if available
-        _savedLocations = {
-          for (var location in supabaseSavedLocations)
-            location:
-                location.setPreference(LocationPreference.saved).toMarker()!
-        };
+        // Create markers in parallel for better performance
+        final markers = await Future.wait(
+          supabaseSavedLocations.map((location) async {
+            final marker = await location
+                .setPreference(LocationPreference.saved)
+                .toMarker(_devicePixelRatio);
+            return MapEntry(location, marker!);
+          }),
+        );
+        _savedLocations = Map.fromEntries(markers);
         log("Fetched ${supabaseSavedLocations.length} saved locations from Supabase.");
         _savedLocationsLoaded = true;
       }
@@ -300,12 +340,16 @@ class LocationListManager with ChangeNotifier {
       log("Supabase nearby locations: ${nearbyLocations.length}");
       if (nearbyLocations.isNotEmpty) {
         // Use Supabase data if available
-        _recommendedLocations = {
-          for (var location in nearbyLocations)
-            location: location
+        // Create markers in parallel for better performance
+        final markers = await Future.wait(
+          nearbyLocations.map((location) async {
+            final marker = await location
                 .setPreference(LocationPreference.recommended)
-                .toMarker()!
-        };
+                .toMarker(_devicePixelRatio);
+            return MapEntry(location, marker!);
+          }),
+        );
+        _recommendedLocations = Map.fromEntries(markers);
         log("Fetched ${nearbyLocations.length} nearby locations from Supabase.");
       } else {
         // Fall back to Google Places API during migration
@@ -314,12 +358,15 @@ class LocationListManager with ChangeNotifier {
           longitude: longitude,
           placeType: "restaurant",
         );
-        _recommendedLocations = {
-          for (var location in recommendations)
-            location: location
+        final markers = await Future.wait(
+          recommendations.map((location) async {
+            final marker = await location
                 .setPreference(LocationPreference.recommended)
-                .toMarker()!
-        };
+                .toMarker(_devicePixelRatio);
+            return MapEntry(location, marker!);
+          }),
+        );
+        _recommendedLocations = Map.fromEntries(markers);
         print(
             "Fetched ${recommendations.length} recommended locations from Google Places.");
 
@@ -339,12 +386,15 @@ class LocationListManager with ChangeNotifier {
           longitude: longitude,
           placeType: "restaurant",
         );
-        _recommendedLocations = {
-          for (var location in recommendations)
-            location: location
+        final markers = await Future.wait(
+          recommendations.map((location) async {
+            final marker = await location
                 .setPreference(LocationPreference.recommended)
-                .toMarker()!
-        };
+                .toMarker(_devicePixelRatio);
+            return MapEntry(location, marker!);
+          }),
+        );
+        _recommendedLocations = Map.fromEntries(markers);
         log("Fallback: Fetched ${recommendations.length} recommended locations from Google Places.");
         notifyListeners();
       } catch (fallbackError) {
@@ -354,18 +404,119 @@ class LocationListManager with ChangeNotifier {
   }
 
   /// Adds recommended locations (can be merged with fetch or kept separate)
-  void addRecommendedLocations(List<LocationModel> locations) {
-    final Map<LocationModel, Marker> newLocations = {
-      for (var location in locations)
-        location:
-            location.setPreference(LocationPreference.recommended).toMarker()!
-    };
+  Future<void> addRecommendedLocations(List<LocationModel> locations) async {
+    final markers = await Future.wait(
+      locations.map((location) async {
+        final marker = await location
+            .setPreference(LocationPreference.recommended)
+            .toMarker(_devicePixelRatio);
+        return MapEntry(location, marker!);
+      }),
+    );
+    final Map<LocationModel, Marker> newLocations = Map.fromEntries(markers);
     _recommendedLocations.addEntries(newLocations.entries);
     if (_currentListType == LocationListType.recommended) {
       _currentItems = _recommendedLocations;
     }
     notifyListeners();
   }
+
+  /// Search recommendations in the visible map area using proximal API.
+  Future<void> searchThisArea({
+    required LatLng center,
+    required LatLngBounds bounds,
+    int maxResults = 20,
+    double tasteWeight = 0.2,
+    double proximityWeight = 0.6,
+    double qualityWeight = 0.2,
+    bool includeTasteBreakdown = false,
+  }) async {
+    if (_userId == null) {
+      _error = "User not logged in";
+      notifyListeners();
+      return;
+    }
+
+    final radiusKm = _radiusKmFromVisibleRegion(bounds, center);
+    _isSearchingArea = true;
+    notifyListeners();
+
+    try {
+      final response = await _recommendationsApi.fetchProximal(
+        userId: _userId!,
+        latitude: center.latitude,
+        longitude: center.longitude,
+        radiusKm: radiusKm,
+        maxResults: maxResults,
+        tasteWeight: tasteWeight,
+        proximityWeight: proximityWeight,
+        qualityWeight: qualityWeight,
+        includeTasteBreakdown: includeTasteBreakdown,
+      );
+
+      final locationIds = response.recommendations
+          .map((rec) => rec.locationId)
+          .where((id) => id > 0)
+          .toList();
+
+      final locations = await _fetchLocationsByIdsInOrder(locationIds);
+      final markers = await Future.wait(
+        locations.map((location) async {
+          final marker = await location
+              .setPreference(LocationPreference.search)
+              .toMarker(_devicePixelRatio);
+          return marker != null ? MapEntry(location, marker) : null;
+        }),
+      );
+
+      _searchLocations =
+          Map.fromEntries(markers.whereType<MapEntry<LocationModel, Marker>>());
+      _lastSearchedCenter = center;
+      _areaChanged = false;
+      _error = null;
+      setCurrentListType(LocationListType.search);
+    } catch (e) {
+      log('LocationListManager: Search this area failed: $e');
+      _error = "Search failed: ${e.toString()}";
+      notifyListeners();
+    } finally {
+      _isSearchingArea = false;
+      notifyListeners();
+    }
+  }
+
+  static double _radiusKmFromVisibleRegion(
+    LatLngBounds bounds,
+    LatLng center,
+  ) {
+    final double distanceKm = _haversineKm(
+      center.latitude,
+      center.longitude,
+      bounds.northeast.latitude,
+      bounds.northeast.longitude,
+    );
+    return distanceKm.clamp(0.5, 10.0);
+  }
+
+  static double _haversineKm(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
+    const double earthRadiusKm = 6371.0;
+    final double dLat = _degToRad(lat2 - lat1);
+    final double dLon = _degToRad(lon2 - lon1);
+    final double a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_degToRad(lat1)) *
+            math.cos(_degToRad(lat2)) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
+    final double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return earthRadiusKm * c;
+  }
+
+  static double _degToRad(double deg) => deg * (math.pi / 180);
 
   /// Removes a location from the appropriate list and from Supabase/Firebase
   Future<void> removeLocation(LocationModel location) async {
@@ -418,8 +569,12 @@ class LocationListManager with ChangeNotifier {
     }
 
     // Add location to local state
-    _savedLocations.putIfAbsent(location,
-        () => location.setPreference(LocationPreference.saved).toMarker()!);
+    final marker = await location
+        .setPreference(LocationPreference.saved)
+        .toMarker(_devicePixelRatio);
+    if (marker != null) {
+      _savedLocations.putIfAbsent(location, () => marker);
+    }
 
     // Try to save in Supabase first
 
@@ -486,6 +641,10 @@ class LocationListManager with ChangeNotifier {
     int maxResults = 20,
     bool includeTasteBreakdown = false,
   }) async {
+    print('🎯 LocationListManager.magicSearch CALLED');
+    print('   Query: "$query"');
+    print('   UserId: $_userId');
+    
     if (_userId == null) {
       log("Cannot perform magic search: userId is null.");
       _error = "User not logged in";
@@ -499,12 +658,12 @@ class LocationListManager with ChangeNotifier {
       return;
     }
 
-    // Always fetch fresh location for magic search to ensure accuracy
-    log("LocationListManager: Fetching current location for magic search...");
+    // Get device GPS location
+    log("LocationListManager: Getting device GPS location...");
     final currentLocation = await getCurrentLocation();
     if (currentLocation == null) {
       log("LocationListManager: Cannot perform magic search without location.");
-      _error = "Unable to get your location. Please check location permissions.";
+      _error = "Location permission required for search";
       _searchLocations = {};
       setCurrentListType(LocationListType.search);
       return;
@@ -568,13 +727,15 @@ class LocationListManager with ChangeNotifier {
         "LocationListManager: Loaded ${locations.length} locations from Supabase for magic search",
       );
       _searchLocations = {};
-      for (final location in locations) {
-        final marker =
-            location.setPreference(LocationPreference.search).toMarker();
-        if (marker != null) {
-          _searchLocations[location] = marker;
-        }
-      }
+      final markers = await Future.wait(
+        locations.map((location) async {
+          final marker = await location
+              .setPreference(LocationPreference.search)
+              .toMarker(_devicePixelRatio);
+          return marker != null ? MapEntry(location, marker) : null;
+        }),
+      );
+      _searchLocations = Map.fromEntries(markers.whereType<MapEntry<LocationModel, Marker>>());
 
       log(
         "LocationListManager: Magic search returned ${_searchLocations.length} results for '$trimmedQuery'.",
@@ -713,32 +874,32 @@ class LocationListManager with ChangeNotifier {
     );
   }
 
-  /// Gets the current location with permission handling (fetches once)
+  /// Gets the current device GPS location
   Future<LatLng?> getCurrentLocation() async {
     if (!_permissionGranted) {
-      log("LocationListManager: Cannot get current location, permission not granted.");
-      await checkAndRequestPermission(); // Try asking again
+      log("LocationListManager: Location permission not granted, requesting...");
+      await checkAndRequestPermission();
       if (!_permissionGranted) {
-        log("LocationListManager: Permission still denied after request");
-        return null; // Still no permission
+        _error = "Location permission is required";
+        log("LocationListManager: Permission denied");
+        notifyListeners();
+        return null;
       }
     }
 
     try {
-      // Get the current location
       Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
         timeLimit: const Duration(seconds: 10),
       );
-      final newPosition = LatLng(position.latitude, position.longitude);
-      _currentPosition = newPosition;
+      _currentPosition = LatLng(position.latitude, position.longitude);
       _error = null;
-      log("LocationListManager: Fetched current location: $_currentPosition");
+      log("LocationListManager: Got device location: $_currentPosition");
       notifyListeners();
-      return newPosition;
+      return _currentPosition;
     } catch (e) {
-      _error = "Failed to get current location: $e";
-      log("LocationListManager: Error getting current location: $e");
+      _error = "Failed to get location: $e";
+      log("LocationListManager: Error getting location: $e");
       notifyListeners();
       return null;
     }
