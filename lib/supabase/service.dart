@@ -9,6 +9,7 @@ import 'package:login/services/fcm_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'helpers/bubbles.dart';
+import 'helpers/messaging.dart';
 import 'helpers/notifications.dart';
 import 'supabase_client.dart';
 
@@ -20,6 +21,7 @@ class SupabaseService extends ChangeNotifier {
   late final BubbleHelper _bubbleService;
   late final TagsHelper _tagsService;
   late final NotificationsHelper _notificationsService;
+  late final MessagingHelper _messagingService;
 
   bool _isLoading = false;
   bool _isInitializing = true;
@@ -34,6 +36,7 @@ class SupabaseService extends ChangeNotifier {
   BubbleHelper get bubbles => _bubbleService;
   TagsHelper get tags => _tagsService;
   NotificationsHelper get notifications => _notificationsService;
+  MessagingHelper get messaging => _messagingService;
 
   // Status getters
   bool get isLoading => _isLoading || _isInitializing;
@@ -61,6 +64,7 @@ class SupabaseService extends ChangeNotifier {
       _bubbleService = BubbleHelper();
       _tagsService = TagsHelper();
       _notificationsService = NotificationsHelper();
+      _messagingService = MessagingHelper();
 
       // Set up auth state listener now that helpers are created
       _setupAuthListener();
@@ -165,6 +169,10 @@ class SupabaseService extends ChangeNotifier {
     } finally {
       _setLoading(false);
     }
+  }
+
+  Future<List<UserModel>> searchUsers(String query) async {
+    return await _authService.searchUsers(query);
   }
 
   /// Validate current session and sign out if invalid

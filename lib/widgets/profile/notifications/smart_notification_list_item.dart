@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:login/models/notifications/base_notification.dart';
 import 'package:login/models/notification_type.dart';
+import 'package:login/models/notifications/new_message_notification.dart';
+import 'package:login/models/notifications/user_added_to_bubble_notification.dart';
 import 'package:login/models/notifications/video_processed_notification.dart';
 import 'package:login/models/notifications/follow_request_notification.dart';
 import 'package:login/models/notifications/follow_accepted_notification.dart';
 import 'package:login/models/notifications/friend_visited_location_notification.dart';
-import 'package:login/models/notifications/friend_added_bubble_notification.dart';
 
 class SmartNotificationListItem extends StatelessWidget {
   final BaseNotification notification;
@@ -221,8 +222,9 @@ class SmartNotificationListItem extends StatelessWidget {
           ),
         );
 
-      case NotificationType.friendAddedToBubble:
-        final bubbleNotif = notification as FriendAddedToBubbleNotification;
+      case NotificationType.newMessage:
+        // Handle new message notification if implemented
+        final newMessageNotif = notification as NewMessageNotification;
         return RichText(
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
@@ -233,13 +235,54 @@ class SmartNotificationListItem extends StatelessWidget {
             ),
             children: [
               TextSpan(
-                text: bubbleNotif.username,
+                text: newMessageNotif.username,
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                 ),
               ),
               const TextSpan(
-                text: ' saved a location to ',
+                text: ' sent a new message in ',
+              ),
+              TextSpan(
+                text: newMessageNotif.bubbleName,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const TextSpan(
+                text: ': "',
+              ),
+              TextSpan(
+                text: newMessageNotif.content,
+                style: const TextStyle(
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+              const TextSpan(
+                text: '"',
+              ),
+            ],
+          ),
+        );
+      case NotificationType.userAddedToBubble:
+        final bubbleNotif = notification as UserAddedToBubbleNotification;
+        return RichText(
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          text: TextSpan(
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: Colors.black87,
+              height: 1.3,
+            ),
+            children: [
+              TextSpan(
+                text: bubbleNotif.inviterUsername,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const TextSpan(
+                text: ' added you to bubble ',
               ),
               TextSpan(
                 text: bubbleNotif.bubbleName,

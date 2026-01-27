@@ -3,12 +3,15 @@ import '../supabase/constants.dart';
 /// Model class for user location actions data from Supabase
 class UserLocationActionModel {
   final int? actionId;
-  final int userId;
+  final String userId;
   final int locationId;
   final String action; // 'save', 'shared_video'
-  final int? sourceVideoId;
+  final String? sourceVideoId;
   final DateTime? createdAt;
   final String? savedMethod; // 'tiktok', 'in-app'
+  final String name;
+  final String? user_avatar_url;
+  final String locationName;
 
   UserLocationActionModel({
     this.actionId,
@@ -18,10 +21,15 @@ class UserLocationActionModel {
     this.sourceVideoId,
     this.createdAt,
     this.savedMethod,
+    required this.name,
+    this.user_avatar_url,
+    required this.locationName,
   });
 
   /// Create a UserLocationActionModel from a JSON map
   factory UserLocationActionModel.fromJson(Map<String, dynamic> json) {
+    print(json);
+    print(json['location_name']);
     return UserLocationActionModel(
       actionId: json[SupabaseConstants.columnActionId],
       userId: json[SupabaseConstants.columnUserId],
@@ -32,6 +40,10 @@ class UserLocationActionModel {
           ? DateTime.parse(json[SupabaseConstants.columnCreatedAt])
           : null,
       savedMethod: json[SupabaseConstants.columnSavedMethod],
+      name: json['user_name'],
+      user_avatar_url: json[SupabaseConstants.columnProfileImageUrl] ,
+      locationName: json['location_name'],
+
     );
   }
 
@@ -55,12 +67,15 @@ class UserLocationActionModel {
   /// Create a copy of this UserLocationActionModel with updated fields
   UserLocationActionModel copyWith({
     int? actionId,
-    int? userId,
+    String? userId,
     int? locationId,
     String? action,
-    int? sourceVideoId,
+    String? sourceVideoId,
     DateTime? createdAt,
     String? savedMethod,
+    String? name,
+    String? user_avatar_url,
+    String? locationName,
   }) {
     return UserLocationActionModel(
       actionId: actionId ?? this.actionId,
@@ -70,6 +85,9 @@ class UserLocationActionModel {
       sourceVideoId: sourceVideoId ?? this.sourceVideoId,
       createdAt: createdAt ?? this.createdAt,
       savedMethod: savedMethod ?? this.savedMethod,
+      name: name ?? this.name,
+      user_avatar_url: user_avatar_url ?? this.user_avatar_url,
+      locationName: locationName ?? this.locationName,
     );
   }
 }

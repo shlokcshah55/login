@@ -4,7 +4,8 @@ import 'package:login/models/notifications/video_processed_notification.dart';
 import 'package:login/models/notifications/follow_request_notification.dart';
 import 'package:login/models/notifications/follow_accepted_notification.dart';
 import 'package:login/models/notifications/friend_visited_location_notification.dart';
-import 'package:login/models/notifications/friend_added_bubble_notification.dart';
+import 'package:login/models/notifications/bubble_message_notification.dart';
+import 'package:login/models/notifications/user_added_to_bubble_notification.dart';
 
 abstract class BaseNotification {
   final String id;
@@ -73,8 +74,8 @@ abstract class BaseNotification {
           return FollowAcceptedNotification.fromFCMData(data);
         case 'friend_visited_location':
           return FriendVisitedLocationNotification.fromFCMData(data);
-        case 'friend_added_bubble':
-          return FriendAddedToBubbleNotification.fromFCMData(data);
+        case 'user_added_to_bubble':
+          return UserAddedToBubbleNotification.fromFCMData(data);
         default:
           print('Unknown notification type: $type');
           return null;
@@ -115,8 +116,10 @@ abstract class BaseNotification {
           return FollowAcceptedNotification.fromFCMData(data);
         case 'friend_visited_location':
           return FriendVisitedLocationNotification.fromFCMData(data);
-        case 'friend_added_bubble':
-          return FriendAddedToBubbleNotification.fromFCMData(data);
+        case 'new_message':
+          return BubbleMessageNotification.fromFCMData(data);
+        case 'user_added_to_bubble':
+          return UserAddedToBubbleNotification.fromFCMData(data);
         default:
           print('Unknown notification type: $type');
           return null;

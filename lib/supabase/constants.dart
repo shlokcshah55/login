@@ -19,7 +19,9 @@ class SupabaseConstants {
   static const String tableNotifications = 'notifications';
   static const String tableRecommendationRuns = 'recommendation_runs';
   static const String tableRecommendationCandidates = 'recommendation_candidates';
-  static const String tableUserRecommendations = 'user_recommendations'; 
+  static const String tableUserRecommendations = 'user_recommendations';
+  static const String tableMessages = 'messages';
+  static const String tableUserChatState = 'user_chat_state'; 
 
   // Column names - users
   static const String columnSupabaseId = 'supabase_id';
@@ -153,6 +155,18 @@ class SupabaseConstants {
   static const String columnIsRead = 'is_read';
   static const String columnReadAt = 'read_at';
 
+  // Column names - messages
+  // columnId, columnBubbleId, columnCreatedAt, columnMetadata are already defined
+  static const String columnSenderId = 'sender_id';
+  static const String columnContent = 'content';
+  static const String columnMessageType = 'message_type';
+  static const String columnIsDeleted = 'is_deleted';
+  static const String columnRepliedToMessageId = 'replied_to_message_id';
+
+  // Column names - user_chat_state
+  // columnUserId, columnBubbleId are already defined
+  static const String columnLastReadAt = 'last_read_at';
+  static const String columnMuted = 'muted';
 
   // Enum values - action_type
   static const String actionSave = 'save';

@@ -1,6 +1,9 @@
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import '../../animations/animation_builders.dart';
 import '../../animations/common_animations.dart';
@@ -277,6 +280,39 @@ class _AccountStepState extends State<AccountStep>
     }
   }
 
+  // Helper method to get a random default icon from assets
+  Future<File> _getRandomDefaultIcon() async {
+    final iconFiles = [
+      'lib/assets/burgerIcon.jpg',
+      'lib/assets/curryIcon.jpg',
+      'lib/assets/donutIcon.jpg',
+      'lib/assets/phoIcon.jpg',
+      'lib/assets/pizzaIcon.jpg',
+      'lib/assets/steakIcon.jpg',
+      'lib/assets/sushiIcon.jpg',
+      'lib/assets/tacoIcon.jpg',
+      'lib/assets/thaiIcon.jpg',
+    ];
+
+    // Randomly select one icon
+    final random = Random();
+    final selectedIcon = iconFiles[random.nextInt(iconFiles.length)];
+
+    // Load asset as bytes
+    final byteData = await rootBundle.load(selectedIcon);
+    final bytes = byteData.buffer.asUint8List();
+
+    // Create temporary file
+    final tempDir = await getTemporaryDirectory();
+    final fileName = selectedIcon.split('/').last;
+    final tempFile = File('${tempDir.path}/$fileName');
+
+    // Write bytes to temp file
+    await tempFile.writeAsBytes(bytes);
+
+    return tempFile;
+  }
+
   // We create have already created the account before this step, but this stores the profile pic
   Future<void> _addProfilePic() async {
     setState(() => isLoading = true);
@@ -287,13 +323,24 @@ class _AccountStepState extends State<AccountStep>
       final wizardState =
           Provider.of<SignupWizardState>(context, listen: false);
 
-      // Upload profile picture if exists
-      if (_selectedProfileImage != null && wizardState.userId != null) {
-        final fileExt = _selectedProfileImage!.path.split('.').last;
+      // Always upload a profile picture (user-selected or default)
+      if (wizardState.userId != null) {
+        File imageToUpload;
+
+        if (_selectedProfileImage != null) {
+          // User selected a photo - use it
+          imageToUpload = _selectedProfileImage!;
+        } else {
+          // No photo selected - pick random default icon
+          imageToUpload = await _getRandomDefaultIcon();
+        }
+
+        // Upload the image (user-selected or default)
+        final fileExt = imageToUpload.path.split('.').last;
         final filePath = '${wizardState.userId}.$fileExt';
 
         String profilePictureUrl = await supabaseService.users.uploadImage(
-          _selectedProfileImage!,
+          imageToUpload,
           filePath,
           wizardState.userId!
         );

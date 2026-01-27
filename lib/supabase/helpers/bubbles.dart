@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:login/models/chat_group_model.dart';
 import 'package:login/models/locations.dart';
+import 'package:login/models/actions.dart';
 import 'package:login/supabase/supabase_client.dart';
 import 'package:login/supabase/helpers/location.dart';
 import 'package:login/supabase/constants.dart';
+import 'package:login/services/push_notification_service.dart';
 
 /// Repository for bubble-related operations
 class BubbleHelper {
@@ -70,6 +72,8 @@ class BubbleHelper {
     }
   }
 
+  
+
   /// Get all members of a bubble
   Future<List<Map<String, dynamic>>> _getBubbleMembers(String bubbleId) async {
     try {
@@ -107,49 +111,26 @@ class BubbleHelper {
           .from(SupabaseConstants.tableBubbleLocations)
           .select('''
             ${SupabaseConstants.columnLocationId},
-            ${SupabaseConstants.tableLocations}!inner(
-              ${SupabaseConstants.columnLocationId},
-              ${SupabaseConstants.columnName},
-              ${SupabaseConstants.columnVicinity},
-              ${SupabaseConstants.columnLat},
-              ${SupabaseConstants.columnLng},
-              ${SupabaseConstants.columnCreatedAt},
-              ${SupabaseConstants.columnInternationalPhoneNumber},
-              ${SupabaseConstants.columnCuisine},
-              ${SupabaseConstants.columnRating},
-              ${SupabaseConstants.columnUserRatingsTotal},
-              ${SupabaseConstants.columnPriceLevel},
-              ${SupabaseConstants.columnPhotoReference},
-              ${SupabaseConstants.columnSavedCount}
-            )
+            ${SupabaseConstants.tableLocations}!inner(*)
           ''')
           .eq(SupabaseConstants.columnBubbleId, bubbleId);
-
-      if ((response as List).isEmpty) {
-        return [];
+            List<LocationModel> locations = [];
+      for (var item in response as List) {
+        var locationImage;
+        if (item[SupabaseConstants.columnImageUrl]) {
+          locationImage = 'https://umjoqvsfqhirysdjxnaf.supabase.co/storage/v1/object/public/location_photos/${item[SupabaseConstants.columnLocationId]}.jpg';
+        } else {
+        // Then make a call to get the location image from google places API 
+        locationImage = await _locationService.getLocationImage(
+            item[SupabaseConstants.columnLocationId],
+            item[SupabaseConstants.columnGooglePlaceId],
+            item[SupabaseConstants.columnPhotoReference],
+          );
+        }
+        locations.add(LocationModel.fromJson(item, locationImage));
       }
+      return locations;
 
-      return (response as List)
-          .map((item) {
-            final location = item[SupabaseConstants.tableLocations];
-            return LocationModel(
-              locationId: location[SupabaseConstants.columnLocationId],
-              name: location[SupabaseConstants.columnName] ?? '',
-              vicinity: location[SupabaseConstants.columnVicinity] ?? '',
-              lat: (location[SupabaseConstants.columnLat] as num?)?.toDouble() ?? 0.0,
-              lng: (location[SupabaseConstants.columnLng] as num?)?.toDouble() ?? 0.0,
-              createdAt: DateTime.parse(location[SupabaseConstants.columnCreatedAt]),
-              phoneNumber: location[SupabaseConstants.columnPhoneNumber] ??
-                  location[SupabaseConstants.columnInternationalPhoneNumber],
-              cuisine: location[SupabaseConstants.columnCuisine],
-              rating: (location[SupabaseConstants.columnRating] as num?)?.toDouble(),
-              userRatingsTotal: location[SupabaseConstants.columnUserRatingsTotal],
-              priceLevel: location[SupabaseConstants.columnPriceLevel],
-              photoReference: location[SupabaseConstants.columnPhotoReference],
-              savedCount: location[SupabaseConstants.columnSavedCount],
-            );
-          })
-          .toList();
     } catch (e) {
       if (kDebugMode) {
         print('Error fetching bubble locations: $e');
@@ -252,6 +233,27 @@ class BubbleHelper {
       'p_bubble_id': bubbleId,
       'p_user_id': userId,
     });
+
+      // Send notification to the user about being added to the bubble
+      final currentUser = SupabaseClientManager().currentUser;
+      if (currentUser != null) {
+        // Fetch bubble details to get bubble name
+        final bubble = await getBubbleById(bubbleId);
+        if (bubble != null) {
+          // Fire and forget - don't wait for notification to complete
+          PushNotificationService().sendUserAddedToBubbleNotification(
+            recipientUserId: userId,
+            inviterUserId: currentUser.id,
+            bubbleId: bubbleId,
+            bubbleName: bubble.name,
+          ).catchError((error) {
+            if (kDebugMode) {
+              print('BubbleHelper: Error sending user added notification: $error');
+            }
+          });
+        }
+      }
+
       return true;
     } catch (e) {
       if (kDebugMode) {
@@ -321,6 +323,34 @@ class BubbleHelper {
     } catch (e) {
       if (kDebugMode) {
         print('Error fetching all member locations: $e');
+      }
+      return [];
+    }
+  }
+
+  /// Get user location actions for a bubble
+  Future<List<UserLocationActionModel>> getBubbleActivity(String bubbleId) async {
+    try {
+      final result = await _client.rpc('get_bubble_activity', params: {
+        'p_bubble_id': bubbleId,
+      });
+
+      if (result == null) {
+        return [];
+      }
+
+      final activities = (result as List)
+          .map((json) => UserLocationActionModel.fromJson(json))
+          .toList();
+
+      if (kDebugMode) {
+        print('BubbleHelper: Loaded ${activities.length} activities for bubble $bubbleId');
+      }
+
+      return activities;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error fetching bubble activity: $e');
       }
       return [];
     }

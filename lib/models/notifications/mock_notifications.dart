@@ -1,9 +1,9 @@
 import 'package:login/models/notifications/base_notification.dart';
+import 'package:login/models/notifications/user_added_to_bubble_notification.dart';
 import 'package:login/models/notifications/video_processed_notification.dart';
 import 'package:login/models/notifications/follow_request_notification.dart';
 import 'package:login/models/notifications/follow_accepted_notification.dart';
 import 'package:login/models/notifications/friend_visited_location_notification.dart';
-import 'package:login/models/notifications/friend_added_bubble_notification.dart';
 
 class MockNotifications {
   static List<BaseNotification> getMockNotifications() {
@@ -49,17 +49,16 @@ class MockNotifications {
         userId: 'user_101',
       ),
 
-      // Friend Added to Bubble Notification (read)
-      FriendAddedToBubbleNotification(
+      // User Added to Bubble Notification (read)
+      UserAddedToBubbleNotification(
         id: '5',
         timestamp: DateTime.now().subtract(const Duration(days: 1)),
         isRead: true,
-        username: 'alex_chen',
-        userAvatar: 'https://i.pravatar.cc/150?img=4',
-        userId: 'user_202',
-        bubbleName: 'Coffee Spots',
-        bubbleId: 'bubble_789',
-        locationName: 'Blue Bottle Coffee',
+        inviterUsername: 'oliver_smith',
+        inviterAvatar: 'https://i.pravatar.cc/150?img=4',
+        inviterId: 'user_202',
+        bubbleName: 'Weekend Hikers',
+        bubbleId: 'bubble_321',
       ),
 
       // Video Processed Notification (read)

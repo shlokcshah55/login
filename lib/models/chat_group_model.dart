@@ -65,4 +65,34 @@ class ChatGroupModel {
       'member_ids': memberIds,
     };
   }
+
+  ChatGroupModel copyWith({
+    String? id,
+    String? name,
+    String? lastMessage,
+    String? lastMessageTime,
+    int? memberCount,
+    List<String>? memberAvatars,
+    String? groupAvatar,
+    bool? isOnline,
+    int? unreadCount,
+    List<LocationModel>? groupLocations,
+    String? description,
+    List<String>? memberIds,
+  }) {
+    return ChatGroupModel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      lastMessage: lastMessage ?? this.lastMessage,
+      lastMessageTime: lastMessageTime ?? this.lastMessageTime,
+      memberCount: memberCount ?? this.memberCount,
+      memberAvatars: memberAvatars ?? this.memberAvatars,
+      groupAvatar: groupAvatar ?? this.groupAvatar,
+      isOnline: isOnline ?? this.isOnline,
+      unreadCount: unreadCount ?? this.unreadCount,
+      groupLocations: groupLocations ?? this.groupLocations,
+      description: description ?? this.description,
+      memberIds: memberIds ?? this.memberIds,
+    );
+  }
 }

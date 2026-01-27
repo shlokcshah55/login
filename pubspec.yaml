@@ -60,6 +60,7 @@ dependencies:
   font_awesome_flutter: ^10.7.0
   image_picker: ^1.0.5
   cached_network_image: ^3.3.1
+  path_provider: ^2.1.0
 dev_dependencies:
   flutter_launcher_icons: ^0.13.1
   flutter_test:
@@ -100,12 +101,22 @@ flutter:
     - lib/assets/AppLogo.jpg
     - lib/assets/AppLogo.png
     - lib/assets/splashscren.json
+    - lib/assets/messsaging_background.png
     - lib/assets/vibe/brunchy.png
     - lib/assets/vibe/cozy.png
     - lib/assets/vibe/localSpot.png
     - lib/assets/vibe/rooftop.jpg
     - lib/assets/vibe/rusticLocal.png
     - lib/assets/vibe/upscaleGuy.png
+    - lib/assets/burgerIcon.jpg
+    - lib/assets/curryIcon.jpg
+    - lib/assets/donutIcon.jpg
+    - lib/assets/phoIcon.jpg
+    - lib/assets/pizzaIcon.jpg
+    - lib/assets/steakIcon.jpg
+    - lib/assets/sushiIcon.jpg
+    - lib/assets/tacoIcon.jpg
+    - lib/assets/thaiIcon.jpg
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware

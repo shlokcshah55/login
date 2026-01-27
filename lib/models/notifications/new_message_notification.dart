@@ -1,15 +1,15 @@
 import 'package:login/models/notifications/base_notification.dart';
 import 'package:login/models/notification_type.dart';
 
-class FriendAddedToBubbleNotification extends BaseNotification {
+class NewMessageNotification extends BaseNotification {
   final String username;
   final String userAvatar;
   final String userId;
   final String bubbleName;
-  final String bubbleId;
-  final String locationName;
+  final String content;
 
-  FriendAddedToBubbleNotification({
+
+  NewMessageNotification({
     required String id,
     required DateTime timestamp,
     required bool isRead,
@@ -17,18 +17,18 @@ class FriendAddedToBubbleNotification extends BaseNotification {
     required this.userAvatar,
     required this.userId,
     required this.bubbleName,
-    required this.bubbleId,
-    required this.locationName,
+    required this.content,
+
   }) : super(
           id: id,
           timestamp: timestamp,
           isRead: isRead,
-          type: NotificationType.friendAddedToBubble,
+          type: NotificationType.friendVisitedLocation,
         );
 
   /// Factory constructor from FCM data payload
-  factory FriendAddedToBubbleNotification.fromFCMData(Map<String, dynamic> data) {
-    return FriendAddedToBubbleNotification(
+  factory NewMessageNotification.fromFCMData(Map<String, dynamic> data) {
+    return NewMessageNotification(
       id: data['id'] as String,
       // Handle both String (FCM) and DateTime (DB)
       timestamp: data['timestamp'] is String
@@ -40,8 +40,7 @@ class FriendAddedToBubbleNotification extends BaseNotification {
       userAvatar: data['userAvatar'] as String,
       userId: data['userId'] as String,
       bubbleName: data['bubbleName'] as String,
-      bubbleId: data['bubbleId'] as String,
-      locationName: data['locationName'] as String,
+      content: data['content'] as String,
     );
   }
 
@@ -49,7 +48,7 @@ class FriendAddedToBubbleNotification extends BaseNotification {
   String getAvatarUrl() => userAvatar;
 
   @override
-  String getMessage() => '$username saved a location to $bubbleName';
+  String getMessage() => '$username sent a new message in $bubbleName: "$content"';
 
   @override
   String? getActionLabel() => 'View';
@@ -60,18 +59,17 @@ class FriendAddedToBubbleNotification extends BaseNotification {
   @override
   Map<String, dynamic> toFCMData() {
     return {
-      'type': 'friend_added_bubble',
+      'type': 'friend_visited_location',
       'id': id,
       'timestamp': timestamp.toIso8601String(),
       'username': username,
       'userAvatar': userAvatar,
       'userId': userId,
       'bubbleName': bubbleName,
-      'bubbleId': bubbleId,
-      'locationName': locationName,
+      'content': content,
     };
   }
 
   @override
-  String getNotificationTitle() => 'Bubble Activity';
+  String getNotificationTitle() => 'New Message from $username';
 }
