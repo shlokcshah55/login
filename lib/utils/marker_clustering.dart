@@ -22,10 +22,28 @@ class MarkerClustering {
     required double devicePixelRatio,
     double zoom = 15.0,
   }) async {
-    // Dynamic clustering distance based on zoom
-    // At zoom 10: ~1km, zoom 15: ~80m, zoom 18: ~20m
-    double clusterDistance = 1000 / math.pow(2, zoom - 10); // meters
-    if (clusterDistance < 20) clusterDistance = 20;
+    // Calculate clustering distance based on visual marker size
+    // Markers with names can be ~50-60 pixels wide (8px bubble + ~40-50px text)
+    // Markers without names are ~8px wide (just the bubble)
+    // We use the larger size to be safe and prevent any overlap
+
+    // Convert visual pixels to meters on the ground at current zoom
+    // Formula: metersPerPixel = 156543.03392 * cos(latitude) / 2^zoom
+    // Using average latitude of ~51.5 (London), cos(51.5°) ≈ 0.625
+    // At zoom 15: ~3 meters per pixel
+    // At zoom 10: ~96 meters per pixel
+
+    final double metersPerPixel = 156543.03392 * 0.625 / math.pow(2, zoom);
+
+    // Tighter clustering: allow markers to be closer before clustering
+    // Reduced from 80px to allow some visual overlap
+    final double markerVisualWidth = 50; // pixels (tighter threshold, some overlap ok)
+
+    // Convert to meters - only cluster when markers are quite close
+    double clusterDistance = metersPerPixel * markerVisualWidth;
+
+    // Lower minimum to allow markers to be closer at high zoom
+    if (clusterDistance < 30) clusterDistance = 30;
 
     final List<LocationModel> locations = locationMarkers.keys.toList();
     final List<MarkerCluster> clusters = [];

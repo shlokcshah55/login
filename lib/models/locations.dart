@@ -389,28 +389,24 @@ class LocationModel {
   }
 
   /// Creates a map marker from this location
-  Future<Marker?> toMarker(double dpr) async {
+  Future<Marker?> toMarker(double dpr, {bool shouldShowName = true}) async {
     // Return null if coordinates are not available
     if (lat == null || lng == null) return null;
 
     BitmapDescriptor markerIcon;
-    Offset anchor = const Offset(0.5, 1.0); // Default anchor at bottom center
+    Offset anchor = const Offset(0.5, 0.5); // Center anchor for emoji markers
 
-    // Use custom emoji marker if emoji is available
-    if (emoji != null && emoji!.isNotEmpty) {
-      markerIcon = await PinitMarkers.createPinitMarker(
-        emoji: emoji!,
-        name: name,
-        devicePixelRatio: dpr,
-        types: types,
-        cuisine: cuisine,
-      );
-      // Static pins use center anchor
-      anchor = const Offset(0.5, 0.5);
-    } else {
-      markerIcon = _customMarkerIcon ?? BitmapDescriptor.defaultMarker;
-      anchor = const Offset(0.5, 1.0);
-    }
+    // Use emoji (or default emoji if none provided)
+    String emojiToUse = emoji != null && emoji!.isNotEmpty ? emoji! : '📍';
+
+    markerIcon = await PinitMarkers.createPinitMarker(
+      emoji: emojiToUse,
+      name: name,
+      devicePixelRatio: dpr,
+      types: types,
+      cuisine: cuisine,
+      showText: shouldShowName,
+    );
 
     return Marker(
       markerId: MarkerId(locationId.toString()),

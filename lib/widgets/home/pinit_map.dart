@@ -26,6 +26,9 @@ class _PinitMapState extends State<PinitMap> {
   Map<String, Marker> _clusteredMarkers = {};
   LocationListManager? _locationListManager;
 
+  // Caching to prevent unnecessary reclustering
+  String? _lastClusterHash;
+
   @override
   void initState() {
     super.initState();
@@ -61,12 +64,22 @@ class _PinitMapState extends State<PinitMap> {
     }
   }
 
+  String _getClusteringCacheKey(
+    Map<dynamic, Marker> items,
+    double zoom,
+  ) {
+    // Round zoom to 1 decimal to group similar zooms
+    final roundedZoom = (zoom * 10).round() / 10;
+    return '${items.length}_${items.keys.map((l) => l.locationId).join(',')}_$roundedZoom';
+  }
+
   void _applyClusteringAsync(
     Map<dynamic, Marker> currentItems,
     double dpr,
     LocationListManager locationListManager,
     MapStateProvider mapStateReader,
     MapStateProvider mapStateProvider,
+    double currentZoom,
   ) {
     // Apply clustering in the next frame to avoid blocking the build
     Future.microtask(() async {
@@ -75,6 +88,7 @@ class _PinitMapState extends State<PinitMap> {
           currentItems.entries.map((e) => MapEntry(e.key, e.value)),
         ),
         devicePixelRatio: dpr,
+        zoom: currentZoom,
       );
 
       final clusteredMarkers = result['markers'] as Map<dynamic, Marker>;
@@ -135,14 +149,26 @@ class _PinitMapState extends State<PinitMap> {
     final dpr = MediaQuery.of(context).devicePixelRatio;
     locationListManager.setDevicePixelRatio(dpr);
 
-    // Apply clustering
-    _applyClusteringAsync(
-      locationListManager.currentItems,
-      dpr,
-      locationListManager,
-      mapStateReader,
-      mapStateProvider,
-    );
+    // Get current zoom level
+    final currentZoom = mapStateProvider.currentZoom;
+
+    // Check if we need to recluster
+    final currentItems = locationListManager.currentItems;
+    final cacheKey = _getClusteringCacheKey(currentItems, currentZoom);
+    final shouldRecluster = _lastClusterHash != cacheKey;
+
+    // Apply clustering only if needed
+    if (shouldRecluster) {
+      _lastClusterHash = cacheKey;
+      _applyClusteringAsync(
+        currentItems,
+        dpr,
+        locationListManager,
+        mapStateReader,
+        mapStateProvider,
+        currentZoom,
+      );
+    }
 
     // Use clustered markers
     final Set<Marker> markers = _clusteredMarkers.values.toSet();
@@ -192,8 +218,29 @@ class _PinitMapState extends State<PinitMap> {
             mapStateProvider.updateMapCenter(position);
             locationListManager.setCameraPosition(position);
           },
-          onCameraIdle: () {
-            // Optional: Add any actions to perform when camera stops moving
+          onCameraIdle: () async {
+            // Trigger rebuild to recluster when user stops zooming
+            if (mounted) {
+              setState(() {});
+            }
+
+            // Get viewport bounds and trigger name selection
+            final controller = mapStateProvider.mapController;
+            if (controller != null) {
+              try {
+                final bounds = await controller.getVisibleRegion();
+                final center = mapStateProvider.currentVisibleCenter;
+                final zoom = mapStateProvider.currentZoom;
+
+                await locationListManager.onMapViewportChanged(
+                  bounds: bounds,
+                  center: center,
+                  zoom: zoom,
+                );
+              } catch (e) {
+                print('Error updating viewport bounds: $e');
+              }
+            }
           },
           markers: markers,
           // Get polylines from MapStateProvider

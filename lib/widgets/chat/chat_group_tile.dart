@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:login/models/chat_group_model.dart';
+import 'package:login/models/bubble.dart';
 
 class ChatGroupTile extends StatefulWidget {
-  final ChatGroupModel chatGroup;
+  final Bubble bubble;
   final VoidCallback onTap;
 
   const ChatGroupTile({
     Key? key,
-    required this.chatGroup,
+    required this.bubble,
     required this.onTap,
   }) : super(key: key);
 
@@ -130,9 +130,9 @@ class _ChatGroupTileState extends State<ChatGroupTile>
             ],
           ),
           child: ClipOval(
-            child: widget.chatGroup.groupAvatar.isNotEmpty
+            child: widget.bubble.groupAvatar.isNotEmpty
                 ? Image.network(
-                    widget.chatGroup.groupAvatar,
+                    widget.bubble.groupAvatar,
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) {
                       return Icon(
@@ -149,7 +149,7 @@ class _ChatGroupTileState extends State<ChatGroupTile>
                   ),
           ),
         ),
-        if (widget.chatGroup.isOnline)
+        if (widget.bubble.isOnline)
           Positioned(
             bottom: 2,
             right: 2,
@@ -166,7 +166,7 @@ class _ChatGroupTileState extends State<ChatGroupTile>
               ),
             ),
           ),
-        if (widget.chatGroup.unreadCount > 0)
+        if (widget.bubble.unreadCount > 0)
           Positioned(
             top: -2,
             right: -2,
@@ -181,9 +181,9 @@ class _ChatGroupTileState extends State<ChatGroupTile>
                 ),
               ),
               child: Text(
-                widget.chatGroup.unreadCount > 99 
+                widget.bubble.unreadCount > 99 
                     ? '99+' 
-                    : widget.chatGroup.unreadCount.toString(),
+                    : widget.bubble.unreadCount.toString(),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 10,
@@ -204,10 +204,10 @@ class _ChatGroupTileState extends State<ChatGroupTile>
           children: [
             Expanded(
               child: Text(
-                widget.chatGroup.name,
+                widget.bubble.name,
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: widget.chatGroup.unreadCount > 0 
+                  color: widget.bubble.unreadCount > 0 
                       ? theme.primaryColor 
                       : null,
                 ),
@@ -215,7 +215,7 @@ class _ChatGroupTileState extends State<ChatGroupTile>
               ),
             ),
             Text(
-              widget.chatGroup.lastMessageTime,
+              widget.bubble.lastMessageTime,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: Colors.grey[600],
                 fontSize: 12,
@@ -225,12 +225,12 @@ class _ChatGroupTileState extends State<ChatGroupTile>
         ),
         const SizedBox(height: 4),
         Text(
-          widget.chatGroup.lastMessage,
+          widget.bubble.lastMessage,
           style: theme.textTheme.bodyMedium?.copyWith(
-            color: widget.chatGroup.unreadCount > 0 
+            color: widget.bubble.unreadCount > 0 
                 ? theme.textTheme.bodyMedium?.color 
                 : Colors.grey[600],
-            fontWeight: widget.chatGroup.unreadCount > 0 
+            fontWeight: widget.bubble.unreadCount > 0 
                 ? FontWeight.w600 
                 : FontWeight.normal,
           ),
@@ -244,8 +244,8 @@ class _ChatGroupTileState extends State<ChatGroupTile>
   }
 
   Widget _buildMemberAvatars(ThemeData theme) {
-    final visibleAvatars = widget.chatGroup.memberAvatars.take(4).toList();
-    final remainingCount = widget.chatGroup.memberCount - visibleAvatars.length;
+    final visibleAvatars = widget.bubble.memberAvatars.take(4).toList();
+    final remainingCount = widget.bubble.memberCount - visibleAvatars.length;
 
     return Row(
       children: [
@@ -292,16 +292,16 @@ class _ChatGroupTileState extends State<ChatGroupTile>
       children: [
         Icon(
           Icons.location_on,
-          color: widget.chatGroup.groupLocations.isNotEmpty 
+          color: widget.bubble.groupLocations.isNotEmpty 
               ? theme.primaryColor 
               : Colors.grey[400],
           size: 20,
         ),
         const SizedBox(height: 4),
         Text(
-          widget.chatGroup.groupLocations.length.toString(),
+          widget.bubble.groupLocations.length.toString(),
           style: theme.textTheme.bodySmall?.copyWith(
-            color: widget.chatGroup.groupLocations.isNotEmpty 
+            color: widget.bubble.groupLocations.isNotEmpty 
                 ? theme.primaryColor 
                 : Colors.grey[400],
             fontWeight: FontWeight.bold,

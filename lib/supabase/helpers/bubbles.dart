@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:login/models/chat_group_model.dart';
+import 'package:login/models/bubble.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/models/actions.dart';
 import 'package:login/supabase/supabase_client.dart';
@@ -13,7 +13,7 @@ class BubbleHelper {
   final _locationService = LocationHelper();
 
   /// Get all bubbles for the current user
-  Future<List<ChatGroupModel>> getUserBubbles(String userId) async {
+  Future<List<Bubble>> getUserBubbles(String userId) async {
     try {
       // Get bubbles where user is a member
       final response = await _client
@@ -34,7 +34,7 @@ class BubbleHelper {
         return [];
       }
 
-      List<ChatGroupModel> bubbles = [];
+      List<Bubble> bubbles = [];
 
       for (var item in response as List) {
         final bubble = item[SupabaseConstants.tableBubbles];
@@ -47,7 +47,7 @@ class BubbleHelper {
         final locations = await _getBubbleLocations(bubbleId);
         
         // Create ChatGroupModel
-        bubbles.add(ChatGroupModel(
+        bubbles.add(Bubble(
           id: bubbleId,
           name: bubble[SupabaseConstants.columnName] ?? 'Unnamed Bubble',
           lastMessage: 'Tap to view locations',
@@ -185,7 +185,7 @@ class BubbleHelper {
   }
 
   /// Get a single bubble by ID
-  Future<ChatGroupModel?> getBubbleById(String bubbleId) async {
+  Future<Bubble?> getBubbleById(String bubbleId) async {
     try {
       // Get bubble details
       final bubbleResponse = await _client
@@ -201,7 +201,7 @@ class BubbleHelper {
       final locations = await _getBubbleLocations(bubbleId);
       
       // Create ChatGroupModel
-      return ChatGroupModel(
+      return Bubble(
         id: bubbleId,
         name: bubbleResponse[SupabaseConstants.columnName] ?? 'Unnamed Bubble',
         lastMessage: 'Tap to view locations',

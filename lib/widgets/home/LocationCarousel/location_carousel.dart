@@ -26,10 +26,6 @@ class LocationCarousel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    print("Building LocationCarousel with ${locations.length} locations");
-      for (final loc in locations) {
-        print('[CarouselDebug] ${loc.name} | imageUrl: ${loc.imageUrl} | photoReference: ${loc.photoReference}');
-      }
     final theme = Theme.of(context);
 
     if (locations.isEmpty) return const SizedBox.shrink();

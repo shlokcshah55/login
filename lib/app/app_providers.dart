@@ -5,6 +5,8 @@ import 'package:login/providers/map_state_provider.dart';
 import 'package:login/providers/nav_bar/dynamic_nav_provider.dart';
 import 'package:login/providers/nav_bar/visibility_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
+import 'package:login/providers/navigation_provider.dart';
+import 'package:login/providers/bubble_mode_provider.dart';
 import 'package:provider/provider.dart';
 
 class AppProviders extends StatelessWidget {
@@ -29,6 +31,8 @@ class AppProviders extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => MapStateProvider()),
         ChangeNotifierProvider(create: (_) => BottomNavVisibilityProvider()),
         ChangeNotifierProvider(create: (_) => DynamicNavProvider()),
+        ChangeNotifierProvider(create: (_) => NavigationProvider()),
+        ChangeNotifierProvider(create: (_) => BubbleModeProvider()),
       ],
       child: child,
     );

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:login/models/chat_group_model.dart';
+import 'package:login/models/bubble.dart';
 import 'package:login/models/users.dart';
 import 'package:provider/provider.dart';
 import '../../supabase/service.dart';
 
 class AddMembersDialog extends StatefulWidget {
-  final ChatGroupModel bubble;
+  final Bubble bubble;
   final VoidCallback onMembersAdded;
 
   const AddMembersDialog({

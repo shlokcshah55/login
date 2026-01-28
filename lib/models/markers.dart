@@ -57,6 +57,7 @@ class PinitMarkers {
     bool selected = false,
     String? types,
     String? cuisine,
+    bool showText = true,
   }) {
     final color = surfaceColor ?? PinitMarkerPalette.forCuisine(cuisine, types);
     final cacheKey = _pinCacheKey(
@@ -66,6 +67,7 @@ class PinitMarkers {
       surfaceColor: color,
       textColor: textColor,
       selected: selected,
+      showText: showText,
     );
     final cached = _cache.get(cacheKey);
     if (cached != null) return Future.value(cached);
@@ -77,6 +79,7 @@ class PinitMarkers {
       surfaceColor: color,
       textColor: textColor,
       selected: selected,
+      showText: showText,
     ).then((bitmap) {
       _cache.set(cacheKey, bitmap);
       return bitmap;
@@ -114,13 +117,13 @@ class PinitMarkers {
 
   // Static style configuration - no zoom-based changes
   static const PinitMarkerStyle _staticStyle = PinitMarkerStyle(
-    bubbleDiameter: 8.0,
+    bubbleDiameter: 12.0,
     fontSize: 4,
     maxTextWidth: 40,
     paddingX: 2.5,
     paddingY: 1.5,
     textGap: 2.0,
-    borderWidth: 0.8,
+    borderWidth: 1.2,
     showText: true,
   );
 
@@ -131,8 +134,18 @@ class PinitMarkers {
     required Color surfaceColor,
     required Color textColor,
     required bool selected,
+    required bool showText,
   }) async {
-    const style = _staticStyle;
+    final style = PinitMarkerStyle(
+      bubbleDiameter: 12.0,
+      fontSize: 4,
+      maxTextWidth: 40,
+      paddingX: 2.5,
+      paddingY: 1.5,
+      textGap: 2.0,
+      borderWidth: 1.2,
+      showText: showText,
+    );
     // Emoji size: fontSize 30 for 56px circle = ~0.54 ratio
     final emojiSize = style.bubbleDiameter * 0.54;
 
@@ -270,7 +283,7 @@ class PinitMarkers {
     required bool selected,
   }) async {
     const style = _staticStyle;
-    final double diameter = style.bubbleDiameter + 4;
+    final double diameter = style.bubbleDiameter;
     final String label = count > 99 ? '99+' : count.toString();
 
     final textPainter = TextPainter(
@@ -308,12 +321,11 @@ class PinitMarkers {
       canvas.drawCircle(center, diameter / 2 + borderWidth, borderPaint);
     }
 
-    // Draw solid colored circle
-    _drawBubbleCircle(
-      canvas: canvas,
-      center: center,
-      diameter: diameter,
-      color: surfaceColor,
+    // Draw solid colored circle for cluster (no white background)
+    canvas.drawCircle(
+      center,
+      diameter / 2,
+      Paint()..color = surfaceColor,
     );
 
     textPainter.paint(
@@ -339,11 +351,23 @@ class PinitMarkers {
   }) {
     final double radius = diameter / 2;
 
-    // Main solid colored circle fill (matching reference: color: location.color)
+    // White circle fill
     canvas.drawCircle(
       center,
       radius,
-      Paint()..color = color,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.fill,
+    );
+
+    // Colored border
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2,
     );
   }
 
@@ -354,10 +378,11 @@ class PinitMarkers {
     required Color surfaceColor,
     required Color textColor,
     required bool selected,
+    required bool showText,
   }) {
     return 'pin|$emoji|$name|'
         '${devicePixelRatio.toStringAsFixed(2)}|'
-        '${surfaceColor.value}|${textColor.value}|$selected';
+        '${surfaceColor.value}|${textColor.value}|$selected|$showText';
   }
 
   static String _clusterCacheKey({

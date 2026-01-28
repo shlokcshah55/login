@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:login/pages/home/home_view_model.dart';
 import 'package:login/pages/home/widgets/home_carousel.dart';
 import 'package:login/pages/home/widgets/home_header.dart';
@@ -9,6 +10,7 @@ import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:login/providers/nav_bar/visibility_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
+import 'package:login/providers/bubble_mode_provider.dart';
 import 'package:login/widgets/wizard_completion_popover.dart';
 import 'package:provider/provider.dart';
 
@@ -29,6 +31,7 @@ class _HomePageState extends State<HomePage> {
   late final LocationListManager _locationListManager;
   late final MapStateProvider _mapStateProvider;
   late final BottomNavVisibilityProvider _bottomNavVisibilityProvider;
+  late final BubbleModeProvider _bubbleModeProvider;
   bool _wizardPopoverScheduled = false;
   bool _wizardPopoverShown = false;
 
@@ -38,15 +41,29 @@ class _HomePageState extends State<HomePage> {
     _locationListManager = context.read<LocationListManager>();
     _mapStateProvider = context.read<MapStateProvider>();
     _bottomNavVisibilityProvider = context.read<BottomNavVisibilityProvider>();
+    _bubbleModeProvider = context.read<BubbleModeProvider>();
     _viewModel = HomeViewModel(
       locationListManager: _locationListManager,
       mapStateProvider: _mapStateProvider,
       bottomNavVisibilityProvider: _bottomNavVisibilityProvider,
     );
     _viewModel.init();
-    
+
     // Listen to location list manager errors and show snackbar
     _locationListManager.addListener(_checkForErrors);
+
+    // Listen for bubble mode activation requests
+    _bubbleModeProvider.addListener(_handleBubbleModeRequest);
+  }
+
+  @override
+  void didUpdateWidget(HomePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Check for pending activation when page becomes active
+    if (!oldWidget.isActive && widget.isActive) {
+      print('HomePage became active, checking for pending activation');
+      _handleBubbleModeRequest();
+    }
   }
 
   void _checkForErrors() {
@@ -58,6 +75,27 @@ class _HomePageState extends State<HomePage> {
           duration: const Duration(seconds: 4),
         ),
       );
+    }
+  }
+
+  void _handleBubbleModeRequest() {
+    print('HomePage listener fired! hasPending: ${_bubbleModeProvider.hasPendingActivation}, isActive: ${widget.isActive}');
+    if (_bubbleModeProvider.hasPendingActivation && widget.isActive) {
+      final bubble = _bubbleModeProvider.pendingBubble!;
+      print('Processing bubble activation for: ${bubble.name}');
+      _bubbleModeProvider.clearPendingBubble();
+
+      _viewModel.activateBubbleMode(bubble);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Bubble mode activated for ${bubble.name}'),
+            backgroundColor: Colors.purple,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
     }
   }
 
@@ -111,6 +149,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     _locationListManager.removeListener(_checkForErrors);
+    _bubbleModeProvider.removeListener(_handleBubbleModeRequest);
     _viewModel.dispose();
     super.dispose();
   }
@@ -124,54 +163,95 @@ class _HomePageState extends State<HomePage> {
           final userDataProvider = context.watch<UserDataProvider>();
           _scheduleWizardPopoverIfNeeded(userDataProvider);
 
-          return Scaffold(
-            body: Stack(
-              children: [
-                Positioned.fill(
-                  child: HomeMapLayer(
-                    onMapTap: viewModel.onMapTap,
-                    onSearchThisArea: viewModel.searchThisArea,
+          return Container(
+            decoration: viewModel.isBubbleModeActive
+                ? BoxDecoration(
+                    border: Border.all(
+                      color: Colors.purple,
+                      width: 4.0,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.purple.withOpacity(0.5),
+                        blurRadius: 20,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  )
+                : null,
+            child: Scaffold(
+              body: Stack(
+                children: [
+                  Positioned.fill(
+                    child: HomeMapLayer(
+                      onMapTap: viewModel.onMapTap,
+                      onSearchThisArea: viewModel.searchThisArea,
+                    ),
                   ),
-                ),
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: HomeHeader(
-                    currentListType: viewModel.currentListType,
-                    onListTypeChanged: viewModel.setListType,
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: HomeHeader(
+                      currentListType: viewModel.currentListType,
+                      onListTypeChanged: viewModel.setListType,
+                    ),
                   ),
-                ),
-                AnimatedPositioned(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeOutQuint,
-                  bottom: viewModel.bottomNavVisible ? 90.0 : 20.0,
-                  left: 0,
-                  right: 0,
-                  child: HomeCarousel(
-                    pageController: viewModel.pageController,
-                    locations: viewModel.locations,
-                    selectedMarkerId: viewModel.selectedMarkerId,
-                    bottomNavVisible: viewModel.bottomNavVisible,
-                    onPageChanged: viewModel.onCarouselPageChanged,
-                    onScrollStart: viewModel.onCarouselScrollStart,
-                    onLocationSelected: viewModel.onLocationSelected,
+                  if (viewModel.isBubbleModeActive && viewModel.activeBubble != null)
+                    Positioned(
+                      top: 60,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 16),
+                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.purple.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.purple, width: 1),
+                        ),
+                        child: Text(
+                          '${viewModel.activeBubble!.name} activated...',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.purple,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeOutQuint,
+                    bottom: viewModel.bottomNavVisible ? 90.0 : 20.0,
+                    left: 0,
+                    right: 0,
+                    child: HomeCarousel(
+                      pageController: viewModel.pageController,
+                      locations: viewModel.locations,
+                      selectedMarkerId: viewModel.selectedMarkerId,
+                      bottomNavVisible: viewModel.bottomNavVisible,
+                      onPageChanged: viewModel.onCarouselPageChanged,
+                      onScrollStart: viewModel.onCarouselScrollStart,
+                      onLocationSelected: viewModel.onLocationSelected,
+                    ),
                   ),
-                ),
-                Positioned(
-                  top: 80,
-                  right: 20,
-                  child: MagicSearchButton(
-                    onPressed: () => viewModel.toggleSearchOverlay(true),
+                  Positioned(
+                    top: 80,
+                    right: 20,
+                    child: MagicSearchButton(
+                      onPressed: () => viewModel.toggleSearchOverlay(true),
+                    ),
                   ),
-                ),
-                if (viewModel.showSearchOverlay)
-                  MagicSearchOverlay(
-                    controller: viewModel.searchController,
-                    onClose: () => viewModel.toggleSearchOverlay(false),
-                    onSubmit: viewModel.submitMagicSearch,
-                  ),
-              ],
+                  if (viewModel.showSearchOverlay)
+                    MagicSearchOverlay(
+                      controller: viewModel.searchController,
+                      onClose: () => viewModel.toggleSearchOverlay(false),
+                      onSubmit: viewModel.submitMagicSearch,
+                    ),
+                ],
+              ),
             ),
           );
         },

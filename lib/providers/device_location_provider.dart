@@ -25,27 +25,27 @@ class DeviceLocationProvider with ChangeNotifier {
   String? get error => _error;
 
   /// Checks and requests location permission.
-  Future<bool> checkAndRequestPermission() async {
-    // Use unified permission logic
-    bool granted = await requestLocationPermission();
-    _permissionGranted = granted;
-    if (!_permissionGranted) {
-      // Check if permanently denied
-      PermissionStatus status = await Permission.locationWhenInUse.status;
-      if (status.isPermanentlyDenied) {
-        _error = "Location permission permanently denied. Please enable it in system settings.";
-        log("DeviceLocationProvider: Location permission permanently denied.");
-      } else {
-        _error = "Location permission denied.";
-        log("DeviceLocationProvider: Location permission denied.");
-      }
-    } else {
-      _error = null;
-      log("DeviceLocationProvider: Location permission granted.");
-    }
-    notifyListeners();
-    return _permissionGranted;
-  }
+  // Future<bool> checkAndRequestPermission() async {
+  //   // Use unified permission logic
+  //   bool granted = await requestLocationPermission();
+  //   _permissionGranted = granted;
+  //   if (!_permissionGranted) {
+  //     // Check if permanently denied
+  //     PermissionStatus status = await Permission.locationWhenInUse.status;
+  //     if (status.isPermanentlyDenied) {
+  //       _error = "Location permission permanently denied. Please enable it in system settings.";
+  //       log("DeviceLocationProvider: Location permission permanently denied.");
+  //     } else {
+  //       _error = "Location permission denied.";
+  //       log("DeviceLocationProvider: Location permission denied.");
+  //     }
+  //   } else {
+  //     _error = null;
+  //     log("DeviceLocationProvider: Location permission granted.");
+  //   }
+  //   notifyListeners();
+  //   return _permissionGranted;
+  // }
 
   /// Fetches the current location once.
   Future<LatLng?> getCurrentLocation() async {

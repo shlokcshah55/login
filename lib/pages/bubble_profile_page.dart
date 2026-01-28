@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
-import 'package:login/models/chat_group_model.dart';
+import 'package:login/models/bubble.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/widgets/chat/add_members_dialog.dart';
 
 class BubbleProfilePage extends StatefulWidget {
-  final ChatGroupModel chatGroup;
+  final Bubble chatGroup;
 
   const BubbleProfilePage({
     Key? key,
@@ -28,7 +28,7 @@ class _BubbleProfilePageState extends State<BubbleProfilePage>
   bool isLoading = true;
   
   // Local state for bubble data that can be updated
-  late ChatGroupModel currentBubble;
+  late Bubble currentBubble;
 
   @override
   void initState() {

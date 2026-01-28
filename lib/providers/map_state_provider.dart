@@ -25,6 +25,7 @@ class MapStateProvider with ChangeNotifier {
   MarkerId? get selectedMarkerId => _selectedMarkerId;
   bool get showSearchThisAreaButton => _showSearchThisAreaButton;
   double get currentZoom => _currentZoom;
+  LatLng? get currentVisibleCenter => _currentVisibleCenter;
 
   // Set the carousel page controller
   void setCarouselPageController(PageController controller) {
@@ -98,6 +99,17 @@ class MapStateProvider with ChangeNotifier {
     _lastFocusedUserLocation = userPosition;
     await animateCamera(CameraUpdate.newLatLngZoom(userPosition, zoom));
     log("MapStateProvider: Camera focused on user location: $userPosition");
+  }
+
+  /// Gets the current visible bounds of the map
+  Future<LatLngBounds?> getVisibleBounds() async {
+    if (_mapController == null) return null;
+    try {
+      return await _mapController!.getVisibleRegion();
+    } catch (e) {
+      log('Error getting visible bounds: $e');
+      return null;
+    }
   }
 
   /// Focuses the map camera to show bounds containing two points.

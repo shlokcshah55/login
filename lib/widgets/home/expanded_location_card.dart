@@ -1,3 +1,12 @@
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import 'package:login/models/bubble.dart';
+import 'package:login/providers/location_list_provider.dart';
+import 'package:login/providers/user_data_provider.dart';
+import 'package:login/supabase/service.dart';
 import 'dart:ui';
 
 import 'package:cached_network_image/cached_network_image.dart';

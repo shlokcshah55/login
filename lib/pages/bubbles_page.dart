@@ -3,9 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:login/models/users.dart';
 import 'package:provider/provider.dart';
-import 'package:login/models/chat_group_model.dart';
+import 'package:login/models/bubble.dart';
 import 'package:login/widgets/chat/chat_group_tile.dart';
-import 'package:login/widgets/chat/expanded_chat_view.dart';
+import 'package:login/widgets/chat/expanded_bubble_view.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/supabase/supabase_client.dart';
 import 'package:login/providers/bubbles_provider.dart';
@@ -233,7 +233,7 @@ class _BubblesPageState extends State<BubblesPage>
     );
   }
 
-  Widget _buildChatsList(ThemeData theme, List<ChatGroupModel> chatGroups) {
+  Widget _buildChatsList(ThemeData theme, List<Bubble> chatGroups) {
     if (chatGroups.isEmpty) {
       return _buildEmptyState(theme);
     }
@@ -256,7 +256,7 @@ class _BubblesPageState extends State<BubblesPage>
               return AnimatedContainer(
                 duration: Duration(milliseconds: 100 * (index + 1)),
                 child: ChatGroupTile(
-                  chatGroup: chatGroup,
+                  bubble: chatGroup,
                   onTap: () => _openExpandedChatView(chatGroup),
                 ),
               );
@@ -310,12 +310,12 @@ class _BubblesPageState extends State<BubblesPage>
     );
   }
 
-  void _openExpandedChatView(ChatGroupModel chatGroup) {
+  void _openExpandedChatView(Bubble chatGroup) {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => ExpandedChatView(
-        chatGroup: chatGroup,
+        bubble: chatGroup,
         onClose: () => Navigator.of(context).pop(),
       ),
     );

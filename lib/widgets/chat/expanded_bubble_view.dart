@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:login/models/chat_group_model.dart';
+import 'package:login/models/bubble.dart';
 import 'package:login/models/actions.dart';
 import 'package:login/pages/bubble_messaging_page.dart';
 import 'package:login/pages/bubble_profile_page.dart';
 import 'package:login/supabase/service.dart';
+import 'package:login/providers/bubble_mode_provider.dart';
+import 'package:login/providers/navigation_provider.dart';
+import 'package:provider/provider.dart';
 import 'dart:math' as math;
 
 class ExpandedChatView extends StatefulWidget {
-  final ChatGroupModel chatGroup;
+  final Bubble bubble;
   final VoidCallback onClose;
 
   const ExpandedChatView({
     Key? key,
-    required this.chatGroup,
+    required this.bubble,
     required this.onClose,
   }) : super(key: key);
 
@@ -43,7 +46,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
 
   Future<void> _loadMessageCount() async {
     try {
-      final count = await SupabaseService().messaging.getUnreadCount(widget.chatGroup.id);
+      final count = await SupabaseService().messaging.getUnreadCount(widget.bubble.id);
       if (mounted) {
         setState(() {
           _messageCount = count;
@@ -63,7 +66,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
     try {
       final activities = await SupabaseService()
           .bubbles
-          .getBubbleActivity(widget.chatGroup.id);
+          .getBubbleActivity(widget.bubble.id);
 
       if (mounted) {
         setState(() {
@@ -206,9 +209,11 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
         children: [
           CircleAvatar(
             radius: 24,
-            backgroundImage: NetworkImage(widget.chatGroup.groupAvatar),
+            backgroundImage: widget.bubble.groupAvatar.isNotEmpty
+                ? NetworkImage(widget.bubble.groupAvatar)
+                : null,
             backgroundColor: theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.2),
-            child: widget.chatGroup.groupAvatar.isEmpty
+            child: widget.bubble.groupAvatar.isEmpty
                 ? Icon(Icons.group, color: theme.primaryColor)
                 : null,
           ),
@@ -218,13 +223,13 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  widget.chatGroup.name,
+                  widget.bubble.name,
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
-                  '${widget.chatGroup.memberCount} members • ${widget.chatGroup.groupLocations.length} locations',
+                  '${widget.bubble.memberCount} members • ${widget.bubble.groupLocations.length} locations',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: Colors.grey[600],
                   ),
@@ -253,13 +258,13 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
   }
 
   Widget _buildGroupInfo(ThemeData theme) {
-    if (widget.chatGroup.description.isEmpty) return const SizedBox.shrink();
+    if (widget.bubble.description.isEmpty) return const SizedBox.shrink();
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       child: Text(
-        widget.chatGroup.description,
+        widget.bubble.description,
         style: theme.textTheme.bodyMedium,
         textAlign: TextAlign.center,
       ),
@@ -282,7 +287,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
               child: _buildStatCard(
                 theme,
                 _showMembersList ? Icons.people : Icons.people_outline,
-                widget.chatGroup.memberCount.toString(),
+                widget.bubble.memberCount.toString(),
                 'MEMBERS',
                 theme.primaryColor,
               ),
@@ -293,7 +298,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
             child: _buildStatCard(
               theme,
               Icons.location_on_outlined,
-              widget.chatGroup.groupLocations.length.toString(),
+              widget.bubble.groupLocations.length.toString(),
               'SHARED',
               Colors.green,
             ),
@@ -433,8 +438,8 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
   }
 
   Widget _buildMemberAvatarsPreview(ThemeData theme) {
-    final avatars = widget.chatGroup.memberAvatars.take(3).toList();
-    final remaining = widget.chatGroup.memberAvatars.length - 3;
+    final avatars = widget.bubble.memberAvatars.take(3).toList();
+    final remaining = widget.bubble.memberAvatars.length - 3;
 
     return SizedBox(
       width: 70,
@@ -495,7 +500,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => BubbleMessagingPage(
-          bubble: widget.chatGroup,
+          bubble: widget.bubble,
         ),
       ),
     );
@@ -749,7 +754,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
   Widget _buildTopRecommendationsPodium(ThemeData theme) {
     // Get random top 3 locations (for now, until we implement actual ranking)
     final random = math.Random();
-    final locations = widget.chatGroup.groupLocations.toList();
+    final locations = widget.bubble.groupLocations.toList();
     locations.shuffle(random);
     final top3 = locations.take(3).toList();
 
@@ -1117,17 +1122,14 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
   }
 
   void _navigateToBubbleProfile() {
-    // Close the current dialog
+    print('Navigating to bubble profile for bubble: ${widget.bubble.name}');
+    final bubbleModeProvider = context.read<BubbleModeProvider>();
+    final navigationProvider = context.read<NavigationProvider>();
+
+    bubbleModeProvider.requestBubbleMode(widget.bubble);
+    navigationProvider.navigateToTab(0);
+
     Navigator.of(context).pop();
-    
-    // Navigate to bubble profile page
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => BubbleProfilePage(
-          chatGroup: widget.chatGroup,
-        ),
-      ),
-    );
   }
 
   Widget _buildMembersList(ThemeData theme) {
@@ -1172,7 +1174,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
             spacing: 8,
             runSpacing: 8,
             children: List.generate(
-              widget.chatGroup.memberAvatars.length,
+              widget.bubble.memberAvatars.length,
               (index) {
                 final name = index < memberNames.length 
                     ? memberNames[index] 
@@ -1193,11 +1195,11 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
                     children: [
                       CircleAvatar(
                         radius: 12,
-                        backgroundImage: widget.chatGroup.memberAvatars[index].isNotEmpty
-                            ? NetworkImage(widget.chatGroup.memberAvatars[index])
+                        backgroundImage: widget.bubble.memberAvatars[index].isNotEmpty
+                            ? NetworkImage(widget.bubble.memberAvatars[index])
                             : null,
                         backgroundColor: theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.3),
-                        child: widget.chatGroup.memberAvatars[index].isEmpty
+                        child: widget.bubble.memberAvatars[index].isEmpty
                             ? Icon(Icons.person, color: theme.primaryColor, size: 14)
                             : null,
                       ),

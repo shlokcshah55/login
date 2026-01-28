@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../models/chat_group_model.dart';
+import '../models/bubble.dart';
 import '../providers/messaging_provider.dart';
 import '../supabase/service.dart';
 import '../widgets/chat/message_input.dart';
 import '../widgets/chat/message_list.dart';
 
 class BubbleMessagingPage extends StatefulWidget {
-  final ChatGroupModel bubble;
+  final Bubble bubble;
 
   const BubbleMessagingPage({
     Key? key,

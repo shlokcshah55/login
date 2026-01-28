@@ -4,6 +4,7 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:login/controllers/home_controller.dart';
+import 'package:login/models/bubble.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/map_state_provider.dart';
@@ -22,6 +23,8 @@ class HomeViewModel extends ChangeNotifier {
   MarkerId? _lastSelectedMarkerId;
   Timer? _debounce;
   bool _initialized = false;
+  bool _isBubbleModeActive = false;
+  Bubble? _activeBubble;
 
   HomeViewModel({
     required this.locationListManager,
@@ -40,6 +43,8 @@ class HomeViewModel extends ChangeNotifier {
   MarkerId? get selectedMarkerId => mapStateProvider.selectedMarkerId;
   List<LocationModel> get locations =>
       locationListManager.currentItems.keys.toList();
+  bool get isBubbleModeActive => _isBubbleModeActive;
+  Bubble? get activeBubble => _activeBubble;
 
   void init() {
     if (_initialized) return;
@@ -159,6 +164,19 @@ class HomeViewModel extends ChangeNotifier {
       center: center,
       bounds: bounds,
     );
+  }
+
+  void activateBubbleMode(Bubble chatGroup) {
+    _isBubbleModeActive = true;
+    _activeBubble = chatGroup;
+    print('activated bubble mode for bubble: ${chatGroup.name}');
+    notifyListeners();
+  }
+
+  void deactivateBubbleMode() {
+    _isBubbleModeActive = false;
+    _activeBubble = null;
+    notifyListeners();
   }
 
   @override

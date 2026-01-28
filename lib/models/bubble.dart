@@ -1,6 +1,6 @@
 import 'package:login/models/locations.dart';
 
-class ChatGroupModel {
+class Bubble {
   final String id;
   final String name;
   final String lastMessage;
@@ -14,7 +14,7 @@ class ChatGroupModel {
   final String description;
   final List<String> memberIds;
 
-  ChatGroupModel({
+  Bubble({
     required this.id,
     required this.name,
     required this.lastMessage,
@@ -29,9 +29,9 @@ class ChatGroupModel {
     this.memberIds = const [],
   });
 
-  factory ChatGroupModel.fromJson(Map<String, dynamic> json) {
+  factory Bubble.fromJson(Map<String, dynamic> json) {
 
-    return ChatGroupModel(
+    return Bubble(
       id: json['id'] ?? '',
       name: json['name'] ?? '',
       lastMessage: json['last_message'] ?? '',
@@ -66,7 +66,7 @@ class ChatGroupModel {
     };
   }
 
-  ChatGroupModel copyWith({
+  Bubble copyWith({
     String? id,
     String? name,
     String? lastMessage,
@@ -80,7 +80,7 @@ class ChatGroupModel {
     String? description,
     List<String>? memberIds,
   }) {
-    return ChatGroupModel(
+    return Bubble(
       id: id ?? this.id,
       name: name ?? this.name,
       lastMessage: lastMessage ?? this.lastMessage,

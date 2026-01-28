@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../models/chat_group_model.dart';
+import '../models/bubble.dart';
 import '../supabase/helpers/bubbles.dart';
 import '../supabase/supabase_client.dart';
 import '../supabase/constants.dart';
@@ -10,7 +10,7 @@ class BubblesProvider with ChangeNotifier {
   final BubbleHelper _bubbleHelper;
   final String userId;
 
-  List<ChatGroupModel> _bubbles = [];
+  List<Bubble> _bubbles = [];
   bool _isLoading = false;
   String? _error;
   bool _isSubscribed = false;
@@ -26,7 +26,7 @@ class BubblesProvider with ChangeNotifier {
   }) : _bubbleHelper = bubbleHelper;
 
   // Getters
-  List<ChatGroupModel> get bubbles => _bubbles;
+  List<Bubble> get bubbles => _bubbles;
   bool get isLoading => _isLoading;
   String? get error => _error;
 

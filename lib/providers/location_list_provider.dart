@@ -38,6 +38,11 @@ class LocationListManager with ChangeNotifier {
   LatLng? _lastSearchedCenter;
   bool _areaChanged = false;
   bool _isSearchingArea = false;
+
+  // Viewport-aware name selection state
+  LatLngBounds? _currentViewportBounds;
+  Set<int>? _lastSelectedIds;
+  double? _lastSelectionZoom;
   
   // Flags to prevent duplicate data fetches
   bool _isLoadingSaved = false;
@@ -213,21 +218,35 @@ class LocationListManager with ChangeNotifier {
           .getLocationImage(locationId, locationData['google_place_id'], locationData['photo_reference']);
       
       final location = LocationModel.fromJson(locationData, locationImage);
-      final marker = await location
-          .setPreference(LocationPreference.saved)
-          .toMarker(_devicePixelRatio);
-      
-      if (marker != null) {
-        _savedLocations[location] = marker;
-        
-        // Update current items if viewing saved locations
-        if (_currentListType == LocationListType.saved) {
-          _currentItems = _savedLocations;
-        }
-        
-        notifyListeners();
-        print('Added location to saved: ${location.name}');
+
+      // Add to saved locations temporarily with a placeholder marker
+      _savedLocations[location] = Marker(markerId: MarkerId(locationId.toString()));
+
+      // Re-apply name selection to all saved locations (including the new one)
+      final selectedForNames = _selectLocationsForNameDisplay(
+        _savedLocations,
+        viewportBounds: _currentViewportBounds,
+      );
+
+      // Regenerate all markers with updated name visibility
+      final updatedMarkers = await Future.wait(
+        _savedLocations.keys.map((loc) async {
+          final shouldShowName = selectedForNames.contains(loc.locationId);
+          final marker = await loc
+              .setPreference(LocationPreference.saved)
+              .toMarker(_devicePixelRatio, shouldShowName: shouldShowName);
+          return MapEntry(loc, marker!);
+        }),
+      );
+      _savedLocations = Map.fromEntries(updatedMarkers);
+
+      // Update current items if viewing saved locations
+      if (_currentListType == LocationListType.saved) {
+        _currentItems = _savedLocations;
       }
+
+      notifyListeners();
+      print('Added location to saved: ${location.name}');
     } catch (e) {
       print('Error adding location realtime: $e');
     }
@@ -256,8 +275,139 @@ class LocationListManager with ChangeNotifier {
     }
   }
 
+  /// Checks if a location is within the given viewport bounds
+  bool _isLocationInViewport(LocationModel location, LatLngBounds bounds) {
+    if (location.lat == null || location.lng == null) return false;
+
+    // Check latitude bounds
+    if (location.lat! < bounds.southwest.latitude ||
+        location.lat! > bounds.northeast.latitude) {
+      return false;
+    }
+
+    // Check longitude bounds (handles date line crossing)
+    final west = bounds.southwest.longitude;
+    final east = bounds.northeast.longitude;
+
+    if (west <= east) {
+      return location.lng! >= west && location.lng! <= east;
+    } else {
+      // Crosses date line
+      return location.lng! >= west || location.lng! <= east;
+    }
+  }
+
+  /// Selects up to 10 locations to display names on the map
+  /// Only considers locations within the current viewport bounds
+  /// Randomly selects from visible pins
+  Set<int> _selectLocationsForNameDisplay(
+    Map<LocationModel, Marker> locations, {
+    LatLngBounds? viewportBounds,
+  }) {
+    if (locations.isEmpty) return {};
+
+    // Filter to locations in viewport if bounds provided
+    List<LocationModel> visibleLocations;
+    if (viewportBounds != null) {
+      visibleLocations = locations.keys
+          .where((loc) => _isLocationInViewport(loc, viewportBounds))
+          .toList();
+
+      // Fallback to all locations if no visible markers
+      if (visibleLocations.isEmpty) {
+        visibleLocations = locations.keys.toList();
+        print('No locations in viewport, falling back to all locations');
+      }
+    } else {
+      visibleLocations = locations.keys.toList();
+    }
+
+    final selectedCount = math.min(10, visibleLocations.length);
+
+    // Random selection from visible locations
+    final random = math.Random();
+    final selected = <int>{};
+
+    while (selected.length < selectedCount) {
+      final randomLocation = visibleLocations[random.nextInt(visibleLocations.length)];
+      selected.add(randomLocation.locationId);
+    }
+
+    return selected;
+  }
+
+  /// Regenerates markers in _currentItems with only 10 showing names
+  Future<void> _applyNameSelectionToCurrentItems({LatLngBounds? viewportBounds}) async {
+    if (_currentItems.isEmpty) return;
+
+    final selectedForNames = _selectLocationsForNameDisplay(
+      _currentItems,
+      viewportBounds: viewportBounds,
+    );
+
+    // Regenerate markers with updated name visibility
+    final updatedMarkers = await Future.wait(
+      _currentItems.keys.map((location) async {
+        final shouldShowName = selectedForNames.contains(location.locationId);
+        final marker = await location.toMarker(_devicePixelRatio, shouldShowName: shouldShowName);
+        return MapEntry(location, marker!);
+      }),
+    );
+
+    _currentItems = Map.fromEntries(updatedMarkers);
+  }
+
+  /// Call this when map viewport changes (pan/zoom) to update name display
+  Future<void> onMapViewportChanged({
+    required LatLngBounds? bounds,
+    required LatLng? center,
+    required double zoom,
+  }) async {
+    if (_currentItems.isEmpty) return;
+
+    // Store current viewport bounds
+    _currentViewportBounds = bounds;
+
+    // Calculate new selection based on viewport
+    final newSelection = _selectLocationsForNameDisplay(
+      _currentItems,
+      viewportBounds: bounds,
+    );
+
+    // Check if selection would actually change
+    final selectionChanged = _lastSelectedIds == null ||
+        !_lastSelectedIds!.containsAll(newSelection) ||
+        !newSelection.containsAll(_lastSelectedIds!);
+
+    // Check if zoom changed significantly (>0.5 levels)
+    final zoomChanged = _lastSelectionZoom == null ||
+        (zoom - _lastSelectionZoom!).abs() > 0.5;
+
+    // Skip regeneration if selection unchanged and zoom similar
+    if (!selectionChanged && !zoomChanged) {
+      print('Skipping marker regeneration - selection and zoom unchanged');
+      return;
+    }
+
+    // Update cached state
+    _lastSelectedIds = newSelection;
+    _lastSelectionZoom = zoom;
+
+    // Regenerate markers with updated name visibility
+    final updatedMarkers = await Future.wait(
+      _currentItems.keys.map((location) async {
+        final shouldShowName = newSelection.contains(location.locationId);
+        final marker = await location.toMarker(_devicePixelRatio, shouldShowName: shouldShowName);
+        return MapEntry(location, marker!);
+      }),
+    );
+
+    _currentItems = Map.fromEntries(updatedMarkers);
+    notifyListeners();
+  }
+
   /// Sets the currently displayed locations in the carousel
-  void setCurrentListType(LocationListType type) {
+  Future<void> setCurrentListType(LocationListType type) async {
     _currentListType = type;
     switch (type) {
       case LocationListType.saved:
@@ -271,6 +421,9 @@ class LocationListManager with ChangeNotifier {
         break;
     }
     print("Set current list type to: $type, item count: ${_currentItems.length}");
+
+    // Apply name selection with current viewport if available
+    await _applyNameSelectionToCurrentItems(viewportBounds: _currentViewportBounds);
     notifyListeners();
   }
 
@@ -299,13 +452,22 @@ class LocationListManager with ChangeNotifier {
           await _supabaseService.locations.getSavedLocations();
 
       if (supabaseSavedLocations.isNotEmpty) {
-        // Use Supabase data if available
-        // Create markers in parallel for better performance
+        // First create a temporary map to select which locations should show names
+        final tempMap = Map.fromEntries(
+          supabaseSavedLocations.map((loc) => MapEntry(loc, Marker(markerId: MarkerId(loc.locationId.toString()))))
+        );
+        final selectedForNames = _selectLocationsForNameDisplay(
+          tempMap,
+          viewportBounds: _currentViewportBounds,
+        );
+
+        // Create markers with name selection applied
         final markers = await Future.wait(
           supabaseSavedLocations.map((location) async {
+            final shouldShowName = selectedForNames.contains(location.locationId);
             final marker = await location
                 .setPreference(LocationPreference.saved)
-                .toMarker(_devicePixelRatio);
+                .toMarker(_devicePixelRatio, shouldShowName: shouldShowName);
             return MapEntry(location, marker!);
           }),
         );
@@ -340,13 +502,22 @@ class LocationListManager with ChangeNotifier {
       print('nearbyLocations: $nearbyLocations');
       log("Supabase nearby locations: ${nearbyLocations.length}");
       if (nearbyLocations.isNotEmpty) {
-        // Use Supabase data if available
-        // Create markers in parallel for better performance
+        // First create a temporary map to select which locations should show names
+        final tempMap = Map.fromEntries(
+          nearbyLocations.map((loc) => MapEntry(loc, Marker(markerId: MarkerId(loc.locationId.toString()))))
+        );
+        final selectedForNames = _selectLocationsForNameDisplay(
+          tempMap,
+          viewportBounds: _currentViewportBounds,
+        );
+
+        // Create markers with name selection applied
         final markers = await Future.wait(
           nearbyLocations.map((location) async {
+            final shouldShowName = selectedForNames.contains(location.locationId);
             final marker = await location
                 .setPreference(LocationPreference.recommended)
-                .toMarker(_devicePixelRatio);
+                .toMarker(_devicePixelRatio, shouldShowName: shouldShowName);
             return MapEntry(location, marker!);
           }),
         );
@@ -359,11 +530,21 @@ class LocationListManager with ChangeNotifier {
           longitude: longitude,
           placeType: "restaurant",
         );
+        // Select which locations should show names
+        final tempMap = Map.fromEntries(
+          recommendations.map((loc) => MapEntry(loc, Marker(markerId: MarkerId(loc.locationId.toString()))))
+        );
+        final selectedForNames = _selectLocationsForNameDisplay(
+          tempMap,
+          viewportBounds: _currentViewportBounds,
+        );
+
         final markers = await Future.wait(
           recommendations.map((location) async {
+            final shouldShowName = selectedForNames.contains(location.locationId);
             final marker = await location
                 .setPreference(LocationPreference.recommended)
-                .toMarker(_devicePixelRatio);
+                .toMarker(_devicePixelRatio, shouldShowName: shouldShowName);
             return MapEntry(location, marker!);
           }),
         );
@@ -387,11 +568,21 @@ class LocationListManager with ChangeNotifier {
           longitude: longitude,
           placeType: "restaurant",
         );
+        // Select which locations should show names
+        final tempMap = Map.fromEntries(
+          recommendations.map((loc) => MapEntry(loc, Marker(markerId: MarkerId(loc.locationId.toString()))))
+        );
+        final selectedForNames = _selectLocationsForNameDisplay(
+          tempMap,
+          viewportBounds: _currentViewportBounds,
+        );
+
         final markers = await Future.wait(
           recommendations.map((location) async {
+            final shouldShowName = selectedForNames.contains(location.locationId);
             final marker = await location
                 .setPreference(LocationPreference.recommended)
-                .toMarker(_devicePixelRatio);
+                .toMarker(_devicePixelRatio, shouldShowName: shouldShowName);
             return MapEntry(location, marker!);
           }),
         );
@@ -406,16 +597,29 @@ class LocationListManager with ChangeNotifier {
 
   /// Adds recommended locations (can be merged with fetch or kept separate)
   Future<void> addRecommendedLocations(List<LocationModel> locations) async {
-    final markers = await Future.wait(
-      locations.map((location) async {
-        final marker = await location
+    // Add new locations with placeholder markers
+    for (var location in locations) {
+      _recommendedLocations[location] = Marker(markerId: MarkerId(location.locationId.toString()));
+    }
+
+    // Re-apply name selection to all recommended locations
+    final selectedForNames = _selectLocationsForNameDisplay(
+      _recommendedLocations,
+      viewportBounds: _currentViewportBounds,
+    );
+
+    // Regenerate all markers with updated name visibility
+    final updatedMarkers = await Future.wait(
+      _recommendedLocations.keys.map((loc) async {
+        final shouldShowName = selectedForNames.contains(loc.locationId);
+        final marker = await loc
             .setPreference(LocationPreference.recommended)
-            .toMarker(_devicePixelRatio);
-        return MapEntry(location, marker!);
+            .toMarker(_devicePixelRatio, shouldShowName: shouldShowName);
+        return MapEntry(loc, marker!);
       }),
     );
-    final Map<LocationModel, Marker> newLocations = Map.fromEntries(markers);
-    _recommendedLocations.addEntries(newLocations.entries);
+    _recommendedLocations = Map.fromEntries(updatedMarkers);
+
     if (_currentListType == LocationListType.recommended) {
       _currentItems = _recommendedLocations;
     }
@@ -461,11 +665,22 @@ class LocationListManager with ChangeNotifier {
           .toList();
 
       final locations = await _fetchLocationsByIdsInOrder(locationIds);
+
+      // Select which locations should show names
+      final tempMap = Map.fromEntries(
+        locations.map((loc) => MapEntry(loc, Marker(markerId: MarkerId(loc.locationId.toString()))))
+      );
+      final selectedForNames = _selectLocationsForNameDisplay(
+        tempMap,
+        viewportBounds: _currentViewportBounds,
+      );
+
       final markers = await Future.wait(
         locations.map((location) async {
+          final shouldShowName = selectedForNames.contains(location.locationId);
           final marker = await location
               .setPreference(LocationPreference.search)
-              .toMarker(_devicePixelRatio);
+              .toMarker(_devicePixelRatio, shouldShowName: shouldShowName);
           return marker != null ? MapEntry(location, marker) : null;
         }),
       );
@@ -475,7 +690,7 @@ class LocationListManager with ChangeNotifier {
       _lastSearchedCenter = center;
       _areaChanged = false;
       _error = null;
-      setCurrentListType(LocationListType.search);
+      await setCurrentListType(LocationListType.search);
     } catch (e) {
       log('LocationListManager: Search this area failed: $e');
       _error = "Search failed: ${e.toString()}";
@@ -569,16 +784,28 @@ class LocationListManager with ChangeNotifier {
       return; // Or handle appropriately, maybe prompt login
     }
 
-    // Add location to local state
-    final marker = await location
-        .setPreference(LocationPreference.saved)
-        .toMarker(_devicePixelRatio);
-    if (marker != null) {
-      _savedLocations.putIfAbsent(location, () => marker);
-    }
+    // Add location with placeholder marker
+    _savedLocations[location] = Marker(markerId: MarkerId(location.locationId.toString()));
+
+    // Re-apply name selection to all saved locations
+    final selectedForNames = _selectLocationsForNameDisplay(
+      _savedLocations,
+      viewportBounds: _currentViewportBounds,
+    );
+
+    // Regenerate all markers with updated name visibility
+    final updatedMarkers = await Future.wait(
+      _savedLocations.keys.map((loc) async {
+        final shouldShowName = selectedForNames.contains(loc.locationId);
+        final marker = await loc
+            .setPreference(LocationPreference.saved)
+            .toMarker(_devicePixelRatio, shouldShowName: shouldShowName);
+        return MapEntry(loc, marker!);
+      }),
+    );
+    _savedLocations = Map.fromEntries(updatedMarkers);
 
     // Try to save in Supabase first
-
     bool supabaseSuccess =
         await _supabaseService.locations.saveLocation(location.locationId, savedMethod: 'in-app');
 
@@ -669,7 +896,7 @@ class LocationListManager with ChangeNotifier {
       log("LocationListManager: Cannot perform magic search without location.");
       _error = "Location permission required for search";
       _searchLocations = {};
-      setCurrentListType(LocationListType.search);
+      await setCurrentListType(LocationListType.search);
       return;
     }
 
@@ -705,7 +932,7 @@ class LocationListManager with ChangeNotifier {
         );
         _error = "Search failed: Server returned error ${response.statusCode}";
         _searchLocations = {};
-        setCurrentListType(LocationListType.search);
+        await setCurrentListType(LocationListType.search);
         return;
       }
       
@@ -731,11 +958,22 @@ class LocationListManager with ChangeNotifier {
         "LocationListManager: Loaded ${locations.length} locations from Supabase for magic search",
       );
       _searchLocations = {};
+
+      // Select which locations should show names
+      final tempMap = Map.fromEntries(
+        locations.map((loc) => MapEntry(loc, Marker(markerId: MarkerId(loc.locationId.toString()))))
+      );
+      final selectedForNames = _selectLocationsForNameDisplay(
+        tempMap,
+        viewportBounds: _currentViewportBounds,
+      );
+
       final markers = await Future.wait(
         locations.map((location) async {
+          final shouldShowName = selectedForNames.contains(location.locationId);
           final marker = await location
               .setPreference(LocationPreference.search)
-              .toMarker(_devicePixelRatio);
+              .toMarker(_devicePixelRatio, shouldShowName: shouldShowName);
           return marker != null ? MapEntry(location, marker) : null;
         }),
       );
@@ -744,12 +982,12 @@ class LocationListManager with ChangeNotifier {
       log(
         "LocationListManager: Magic search returned ${_searchLocations.length} results for '$trimmedQuery'.",
       );
-      setCurrentListType(LocationListType.search);
+      await setCurrentListType(LocationListType.search);
     } catch (e) {
       log('LocationListManager: Error during magic search: $e');
       _error = "Search error: ${e.toString()}";
       _searchLocations = {};
-      setCurrentListType(LocationListType.search);
+      await setCurrentListType(LocationListType.search);
     }
     // No need for notifyListeners() here as setCurrentListType calls it
   }
