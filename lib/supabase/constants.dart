@@ -21,7 +21,8 @@ class SupabaseConstants {
   static const String tableRecommendationCandidates = 'recommendation_candidates';
   static const String tableUserRecommendations = 'user_recommendations';
   static const String tableMessages = 'messages';
-  static const String tableUserChatState = 'user_chat_state'; 
+  static const String tableUserChatState = 'user_chat_state';
+  static const String tableLocationReviews = 'location_reviews';
 
   // Column names - users
   static const String columnSupabaseId = 'supabase_id';
@@ -136,6 +137,11 @@ class SupabaseConstants {
   static const String columnScore = 'score';
   static const String columnSource = 'source';
   // columnMetadata and columnCreatedAt are already defined above
+
+  // Column names - location_reviews
+  static const String columnContentReview = 'content';
+  static const String columnRatingReview = 'rating';
+  static const String columnPrivate = 'private';
 
   // Column names - user_tags
   // columnId, columnUserId, and columnTagId are already defined above

@@ -46,6 +46,8 @@ class _PinitMapState extends State<PinitMap> {
   Future<void> _startLocationTracking() async {
     if (_locationTrackingStarted) return;
     _locationTrackingStarted = true;
+    print('[MapDebug] Starting location tracking...');
+    print('_locationListManager: $_locationListManager');
     await _locationListManager?.startLocationUpdates();
   }
 

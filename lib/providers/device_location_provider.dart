@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:login/permissions/permissions.dart';
 
 class DeviceLocationProvider with ChangeNotifier {
   final LocationListManager _locationListManager;
@@ -25,20 +26,24 @@ class DeviceLocationProvider with ChangeNotifier {
 
   /// Checks and requests location permission.
   Future<bool> checkAndRequestPermission() async {
-    PermissionStatus status = await Permission.locationWhenInUse.status;
-    if (status.isDenied) {
-      status = await Permission.locationWhenInUse.request();
-    }
-
-    _permissionGranted = status.isGranted;
+    // Use unified permission logic
+    bool granted = await requestLocationPermission();
+    _permissionGranted = granted;
     if (!_permissionGranted) {
-      _error = "Location permission denied.";
-      log("DeviceLocationProvider: Location permission denied.");
+      // Check if permanently denied
+      PermissionStatus status = await Permission.locationWhenInUse.status;
+      if (status.isPermanentlyDenied) {
+        _error = "Location permission permanently denied. Please enable it in system settings.";
+        log("DeviceLocationProvider: Location permission permanently denied.");
+      } else {
+        _error = "Location permission denied.";
+        log("DeviceLocationProvider: Location permission denied.");
+      }
     } else {
-      _error = null; // Clear previous error if permission granted now
+      _error = null;
       log("DeviceLocationProvider: Location permission granted.");
     }
-    notifyListeners(); // Notify about permission status change
+    notifyListeners();
     return _permissionGranted;
   }
 

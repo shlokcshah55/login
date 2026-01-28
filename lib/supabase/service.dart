@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:login/models/users.dart';
 import 'package:login/supabase/helpers/auth.dart';
 import 'package:login/supabase/helpers/location.dart';
+import 'package:login/supabase/helpers/location_reviews.dart';
 import 'package:login/supabase/helpers/tags.dart';
 import 'package:login/services/fcm_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -20,6 +21,7 @@ class SupabaseService extends ChangeNotifier {
   late final LocationHelper _locationService;
   late final BubbleHelper _bubbleService;
   late final TagsHelper _tagsService;
+  late final LocationReviewsHelper _reviewsService;
   late final NotificationsHelper _notificationsService;
   late final MessagingHelper _messagingService;
 
@@ -35,6 +37,7 @@ class SupabaseService extends ChangeNotifier {
   LocationHelper get locations => _locationService;
   BubbleHelper get bubbles => _bubbleService;
   TagsHelper get tags => _tagsService;
+  LocationReviewsHelper get reviews => _reviewsService;
   NotificationsHelper get notifications => _notificationsService;
   MessagingHelper get messaging => _messagingService;
 
@@ -61,6 +64,7 @@ class SupabaseService extends ChangeNotifier {
       // Create helpers AFTER Supabase is initialized
       _authService = AuthHelper();
       _locationService = LocationHelper();
+      _reviewsService = LocationReviewsHelper();
       _bubbleService = BubbleHelper();
       _tagsService = TagsHelper();
       _notificationsService = NotificationsHelper();

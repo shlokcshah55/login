@@ -1,21 +1,14 @@
-import 'package:location/location.dart';
 
-Future<void> requestLocationPermission() async {
-  Location location = Location();
+import 'package:permission_handler/permission_handler.dart';
 
-  bool serviceEnabled = await location.serviceEnabled();
-  if (!serviceEnabled) {
-    serviceEnabled = await location.requestService();
-    if (!serviceEnabled) {
-      return; // Location service is not enabled
-    }
+Future<bool> requestLocationPermission() async {
+  PermissionStatus status = await Permission.locationWhenInUse.status;
+  if (status.isDenied || status.isRestricted || status.isLimited) {
+    status = await Permission.locationWhenInUse.request();
   }
-
-  PermissionStatus permissionGranted = await location.hasPermission();
-  if (permissionGranted == PermissionStatus.denied) {
-    permissionGranted = await location.requestPermission();
-    if (permissionGranted != PermissionStatus.granted) {
-      return; // Permission not granted
-    }
+  // Also check for "always" permission if available
+  if (!status.isGranted && await Permission.locationAlways.isGranted) {
+    status = await Permission.locationAlways.status;
   }
+  return status.isGranted;
 }

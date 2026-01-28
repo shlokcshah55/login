@@ -11,6 +11,7 @@ import 'package:login/services/google_place_service.dart';
 import 'package:login/supabase/constants.dart';
 import 'package:login/supabase/service.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:login/permissions/permissions.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
 
@@ -71,7 +72,7 @@ class LocationListManager with ChangeNotifier {
   void setDevicePixelRatio(double dpr) {
     if (_devicePixelRatio != dpr) {
       _devicePixelRatio = dpr;
-      log('LocationListManager: Device pixel ratio set to $dpr');
+      print('LocationListManager: Device pixel ratio set to $dpr');
     }
   }
 
@@ -95,14 +96,14 @@ class LocationListManager with ChangeNotifier {
   void setUserId(String? userId) {
     // Prevent redundant calls if userId hasn't changed
     if (_userId == userId) {
-      log('UserId unchanged, skipping initialization');
+      print('UserId unchanged, skipping initialization');
       return;
     }
     
     _userId = userId;
     
     // Unsubscribe from previous realtime channel
-    log('Unsubscribing from realtime updates');
+    print('Unsubscribing from realtime updates');
     _supabaseService.locations.unsubscribeFromUserLocationActions();
     _isSubscribed = false;
     
@@ -133,16 +134,16 @@ class LocationListManager with ChangeNotifier {
     
     // Prevent duplicate subscriptions
     if (_isSubscribed) {
-      log('Already subscribed to realtime updates, skipping');
+      print('Already subscribed to realtime updates, skipping');
       return;
     }
     
-    log('Subscribing to realtime updates for user: $_userId');
+    print('Subscribing to realtime updates for user: $_userId');
     
     _supabaseService.locations.subscribeToUserLocationActions(
       _userId!,
       (payload) {
-        log('Realtime event received: ${payload.eventType}');
+        print('Realtime event received: ${payload.eventType}');
         _handleRealtimeEvent(payload);
       },
     );
@@ -160,14 +161,14 @@ class LocationListManager with ChangeNotifier {
       case PostgresChangeEvent.insert:
         // New location saved
         if (record['action'] == 'saved' && record['acked'] == true) {
-          log('Location saved realtime: ${record['location_id']}');
+          print('Location saved realtime: ${record['location_id']}');
           await _addLocationToSaved(record['location_id']);
         }
         break;
         
       case PostgresChangeEvent.delete:
         // Location unsaved
-        log('Location unsaved realtime: ${oldRecord['location_id']}');
+        print('Location unsaved realtime: ${oldRecord['location_id']}');
         await _removeLocationFromSaved(oldRecord['location_id']);
         break;
         
@@ -175,10 +176,10 @@ class LocationListManager with ChangeNotifier {
         // Handle acked status change
         if (record['action'] == 'saved') {
           if (record['acked'] == true && oldRecord['acked'] == false) {
-            log('Location acknowledged: ${record['location_id']}');
+            print('Location acknowledged: ${record['location_id']}');
             await _addLocationToSaved(record['location_id']);
           } else if (record['acked'] == false && oldRecord['acked'] == true) {
-            log('Location unacknowledged: ${record['location_id']}');
+            print('Location unacknowledged: ${record['location_id']}');
             await _removeLocationFromSaved(record['location_id']);
           }
         }
@@ -186,7 +187,7 @@ class LocationListManager with ChangeNotifier {
         
       default:
         // Ignore all events (includes 'select')
-        log('Ignoring realtime event: ${payload.eventType}');
+        print('Ignoring realtime event: ${payload.eventType}');
         break;
     }
   }
@@ -197,7 +198,7 @@ class LocationListManager with ChangeNotifier {
       // Check if location already exists in saved locations
       final alreadyExists = _savedLocations.keys.any((loc) => loc.locationId == locationId);
       if (alreadyExists) {
-        log('Location $locationId already in saved list, skipping');
+        print('Location $locationId already in saved list, skipping');
         return;
       }
       
@@ -225,10 +226,10 @@ class LocationListManager with ChangeNotifier {
         }
         
         notifyListeners();
-        log('Added location to saved: ${location.name}');
+        print('Added location to saved: ${location.name}');
       }
     } catch (e) {
-      log('Error adding location realtime: $e');
+      print('Error adding location realtime: $e');
     }
   }
   
@@ -249,9 +250,9 @@ class LocationListManager with ChangeNotifier {
       }
       
       notifyListeners();
-      log('Removed location from saved: ${locationToRemove.name}');
+      print('Removed location from saved: ${locationToRemove.name}');
     } catch (e) {
-      log('Error removing location realtime: $e');
+      print('Error removing location realtime: $e');
     }
   }
 
@@ -269,25 +270,25 @@ class LocationListManager with ChangeNotifier {
         _currentItems = _searchLocations;
         break;
     }
-    log("Set current list type to: $type, item count: ${_currentItems.length}");
+    print("Set current list type to: $type, item count: ${_currentItems.length}");
     notifyListeners();
   }
 
   /// Fetches saved locations from Supabase and falls back to Firebase if needed
   Future<void> fetchSavedLocations() async {
     if (_userId == null) {
-      log("Cannot fetch saved locations: userId is null.");
+      print("Cannot fetch saved locations: userId is null.");
       return;
     }
 
     // Prevent duplicate fetches
     if (_isLoadingSaved) {
-      log("Already loading saved locations, skipping duplicate request");
+      print("Already loading saved locations, skipping duplicate request");
       return;
     }
     
     if (_savedLocationsLoaded && _savedLocations.isNotEmpty) {
-      log("Saved locations already loaded (${_savedLocations.length} items), skipping fetch");
+      print("Saved locations already loaded (${_savedLocations.length} items), skipping fetch");
       return;
     }
 
@@ -644,6 +645,7 @@ class LocationListManager with ChangeNotifier {
     print('🎯 LocationListManager.magicSearch CALLED');
     print('   Query: "$query"');
     print('   UserId: $_userId');
+    print('[MagicSearchDebug] _permissionGranted: $_permissionGranted');
     
     if (_userId == null) {
       log("Cannot perform magic search: userId is null.");
@@ -660,7 +662,9 @@ class LocationListManager with ChangeNotifier {
 
     // Get device GPS location
     log("LocationListManager: Getting device GPS location...");
+    print('[MagicSearchDebug] About to call getCurrentLocation()');
     final currentLocation = await getCurrentLocation();
+    print('[MagicSearchDebug] getCurrentLocation() returned: $currentLocation');
     if (currentLocation == null) {
       log("LocationListManager: Cannot perform magic search without location.");
       _error = "Location permission required for search";
@@ -781,40 +785,44 @@ class LocationListManager with ChangeNotifier {
     _currentItems.clear();
     _currentListType = LocationListType.saved;
     stopLocationUpdates(); // Stop tracking when clearing data
-    log("LocationListManager: Cleared all location data");
+    print("LocationListManager: Cleared all location data");
     notifyListeners();
   }
 
   /// Checks and requests location permission
   Future<bool> checkAndRequestPermission() async {
-    PermissionStatus status = await Permission.locationWhenInUse.status;
-    if (status.isDenied) {
-      status = await Permission.locationWhenInUse.request();
-    }
-
-    _permissionGranted = status.isGranted;
+    // Use unified permission logic
+    bool granted = await requestLocationPermission();
+    _permissionGranted = granted;
     if (!_permissionGranted) {
-      _error = "Location permission denied.";
-      log("LocationListManager: Location permission denied.");
+      // Check if permanently denied
+      PermissionStatus status = await Permission.locationWhenInUse.status;
+      if (status.isPermanentlyDenied) {
+        _error = "Location permission permanently denied. Please enable it in system settings.";
+        print("LocationListManager: Location permission permanently denied.");
+      } else {
+        _error = "Location permission denied.";
+        print("LocationListManager: Location permission denied.");
+      }
     } else {
-      _error = null; // Clear previous error if permission granted now
-      log("LocationListManager: Location permission granted.");
+      _error = null;
+      print("LocationListManager: Location permission granted.");
     }
-    notifyListeners(); // Notify about permission status change
+    notifyListeners();
     return _permissionGranted;
   }
 
   /// Starts tracking the user's live location updates
   Future<void> startLocationUpdates() async {
     if (_isTracking) {
-      log("LocationListManager: Already tracking location.");
+      print("LocationListManager: Already tracking location.");
       return; // Already tracking
     }
     if (!_permissionGranted) {
-       log("LocationListManager: Requesting permission before starting tracking.");
+       print("LocationListManager: Requesting permission before starting tracking.");
        bool granted = await checkAndRequestPermission();
        if (!granted) {
-         log("LocationListManager: Cannot start tracking, permission denied.");
+         print("LocationListManager: Cannot start tracking, permission denied.");
          return; // Don't start if permission denied
        }
     }
@@ -832,23 +840,23 @@ class LocationListManager with ChangeNotifier {
         onError: (error) {
           _error = "Location stream error: $error";
           _isTracking = false; // Stop tracking on error
-          log("LocationListManager: Error in location stream: $error");
+          print("LocationListManager: Error in location stream: $error");
           notifyListeners();
         },
         onDone: () {
           _isTracking = false; // Stream closed
-          log("LocationListManager: Location stream closed.");
+          print("LocationListManager: Location stream closed.");
           notifyListeners();
         },
       );
       _isTracking = true; // Mark as tracking immediately
       _error = null;
-      log("LocationListManager: Started location tracking.");
+      print("LocationListManager: Started location tracking.");
       notifyListeners(); // Notify that tracking has started
     } catch (e) {
        _error = "Failed to start location stream: $e";
        _isTracking = false;
-       log("LocationListManager: Error starting location stream: $e");
+       print("LocationListManager: Error starting location stream: $e");
        notifyListeners();
     }
   }
@@ -859,7 +867,7 @@ class LocationListManager with ChangeNotifier {
       _positionStreamSubscription!.cancel();
       _positionStreamSubscription = null;
       _isTracking = false;
-      log("LocationListManager: Stopped location tracking.");
+      print("LocationListManager: Stopped location tracking.");
       notifyListeners(); // Notify that tracking has stopped
     }
   }
@@ -876,9 +884,11 @@ class LocationListManager with ChangeNotifier {
 
   /// Gets the current device GPS location
   Future<LatLng?> getCurrentLocation() async {
+    print('[LocationDebug] getCurrentLocation called. _permissionGranted: $_permissionGranted');
     if (!_permissionGranted) {
       log("LocationListManager: Location permission not granted, requesting...");
       await checkAndRequestPermission();
+      print('[LocationDebug] After checkAndRequestPermission, _permissionGranted: $_permissionGranted');
       if (!_permissionGranted) {
         _error = "Location permission is required";
         log("LocationListManager: Permission denied");
