@@ -49,11 +49,11 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyBjOWDwLuof695vm4Pm52dVPnLhWZQ1oKk',
-    appId: '1:630839392908:ios:5f2dc8daeb3e1d6181d9a9',
+    appId: '1:630839392908:ios:a91c39fc208b5d3581d9a9',
     messagingSenderId: '630839392908',
     projectId: 'pinit-a97eb',
     storageBucket: 'pinit-a97eb.firebasestorage.app',
-    iosBundleId: 'com.example.srishlok.pinit',
+    iosBundleId: 'com.srishlok.pinit',
   );
 
   static const FirebaseOptions android = FirebaseOptions(

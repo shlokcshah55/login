@@ -8,10 +8,9 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/services/recommendations_api.dart';
 import 'package:login/services/google_place_service.dart';
+import 'package:login/services/location_service.dart';
 import 'package:login/supabase/constants.dart';
 import 'package:login/supabase/service.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:login/permissions/permissions.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
 
@@ -21,23 +20,20 @@ enum LocationListType { saved, recommended, search }
 class LocationListManager with ChangeNotifier {
   final GooglePlacesService _googlePlacesService;
   final SupabaseService _supabaseService = SupabaseService();
+  final LocationService _locationService = LocationService();
   static const String _magicSearchEndpoint =
       'https://pinit-recommendations-api-630839392908.europe-west2.run.app/locations/magic-search';
 
   String? _userId;
 
-  // Device location tracking state
-  LatLng? _currentPosition;
-  StreamSubscription<Position>? _positionStreamSubscription;
-  bool _isTracking = false;
-  bool _permissionGranted = false;
-  String? _error;
+  // Device location state is now delegated to LocationService
   double _devicePixelRatio = 1.0; // Default value
   final RecommendationsApi _recommendationsApi = RecommendationsApi();
   CameraPosition? _cameraPosition;
   LatLng? _lastSearchedCenter;
   bool _areaChanged = false;
   bool _isSearchingArea = false;
+  String? _error; // Local error for non-location errors
 
   // Viewport-aware name selection state
   LatLngBounds? _currentViewportBounds;
@@ -66,12 +62,13 @@ class LocationListManager with ChangeNotifier {
   Map<LocationModel, Marker> get currentItems => _currentItems;
   LocationListType get currentListType => _currentListType;
 
-  // Device location getters
-  LatLng? get currentPosition => _currentPosition;
-  bool get isTracking => _isTracking;
-  bool get permissionGranted => _permissionGranted;
-  String? get error => _error;
+  // Device location getters - delegate to LocationService
+  LatLng? get currentPosition => _locationService.currentPosition;
+  bool get isTracking => _locationService.isTracking;
+  bool get permissionGranted => _locationService.permissionGranted;
+  String? get error => _error ?? _locationService.error;
   CameraPosition? get cameraPosition => _cameraPosition;
+  LocationService get locationService => _locationService;
   
   // Set device pixel ratio (should be called once from a widget with context)
   void setDevicePixelRatio(double dpr) {
@@ -872,7 +869,7 @@ class LocationListManager with ChangeNotifier {
     print('🎯 LocationListManager.magicSearch CALLED');
     print('   Query: "$query"');
     print('   UserId: $_userId');
-    print('[MagicSearchDebug] _permissionGranted: $_permissionGranted');
+    print('[MagicSearchDebug] permissionGranted: $permissionGranted');
     
     if (_userId == null) {
       log("Cannot perform magic search: userId is null.");
@@ -1022,140 +1019,62 @@ class LocationListManager with ChangeNotifier {
     _searchLocations.clear();
     _currentItems.clear();
     _currentListType = LocationListType.saved;
-    stopLocationUpdates(); // Stop tracking when clearing data
+    _locationService.stopLocationUpdates(); // Stop tracking when clearing data
     print("LocationListManager: Cleared all location data");
     notifyListeners();
   }
 
-  /// Checks and requests location permission
+  /// Checks and requests location permission - delegates to LocationService
   Future<bool> checkAndRequestPermission() async {
-    // Use unified permission logic
-    bool granted = await requestLocationPermission();
-    _permissionGranted = granted;
-    if (!_permissionGranted) {
-      // Check if permanently denied
-      PermissionStatus status = await Permission.locationWhenInUse.status;
-      if (status.isPermanentlyDenied) {
-        _error = "Location permission permanently denied. Please enable it in system settings.";
-        print("LocationListManager: Location permission permanently denied.");
-      } else {
-        _error = "Location permission denied.";
-        print("LocationListManager: Location permission denied.");
-      }
-    } else {
-      _error = null;
-      print("LocationListManager: Location permission granted.");
-    }
-    notifyListeners();
-    return _permissionGranted;
+    final granted = await _locationService.checkAndRequestPermission();
+    notifyListeners(); // Notify listeners since permission state changed
+    return granted;
   }
 
-  /// Starts tracking the user's live location updates
+  /// Starts tracking the user's live location updates - delegates to LocationService
   Future<void> startLocationUpdates() async {
-    if (_isTracking) {
-      print("LocationListManager: Already tracking location.");
-      return; // Already tracking
-    }
-    if (!_permissionGranted) {
-       print("LocationListManager: Requesting permission before starting tracking.");
-       bool granted = await checkAndRequestPermission();
-       if (!granted) {
-         print("LocationListManager: Cannot start tracking, permission denied.");
-         return; // Don't start if permission denied
-       }
-    }
-
-    _positionStreamSubscription?.cancel(); // Cancel any previous stream
-    try {
-      _positionStreamSubscription = getPositionStream().listen(
-        (Position position) {
-          _currentPosition = LatLng(position.latitude, position.longitude);
-          _isTracking = true; // Ensure tracking state is true
-           _error = null; // Clear error on successful update
-          // log("LocationListManager: Location update: $_currentPosition"); // Can be noisy
-          notifyListeners(); // Notify UI about the location change
-        },
-        onError: (error) {
-          _error = "Location stream error: $error";
-          _isTracking = false; // Stop tracking on error
-          print("LocationListManager: Error in location stream: $error");
-          notifyListeners();
-        },
-        onDone: () {
-          _isTracking = false; // Stream closed
-          print("LocationListManager: Location stream closed.");
-          notifyListeners();
-        },
-      );
-      _isTracking = true; // Mark as tracking immediately
-      _error = null;
-      print("LocationListManager: Started location tracking.");
-      notifyListeners(); // Notify that tracking has started
-    } catch (e) {
-       _error = "Failed to start location stream: $e";
-       _isTracking = false;
-       print("LocationListManager: Error starting location stream: $e");
-       notifyListeners();
-    }
+    // Set up listener for location changes from LocationService
+    _locationService.addListener(_onLocationServiceChanged);
+    await _locationService.startLocationUpdates();
+    // Defer notification to avoid calling during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      notifyListeners();
+    });
   }
 
-  /// Stops live location tracking
+  /// Internal callback when LocationService changes
+  void _onLocationServiceChanged() {
+    // Defer notification to next frame to avoid calling during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      notifyListeners();
+    });
+  }
+
+  /// Stops live location tracking - delegates to LocationService
   void stopLocationUpdates() {
-    if (_positionStreamSubscription != null) {
-      _positionStreamSubscription!.cancel();
-      _positionStreamSubscription = null;
-      _isTracking = false;
-      print("LocationListManager: Stopped location tracking.");
-      notifyListeners(); // Notify that tracking has stopped
-    }
+    _locationService.removeListener(_onLocationServiceChanged);
+    _locationService.stopLocationUpdates();
+    // Don't call notifyListeners here - it may be called during dispose
+    // which causes "setState() called when widget tree was locked" errors
   }
 
-  /// Gets a stream of position updates
+  /// Gets a stream of position updates - delegates to LocationService
   Stream<Position> getPositionStream() {
-    return Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 10, // Updates when user moves 10 meters
-      ),
-    );
+    return _locationService.getPositionStream();
   }
 
-  /// Gets the current device GPS location
+  /// Gets the current device GPS location - delegates to LocationService
   Future<LatLng?> getCurrentLocation() async {
-    print('[LocationDebug] getCurrentLocation called. _permissionGranted: $_permissionGranted');
-    if (!_permissionGranted) {
-      log("LocationListManager: Location permission not granted, requesting...");
-      await checkAndRequestPermission();
-      print('[LocationDebug] After checkAndRequestPermission, _permissionGranted: $_permissionGranted');
-      if (!_permissionGranted) {
-        _error = "Location permission is required";
-        log("LocationListManager: Permission denied");
-        notifyListeners();
-        return null;
-      }
-    }
-
-    try {
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 10),
-      );
-      _currentPosition = LatLng(position.latitude, position.longitude);
-      _error = null;
-      log("LocationListManager: Got device location: $_currentPosition");
-      notifyListeners();
-      return _currentPosition;
-    } catch (e) {
-      _error = "Failed to get location: $e";
-      log("LocationListManager: Error getting location: $e");
-      notifyListeners();
-      return null;
-    }
+    print('[LocationDebug] getCurrentLocation called via LocationService');
+    final position = await _locationService.getCurrentLocation();
+    notifyListeners();
+    return position;
   }
 
   @override
   void dispose() {
-    stopLocationUpdates(); // Ensure stream is cancelled
+    _locationService.removeListener(_onLocationServiceChanged);
+    _locationService.stopLocationUpdates();
     log('Unsubscribing from realtime updates on dispose');
     _supabaseService.locations.unsubscribeFromUserLocationActions();
     _isSubscribed = false;

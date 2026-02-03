@@ -7,6 +7,7 @@ import 'package:login/firebase_options.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/services/fcm_service.dart';
 import 'package:login/services/google_place_service.dart';
+import 'package:login/services/location_service.dart';
 import 'package:login/supabase/service.dart';
 
 Future<AppDependencies> bootstrap({
@@ -32,6 +33,14 @@ Future<AppDependencies> bootstrap({
   }).catchError((e) {
     print('❌ Error requesting notification permissions: $e');
   });
+
+  print('🔧 Initializing Location Service...');
+  try {
+    await LocationService().initialize();
+    print('✅ Location Service initialized');
+  } catch (e) {
+    print('⚠️ Location Service initialization failed: $e');
+  }
 
   print('🔧 Initializing custom marker...');
   try {

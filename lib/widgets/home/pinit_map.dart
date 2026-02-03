@@ -369,9 +369,9 @@ class _PinitMapState extends State<PinitMap> {
 
   @override
   void dispose() {
-    if (_locationTrackingStarted) {
-      _locationListManager?.stopLocationUpdates();
-    }
+    // Note: Don't stop location tracking here.
+    // LocationService is a singleton that should keep running.
+    // Location tracking is managed at the app level.
     super.dispose();
   }
 }
