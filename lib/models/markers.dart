@@ -136,14 +136,15 @@ class PinitMarkers {
     required bool selected,
     required bool showText,
   }) async {
+    // Multiply dimensions by devicePixelRatio for sharp rendering
     final style = PinitMarkerStyle(
-      bubbleDiameter: 12.0,
-      fontSize: 4,
-      maxTextWidth: 40,
-      paddingX: 2.5,
-      paddingY: 1.5,
-      textGap: 2.0,
-      borderWidth: 1.2,
+      bubbleDiameter: 12.0 * devicePixelRatio,
+      fontSize: 4 * devicePixelRatio,
+      maxTextWidth: 40 * devicePixelRatio,
+      paddingX: 2.5 * devicePixelRatio,
+      paddingY: 1.5 * devicePixelRatio,
+      textGap: 2.0 * devicePixelRatio,
+      borderWidth: 1.2 * devicePixelRatio,
       showText: showText,
     );
     // Emoji size: fontSize 30 for 56px circle = ~0.54 ratio
@@ -180,12 +181,12 @@ class PinitMarkers {
     final double borderWidth = selected ? style.borderWidth : 0;
     final double padding = borderWidth + 2;
 
-    final int outW = ((totalWidth + padding * 2) * devicePixelRatio).ceil();
-    final int outH = ((totalHeight + padding * 2) * devicePixelRatio).ceil();
+    final int outW = (totalWidth + padding * 2).ceil();
+    final int outH = (totalHeight + padding * 2).ceil();
 
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
-    canvas.scale(devicePixelRatio);
+    // Don't scale canvas - dimensions already include devicePixelRatio
 
     // Calculate positions
     final double bubbleCenterX = style.bubbleDiameter / 2 + padding;
@@ -211,6 +212,7 @@ class PinitMarkers {
       center: bubbleCenter,
       diameter: style.bubbleDiameter,
       color: surfaceColor,
+      strokeWidth: style.borderWidth,
     );
 
     // Emoji centered in circle
@@ -241,7 +243,7 @@ class PinitMarkers {
             fontWeight: FontWeight.w900,
             foreground: Paint()
               ..style = PaintingStyle.stroke
-              ..strokeWidth = 1.5
+              ..strokeWidth = 1.5 * devicePixelRatio
               ..color = Colors.white,
           ),
         ),
@@ -282,8 +284,9 @@ class PinitMarkers {
     required Color textColor,
     required bool selected,
   }) async {
-    const style = _staticStyle;
-    final double diameter = style.bubbleDiameter;
+    // Multiply dimensions by devicePixelRatio for sharp rendering
+    final double diameter = 12.0 * devicePixelRatio;
+    final double borderWidth = 1.2 * devicePixelRatio;
     final String label = count > 99 ? '99+' : count.toString();
 
     final textPainter = TextPainter(
@@ -291,7 +294,7 @@ class PinitMarkers {
         text: label,
         style: GoogleFonts.poppins(
           color: Colors.white,
-          fontSize: style.bubbleDiameter * 0.45,
+          fontSize: diameter * 0.45,
           fontWeight: FontWeight.w700,
           letterSpacing: -0.2,
         ),
@@ -300,15 +303,15 @@ class PinitMarkers {
     )..layout();
 
     // Add padding for border when selected
-    final double borderWidth = selected ? style.borderWidth : 0;
-    final double padding = borderWidth + 2;
+    final double selectedBorderWidth = selected ? borderWidth : 0;
+    final double padding = selectedBorderWidth + 2 * devicePixelRatio;
 
-    final int outW = ((diameter + padding * 2) * devicePixelRatio).ceil();
-    final int outH = ((diameter + padding * 2) * devicePixelRatio).ceil();
+    final int outW = (diameter + padding * 2).ceil();
+    final int outH = (diameter + padding * 2).ceil();
 
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
-    canvas.scale(devicePixelRatio);
+    // Don't scale canvas - dimensions already include devicePixelRatio
 
     final Offset center =
         Offset(diameter / 2 + padding, diameter / 2 + padding);
@@ -318,7 +321,7 @@ class PinitMarkers {
       final borderPaint = Paint()
         ..color = Colors.white
         ..style = PaintingStyle.fill;
-      canvas.drawCircle(center, diameter / 2 + borderWidth, borderPaint);
+      canvas.drawCircle(center, diameter / 2 + selectedBorderWidth, borderPaint);
     }
 
     // Draw solid colored circle for cluster (no white background)
@@ -348,6 +351,7 @@ class PinitMarkers {
     required Offset center,
     required double diameter,
     required Color color,
+    required double strokeWidth,
   }) {
     final double radius = diameter / 2;
 
@@ -367,7 +371,7 @@ class PinitMarkers {
       Paint()
         ..color = color
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2,
+        ..strokeWidth = strokeWidth,
     );
   }
 

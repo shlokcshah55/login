@@ -39,6 +39,7 @@ class LocationListManager with ChangeNotifier {
   LatLngBounds? _currentViewportBounds;
   Set<int>? _lastSelectedIds;
   double? _lastSelectionZoom;
+  double _currentZoom = 15.0; // Track current zoom level
   
   // Flags to prevent duplicate data fetches
   bool _isLoadingSaved = false;
@@ -223,6 +224,7 @@ class LocationListManager with ChangeNotifier {
       final selectedForNames = _selectLocationsForNameDisplay(
         _savedLocations,
         viewportBounds: _currentViewportBounds,
+        zoom: _currentZoom,
       );
 
       // Regenerate all markers with updated name visibility
@@ -273,11 +275,18 @@ class LocationListManager with ChangeNotifier {
   }
 
   /// Checks if a location is within the given viewport bounds
+  /// Adjusts for carousel/footer covering bottom ~30% of screen
   bool _isLocationInViewport(LocationModel location, LatLngBounds bounds) {
     if (location.lat == null || location.lng == null) return false;
 
-    // Check latitude bounds
-    if (location.lat! < bounds.southwest.latitude ||
+    // Adjust latitude bounds to account for carousel at bottom
+    // Carousel takes up ~30% of screen height, so exclude that portion
+    final latitudeRange = bounds.northeast.latitude - bounds.southwest.latitude;
+    final carouselHeightRatio = 0.30; // 30% of screen
+    final adjustedSouthwestLat = bounds.southwest.latitude + (latitudeRange * carouselHeightRatio);
+
+    // Check latitude bounds with adjustment
+    if (location.lat! < adjustedSouthwestLat ||
         location.lat! > bounds.northeast.latitude) {
       return false;
     }
@@ -294,12 +303,14 @@ class LocationListManager with ChangeNotifier {
     }
   }
 
-  /// Selects up to 10 locations to display names on the map
-  /// Only considers locations within the current viewport bounds
-  /// Randomly selects from visible pins
+  /// Selects locations to display names on the map
+  /// Only considers unclustered locations (excludes those that will be grouped)
+  /// If 10 or fewer unclustered locations: shows all names
+  /// If more than 10 unclustered: randomly selects 10 to show names
   Set<int> _selectLocationsForNameDisplay(
     Map<LocationModel, Marker> locations, {
     LatLngBounds? viewportBounds,
+    double zoom = 15.0,
   }) {
     if (locations.isEmpty) return {};
 
@@ -319,27 +330,87 @@ class LocationListManager with ChangeNotifier {
       visibleLocations = locations.keys.toList();
     }
 
-    final selectedCount = math.min(10, visibleLocations.length);
+    // Filter out clustered locations - only consider locations that will show individually
+    final unclusteredLocations = _filterUnclusteredLocations(visibleLocations, zoom);
 
-    // Random selection from visible locations
+    // If 10 or fewer unclustered locations, show names for all of them
+    if (unclusteredLocations.length <= 10) {
+      return unclusteredLocations.map((loc) => loc.locationId).toSet();
+    }
+
+    // More than 10 unclustered locations: randomly select 10
     final random = math.Random();
     final selected = <int>{};
 
-    while (selected.length < selectedCount) {
-      final randomLocation = visibleLocations[random.nextInt(visibleLocations.length)];
+    while (selected.length < 10) {
+      final randomLocation = unclusteredLocations[random.nextInt(unclusteredLocations.length)];
       selected.add(randomLocation.locationId);
     }
 
     return selected;
   }
 
-  /// Regenerates markers in _currentItems with only 10 showing names
+  /// Filters locations to only include those that won't be clustered
+  /// Uses same clustering logic as MarkerClustering to determine which markers will cluster
+  List<LocationModel> _filterUnclusteredLocations(List<LocationModel> locations, double zoom) {
+    if (locations.length <= 1) return locations;
+
+    // Calculate clustering distance (same logic as marker_clustering.dart)
+    final double metersPerPixel = 156543.03392 * 0.625 / math.pow(2, zoom);
+    final double markerVisualWidth = 50; // Same as clustering logic
+    double clusterDistance = metersPerPixel * markerVisualWidth;
+    if (clusterDistance < 30) clusterDistance = 30;
+
+    final Set<int> clusteredIndices = {};
+    final List<LocationModel> unclustered = [];
+
+    // Group nearby markers into clusters (same algorithm as MarkerClustering)
+    for (int i = 0; i < locations.length; i++) {
+      if (clusteredIndices.contains(i)) continue;
+
+      final location = locations[i];
+      if (location.lat == null || location.lng == null) continue;
+
+      int clusterCount = 1;
+      clusteredIndices.add(i);
+
+      // Find nearby markers that would cluster with this one
+      for (int j = i + 1; j < locations.length; j++) {
+        if (clusteredIndices.contains(j)) continue;
+
+        final other = locations[j];
+        if (other.lat == null || other.lng == null) continue;
+
+        final distance = _haversineKm(
+          location.lat!,
+          location.lng!,
+          other.lat!,
+          other.lng!,
+        ) * 1000; // convert km to meters
+
+        if (distance <= clusterDistance) {
+          clusterCount++;
+          clusteredIndices.add(j);
+        }
+      }
+
+      // Only add to unclustered if this location won't be part of a cluster
+      if (clusterCount == 1) {
+        unclustered.add(location);
+      }
+    }
+
+    return unclustered;
+  }
+
+  /// Regenerates markers in _currentItems with names (all if ≤10, random 10 if >10)
   Future<void> _applyNameSelectionToCurrentItems({LatLngBounds? viewportBounds}) async {
     if (_currentItems.isEmpty) return;
 
     final selectedForNames = _selectLocationsForNameDisplay(
       _currentItems,
       viewportBounds: viewportBounds,
+      zoom: _currentZoom,
     );
 
     // Regenerate markers with updated name visibility
@@ -362,13 +433,15 @@ class LocationListManager with ChangeNotifier {
   }) async {
     if (_currentItems.isEmpty) return;
 
-    // Store current viewport bounds
+    // Store current viewport bounds and zoom
     _currentViewportBounds = bounds;
+    _currentZoom = zoom;
 
     // Calculate new selection based on viewport
     final newSelection = _selectLocationsForNameDisplay(
       _currentItems,
       viewportBounds: bounds,
+      zoom: zoom,
     );
 
     // Check if selection would actually change
@@ -456,6 +529,7 @@ class LocationListManager with ChangeNotifier {
         final selectedForNames = _selectLocationsForNameDisplay(
           tempMap,
           viewportBounds: _currentViewportBounds,
+          zoom: _currentZoom,
         );
 
         // Create markers with name selection applied
@@ -506,6 +580,7 @@ class LocationListManager with ChangeNotifier {
         final selectedForNames = _selectLocationsForNameDisplay(
           tempMap,
           viewportBounds: _currentViewportBounds,
+          zoom: _currentZoom,
         );
 
         // Create markers with name selection applied
@@ -534,6 +609,7 @@ class LocationListManager with ChangeNotifier {
         final selectedForNames = _selectLocationsForNameDisplay(
           tempMap,
           viewportBounds: _currentViewportBounds,
+          zoom: _currentZoom,
         );
 
         final markers = await Future.wait(
@@ -572,6 +648,7 @@ class LocationListManager with ChangeNotifier {
         final selectedForNames = _selectLocationsForNameDisplay(
           tempMap,
           viewportBounds: _currentViewportBounds,
+          zoom: _currentZoom,
         );
 
         final markers = await Future.wait(
@@ -603,6 +680,7 @@ class LocationListManager with ChangeNotifier {
     final selectedForNames = _selectLocationsForNameDisplay(
       _recommendedLocations,
       viewportBounds: _currentViewportBounds,
+      zoom: _currentZoom,
     );
 
     // Regenerate all markers with updated name visibility
