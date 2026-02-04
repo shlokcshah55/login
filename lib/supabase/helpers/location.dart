@@ -18,57 +18,152 @@ class LocationHelper {
   // Key: location_id, Value: Future that completes when download is done
   static final Map<int, Future<String?>> _activeDownloads = {};
 
+  // ==================== CACHING LAYER ====================
+  // In-memory cache for locations with TTL
+  static final Map<int, _CachedLocation> _locationCache = {};
+  static const Duration _cacheTTL = Duration(minutes: 10);
+
+  // Request deduplication - prevents concurrent identical requests
+  static Future<List<LocationModel>>? _activeSavedLocationsRequest;
+  static Future<List<LocationModel>>? _activePopularLocationsRequest;
+
+  // Cache a single location
+  void _cacheLocation(LocationModel location) {
+    _locationCache[location.locationId] = _CachedLocation(
+      location: location,
+      cachedAt: DateTime.now(),
+    );
+  }
+
+  // Get from cache if valid
+  LocationModel? _getFromCache(int locationId) {
+    final cached = _locationCache[locationId];
+    if (cached == null) return null;
+
+    if (DateTime.now().difference(cached.cachedAt) > _cacheTTL) {
+      _locationCache.remove(locationId);
+      return null;
+    }
+    return cached.location;
+  }
+
+  // Clear expired cache entries
+  void _cleanExpiredCache() {
+    final now = DateTime.now();
+    _locationCache.removeWhere(
+        (_, cached) => now.difference(cached.cachedAt) > _cacheTTL);
+  }
+
+  // ==================== IMAGE URL HELPER ====================
+  /// Constructs the image URL for a location.
+  /// Uses a simple, predictable URL format instead of expensive storage checks.
+  /// If image doesn't exist in storage, it will be fetched from Google on demand.
+  Future<String?> _getLocationImageUrl(
+      Map<String, dynamic> locationData) async {
+    final locationId = locationData[SupabaseConstants.columnLocationId] as int;
+    final filename = '$locationId.jpg';
+
+    // First check if we have image_url stored in database (fastest)
+    final storedUrl = locationData[SupabaseConstants.columnImageUrl];
+    if (storedUrl != null && storedUrl.toString().isNotEmpty) {
+      return storedUrl.toString();
+    }
+
+    // Construct the predictable public URL
+    // This avoids the expensive storage.list() call
+    final publicUrl =
+        _client.storage.from('location_photos').getPublicUrl(filename);
+
+    // Check if we need to download from Google (only if no photo exists)
+    // We do this lazily - assume the URL works, and if it doesn't, the UI can handle it
+    final photoReference = locationData[SupabaseConstants.columnPhotoReference];
+    final googlePlaceId = locationData[SupabaseConstants.columnGooglePlaceId];
+
+    if (photoReference != null && photoReference.toString().isNotEmpty) {
+      // If we have a photo reference, try to download if not already cached
+      // This runs in background and won't block
+      _ensureImageUploaded(locationId, googlePlaceId?.toString() ?? '',
+          photoReference.toString());
+    }
+
+    return publicUrl;
+  }
+
+  /// Background task to ensure image is uploaded to storage
+  /// This is fire-and-forget - doesn't block the main flow
+  Future<void> _ensureImageUploaded(
+      int locationId, String googlePlaceId, String photoReference) async {
+    // Skip if already downloading
+    if (_activeDownloads.containsKey(locationId)) return;
+
+    try {
+      // Quick check if file exists by trying to get metadata (cheaper than list())
+      final filename = '$locationId.jpg';
+      try {
+        // Try a HEAD request to check if URL is valid
+        final url =
+            _client.storage.from('location_photos').getPublicUrl(filename);
+        final response = await http.head(Uri.parse(url));
+        if (response.statusCode == 200) {
+          // Image already exists, no need to download
+          return;
+        }
+      } catch (_) {
+        // URL doesn't exist or error - proceed with download
+      }
+
+      // Download and upload
+      await getLocationImage(locationId, googlePlaceId, photoReference);
+    } catch (e) {
+      if (kDebugMode)
+        print('Background image upload failed for $locationId: $e');
+    }
+  }
+
+  /// Process a list of location JSON objects into LocationModel list
+  /// Handles image URLs efficiently with parallel processing
+  Future<List<LocationModel>> _processLocationsWithImages(
+      List<dynamic> locationsData) async {
+    if (locationsData.isEmpty) return [];
+
+    final List<LocationModel> results = [];
+
+    // Process in parallel batches for efficiency
+    final futures = locationsData.map((item) async {
+      final locationId = item[SupabaseConstants.columnLocationId] as int;
+
+      // Check cache first
+      final cached = _getFromCache(locationId);
+      if (cached != null) return cached;
+
+      // Get image URL (fast path - just constructs URL)
+      final imageUrl = await _getLocationImageUrl(item);
+
+      final location = LocationModel.fromJson(item, imageUrl);
+      _cacheLocation(location);
+      return location;
+    }).toList();
+
+    final processed = await Future.wait(futures);
+    results.addAll(processed);
+
+    return results;
+  }
+
   // This is temporary until we replace this with reccomendation call
   Future<List<LocationModel>> getFiveLocations() async {
     try {
+      // Clean expired cache periodically
+      _cleanExpiredCache();
+
       final response = await _client
           .from(SupabaseConstants.tableLocations)
           .select()
           .order(SupabaseConstants.columnCreatedAt, ascending: false)
           .limit(5);
-      print(response);
-      List<LocationModel> locations = [];
-      for (var item in response as List) {
-        print(item[SupabaseConstants.columnLocationId]);
 
-        // Check if image_url already exists in the database
-        var locationImage;
-        var filename = '${item[SupabaseConstants.columnLocationId]}.jpg';
-
-        // Check if file already exists in storage
-        try {
-          final existingFiles = await _client.storage
-              .from('location_photos')
-              .list(path: '', searchOptions: SearchOptions(search: filename));
-
-          if (existingFiles.isNotEmpty &&
-              existingFiles.any((file) => file.name == filename)) {
-            if (kDebugMode) {
-              print('✅ Image already exists in Supabase Storage!');
-              print('   Filename: $filename');
-              print('   Skipping upload - using existing file');
-            }
-
-            // Return the URL of the existing file
-            locationImage =
-                _client.storage.from('location_photos').getPublicUrl(filename);
-          }
-        } catch (e) {
-          if (kDebugMode)
-            print(
-                '⚠️  Could not check for existing file: $e (will proceed with upload)');
-        }
-
-        // Then make a call to get the location image from google places API
-        if (locationImage == null || locationImage.isEmpty) {
-          locationImage = await getLocationImage(
-              item[SupabaseConstants.columnLocationId],
-              item[SupabaseConstants.columnGooglePlaceId],
-              item[SupabaseConstants.columnPhotoReference]);
-        }
-        locations.add(LocationModel.fromJson(item, locationImage));
-      }
-      return locations;
+      // Use the efficient batch processor
+      return await _processLocationsWithImages(response as List);
     } catch (e) {
       if (kDebugMode) {
         print('Error getting locations: $e');
@@ -85,13 +180,31 @@ class LocationHelper {
   }
 
   /// Get saved locations for the current user
+  /// Uses request deduplication to prevent concurrent identical requests
   Future<List<LocationModel>> getSavedLocations() async {
+    // Request deduplication - reuse in-flight request
+    if (_activeSavedLocationsRequest != null) {
+      return _activeSavedLocationsRequest!;
+    }
+
+    _activeSavedLocationsRequest = _fetchSavedLocations();
+    try {
+      return await _activeSavedLocationsRequest!;
+    } finally {
+      _activeSavedLocationsRequest = null;
+    }
+  }
+
+  Future<List<LocationModel>> _fetchSavedLocations() async {
     try {
       final user = SupabaseClientManager().currentUser;
 
       if (user == null) {
         throw Exception('User not authenticated');
       }
+
+      // Clean expired cache periodically
+      _cleanExpiredCache();
 
       // First get all user_location_actions with 'save' action for this user
       final savedActions = await _client
@@ -114,53 +227,14 @@ class LocationHelper {
         return [];
       }
 
-      // Then fetch the actual location data (including image_url!)
+      // Then fetch the actual location data
       final locations = await _client
           .from(SupabaseConstants.tableLocations)
           .select()
           .inFilter(SupabaseConstants.columnLocationId, locationIds);
 
-      List<LocationModel> locationModels = [];
-      for (var item in locations as List) {
-        print(
-            "${item[SupabaseConstants.columnName]} place emoji: ${item[SupabaseConstants.columnEmoji]}");
-        var locationImage;
-        var filename = '${item[SupabaseConstants.columnLocationId]}.jpg';
-
-        // Check if file already exists in storage
-        try {
-          final existingFiles = await _client.storage
-              .from('location_photos')
-              .list(path: '', searchOptions: SearchOptions(search: filename));
-
-          if (existingFiles.isNotEmpty &&
-              existingFiles.any((file) => file.name == filename)) {
-            if (kDebugMode) {
-              print('✅ Image already exists in Supabase Storage!');
-              print('   Filename: $filename');
-              print('   Skipping upload - using existing file');
-            }
-
-            // Return the URL of the existing file
-            locationImage =
-                _client.storage.from('location_photos').getPublicUrl(filename);
-          }
-        } catch (e) {
-          if (kDebugMode)
-            print(
-                '⚠️  Could not check for existing file: $e (will proceed with upload)');
-        }
-
-        if (locationImage == null || locationImage.isEmpty) {
-          locationImage = await getLocationImage(
-              item[SupabaseConstants.columnLocationId],
-              item[SupabaseConstants.columnGooglePlaceId],
-              item[SupabaseConstants.columnPhotoReference]);
-        }
-
-        locationModels.add(LocationModel.fromJson(item, locationImage));
-      }
-      return locationModels;
+      // Use the efficient batch processor
+      return await _processLocationsWithImages(locations as List);
     } catch (e) {
       if (kDebugMode) {
         print('Error getting saved locations: $e');
@@ -199,34 +273,8 @@ class LocationHelper {
           .select()
           .inFilter(SupabaseConstants.columnLocationId, locationIds);
 
-      List<LocationModel> locationModels = [];
-      for (var item in locations as List) {
-        var locationImage;
-        var filename = '${item[SupabaseConstants.columnLocationId]}.jpg';
-
-        // Check if file already exists in storage
-        try {
-          final existingFiles = await _client.storage
-              .from(SupabaseConstants.bucketNameLocationImages)
-              .list(path: '', searchOptions: const SearchOptions(search: ''));
-
-          final fileExists = existingFiles.any((file) => file.name == filename);
-
-          if (fileExists) {
-            locationImage = _client.storage
-                .from(SupabaseConstants.bucketNameLocationImages)
-                .getPublicUrl(filename);
-          }
-        } catch (e) {
-          if (kDebugMode) {
-            print('Error checking location image: $e');
-          }
-        }
-
-        locationModels.add(LocationModel.fromJson(item, locationImage));
-      }
-
-      return locationModels;
+      // Use the efficient batch processor
+      return await _processLocationsWithImages(locations as List);
     } catch (e) {
       if (kDebugMode) {
         print('Error getting user saved locations: $e');
@@ -237,51 +285,32 @@ class LocationHelper {
 
   /// Get popular locations based on app-wide metrics
   /// Ordered by (saves_count - dislikes_count) in descending order
+  /// Uses request deduplication to prevent concurrent identical requests
   Future<List<LocationModel>> getPopularLocations({int limit = 10}) async {
+    // Request deduplication
+    if (_activePopularLocationsRequest != null) {
+      return _activePopularLocationsRequest!;
+    }
+
+    _activePopularLocationsRequest = _fetchPopularLocations(limit);
     try {
+      return await _activePopularLocationsRequest!;
+    } finally {
+      _activePopularLocationsRequest = null;
+    }
+  }
+
+  Future<List<LocationModel>> _fetchPopularLocations(int limit) async {
+    try {
+      // Clean expired cache periodically
+      _cleanExpiredCache();
+
       final response = await _client.rpc('get_popular_locations', params: {
         'p_limit': limit,
       });
 
-      List<LocationModel> locations = [];
-      for (var item in response as List) {
-        var locationImage;
-        var filename = '${item[SupabaseConstants.columnLocationId]}.jpg';
-
-        // Check if file already exists in storage
-        try {
-          final existingFiles = await _client.storage
-              .from('location_photos')
-              .list(path: '', searchOptions: SearchOptions(search: filename));
-
-          if (existingFiles.isNotEmpty &&
-              existingFiles.any((file) => file.name == filename)) {
-            if (kDebugMode) {
-              print('✅ Image already exists in Supabase Storage!');
-              print('   Filename: $filename');
-              print('   Skipping upload - using existing file');
-            }
-
-            // Return the URL of the existing file
-            locationImage =
-                _client.storage.from('location_photos').getPublicUrl(filename);
-          }
-        } catch (e) {
-          if (kDebugMode)
-            print(
-                '⚠️  Could not check for existing file: $e (will proceed with upload)');
-        }
-
-        if (locationImage == null || locationImage.isEmpty) {
-          locationImage = await getLocationImage(
-              item[SupabaseConstants.columnLocationId],
-              item[SupabaseConstants.columnGooglePlaceId],
-              item[SupabaseConstants.columnPhotoReference]);
-        }
-
-        locations.add(LocationModel.fromJson(item, locationImage));
-      }
-      return locations;
+      // Use the efficient batch processor
+      return await _processLocationsWithImages(response as List);
     } catch (e) {
       if (kDebugMode) {
         print('Error getting popular locations: $e');
@@ -331,21 +360,7 @@ class LocationHelper {
             ${SupabaseConstants.columnUserId},
             ${SupabaseConstants.columnAction},
             ${SupabaseConstants.columnCreatedAt},
-            ${SupabaseConstants.tableLocations}!inner(
-              ${SupabaseConstants.columnLocationId},
-              ${SupabaseConstants.columnName},
-              ${SupabaseConstants.columnVicinity},
-              ${SupabaseConstants.columnLat},
-              ${SupabaseConstants.columnLng},
-              ${SupabaseConstants.columnCreatedAt},
-              ${SupabaseConstants.columnInternationalPhoneNumber},
-              ${SupabaseConstants.columnCuisine},
-              ${SupabaseConstants.columnRating},
-              ${SupabaseConstants.columnUserRatingsTotal},
-              ${SupabaseConstants.columnPriceLevel},
-              ${SupabaseConstants.columnPhotoReference},
-              ${SupabaseConstants.columnSavedCount}
-            )
+            ${SupabaseConstants.tableLocations}!inner(*)
           ''')
           .inFilter(SupabaseConstants.columnUserId, userIds)
           .eq(SupabaseConstants.columnAction, SupabaseConstants.actionSave);
@@ -354,39 +369,22 @@ class LocationHelper {
         return [];
       }
 
-      // Convert to LocationModel and remove duplicates by location_id
-      final Map<int, LocationModel> uniqueLocations = {};
+      // Extract unique location data and deduplicate
+      final Map<int, Map<String, dynamic>> uniqueLocationData = {};
 
       for (var item in locationsResponse) {
-        final location = item[SupabaseConstants.tableLocations];
-        final locationId = location[SupabaseConstants.columnLocationId];
+        final location =
+            item[SupabaseConstants.tableLocations] as Map<String, dynamic>;
+        final locationId = location[SupabaseConstants.columnLocationId] as int;
 
-        if (!uniqueLocations.containsKey(locationId)) {
-          uniqueLocations[locationId] = LocationModel(
-            locationId: location[SupabaseConstants.columnLocationId],
-            name: location[SupabaseConstants.columnName] ?? '',
-            vicinity: location[SupabaseConstants.columnVicinity] ?? '',
-            lat: (location[SupabaseConstants.columnLat] as num?)?.toDouble() ??
-                0.0,
-            lng: (location[SupabaseConstants.columnLng] as num?)?.toDouble() ??
-                0.0,
-            createdAt:
-                DateTime.parse(location[SupabaseConstants.columnCreatedAt]),
-            phoneNumber: location[SupabaseConstants.columnPhoneNumber] ??
-                location[SupabaseConstants.columnInternationalPhoneNumber],
-            cuisine: location[SupabaseConstants.columnCuisine],
-            rating:
-                (location[SupabaseConstants.columnRating] as num?)?.toDouble(),
-            userRatingsTotal:
-                location[SupabaseConstants.columnUserRatingsTotal],
-            priceLevel: location[SupabaseConstants.columnPriceLevel],
-            photoReference: location[SupabaseConstants.columnPhotoReference],
-            savedCount: location[SupabaseConstants.columnSavedCount],
-          );
+        if (!uniqueLocationData.containsKey(locationId)) {
+          uniqueLocationData[locationId] = location;
         }
       }
 
-      return uniqueLocations.values.toList();
+      // Use the efficient batch processor with the location data
+      return await _processLocationsWithImages(
+          uniqueLocationData.values.toList());
     } catch (e) {
       if (kDebugMode) {
         print('Error fetching locations by user IDs: $e');
@@ -877,4 +875,25 @@ class LocationHelper {
       _realtimeChannel = null;
     }
   }
+
+  /// Clear all cached locations (useful when user logs out)
+  void clearCache() {
+    _locationCache.clear();
+  }
+
+  /// Invalidate a specific location from cache (useful after save/unsave)
+  void invalidateCachedLocation(int locationId) {
+    _locationCache.remove(locationId);
+  }
+}
+
+/// Helper class for caching locations with TTL
+class _CachedLocation {
+  final LocationModel location;
+  final DateTime cachedAt;
+
+  _CachedLocation({
+    required this.location,
+    required this.cachedAt,
+  });
 }
