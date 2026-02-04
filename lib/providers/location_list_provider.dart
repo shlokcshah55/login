@@ -357,9 +357,31 @@ class LocationListManager with ChangeNotifier {
 
     // Calculate clustering distance (same logic as marker_clustering.dart)
     final double metersPerPixel = 156543.03392 * 0.625 / math.pow(2, zoom);
-    final double markerVisualWidth = 50; // Same as clustering logic
+    
+    // Zoom-based marker visual width (matching marker_clustering.dart)
+    double markerVisualWidth;
+    if (zoom >= 18) {
+      markerVisualWidth = 20;
+    } else if (zoom >= 16) {
+      markerVisualWidth = 30;
+    } else if (zoom >= 14) {
+      markerVisualWidth = 40;
+    } else {
+      markerVisualWidth = 60;
+    }
+    
     double clusterDistance = metersPerPixel * markerVisualWidth;
-    if (clusterDistance < 30) clusterDistance = 30;
+    
+    // Zoom-based minimum distance (matching marker_clustering.dart)
+    double minDistance;
+    if (zoom >= 18) {
+      minDistance = 5;
+    } else if (zoom >= 16) {
+      minDistance = 10;
+    } else {
+      minDistance = 20;
+    }
+    if (clusterDistance < minDistance) clusterDistance = minDistance;
 
     final Set<int> clusteredIndices = {};
     final List<LocationModel> unclustered = [];
@@ -449,9 +471,9 @@ class LocationListManager with ChangeNotifier {
         !_lastSelectedIds!.containsAll(newSelection) ||
         !newSelection.containsAll(_lastSelectedIds!);
 
-    // Check if zoom changed significantly (>0.5 levels)
+    // Check if zoom changed significantly (>0.25 levels) - more responsive
     final zoomChanged = _lastSelectionZoom == null ||
-        (zoom - _lastSelectionZoom!).abs() > 0.5;
+        (zoom - _lastSelectionZoom!).abs() > 0.25;
 
     // Skip regeneration if selection unchanged and zoom similar
     if (!selectionChanged && !zoomChanged) {

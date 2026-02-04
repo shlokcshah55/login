@@ -190,8 +190,8 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            colorScheme.surfaceVariant,
-            colorScheme.surfaceVariant.withOpacity(0.8),
+            colorScheme.surfaceContainerHighest,
+            colorScheme.surfaceContainerHighest.withOpacity(0.8),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -249,7 +249,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     final level = widget.location.priceLevel;
     if (level == null) return '';
 
-    final clamped = level.clamp(0, 4) as int;
+    final clamped = level.clamp(0, 4);
     return '\$' * (clamped + 1);
   }
 

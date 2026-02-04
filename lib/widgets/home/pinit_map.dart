@@ -68,8 +68,9 @@ class _PinitMapState extends State<PinitMap> {
     Map<dynamic, Marker> items,
     double zoom,
   ) {
-    // Round zoom to 1 decimal to group similar zooms
-    final roundedZoom = (zoom * 10).round() / 10;
+    // Round zoom to 0.25 increments for more responsive clustering updates
+    // This means clustering will update more frequently as user zooms
+    final roundedZoom = (zoom * 4).round() / 4;
     return '${items.length}_${items.keys.map((l) => l.locationId).join(',')}_$roundedZoom';
   }
 

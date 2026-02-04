@@ -1,9 +1,6 @@
-import 'dart:developer' as console;
 
 import 'package:flutter/material.dart';
-import 'package:login/supabase/constants.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../models/signup_wizard_state.dart';
 import '../../../supabase/service.dart';
 import '../../../widgets/loading_widget.dart';

@@ -72,7 +72,7 @@ class TagsHelper {
           .eq(SupabaseConstants.columnTagId, tagId)
           .maybeSingle();
 
-      return response as Map<String, dynamic>?;
+      return response;
     } catch (e) {
       if (kDebugMode) {
         print('Error getting tag by ID: $e');

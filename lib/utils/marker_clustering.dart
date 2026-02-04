@@ -23,27 +23,46 @@ class MarkerClustering {
     double zoom = 15.0,
   }) async {
     // Calculate clustering distance based on visual marker size
-    // Markers with names can be ~50-60 pixels wide (8px bubble + ~40-50px text)
-    // Markers without names are ~8px wide (just the bubble)
-    // We use the larger size to be safe and prevent any overlap
+    // At higher zoom levels, we want markers to be closer before clustering
+    // At lower zoom levels, cluster more aggressively
 
     // Convert visual pixels to meters on the ground at current zoom
     // Formula: metersPerPixel = 156543.03392 * cos(latitude) / 2^zoom
     // Using average latitude of ~51.5 (London), cos(51.5°) ≈ 0.625
     // At zoom 15: ~3 meters per pixel
-    // At zoom 10: ~96 meters per pixel
+    // At zoom 18: ~0.4 meters per pixel
+    // At zoom 20: ~0.1 meters per pixel
 
     final double metersPerPixel = 156543.03392 * 0.625 / math.pow(2, zoom);
 
-    // Tighter clustering: allow markers to be closer before clustering
-    // Reduced from 80px to allow some visual overlap
-    final double markerVisualWidth = 50; // pixels (tighter threshold, some overlap ok)
+    // Base marker size for clustering calculation
+    // Use smaller value at high zooms to allow more separation
+    double markerVisualWidth;
+    if (zoom >= 18) {
+      markerVisualWidth = 20; // Very tight at high zoom - only cluster if nearly overlapping
+    } else if (zoom >= 16) {
+      markerVisualWidth = 30; // Tighter clustering at medium-high zoom
+    } else if (zoom >= 14) {
+      markerVisualWidth = 40; // Standard clustering
+    } else {
+      markerVisualWidth = 60; // More aggressive clustering at low zoom
+    }
 
-    // Convert to meters - only cluster when markers are quite close
+    // Convert to meters
     double clusterDistance = metersPerPixel * markerVisualWidth;
 
-    // Lower minimum to allow markers to be closer at high zoom
-    if (clusterDistance < 30) clusterDistance = 30;
+    // Much lower minimum distance to allow unclustering at high zoom
+    // At zoom 18+, we want to see individual pins even if close
+    double minDistance;
+    if (zoom >= 18) {
+      minDistance = 5; // 5 meters minimum at high zoom
+    } else if (zoom >= 16) {
+      minDistance = 10; // 10 meters at medium zoom
+    } else {
+      minDistance = 20; // 20 meters at lower zooms
+    }
+    
+    if (clusterDistance < minDistance) clusterDistance = minDistance;
 
     final List<LocationModel> locations = locationMarkers.keys.toList();
     final List<MarkerCluster> clusters = [];

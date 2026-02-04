@@ -22,9 +22,9 @@ class HomeHeader extends StatelessWidget {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            theme.colorScheme.background.withOpacity(0.95),
-            theme.colorScheme.background.withOpacity(0.85),
-            theme.colorScheme.background.withOpacity(0.0),
+            theme.colorScheme.surface.withOpacity(0.95),
+            theme.colorScheme.surface.withOpacity(0.85),
+            theme.colorScheme.surface.withOpacity(0.0),
           ],
           stops: const [0.0, 0.7, 1.0],
         ),

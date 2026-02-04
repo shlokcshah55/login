@@ -19,7 +19,7 @@ class LocationReviewsHelper {
           .eq(SupabaseConstants.columnUserId, userId)
           .order(SupabaseConstants.columnCreatedAt, ascending: false)
           .limit(1);
-      if (response is List && response.isNotEmpty) {
+      if (response.isNotEmpty) {
         return Map<String, dynamic>.from(response.first);
       }
       return null;
@@ -42,7 +42,7 @@ class LocationReviewsHelper {
           .or('${SupabaseConstants.columnPrivate}.is.null,${SupabaseConstants.columnPrivate}.eq.false')
           .order(SupabaseConstants.columnCreatedAt, ascending: false)
           .limit(1);
-      if (response is List && response.isNotEmpty) {
+      if (response.isNotEmpty) {
         return Map<String, dynamic>.from(response.first);
       }
       return null;

@@ -403,8 +403,8 @@ class LocationCarousel extends StatelessWidget {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      colorScheme.surfaceVariant,
-                      colorScheme.surfaceVariant.withOpacity(0.8),
+                      colorScheme.surfaceContainerHighest,
+                      colorScheme.surfaceContainerHighest.withOpacity(0.8),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -437,7 +437,7 @@ class LocationCarousel extends StatelessWidget {
                     gradient: LinearGradient(
                       colors: [
                         colorScheme.errorContainer.withOpacity(0.3),
-                        colorScheme.surfaceVariant,
+                        colorScheme.surfaceContainerHighest,
                       ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
@@ -474,8 +474,8 @@ class LocationCarousel extends StatelessWidget {
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
-                          colorScheme.surfaceVariant,
-                          colorScheme.surfaceVariant.withOpacity(0.8),
+                          colorScheme.surfaceContainerHighest,
+                          colorScheme.surfaceContainerHighest.withOpacity(0.8),
                         ],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
@@ -508,7 +508,7 @@ class LocationCarousel extends StatelessWidget {
                         gradient: LinearGradient(
                           colors: [
                             colorScheme.errorContainer.withOpacity(0.3),
-                            colorScheme.surfaceVariant,
+                            colorScheme.surfaceContainerHighest,
                           ],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
@@ -541,8 +541,8 @@ class LocationCarousel extends StatelessWidget {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    colorScheme.surfaceVariant,
-                    colorScheme.surfaceVariant.withOpacity(0.7),
+                    colorScheme.surfaceContainerHighest,
+                    colorScheme.surfaceContainerHighest.withOpacity(0.7),
                   ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,

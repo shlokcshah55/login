@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:login/pages/home/home_view_model.dart';
 import 'package:login/pages/home/widgets/home_carousel.dart';
 import 'package:login/pages/home/widgets/home_header.dart';
@@ -11,6 +10,7 @@ import 'package:login/providers/map_state_provider.dart';
 import 'package:login/providers/nav_bar/visibility_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:login/providers/bubble_mode_provider.dart';
+import 'package:login/widgets/home/bubble_mode_overlay.dart';
 import 'package:login/widgets/wizard_completion_popover.dart';
 import 'package:provider/provider.dart';
 
@@ -67,7 +67,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _checkForErrors() {
-    if (_locationListManager.error != null && mounted) {
+    if (!mounted) return; // Guard against calls after dispose
+    if (_locationListManager.error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(_locationListManager.error!),
@@ -79,6 +80,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _handleBubbleModeRequest() {
+    if (!mounted) return; // Guard against calls after dispose
     print('HomePage listener fired! hasPending: ${_bubbleModeProvider.hasPendingActivation}, isActive: ${widget.isActive}');
     if (_bubbleModeProvider.hasPendingActivation && widget.isActive) {
       final bubble = _bubbleModeProvider.pendingBubble!;
@@ -163,97 +165,65 @@ class _HomePageState extends State<HomePage> {
           final userDataProvider = context.watch<UserDataProvider>();
           _scheduleWizardPopoverIfNeeded(userDataProvider);
 
-          return Container(
-            decoration: viewModel.isBubbleModeActive
-                ? BoxDecoration(
-                    border: Border.all(
-                      color: Colors.purple,
-                      width: 4.0,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.purple.withOpacity(0.5),
-                        blurRadius: 20,
-                        spreadRadius: 2,
-                      ),
-                    ],
-                  )
-                : null,
-            child: Scaffold(
-              body: Stack(
-                children: [
-                  Positioned.fill(
-                    child: HomeMapLayer(
-                      onMapTap: viewModel.onMapTap,
-                      onSearchThisArea: viewModel.searchThisArea,
-                    ),
+          // Build the main scaffold content
+          Widget mainContent = Scaffold(
+            body: Stack(
+              children: [
+                Positioned.fill(
+                  child: HomeMapLayer(
+                    onMapTap: viewModel.onMapTap,
+                    onSearchThisArea: viewModel.searchThisArea,
                   ),
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    child: HomeHeader(
-                      currentListType: viewModel.currentListType,
-                      onListTypeChanged: viewModel.setListType,
-                    ),
+                ),
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: HomeHeader(
+                    currentListType: viewModel.currentListType,
+                    onListTypeChanged: viewModel.setListType,
                   ),
-                  if (viewModel.isBubbleModeActive && viewModel.activeBubble != null)
-                    Positioned(
-                      top: 60,
-                      left: 0,
-                      right: 0,
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 16),
-                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                        decoration: BoxDecoration(
-                          color: Colors.purple.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.purple, width: 1),
-                        ),
-                        child: Text(
-                          '${viewModel.activeBubble!.name} activated...',
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.purple,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ),
-                  AnimatedPositioned(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeOutQuint,
-                    bottom: viewModel.bottomNavVisible ? 90.0 : 20.0,
-                    left: 0,
-                    right: 0,
-                    child: HomeCarousel(
-                      pageController: viewModel.pageController,
-                      locations: viewModel.locations,
-                      selectedMarkerId: viewModel.selectedMarkerId,
-                      bottomNavVisible: viewModel.bottomNavVisible,
-                      onPageChanged: viewModel.onCarouselPageChanged,
-                      onScrollStart: viewModel.onCarouselScrollStart,
-                      onLocationSelected: viewModel.onLocationSelected,
-                    ),
+                ),
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOutQuint,
+                  bottom: viewModel.bottomNavVisible ? 90.0 : 20.0,
+                  left: 0,
+                  right: 0,
+                  child: HomeCarousel(
+                    pageController: viewModel.pageController,
+                    locations: viewModel.locations,
+                    selectedMarkerId: viewModel.selectedMarkerId,
+                    bottomNavVisible: viewModel.bottomNavVisible,
+                    onPageChanged: viewModel.onCarouselPageChanged,
+                    onScrollStart: viewModel.onCarouselScrollStart,
+                    onLocationSelected: viewModel.onLocationSelected,
                   ),
-                  Positioned(
-                    top: 80,
-                    right: 20,
-                    child: MagicSearchButton(
-                      onPressed: () => viewModel.toggleSearchOverlay(true),
-                    ),
+                ),
+                Positioned(
+                  top: 80,
+                  right: 20,
+                  child: MagicSearchButton(
+                    onPressed: () => viewModel.toggleSearchOverlay(true),
                   ),
-                  if (viewModel.showSearchOverlay)
-                    MagicSearchOverlay(
-                      controller: viewModel.searchController,
-                      onClose: () => viewModel.toggleSearchOverlay(false),
-                      onSubmit: viewModel.submitMagicSearch,
-                    ),
-                ],
-              ),
+                ),
+                if (viewModel.showSearchOverlay)
+                  MagicSearchOverlay(
+                    controller: viewModel.searchController,
+                    onClose: () => viewModel.toggleSearchOverlay(false),
+                    onSubmit: viewModel.submitMagicSearch,
+                  ),
+                // Bubble mode overlay - always in tree, visibility controlled internally
+                if (viewModel.isBubbleModeActive && viewModel.activeBubble != null)
+                  BubbleModeOverlay(
+                    bubble: viewModel.activeBubble!,
+                    onDeactivate: viewModel.deactivateBubbleMode,
+                  ),
+              ],
             ),
           );
+
+          return mainContent;
         },
       ),
     );

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:login/models/users.dart';
 import 'package:login/supabase/helpers/auth.dart';
 import 'package:login/supabase/helpers/location.dart';

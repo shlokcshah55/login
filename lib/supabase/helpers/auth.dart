@@ -335,7 +335,7 @@ class AuthHelper {
       final response = await _client.rpc('update_user_profile', params: params);
 
       if (response == null || (response as List).isEmpty) return null;
-      return UserModel.fromJson((response as List).first);
+      return UserModel.fromJson((response).first);
     } catch (e) {
       if (kDebugMode) {
         print('Error updating user profile: $e');

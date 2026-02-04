@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:login/models/bubble.dart';
 import 'package:login/models/actions.dart';
 import 'package:login/pages/bubble_messaging_page.dart';
-import 'package:login/pages/bubble_profile_page.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/providers/bubble_mode_provider.dart';
 import 'package:login/providers/navigation_provider.dart';

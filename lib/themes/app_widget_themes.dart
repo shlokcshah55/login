@@ -117,13 +117,13 @@ class AppWidgetThemes {
   
   /// Checkbox theme
   static CheckboxThemeData checkboxTheme = CheckboxThemeData(
-    fillColor: MaterialStateProperty.resolveWith<Color>((states) {
-      if (states.contains(MaterialState.selected)) {
+    fillColor: WidgetStateProperty.resolveWith<Color>((states) {
+      if (states.contains(WidgetState.selected)) {
         return AppColors.primary;
       }
       return Colors.transparent;
     }),
-    checkColor: MaterialStateProperty.all(AppColors.onPrimary),
+    checkColor: WidgetStateProperty.all(AppColors.onPrimary),
     shape: RoundedRectangleBorder(borderRadius: AppRadius.radiusXS),
     side: const BorderSide(color: AppColors.primary),
   );
