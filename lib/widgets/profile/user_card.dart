@@ -8,10 +8,12 @@ import 'package:provider/provider.dart';
 
 class UserCard extends StatefulWidget {
   final UserModel user;
+  final Function(UserModel)? onTap;
 
   const UserCard({
     super.key,
     required this.user,
+    this.onTap,
   });
 
   @override
@@ -39,13 +41,16 @@ class _UserCardState extends State<UserCard> {
         if (mounted) setState(() => _followStatus = FollowStatus.idle);
         return;
       }
-      final supabaseProvider = Provider.of<SupabaseService>(context, listen: false);
-      final status = await supabaseProvider.users.getFollowStatus(widget.user.supabaseId!);
+      final supabaseProvider =
+          Provider.of<SupabaseService>(context, listen: false);
+      final status =
+          await supabaseProvider.users.getFollowStatus(widget.user.supabaseId!);
       if (mounted) {
         setState(() {
           if (status == 'requested') {
             _followStatus = FollowStatus.requested;
-          } else if (status == 'accepted') { // Assuming 'accepted' means following
+          } else if (status == 'accepted') {
+            // Assuming 'accepted' means following
             _followStatus = FollowStatus.following;
           } else {
             _followStatus = FollowStatus.idle;
@@ -71,18 +76,21 @@ class _UserCardState extends State<UserCard> {
         print("Error: User supabaseId is null, cannot perform action");
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Cannot perform action: User ID is missing")),
+            const SnackBar(
+                content: Text("Cannot perform action: User ID is missing")),
           );
         }
         return;
       }
 
-      final supabaseProvider = Provider.of<SupabaseService>(context, listen: false);
+      final supabaseProvider =
+          Provider.of<SupabaseService>(context, listen: false);
 
       if (_followStatus == FollowStatus.idle) {
         await supabaseProvider.users.followUser(widget.user.supabaseId!);
         if (mounted) setState(() => _followStatus = FollowStatus.requested);
-      } else if (_followStatus == FollowStatus.requested || _followStatus == FollowStatus.following) {
+      } else if (_followStatus == FollowStatus.requested ||
+          _followStatus == FollowStatus.following) {
         // For both 'requested' and 'following', the action is to unfollow
         await supabaseProvider.users.unfollowUser(widget.user.supabaseId!);
         if (mounted) setState(() => _followStatus = FollowStatus.idle);
@@ -90,7 +98,7 @@ class _UserCardState extends State<UserCard> {
     } catch (e) {
       print("Error performing follow/unfollow action: $e");
       // Optionally show an error to the user via a Snackbar
-      if(mounted){
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Action failed: ${e.toString()}")),
         );
@@ -106,23 +114,26 @@ class _UserCardState extends State<UserCard> {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: AppElevation.small, // Reduced elevation
-      margin: AppSpacing.paddingSmall, // Adjusted margin
-      shape: RoundedRectangleBorder(
-        borderRadius: AppRadius.radiusSmall, // Smaller radius
-      ),
-      child: Padding(
-        padding: AppSpacing.paddingSmall, // Reduced padding
-        child: Column(
-          mainAxisSize: MainAxisSize.min, // Ensure column takes minimum space
-          children: [
-            _buildProfileAvatar(),
-            const SizedBox(height: AppSpacing.small), // Reduced spacing
-            _buildUserInfo(),
-            const SizedBox(height: AppSpacing.small), // Reduced spacing
-            _buildFollowButton(),
-          ],
+    return GestureDetector(
+      onTap: widget.onTap != null ? () => widget.onTap!(widget.user) : null,
+      child: Card(
+        elevation: AppElevation.small, // Reduced elevation
+        margin: AppSpacing.paddingSmall, // Adjusted margin
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadius.radiusSmall, // Smaller radius
+        ),
+        child: Padding(
+          padding: AppSpacing.paddingSmall, // Reduced padding
+          child: Column(
+            mainAxisSize: MainAxisSize.min, // Ensure column takes minimum space
+            children: [
+              _buildProfileAvatar(),
+              const SizedBox(height: AppSpacing.small), // Reduced spacing
+              _buildUserInfo(),
+              const SizedBox(height: AppSpacing.small), // Reduced spacing
+              _buildFollowButton(),
+            ],
+          ),
         ),
       ),
     );
@@ -143,7 +154,8 @@ class _UserCardState extends State<UserCard> {
         backgroundImage: widget.user.profileImageUrl != null &&
                 widget.user.profileImageUrl!.isNotEmpty
             ? NetworkImage(widget.user.profileImageUrl!)
-            : const AssetImage('lib/assets/default_avatar.png') as ImageProvider,
+            : const AssetImage('lib/assets/default_avatar.png')
+                as ImageProvider,
       ),
     );
   }
@@ -153,7 +165,8 @@ class _UserCardState extends State<UserCard> {
       children: [
         Text(
           widget.user.name ?? 'New Explorer',
-          style: AppTypography.bodySmall.copyWith( // Smaller text
+          style: AppTypography.bodySmall.copyWith(
+            // Smaller text
             fontWeight: FontWeight.w600,
           ),
           maxLines: 1,
@@ -184,7 +197,8 @@ class _UserCardState extends State<UserCard> {
       children: [
         Text(
           _formatNumber(value),
-          style: AppTypography.caption.copyWith( // Smaller text
+          style: AppTypography.caption.copyWith(
+            // Smaller text
             color: AppColors.primary,
             fontWeight: FontWeight.bold,
           ),
@@ -217,7 +231,8 @@ class _UserCardState extends State<UserCard> {
         buttonText = 'Following';
         buttonColor = AppColors.secondary; // Or another color for 'Following'
         break;
-      case FollowStatus.unfollowing: // Technically covered by isLoading, but good for clarity
+      case FollowStatus
+            .unfollowing: // Technically covered by isLoading, but good for clarity
         buttonText = '...';
         buttonColor = Colors.grey;
         isDisabled = true;
@@ -236,8 +251,15 @@ class _UserCardState extends State<UserCard> {
         ),
         elevation: 0,
       ),
-      child: _isLoading && (_followStatus != FollowStatus.requested && _followStatus != FollowStatus.following) 
-          ? SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(textColor))) 
+      child: _isLoading &&
+              (_followStatus != FollowStatus.requested &&
+                  _followStatus != FollowStatus.following)
+          ? SizedBox(
+              height: 16,
+              width: 16,
+              child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(textColor)))
           : Text(
               buttonText,
               style: AppTypography.labelSmall,

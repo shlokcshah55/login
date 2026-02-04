@@ -6,10 +6,12 @@ import 'package:provider/provider.dart';
 
 class FindFriendsSection extends StatefulWidget {
   final ThemeData theme;
+  final Function(UserModel)? onUserTap;
 
   const FindFriendsSection({
     Key? key,
     required this.theme,
+    this.onUserTap,
   }) : super(key: key);
 
   @override
@@ -30,7 +32,8 @@ class _FindFriendsSectionState extends State<FindFriendsSection> {
   Future<void> _fetchSuggestedUsers() async {
     setState(() => _isLoading = true);
     try {
-      final supabaseService = Provider.of<SupabaseService>(context, listen: false);
+      final supabaseService =
+          Provider.of<SupabaseService>(context, listen: false);
       final users = await supabaseService.users.getSuggestedUsers();
       if (mounted) {
         setState(() {
@@ -58,7 +61,8 @@ class _FindFriendsSectionState extends State<FindFriendsSection> {
             children: [
               Row(
                 children: [
-                  Icon(Icons.person_add_outlined, color: widget.theme.primaryColor, size: 24),
+                  Icon(Icons.person_add_outlined,
+                      color: widget.theme.primaryColor, size: 24),
                   const SizedBox(width: 8),
                   const Text(
                     'Find Friends',
@@ -180,7 +184,10 @@ class _FindFriendsSectionState extends State<FindFriendsSection> {
           ),
           itemCount: usersToShow.length,
           itemBuilder: (context, index) {
-            return UserCard(user: usersToShow[index]);
+            return UserCard(
+              user: usersToShow[index],
+              onTap: widget.onUserTap,
+            );
           },
         ),
         if (_suggestedUsers.length > 3 && !_isExpanded)
