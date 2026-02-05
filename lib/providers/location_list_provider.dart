@@ -1055,6 +1055,89 @@ class LocationListManager with ChangeNotifier {
     }
   }
 
+  /// Check if location is saved by current user (sync check against local cache)
+  bool isLocationSavedSync(int locationId) {
+    return _savedLocations.keys.any((loc) => loc.locationId == locationId);
+  }
+
+  /// Unsaves a location from Supabase and removes it from the local saved state
+  Future<bool> unsaveLocation(LocationModel location) async {
+    if (_userId == null) {
+      log("Cannot unsave location: userId is null.");
+      return false;
+    }
+
+    // Remove from local state immediately for responsive UI
+    _savedLocations.remove(location);
+
+    // Update current items if viewing saved locations
+    if (_currentListType == LocationListType.saved) {
+      _currentItems = Map.from(_savedLocations);
+    }
+
+    notifyListeners();
+
+    // Remove from Supabase
+    bool success =
+        await _supabaseService.locations.unsaveLocation(location.locationId);
+
+    if (success) {
+      log("Unsaved location from Supabase: ${location.name}");
+    } else {
+      log("Failed to unsave location from Supabase: ${location.name}");
+      // Optionally: re-add to local state if Supabase call failed
+    }
+
+    return success;
+  }
+
+  /// Toggle save state for a location (save if not saved, unsave if saved)
+  Future<bool> toggleSaveLocation(LocationModel location) async {
+    final isSaved = isLocationSavedSync(location.locationId);
+
+    if (isSaved) {
+      return await unsaveLocation(location);
+    } else {
+      await saveLocation(location);
+      return true;
+    }
+  }
+
+  /// Dislike a location - creates a user action "dislike"
+  Future<bool> dislikeLocation(LocationModel location) async {
+    if (_userId == null) {
+      log("Cannot dislike location: userId is null.");
+      return false;
+    }
+
+    try {
+      bool success =
+          await _supabaseService.locations.dislikeLocation(location.locationId);
+
+      if (success) {
+        log("Disliked location: ${location.name}");
+
+        // Remove from recommended/search lists since user doesn't want to see it
+        _recommendedLocations.remove(location);
+        _searchLocations.remove(location);
+
+        // Update current items based on current list type
+        if (_currentListType == LocationListType.recommended) {
+          _currentItems = Map.from(_recommendedLocations);
+        } else if (_currentListType == LocationListType.search) {
+          _currentItems = Map.from(_searchLocations);
+        }
+
+        notifyListeners();
+      }
+
+      return success;
+    } catch (e) {
+      log('Error disliking location: $e');
+      return false;
+    }
+  }
+
   /// Acknowledge if a location is right or not
   Future<void> acknowledgeLocation(int locationId, bool value) async {
     try {

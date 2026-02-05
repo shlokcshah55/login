@@ -1,20 +1,13 @@
-import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
-
-import 'package:login/models/bubble.dart';
-import 'package:login/providers/location_list_provider.dart';
-import 'package:login/providers/user_data_provider.dart';
-import 'package:login/supabase/service.dart';
 import 'dart:ui';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:login/models/locations.dart';
+import 'package:login/providers/location_list_provider.dart';
 import 'package:login/supabase/constants.dart';
 import 'package:login/supabase/helpers/location_reviews.dart';
 import 'package:login/supabase/supabase_client.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ExpandedLocationCard extends StatefulWidget {
@@ -34,6 +27,8 @@ class ExpandedLocationCard extends StatefulWidget {
 class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     with SingleTickerProviderStateMixin {
   bool _isSaved = false;
+  bool _isSaving = false;
+  bool _isDisliking = false;
   int _currentPhotoIndex = 0;
   late AnimationController _controller;
   late Animation<double> _slideAnimation;
@@ -62,6 +57,87 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     );
     _controller.forward();
     _loadReview();
+    _checkSavedStatus();
+  }
+
+  /// Check if this location is already saved by the user
+  void _checkSavedStatus() {
+    final locationManager =
+        Provider.of<LocationListManager>(context, listen: false);
+    setState(() {
+      _isSaved =
+          locationManager.isLocationSavedSync(widget.location.locationId);
+    });
+  }
+
+  /// Toggle save/unsave for this location
+  Future<void> _toggleSave() async {
+    if (_isSaving) return;
+
+    setState(() => _isSaving = true);
+
+    try {
+      final locationManager =
+          Provider.of<LocationListManager>(context, listen: false);
+
+      if (_isSaved) {
+        // Unsave the location
+        final success = await locationManager.unsaveLocation(widget.location);
+        if (success && mounted) {
+          setState(() => _isSaved = false);
+        }
+      } else {
+        // Save the location with 'in-app' method
+        await locationManager.saveLocation(widget.location);
+        if (mounted) {
+          setState(() => _isSaved = true);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content:
+                  Text('Failed to ${_isSaved ? 'unsave' : 'save'} location')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  /// Dislike this location
+  Future<void> _dislikeLocation() async {
+    if (_isDisliking) return;
+
+    setState(() => _isDisliking = true);
+
+    try {
+      final locationManager =
+          Provider.of<LocationListManager>(context, listen: false);
+
+      final success = await locationManager.dislikeLocation(widget.location);
+
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Location hidden from recommendations')),
+        );
+        // Close the expanded card after dislike
+        _handleClose();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to dislike location')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isDisliking = false);
+      }
+    }
   }
 
   @override
@@ -303,13 +379,10 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   }
 
   String _titleCase(String value) {
-    return value
-        .split(' ')
-        .map((word) {
-          if (word.isEmpty) return word;
-          return '${word[0].toUpperCase()}${word.substring(1)}';
-        })
-        .join(' ');
+    return value.split(' ').map((word) {
+      if (word.isEmpty) return word;
+      return '${word[0].toUpperCase()}${word.substring(1)}';
+    }).join(' ');
   }
 
   String _formatCount(int count) {
@@ -379,7 +452,8 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                 return Align(
                   alignment: Alignment.bottomCenter,
                   child: Transform.translate(
-                    offset: Offset(0, (1 - _slideAnimation.value) * size.height * 0.3),
+                    offset: Offset(
+                        0, (1 - _slideAnimation.value) * size.height * 0.3),
                     child: child,
                   ),
                 );
@@ -392,7 +466,8 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                   maxChildSize: 0.92,
                   snap: true,
                   builder: (context, scrollController) {
-                    return NotificationListener<DraggableScrollableNotification>(
+                    return NotificationListener<
+                        DraggableScrollableNotification>(
                       onNotification: (notification) {
                         if (notification.extent <=
                             notification.minExtent + 0.01) {
@@ -416,12 +491,14 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                               children: [
                                 // Hero image section
                                 _buildHeroSection(size),
-                                
+
                                 // Main content
                                 Padding(
-                                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                                  padding:
+                                      const EdgeInsets.fromLTRB(24, 20, 24, 24),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       _buildHeader(),
                                       const SizedBox(height: 20),
@@ -581,8 +658,8 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
           left: 16,
           child: Row(
             children: [
-              _buildStatusBadge(_openStatusLabel(), _openStatusColor(),
-                  _openStatusIcon()),
+              _buildStatusBadge(
+                  _openStatusLabel(), _openStatusColor(), _openStatusIcon()),
               if (_priceLabel().isNotEmpty) ...[
                 const SizedBox(width: 8),
                 _buildStatusBadge(_priceLabel(), const Color(0xFF10B981)),
@@ -752,12 +829,20 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
         const SizedBox(width: 12),
         Expanded(
           child: _buildSecondaryButton(
-            _isSaved ? 'Saved' : 'Save',
+            _isSaving ? '...' : (_isSaved ? 'Saved' : 'Save'),
             _isSaved ? Icons.bookmark : Icons.bookmark_border,
-            onTap: () => setState(() => _isSaved = !_isSaved),
+            onTap: _isSaving ? null : _toggleSave,
+            isLoading: _isSaving,
           ),
         ),
         const SizedBox(width: 12),
+        _buildIconButton(
+          Icons.thumb_down_outlined,
+          onTap: _isDisliking ? null : _dislikeLocation,
+          isLoading: _isDisliking,
+          tooltip: 'Not interested',
+        ),
+        const SizedBox(width: 8),
         _buildIconButton(
           Icons.share_outlined,
           onTap: () {},
@@ -803,7 +888,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   }
 
   Widget _buildSecondaryButton(String label, IconData icon,
-      {required VoidCallback onTap}) {
+      {VoidCallback? onTap, bool isLoading = false}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -816,7 +901,17 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: const Color(0xFF6B4A8E), size: 20),
+            if (isLoading)
+              const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Color(0xFF6B4A8E),
+                ),
+              )
+            else
+              Icon(icon, color: const Color(0xFF6B4A8E), size: 20),
             const SizedBox(width: 6),
             Text(
               label,
@@ -832,8 +927,9 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     );
   }
 
-  Widget _buildIconButton(IconData icon, {required VoidCallback onTap}) {
-    return GestureDetector(
+  Widget _buildIconButton(IconData icon,
+      {VoidCallback? onTap, bool isLoading = false, String? tooltip}) {
+    final button = GestureDetector(
       onTap: onTap,
       child: Container(
         width: 52,
@@ -843,9 +939,25 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: const Color(0xFFE5E7EB), width: 1.5),
         ),
-        child: Icon(icon, color: const Color(0xFF6B4A8E), size: 20),
+        child: isLoading
+            ? const Center(
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Color(0xFF6B4A8E),
+                  ),
+                ),
+              )
+            : Icon(icon, color: const Color(0xFF6B4A8E), size: 20),
       ),
     );
+
+    if (tooltip != null) {
+      return Tooltip(message: tooltip, child: button);
+    }
+    return button;
   }
 
   Widget _buildTagsSection() {
@@ -957,7 +1069,8 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     );
   }
 
-  Widget _buildMemberAvatar(String initial, Color color, {bool neutral = false}) {
+  Widget _buildMemberAvatar(String initial, Color color,
+      {bool neutral = false}) {
     return Container(
       margin: const EdgeInsets.only(right: 8),
       width: 36,
@@ -985,15 +1098,12 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
 
   Widget _buildReviewHighlight() {
     final reviewText = _review != null
-        ? (_review![SupabaseConstants.columnContentReview]
-                ?.toString()
-                .trim() ??
+        ? (_review![SupabaseConstants.columnContentReview]?.toString().trim() ??
             '')
         : (widget.location.editorialSummary?.trim() ?? '');
     final rating = _review?[SupabaseConstants.columnRatingReview] as int?;
     final createdAt = _review?[SupabaseConstants.columnCreatedAt]?.toString();
-    final timestampLabel =
-        createdAt != null ? _formatTimeAgo(createdAt) : null;
+    final timestampLabel = createdAt != null ? _formatTimeAgo(createdAt) : null;
     final sourceLabel = _reviewIsCurrentUser ? 'Your review' : 'Community';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1023,8 +1133,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                 Row(
                   children: [
                     ...List.generate(5, (index) {
-                      final isFilled =
-                          rating != null ? index < rating : true;
+                      final isFilled = rating != null ? index < rating : true;
                       return Icon(
                         Icons.star_rounded,
                         size: 16,
