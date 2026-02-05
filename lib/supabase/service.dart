@@ -31,6 +31,13 @@ class SupabaseService extends ChangeNotifier {
   bool _hasValidSession = false;
   bool _isValidatingSession = false;
 
+  // Completer for waiting on initial auth state (replaces 500ms delay)
+  Completer<void>? _authStateCompleter;
+  bool _hasReceivedInitialAuthState = false;
+
+  // Cached profile from sign-in to avoid double fetch
+  UserModel? _cachedUserProfile;
+
   // Getters for repositories
   AuthHelper get users => _authService;
   LocationHelper get locations => _locationService;
@@ -47,13 +54,17 @@ class SupabaseService extends ChangeNotifier {
   bool get hasValidSession => _hasValidSession;
   bool get isValidatingSession => _isValidatingSession;
 
+  // Cached profile getter - use this to avoid re-fetching after login
+  UserModel? get cachedUserProfile => _cachedUserProfile;
+  void clearCachedUserProfile() => _cachedUserProfile = null;
+
   // Create single instance of this provider
   static final SupabaseService _instance = SupabaseService._internal();
   factory SupabaseService() => _instance;
   SupabaseService._internal() {
     // Auth listener will be set up after initialization
   }
-  
+
   // Initialize Supabase
   Future<void> initialize() async {
     _setLoading(true);
@@ -69,14 +80,20 @@ class SupabaseService extends ChangeNotifier {
       _notificationsService = NotificationsHelper();
       _messagingService = MessagingHelper();
 
+      // Initialize completer before setting up listener
+      _authStateCompleter = Completer<void>();
+
       // Set up auth state listener now that helpers are created
       _setupAuthListener();
 
       _setError(null);
+
+      // Wait for auth state to be ready (no more 500ms delay!)
       await ensureAuthStateReady();
 
-      // If user is already authenticated (restored session), validate it
-      if (_authService.isAuthenticated) {
+      // Auth listener handles ensureUserRecordExists on signedIn event
+      // Just validate if we have a session already
+      if (_authService.isAuthenticated && !_hasValidSession) {
         if (kDebugMode) {
           print('SupabaseService: Found existing session, validating...');
         }
@@ -84,7 +101,7 @@ class SupabaseService extends ChangeNotifier {
         final isValid = await _authService.validateSession();
 
         if (isValid) {
-          await _authService.ensureUserRecordExists();
+          // Note: ensureUserRecordExists is called only in auth listener
           _hasValidSession = true;
         } else {
           if (kDebugMode) {
@@ -103,18 +120,44 @@ class SupabaseService extends ChangeNotifier {
 
   // Ensure auth state is ready before routing decisions
   Future<void> ensureAuthStateReady() async {
-    // Wait for auth state stream to emit initial state
-    // Increased from 100ms to 500ms to handle slower devices/networks
-    await Future.delayed(Duration(milliseconds: 500));
+    // If we already received initial auth state, no need to wait
+    if (_hasReceivedInitialAuthState) {
+      _isInitializing = false;
+      notifyListeners();
+      return;
+    }
+
+    // Wait for auth state stream to emit initial state (with timeout)
+    // This replaces the old 500ms hard-coded delay
+    if (_authStateCompleter != null && !_authStateCompleter!.isCompleted) {
+      try {
+        await _authStateCompleter!.future.timeout(
+          const Duration(seconds: 5),
+          onTimeout: () {
+            if (kDebugMode) {
+              print(
+                  'SupabaseService: Auth state wait timed out, proceeding anyway');
+            }
+          },
+        );
+      } catch (e) {
+        if (kDebugMode) {
+          print('SupabaseService: Error waiting for auth state: $e');
+        }
+      }
+    }
+
     _isInitializing = false;
     notifyListeners();
   }
-  
+
   // Authentication methods
   Future<bool> signIn(String email, String password) async {
     _setLoading(true);
     try {
-      await _authService.signIn(email: email, password: password);
+      // Cache the profile to avoid double-fetch later
+      _cachedUserProfile =
+          await _authService.signIn(email: email, password: password);
       _setError(null);
       notifyListeners();
       return true;
@@ -126,10 +169,12 @@ class SupabaseService extends ChangeNotifier {
     }
   }
 
-  Future<String> signUp(String email, String password, {String? name, String? username}) async {
+  Future<String> signUp(String email, String password,
+      {String? name, String? username}) async {
     _setLoading(true);
     try {
-      UserModel user = await _authService.signUp(email: email, password: password, name: name, username: username);
+      UserModel user = await _authService.signUp(
+          email: email, password: password, name: name, username: username);
       _setError(null);
       notifyListeners();
       return user.supabaseId ?? '';
@@ -140,10 +185,13 @@ class SupabaseService extends ChangeNotifier {
       _setLoading(false);
     }
   }
-  
+
   Future<void> signOut() async {
     _setLoading(true);
     try {
+      // Clear all caches before signing out
+      _clearAllCaches();
+
       await _authService.signOut();
       _setError(null);
       notifyListeners();
@@ -151,6 +199,22 @@ class SupabaseService extends ChangeNotifier {
       _setError('Sign out failed: $e');
     } finally {
       _setLoading(false);
+    }
+  }
+
+  /// Clear all cached data (call on logout or user switch)
+  void _clearAllCaches() {
+    // Clear cached user profile
+    _cachedUserProfile = null;
+
+    // Clear location cache
+    _locationService.clearCache();
+
+    // Reset session state
+    _hasValidSession = false;
+
+    if (kDebugMode) {
+      print('SupabaseService: Cleared all caches');
     }
   }
 
@@ -216,10 +280,19 @@ class SupabaseService extends ChangeNotifier {
           print('SupabaseService: Auth state changed: ${state.event}');
         }
 
+        // Signal that we've received initial auth state (completes the Completer)
+        if (!_hasReceivedInitialAuthState) {
+          _hasReceivedInitialAuthState = true;
+          if (_authStateCompleter != null &&
+              !_authStateCompleter!.isCompleted) {
+            _authStateCompleter!.complete();
+          }
+        }
+
         // Handle different auth events
         switch (state.event) {
           case AuthChangeEvent.signedIn:
-            // User just signed in
+            // User just signed in - this is the ONLY place we call ensureUserRecordExists
             await _authService.ensureUserRecordExists();
             _hasValidSession = true;
 
@@ -233,7 +306,9 @@ class SupabaseService extends ChangeNotifier {
             break;
 
           case AuthChangeEvent.signedOut:
-            // User signed out
+            // User signed out - clear all caches
+            _clearAllCaches();
+
             // Clear FCM token from backend to prevent notifications to logged-out user
             await FCMService().clearFCMToken();
 
@@ -264,7 +339,8 @@ class SupabaseService extends ChangeNotifier {
               final isValid = await _authService.validateSession();
               if (!isValid) {
                 if (kDebugMode) {
-                  print('SupabaseService: Session validation failed after auth event, signing out');
+                  print(
+                      'SupabaseService: Session validation failed after auth event, signing out');
                 }
                 await signOut();
               } else {
@@ -292,12 +368,12 @@ class SupabaseService extends ChangeNotifier {
     _isLoading = loading;
     notifyListeners();
   }
-  
+
   void _setError(String? errorMessage) {
     _error = errorMessage;
     notifyListeners();
   }
-  
+
   void clearError() {
     _error = null;
     notifyListeners();

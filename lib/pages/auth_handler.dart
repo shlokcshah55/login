@@ -18,31 +18,43 @@ class AuthHandler extends StatefulWidget {
 class _AuthHandlerState extends State<AuthHandler> {
   bool _hasInitializedData = false;
   bool _isInitializing = false;
+  bool _initCallScheduled = false; // Prevents multiple post-frame callbacks
 
   @override
   void initState() {
     super.initState();
     // Check auth state on first build
+    _scheduleInitialization();
+  }
+
+  void _scheduleInitialization() {
+    if (_initCallScheduled) return; // Prevent multiple scheduling
+    _initCallScheduled = true;
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initCallScheduled = false;
       _initializeUserData();
     });
   }
 
   Future<void> _initializeUserData() async {
-    final supabaseProvider = Provider.of<SupabaseService>(context, listen: false);
+    // Prevent concurrent initialization
+    if (_isInitializing) return;
+
+    final supabaseProvider =
+        Provider.of<SupabaseService>(context, listen: false);
 
     if (supabaseProvider.isAuthenticated && !_hasInitializedData) {
       setState(() {
         _isInitializing = true;
       });
 
-      log("AuthHandler: Validating session before initializing user data");
+      // REMOVED: Redundant validateAndRefreshSession() call
+      // Session is already validated in SupabaseService.initialize()
+      // and kept valid by the auth listener. Trust hasValidSession flag.
 
-      // Validate session before proceeding
-      final isValid = await supabaseProvider.validateAndRefreshSession();
-
-      if (!isValid) {
-        log("AuthHandler: Session validation failed, aborting initialization");
+      if (!supabaseProvider.hasValidSession) {
+        log("AuthHandler: No valid session, aborting initialization");
         if (mounted) {
           setState(() {
             _isInitializing = false;
@@ -55,13 +67,25 @@ class _AuthHandlerState extends State<AuthHandler> {
       log("AuthHandler: Session valid, initializing user data");
       final supabaseUser = supabaseProvider.users.currentUser!;
 
-      final userDataProvider = Provider.of<UserDataProvider>(context, listen: false);
-      final locationListManager = Provider.of<LocationListManager>(context, listen: false);
+      final userDataProvider =
+          Provider.of<UserDataProvider>(context, listen: false);
+      final locationListManager =
+          Provider.of<LocationListManager>(context, listen: false);
 
       // Initialize user data and locations
       // setUserId already calls fetchSavedLocations() internally, no need to call it again
       locationListManager.setUserId(supabaseUser.id);
-      await userDataProvider.setUserIdAndFetchData(supabaseUser.id);
+
+      // Use cached profile if available (from signIn), otherwise fetch
+      final cachedProfile = supabaseProvider.cachedUserProfile;
+      if (cachedProfile != null) {
+        log("AuthHandler: Using cached user profile from sign-in");
+        await userDataProvider.setUserIdAndFetchData(supabaseUser.id,
+            cachedProfile: cachedProfile);
+        supabaseProvider.clearCachedUserProfile(); // Clear after use
+      } else {
+        await userDataProvider.setUserIdAndFetchData(supabaseUser.id);
+      }
 
       _hasInitializedData = true;
       if (mounted) {
@@ -70,7 +94,7 @@ class _AuthHandlerState extends State<AuthHandler> {
         });
       }
     } else if (!supabaseProvider.isAuthenticated) {
-      // Reset flag when user logs out
+      // Reset flags when user logs out
       _hasInitializedData = false;
       _isInitializing = false;
     }
@@ -79,13 +103,15 @@ class _AuthHandlerState extends State<AuthHandler> {
   @override
   Widget build(BuildContext context) {
     // Listen to SupabaseProvider changes - widget rebuilds when auth state changes
-    final supabaseProvider = Provider.of<SupabaseService>(context, listen: true);
+    final supabaseProvider =
+        Provider.of<SupabaseService>(context, listen: true);
 
     // Re-initialize data when auth state changes to authenticated
-    if (supabaseProvider.isAuthenticated && !_hasInitializedData) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _initializeUserData();
-      });
+    // Use flag to prevent multiple post-frame callbacks
+    if (supabaseProvider.isAuthenticated &&
+        !_hasInitializedData &&
+        !_isInitializing) {
+      _scheduleInitialization();
     }
 
     return Scaffold(
@@ -96,10 +122,14 @@ class _AuthHandlerState extends State<AuthHandler> {
         }
 
         // Check Supabase authentication and session validity
-        if (supabaseProvider.isAuthenticated && supabaseProvider.hasValidSession) {
+        if (supabaseProvider.isAuthenticated &&
+            supabaseProvider.hasValidSession) {
           // Show loading while initializing user data
-          final userDataProvider = Provider.of<UserDataProvider>(context, listen: false);
-          if (_isInitializing || (userDataProvider.isLoading && userDataProvider.supabaseUserData == null)) {
+          final userDataProvider =
+              Provider.of<UserDataProvider>(context, listen: false);
+          if (_isInitializing ||
+              (userDataProvider.isLoading &&
+                  userDataProvider.supabaseUserData == null)) {
             return const LoadingWidget();
           }
 

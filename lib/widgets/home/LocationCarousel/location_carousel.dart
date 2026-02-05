@@ -44,8 +44,7 @@ class LocationCarousel extends StatelessWidget {
         ),
         itemBuilder: (context, index) {
           final location = locations[index];
-          final isSelected =
-              selectedMarkerId?.value == location.locationId;
+          final isSelected = selectedMarkerId?.value == location.locationId;
           return AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeOutQuint,
@@ -90,7 +89,8 @@ class LocationCarousel extends StatelessWidget {
         showGeneralDialog(
           context: context,
           barrierDismissible: true,
-          barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+          barrierLabel:
+              MaterialLocalizations.of(context).modalBarrierDismissLabel,
           barrierColor: Colors.transparent,
           transitionDuration: const Duration(milliseconds: 300),
           pageBuilder: (context, animation, secondaryAnimation) {
@@ -118,7 +118,8 @@ class LocationCarousel extends StatelessWidget {
               : BorderSide.none,
         ),
         elevation: isSelected ? 12.0 : 6.0, // Higher elevation for more depth
-        shadowColor: colorScheme.shadow.withValues(alpha: isSelected ? 100 : 50),
+        shadowColor:
+            colorScheme.shadow.withValues(alpha: isSelected ? 100 : 50),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOutQuint,
@@ -128,31 +129,35 @@ class LocationCarousel extends StatelessWidget {
               // --- Text Section (Left Half) ---
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.all(16.0), // Increased padding for better spacing
+                  padding: const EdgeInsets.all(
+                      16.0), // Increased padding for better spacing
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       // Location Name
-                      Text(
-                        location.name,
-                        style: textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: colorScheme.onSurface,
-                          fontSize: 16,
-                          letterSpacing: -0.2,
+                      Flexible(
+                        child: Text(
+                          location.name,
+                          style: textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: colorScheme.onSurface,
+                            fontSize: 16,
+                            letterSpacing: -0.2,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 8.0),
-                      
+                      const SizedBox(height: 6.0),
+
                       // Rating Row
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6.0, vertical: 2.0),
                             decoration: BoxDecoration(
                               color: colorScheme.secondary.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(8.0),
@@ -182,7 +187,8 @@ class LocationCarousel extends StatelessWidget {
                             child: Text(
                               "(${location.userRatingsTotal?.toString() ?? '0'})",
                               style: textTheme.bodySmall?.copyWith(
-                                color: colorScheme.onSurfaceVariant.withOpacity(0.7),
+                                color: colorScheme.onSurfaceVariant
+                                    .withOpacity(0.7),
                                 fontSize: 11,
                               ),
                               overflow: TextOverflow.ellipsis,
@@ -190,14 +196,16 @@ class LocationCarousel extends StatelessWidget {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8.0),
-                      
+                      const SizedBox(height: 6.0),
+
                       // Price and Cuisine Row
                       Row(
                         children: [
-                          if (location.priceLevel != null && location.priceLevel! > 0)
+                          if (location.priceLevel != null &&
+                              location.priceLevel! > 0)
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8.0, vertical: 3.0),
                               decoration: BoxDecoration(
                                 color: theme.brightness == Brightness.dark
                                     ? Colors.green.withOpacity(0.2)
@@ -216,17 +224,20 @@ class LocationCarousel extends StatelessWidget {
                                 ),
                               ),
                             ),
-                          if (location.priceLevel != null && 
-                              location.priceLevel! > 0 && 
-                              location.cuisine != null && 
+                          if (location.priceLevel != null &&
+                              location.priceLevel! > 0 &&
+                              location.cuisine != null &&
                               location.cuisine!.isNotEmpty)
                             const SizedBox(width: 8.0),
-                          if (location.cuisine != null && location.cuisine!.isNotEmpty)
+                          if (location.cuisine != null &&
+                              location.cuisine!.isNotEmpty)
                             Flexible(
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8.0, vertical: 3.0),
                                 decoration: BoxDecoration(
-                                  color: colorScheme.primaryContainer.withOpacity(0.6),
+                                  color: colorScheme.primaryContainer
+                                      .withOpacity(0.6),
                                   borderRadius: BorderRadius.circular(12.0),
                                 ),
                                 child: Text(
@@ -251,7 +262,9 @@ class LocationCarousel extends StatelessWidget {
               AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
                 curve: Curves.easeOutQuint,
-                width: bottomNavVisible ? 125 : 145, // Expand width when nav is hidden
+                width: bottomNavVisible
+                    ? 125
+                    : 145, // Expand width when nav is hidden
                 height: double.infinity,
                 child: ClipRRect(
                   borderRadius: const BorderRadius.only(
@@ -285,12 +298,14 @@ class LocationCarousel extends StatelessWidget {
                         child: _buildTypeIndicator(location.preference!, theme),
                       ),
                       // Saved count badge with enhanced styling
-                      if (location.savedCount != null && location.savedCount! > 0)
+                      if (location.savedCount != null &&
+                          location.savedCount! > 0)
                         Positioned(
                           top: 8,
                           right: 8,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8.0, vertical: 4.0),
                             decoration: BoxDecoration(
                               color: Colors.black.withOpacity(0.7),
                               borderRadius: BorderRadius.circular(12.0),
@@ -416,7 +431,8 @@ class LocationCarousel extends StatelessWidget {
                     children: [
                       CircularProgressIndicator(
                         strokeWidth: 2.0,
-                        valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(colorScheme.primary),
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -456,7 +472,8 @@ class LocationCarousel extends StatelessWidget {
                         Text(
                           'No Image',
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant.withOpacity(0.7),
+                            color:
+                                colorScheme.onSurfaceVariant.withOpacity(0.7),
                             fontSize: 10,
                           ),
                         ),
@@ -487,7 +504,8 @@ class LocationCarousel extends StatelessWidget {
                         children: [
                           CircularProgressIndicator(
                             strokeWidth: 2.0,
-                            valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                                colorScheme.primary),
                           ),
                           const SizedBox(height: 8),
                           Text(
@@ -521,13 +539,15 @@ class LocationCarousel extends StatelessWidget {
                             Icon(
                               FeatherIcons.image,
                               size: 32,
-                              color: colorScheme.onSurfaceVariant.withOpacity(0.6),
+                              color:
+                                  colorScheme.onSurfaceVariant.withOpacity(0.6),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               'No Image',
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: colorScheme.onSurfaceVariant.withOpacity(0.7),
+                                color: colorScheme.onSurfaceVariant
+                                    .withOpacity(0.7),
                                 fontSize: 10,
                               ),
                             ),
@@ -538,38 +558,39 @@ class LocationCarousel extends StatelessWidget {
                   },
                 )
               : Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    colorScheme.surfaceContainerHighest,
-                    colorScheme.surfaceContainerHighest.withOpacity(0.7),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      FeatherIcons.mapPin,
-                      size: 32,
-                      color: colorScheme.primary.withOpacity(0.7),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        colorScheme.surfaceContainerHighest,
+                        colorScheme.surfaceContainerHighest.withOpacity(0.7),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Location',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant.withOpacity(0.8),
-                        fontSize: 10,
-                        fontWeight: FontWeight.w500,
-                      ),
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          FeatherIcons.mapPin,
+                          size: 32,
+                          color: colorScheme.primary.withOpacity(0.7),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Location',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color:
+                                colorScheme.onSurfaceVariant.withOpacity(0.8),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
     );
   }
 }

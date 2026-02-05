@@ -22,19 +22,41 @@ class UserDataProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
   bool get isLoggedIn =>
-      (_userId != null && _userData != null) || _supabaseProvider.users.isAuthenticated;
+      (_userId != null && _userData != null) ||
+      _supabaseProvider.users.isAuthenticated;
 
   /// Sets the user ID (typically after login) and fetches user data.
-  Future<void> setUserIdAndFetchData(String userId) async {
+  /// If [cachedProfile] is provided, uses it instead of fetching from DB.
+  Future<void> setUserIdAndFetchData(String userId,
+      {UserModel? cachedProfile}) async {
     _userId = userId;
     _isLoading = true;
     _error = null;
     notifyListeners(); // Notify UI that loading has started
 
     try {
-      // Try to fetch from Supabase first
+      // Use cached profile if available (from signIn response)
+      if (cachedProfile != null) {
+        _supabaseUserData = cachedProfile;
+        log("UserDataProvider: Using cached profile data");
+
+        _userData = {
+          'name': cachedProfile.name,
+          'email': cachedProfile.email,
+          'uid': cachedProfile.supabaseId,
+          'profile_image_url': cachedProfile.profileImageUrl,
+          'bio': cachedProfile.bio,
+        };
+
+        _isLoading = false;
+        notifyListeners();
+        return;
+      }
+
+      // Try to fetch from Supabase
       if (_supabaseProvider.users.isAuthenticated) {
-        final UserModel? userModel = await _supabaseProvider.users.getUserProfile();
+        final UserModel? userModel =
+            await _supabaseProvider.users.getUserProfile();
         if (userModel != null) {
           _supabaseUserData = userModel;
           log("UserDataProvider: Fetched Supabase data for user");
@@ -58,7 +80,6 @@ class UserDataProvider with ChangeNotifier {
           _error = 'User profile not found. Please complete setup.';
         }
       }
-
     } catch (e) {
       log('UserDataProvider: Error fetching user data: $e');
       _error = 'Failed to fetch user data.';
@@ -102,8 +123,9 @@ class UserDataProvider with ChangeNotifier {
       }
 
       // Update in Supabase
-      if (_supabaseProvider.users.isAuthenticated)  {
-        final updatedUser = await _supabaseProvider.users.updateUserProfile(updateData);
+      if (_supabaseProvider.users.isAuthenticated) {
+        final updatedUser =
+            await _supabaseProvider.users.updateUserProfile(updateData);
         if (updatedUser != null) {
           _supabaseUserData = updatedUser;
 

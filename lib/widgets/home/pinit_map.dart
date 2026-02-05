@@ -29,6 +29,11 @@ class _PinitMapState extends State<PinitMap> {
   // Caching to prevent unnecessary reclustering
   String? _lastClusterHash;
 
+  // Debounce clustering during rapid zoom/pan
+  bool _isClusteringInProgress = false;
+  DateTime? _lastClusterTime;
+  static const _clusterDebounceMs = 150; // Minimum ms between cluster updates
+
   @override
   void initState() {
     super.initState();
@@ -68,9 +73,8 @@ class _PinitMapState extends State<PinitMap> {
     Map<dynamic, Marker> items,
     double zoom,
   ) {
-    // Round zoom to 0.25 increments for more responsive clustering updates
-    // This means clustering will update more frequently as user zooms
-    final roundedZoom = (zoom * 4).round() / 4;
+    // Round zoom to 0.5 increments (less sensitive for smoother experience)
+    final roundedZoom = (zoom * 2).round() / 2;
     return '${items.length}_${items.keys.map((l) => l.locationId).join(',')}_$roundedZoom';
   }
 
@@ -81,58 +85,97 @@ class _PinitMapState extends State<PinitMap> {
     MapStateProvider mapStateReader,
     MapStateProvider mapStateProvider,
     double currentZoom,
+    LatLng? viewportCenter,
   ) {
+    // Debounce: skip if already clustering or too soon after last cluster
+    if (_isClusteringInProgress) return;
+
+    final now = DateTime.now();
+    if (_lastClusterTime != null) {
+      final msSinceLastCluster =
+          now.difference(_lastClusterTime!).inMilliseconds;
+      if (msSinceLastCluster < _clusterDebounceMs) {
+        // Schedule a delayed recluster instead of blocking
+        Future.delayed(
+            Duration(milliseconds: _clusterDebounceMs - msSinceLastCluster),
+            () {
+          if (mounted) {
+            _applyClusteringAsync(
+              currentItems,
+              dpr,
+              locationListManager,
+              mapStateReader,
+              mapStateProvider,
+              currentZoom,
+              viewportCenter,
+            );
+          }
+        });
+        return;
+      }
+    }
+
+    _isClusteringInProgress = true;
+    _lastClusterTime = now;
+
     // Apply clustering in the next frame to avoid blocking the build
     Future.microtask(() async {
-      final result = await MarkerClustering.clusterMarkers(
-        locationMarkers: Map.fromEntries(
-          currentItems.entries.map((e) => MapEntry(e.key, e.value)),
-        ),
-        devicePixelRatio: dpr,
-        zoom: currentZoom,
-      );
-
-      final clusteredMarkers = result['markers'] as Map<dynamic, Marker>;
-
-      // Add onTap handlers to all markers
-      final Map<String, Marker> markersWithHandlers = {};
-      for (final entry in clusteredMarkers.entries) {
-        final originalMarker = entry.value;
-        final isCluster = originalMarker.markerId.value.startsWith('cluster_');
-
-        markersWithHandlers[originalMarker.markerId.value] =
-            originalMarker.copyWith(
-          onTapParam: () {
-            if (isCluster) {
-              // Zoom in on cluster
-              mapStateProvider.animateCamera(
-                CameraUpdate.newLatLngZoom(
-                    originalMarker.position, mapStateProvider.currentZoom + 2),
-              );
-            } else {
-              // Handle individual marker tap
-              print("Marker tapped: ${originalMarker.markerId.value}");
-              mapStateReader.setSelectedMarkerId(originalMarker.markerId);
-
-              final index = locationListManager.currentItems.keys
-                  .toList()
-                  .indexWhere((loc) =>
-                      loc.locationId.toString() ==
-                      originalMarker.markerId.value);
-
-              if (index != -1) {
-                mapStateProvider.animateToCarouselItem(index);
-              }
-            }
-          },
-          infoWindowParam: const InfoWindow(title: ""),
+      try {
+        final result = await MarkerClustering.clusterMarkers(
+          locationMarkers: Map.fromEntries(
+            currentItems.entries.map((e) => MapEntry(e.key, e.value)),
+          ),
+          devicePixelRatio: dpr,
+          zoom: currentZoom,
+          viewportCenter:
+              viewportCenter, // Pass for accurate latitude-based calculation
         );
-      }
 
-      if (mounted) {
-        setState(() {
-          _clusteredMarkers = markersWithHandlers;
-        });
+        final clusteredMarkers = result['markers'] as Map<dynamic, Marker>;
+
+        // Add onTap handlers to all markers
+        final Map<String, Marker> markersWithHandlers = {};
+        for (final entry in clusteredMarkers.entries) {
+          final originalMarker = entry.value;
+          final isCluster =
+              originalMarker.markerId.value.startsWith('cluster_');
+
+          markersWithHandlers[originalMarker.markerId.value] =
+              originalMarker.copyWith(
+            onTapParam: () {
+              if (isCluster) {
+                // Zoom in on cluster with smooth animation
+                mapStateProvider.animateCamera(
+                  CameraUpdate.newLatLngZoom(originalMarker.position,
+                      mapStateProvider.currentZoom + 2),
+                );
+              } else {
+                // Handle individual marker tap
+                print("Marker tapped: ${originalMarker.markerId.value}");
+                mapStateReader.setSelectedMarkerId(originalMarker.markerId);
+
+                final index = locationListManager.currentItems.keys
+                    .toList()
+                    .indexWhere((loc) =>
+                        loc.locationId.toString() ==
+                        originalMarker.markerId.value);
+
+                if (index != -1) {
+                  mapStateProvider.animateToCarouselItem(index);
+                }
+              }
+            },
+            infoWindowParam: const InfoWindow(title: ""),
+          );
+        }
+
+        if (mounted) {
+          setState(() {
+            _clusteredMarkers = markersWithHandlers;
+          });
+        }
+      } finally {
+        _isClusteringInProgress = false;
       }
     });
   }
@@ -150,16 +193,17 @@ class _PinitMapState extends State<PinitMap> {
     final dpr = MediaQuery.of(context).devicePixelRatio;
     locationListManager.setDevicePixelRatio(dpr);
 
-    // Get current zoom level
+    // Get current zoom level and viewport center
     final currentZoom = mapStateProvider.currentZoom;
+    final viewportCenter = mapStateProvider.currentVisibleCenter;
 
     // Check if we need to recluster
     final currentItems = locationListManager.currentItems;
     final cacheKey = _getClusteringCacheKey(currentItems, currentZoom);
     final shouldRecluster = _lastClusterHash != cacheKey;
 
-    // Apply clustering only if needed
-    if (shouldRecluster) {
+    // Apply clustering only if needed (debounced for smoothness)
+    if (shouldRecluster && !_isClusteringInProgress) {
       _lastClusterHash = cacheKey;
       _applyClusteringAsync(
         currentItems,
@@ -168,6 +212,7 @@ class _PinitMapState extends State<PinitMap> {
         mapStateReader,
         mapStateProvider,
         currentZoom,
+        viewportCenter,
       );
     }
 

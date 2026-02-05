@@ -14,6 +14,7 @@ class BubblesProvider with ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   bool _isSubscribed = false;
+  bool _isMounted = true; // Track if provider is still active
 
   RealtimeChannel? _bubblesChannel;
   RealtimeChannel? _membersChannel;
@@ -29,6 +30,14 @@ class BubblesProvider with ChangeNotifier {
   List<Bubble> get bubbles => _bubbles;
   bool get isLoading => _isLoading;
   String? get error => _error;
+
+  // Override notifyListeners to prevent calling after dispose
+  @override
+  void notifyListeners() {
+    if (_isMounted) {
+      super.notifyListeners();
+    }
+  }
 
   /// Initialize the provider and load bubbles
   Future<void> initialize() async {
@@ -138,7 +147,8 @@ class BubblesProvider with ChangeNotifier {
   /// Handle when user is added to a bubble
   void _handleMemberInsert(PostgresChangePayload payload) async {
     try {
-      final bubbleId = payload.newRecord[SupabaseConstants.columnBubbleId] as String?;
+      final bubbleId =
+          payload.newRecord[SupabaseConstants.columnBubbleId] as String?;
       if (bubbleId == null) return;
 
       if (kDebugMode) {
@@ -161,7 +171,8 @@ class BubblesProvider with ChangeNotifier {
   /// Handle when user is removed from a bubble
   void _handleMemberDelete(PostgresChangePayload payload) {
     try {
-      final bubbleId = payload.oldRecord[SupabaseConstants.columnBubbleId] as String?;
+      final bubbleId =
+          payload.oldRecord[SupabaseConstants.columnBubbleId] as String?;
       if (bubbleId == null) return;
 
       if (kDebugMode) {
@@ -181,7 +192,8 @@ class BubblesProvider with ChangeNotifier {
   /// Handle bubble metadata updates (name, etc.)
   void _handleBubbleUpdate(PostgresChangePayload payload) async {
     try {
-      final bubbleId = payload.newRecord[SupabaseConstants.columnBubbleId] as String?;
+      final bubbleId =
+          payload.newRecord[SupabaseConstants.columnBubbleId] as String?;
       if (bubbleId == null) return;
 
       if (kDebugMode) {
@@ -208,8 +220,9 @@ class BubblesProvider with ChangeNotifier {
   /// Handle location changes (add/remove) in bubbles
   void _handleLocationChange(PostgresChangePayload payload) async {
     try {
-      final bubbleId = payload.newRecord[SupabaseConstants.columnBubbleId] as String? ??
-          payload.oldRecord[SupabaseConstants.columnBubbleId] as String?;
+      final bubbleId =
+          payload.newRecord[SupabaseConstants.columnBubbleId] as String? ??
+              payload.oldRecord[SupabaseConstants.columnBubbleId] as String?;
 
       if (bubbleId == null) return;
 
@@ -237,9 +250,11 @@ class BubblesProvider with ChangeNotifier {
   /// Handle new messages to update last message
   void _handleNewMessage(PostgresChangePayload payload) async {
     try {
-      final bubbleId = payload.newRecord[SupabaseConstants.columnBubbleId] as String?;
+      final bubbleId =
+          payload.newRecord[SupabaseConstants.columnBubbleId] as String?;
       final content = payload.newRecord['content'] as String?;
-      final createdAt = payload.newRecord[SupabaseConstants.columnCreatedAt] as String?;
+      final createdAt =
+          payload.newRecord[SupabaseConstants.columnCreatedAt] as String?;
 
       if (bubbleId == null || content == null || createdAt == null) return;
 
@@ -315,6 +330,9 @@ class BubblesProvider with ChangeNotifier {
 
   @override
   void dispose() {
+    // Mark as not mounted to prevent notifyListeners after dispose
+    _isMounted = false;
+
     // Unsubscribe from all channels
     final client = SupabaseClientManager().client;
 
