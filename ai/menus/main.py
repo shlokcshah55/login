@@ -1110,6 +1110,7 @@ def fetch_locations_with_websites(
     limit: int | None = None,
     order_by: str = "user_ratings_total",
     ascending: bool = False,
+    skip_processed: bool = True,
 ) -> list[dict]:
     """
     Fetch locations with websites from Supabase.
@@ -1121,6 +1122,7 @@ def fetch_locations_with_websites(
         limit: Maximum number of locations to fetch (None for all)
         order_by: Column to order by (default: user_ratings_total)
         ascending: Sort order (default: False for descending)
+        skip_processed: If True, only fetch locations without menu_analysis_confidence (default: True)
 
     Returns:
         List of dicts with 'website', 'google_place_id', 'name', 'cuisine' keys
@@ -1139,7 +1141,13 @@ def fetch_locations_with_websites(
         # Query locations table for records with non-null, non-empty websites
         query = supabase.table("locations").select(
             "website, google_place_id, name, cuisine"
-        ).not_.is_("website", "null").not_.is_("generated_summary", "null").limit(100)
+        ).not_.is_("website", "null")
+
+        # Skip locations that have already been processed (have menu_analysis_confidence)
+        if skip_processed:
+            query = query.is_("menu_analysis_confidence", "null")
+
+        query = query.limit(batch_size)
 
         # Add ordering if specified
         if order_by:
@@ -1507,6 +1515,7 @@ async def process_and_update_locations(
     limit: int | None = None,
     order_by: str = "user_ratings_total",
     concurrency: int = 3,
+    skip_processed: bool = True,
 ) -> dict:
     """
     Complete end-to-end pipeline: fetch locations, analyze menus, and update Supabase.
@@ -1518,6 +1527,7 @@ async def process_and_update_locations(
         limit: Maximum number of locations to process (None for all)
         order_by: Column to order by when fetching locations
         concurrency: Number of parallel crawls
+        skip_processed: If True, only process locations without existing analysis (default: True)
 
     Returns:
         Dict with complete summary of the process
@@ -1536,6 +1546,7 @@ async def process_and_update_locations(
         supabase_key=supabase_key,
         limit=limit,
         order_by=order_by,
+        skip_processed=skip_processed,
     )
 
 
@@ -1661,9 +1672,10 @@ async def main():
         supabase_url=SUPABASE_URL,
         supabase_key=SUPABASE_KEY,
         xai_api_key=XAI_API_KEY_ENV,
-        limit=None,  # No limit - process all restaurants
+        limit=1000,  # Process 1000 at a time to respect rate limits
         order_by="user_ratings_total",
         concurrency=3,
+        skip_processed=True,  # Skip locations already analyzed
     )
 
     # Print results
