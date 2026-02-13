@@ -1,33 +1,32 @@
 import 'dart:async';
 import 'dart:developer';
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
+import 'package:login/utils/geo_types.dart';
 
 class MapStateProvider with ChangeNotifier {
-  final Completer<GoogleMapController> _completeController = Completer();
-  GoogleMapController? _mapController; // Make nullable initially
-  Set<Polyline> _polylines = {};
-  LatLng? _lastFocusedUserLocation; // To track where the user was last centered
-  LatLng?
-      _currentVisibleCenter; // To track the current visible center of the map
-  double _currentZoom = 15.0; // To track the current zoom level
-  MarkerId? _selectedMarkerId; // To track the currently selected marker
-  PageController? _carouselPageController; // To control the carousel page view
-  bool _isAwayFromUserArea =
-      false; // Track if the map is away from user's location
-  bool _showSearchThisAreaButton = false; // Control button visibility
+  mapbox.MapboxMap? _mapboxMap;
+  mapbox.PointAnnotationManager? _pointAnnotationManager;
+  mapbox.PolylineAnnotationManager? _polylineAnnotationManager;
+
+  LatLng? _lastFocusedUserLocation;
+  LatLng? _currentVisibleCenter;
+  double _currentZoom = 15.0;
+  String? _selectedMarkerId;
+  PageController? _carouselPageController;
+  bool _isAwayFromUserArea = false;
+  bool _showSearchThisAreaButton = false;
+
+  List<LatLng> _polylinePoints = [];
 
   // Getters
-  Future<GoogleMapController> get controllerFuture =>
-      _completeController.future;
-  GoogleMapController? get mapController => _mapController;
-  Set<Polyline> get polylines => _polylines;
-  MarkerId? get selectedMarkerId => _selectedMarkerId;
+  mapbox.MapboxMap? get mapboxMap => _mapboxMap;
+  mapbox.PointAnnotationManager? get pointAnnotationManager => _pointAnnotationManager;
+  String? get selectedMarkerId => _selectedMarkerId;
   bool get showSearchThisAreaButton => _showSearchThisAreaButton;
   double get currentZoom => _currentZoom;
   LatLng? get currentVisibleCenter => _currentVisibleCenter;
 
-  // Set the carousel page controller
   void setCarouselPageController(PageController controller) {
     _carouselPageController = controller;
   }
@@ -37,7 +36,6 @@ class MapStateProvider with ChangeNotifier {
     print("Set last focused user location to: $location");
   }
 
-  // Animate to a specific item in the carousel
   void animateToCarouselItem(int index) {
     if (_carouselPageController != null) {
       _carouselPageController!.animateToPage(index,
@@ -47,169 +45,139 @@ class MapStateProvider with ChangeNotifier {
     }
   }
 
-  /// Assigns the Google Map controller when the map is created.
-  void setMapController(GoogleMapController controller) {
-    _mapController = controller;
-    if (!_completeController.isCompleted) {
-      _completeController.complete(controller);
-      log("MapStateProvider: GoogleMapController initialized.");
-    }
-    // No need to notifyListeners here unless UI depends on controller existence
+  /// Call this from MapWidget's onMapCreated callback.
+  Future<void> setMapboxMap(mapbox.MapboxMap map) async {
+    _mapboxMap = map;
+    _pointAnnotationManager = await map.annotations.createPointAnnotationManager();
+    _polylineAnnotationManager = await map.annotations.createPolylineAnnotationManager();
+    log("MapStateProvider: MapboxMap controller initialized.");
   }
 
-  /// Adds or updates a polyline on the map.
-  void setPolyline(Polyline polyline) {
-    // Using add instead of clear/add allows multiple polylines if needed later
-    _polylines.removeWhere((p) => p.polylineId == polyline.polylineId);
-    _polylines.add(polyline);
-    log("MapStateProvider: Polyline added/updated: ${polyline.polylineId.value}");
+  /// Draws a polyline on the map. Replaces any existing polyline.
+  Future<void> setPolyline(List<LatLng> points,
+      {Color color = Colors.blue, double width = 4.0}) async {
+    _polylinePoints = points;
+    await _syncPolylines(color: color, width: width);
+    log("MapStateProvider: Polyline set with ${points.length} points.");
     notifyListeners();
   }
 
-  /// Removes a specific polyline by its ID.
-  void removePolylineById(PolylineId polylineId) {
-    _polylines.removeWhere((p) => p.polylineId == polylineId);
-  }
-
   /// Clears all polylines from the map.
-  void clearPolylines() {
-    if (_polylines.isNotEmpty) {
-      _polylines.clear();
-      log("MapStateProvider: All polylines cleared.");
-      notifyListeners();
-    }
+  Future<void> clearPolylines() async {
+    _polylinePoints = [];
+    await _polylineAnnotationManager?.deleteAll();
+    log("MapStateProvider: All polylines cleared.");
+    notifyListeners();
   }
 
-  /// Animates the camera to a specific LatLng position.
-  Future<void> animateCamera(CameraUpdate cameraUpdate) async {
-    await _completeController.future; // Ensure controller is ready
-    final controller = _mapController; // Assign to local variable first
-    if (controller != null) {
-      await controller.animateCamera(cameraUpdate); // Use local variable
-      log("MapStateProvider: Animating camera.");
-    } else {
-      log("MapStateProvider: Cannot animate camera, controller is null.");
+  Future<void> _syncPolylines({Color color = Colors.blue, double width = 4.0}) async {
+    final mgr = _polylineAnnotationManager;
+    if (mgr == null || _polylinePoints.isEmpty) return;
+    await mgr.deleteAll();
+    final coordinates = _polylinePoints
+        .map((p) => mapbox.Position(p.longitude, p.latitude))
+        .toList();
+    await mgr.create(mapbox.PolylineAnnotationOptions(
+      geometry: mapbox.LineString(coordinates: coordinates),
+      lineColor: color.value,
+      lineWidth: width,
+    ));
+  }
+
+  /// Animate camera to a position with optional zoom.
+  Future<void> animateCamera(LatLng target, {double? zoom}) async {
+    final map = _mapboxMap;
+    if (map == null) {
+      log("MapStateProvider: Cannot animate camera, map is null.");
+      return;
     }
-    // No notifyListeners needed as map animates itself
+    await map.flyTo(
+      mapbox.CameraOptions(center: target.toPoint(), zoom: zoom ?? _currentZoom),
+      mapbox.MapAnimationOptions(duration: 500),
+    );
+    log("MapStateProvider: Animating camera to $target");
   }
 
   /// Focuses the map camera on a specific user location.
-  Future<void> focusOnUserLocation(LatLng userPosition,
-      {double zoom = 15.0}) async {
+  Future<void> focusOnUserLocation(LatLng userPosition, {double zoom = 15.0}) async {
     _lastFocusedUserLocation = userPosition;
-    await animateCamera(CameraUpdate.newLatLngZoom(userPosition, zoom));
+    await animateCamera(userPosition, zoom: zoom);
     log("MapStateProvider: Camera focused on user location: $userPosition");
   }
 
-  /// Gets the current visible bounds of the map
+  /// Gets the current visible bounds of the map.
   Future<LatLngBounds?> getVisibleBounds() async {
-    if (_mapController == null) return null;
+    final map = _mapboxMap;
+    if (map == null) return null;
     try {
-      return await _mapController!.getVisibleRegion();
+      final state = await map.getCameraState();
+      final bounds = await map.coordinateBoundsForCamera(mapbox.CameraOptions(
+        center: state.center,
+        zoom: state.zoom,
+        bearing: state.bearing,
+        pitch: state.pitch,
+      ));
+      return LatLngBounds.fromCoordinateBounds(bounds);
     } catch (e) {
       log('Error getting visible bounds: $e');
       return null;
     }
   }
 
-  /// Focuses the map camera to show bounds containing two points.
-  Future<void> focusOnBounds(LatLng point1, LatLng point2,
-      {double padding = 100.0}) async {
-    await animateCamera(
-      CameraUpdate.newLatLngBounds(
-        LatLngBounds(
-          southwest: LatLng(
-            point1.latitude < point2.latitude
-                ? point1.latitude
-                : point2.latitude,
-            point1.longitude < point2.longitude
-                ? point1.longitude
-                : point2.longitude,
-          ),
-          northeast: LatLng(
-            point1.latitude > point2.latitude
-                ? point1.latitude
-                : point2.latitude,
-            point1.longitude > point2.longitude
-                ? point1.longitude
-                : point2.longitude,
-          ),
-        ),
-        padding,
-      ),
+  /// Focuses the map to show bounds containing two points.
+  Future<void> focusOnBounds(LatLng point1, LatLng point2, {double padding = 100.0}) async {
+    final map = _mapboxMap;
+    if (map == null) return;
+    final sw = LatLng(
+      point1.latitude < point2.latitude ? point1.latitude : point2.latitude,
+      point1.longitude < point2.longitude ? point1.longitude : point2.longitude,
     );
+    final ne = LatLng(
+      point1.latitude > point2.latitude ? point1.latitude : point2.latitude,
+      point1.longitude > point2.longitude ? point1.longitude : point2.longitude,
+    );
+    final camera = await map.cameraForCoordinateBounds(
+      LatLngBounds(southwest: sw, northeast: ne).toCoordinateBounds(),
+      mapbox.MbxEdgeInsets(top: padding, left: padding, bottom: padding, right: padding),
+      null, null, null, null,
+    );
+    await map.flyTo(camera, mapbox.MapAnimationOptions(duration: 600));
     log("MapStateProvider: Camera focused on bounds containing $point1 and $point2");
   }
 
   /// Sets the currently selected marker ID and notifies listeners.
-  void setSelectedMarkerId(MarkerId? markerId,
-      {bool triggeredByCarousel = false}) {
+  void setSelectedMarkerId(String? markerId, {bool triggeredByCarousel = false}) {
     if (_selectedMarkerId != markerId) {
       _selectedMarkerId = markerId;
-      log("MapStateProvider: Selected marker changed to: ${markerId?.value}");
+      log("MapStateProvider: Selected marker changed to: $markerId");
       notifyListeners();
     }
   }
 
-  /// Updates the current visible center of the map from camera position
-  void updateMapCenter(CameraPosition position) {
-    _currentVisibleCenter = position.target;
-    _currentZoom = position.zoom;
+  /// Called from the map's camera-change listener.
+  void updateMapCenter(LatLng center, double zoom) {
+    _currentVisibleCenter = center;
+    _currentZoom = zoom;
     _checkIfAwayFromUserArea();
   }
 
-  /// Check if map has moved significantly from user's location
   void _checkIfAwayFromUserArea() {
     if (_lastFocusedUserLocation != null && _currentVisibleCenter != null) {
-      print('Checking if away from user area:');
-      print('_lastFocusedUserLocation = $_lastFocusedUserLocation');
-      print('_currentVisibleCenter = $_currentVisibleCenter');
-
-      // Calculate the distance between current map center and user's location
-      // Use a simple distance check with latitude and longitude differences
-      final double distanceThreshold =
-          0.01; // Roughly 1km at the equator, adjust as needed
-
-      final double latDiff =
-          (_lastFocusedUserLocation!.latitude - _currentVisibleCenter!.latitude)
-              .abs();
-      final double lngDiff = (_lastFocusedUserLocation!.longitude -
-              _currentVisibleCenter!.longitude)
-          .abs();
-
-      print(
-          'latDiff = $latDiff, lngDiff = $lngDiff, threshold = $distanceThreshold');
-
-      // Store previous state to detect changes
+      final double distanceThreshold = 0.01;
+      final double latDiff = (_lastFocusedUserLocation!.latitude - _currentVisibleCenter!.latitude).abs();
+      final double lngDiff = (_lastFocusedUserLocation!.longitude - _currentVisibleCenter!.longitude).abs();
       final bool wasAwayFromUserArea = _isAwayFromUserArea;
-
-      // Update current state
-      _isAwayFromUserArea =
-          latDiff > distanceThreshold || lngDiff > distanceThreshold;
-      print(
-          'Is away from user area: $_isAwayFromUserArea (was: $wasAwayFromUserArea)');
-
-      // Only update UI if state changed
+      _isAwayFromUserArea = latDiff > distanceThreshold || lngDiff > distanceThreshold;
       if (wasAwayFromUserArea != _isAwayFromUserArea) {
-        // Show button when moving away from area
-        if (_isAwayFromUserArea) {
-          _showSearchThisAreaButton = true;
-          log("MapStateProvider: User moved away from focused area, showing search button");
-        }
-        // Hide button when returning to original area
-        else {
-          _showSearchThisAreaButton = false;
-          log("MapStateProvider: User returned to focused area, hiding search button");
-        }
+        _showSearchThisAreaButton = _isAwayFromUserArea;
+        log(_isAwayFromUserArea
+            ? "MapStateProvider: User moved away, showing search button"
+            : "MapStateProvider: User returned, hiding search button");
         notifyListeners();
       }
-    } else {
-      print(
-          'Cannot check if away from user area: _lastFocusedUserLocation = $_lastFocusedUserLocation, _currentVisibleCenter = $_currentVisibleCenter');
     }
   }
 
-  /// Set the visibility of the "Search this area" button
   void setSearchThisAreaButtonVisibility(bool visible) {
     if (_showSearchThisAreaButton != visible) {
       _showSearchThisAreaButton = visible;
@@ -218,44 +186,27 @@ class MapStateProvider with ChangeNotifier {
     }
   }
 
-  /// Hide the "Search this area" button
   void hideSearchThisAreaButton() {
     setSearchThisAreaButtonVisibility(false);
   }
 
-  /// Handler for when user clicks "Search this area"
   LatLng searchThisArea() {
-    // This method will be called when the user taps the "Search this area" button
     if (_currentVisibleCenter != null) {
-      // Update the focused location first
       _lastFocusedUserLocation = _currentVisibleCenter;
-
-      // Reset the away state
       _isAwayFromUserArea = false;
-
-      // Hide the button
       hideSearchThisAreaButton();
-
-      // Animate to ensure the map is centered correctly
-      animateCamera(CameraUpdate.newLatLng(_currentVisibleCenter!));
-
-      // Force notify to ensure UI updates
+      animateCamera(_currentVisibleCenter!);
       notifyListeners();
-
       return _currentVisibleCenter!;
     } else {
       log("MapStateProvider: Cannot search this area, current center is null.");
-      return LatLng(0, 0); // Return a default value or handle error
+      return const LatLng(0, 0);
     }
   }
 
-  // Optional: Add methods for map bounds, etc. if needed later
-
   @override
   void dispose() {
-    // While the controller itself might be managed elsewhere (Map widget),
-    // clear internal references if necessary.
-    _mapController = null; // Help garbage collection
+    _mapboxMap = null;
     log("MapStateProvider: Disposed.");
     super.dispose();
   }

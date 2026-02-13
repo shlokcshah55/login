@@ -112,12 +112,10 @@ class _HomePageState extends State<HomePage> {
     }
 
     _wizardPopoverScheduled = true;
-    _mapStateProvider.controllerFuture.then((_) {
+    // Wait for map to be ready, then show wizard
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _showWizardPopoverIfNeeded();
-      });
+      _showWizardPopoverIfNeeded();
     });
   }
 

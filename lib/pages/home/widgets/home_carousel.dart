@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:login/utils/geo_types.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/widgets/home/LocationCarousel/location_carousel.dart';
 
 class HomeCarousel extends StatelessWidget {
   final PageController pageController;
   final List<LocationModel> locations;
-  final MarkerId? selectedMarkerId;
+  final String? selectedMarkerId;
   final bool bottomNavVisible;
   final ValueChanged<int> onPageChanged;
   final VoidCallback onScrollStart;

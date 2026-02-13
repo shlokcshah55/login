@@ -4,7 +4,7 @@ import 'dart:developer';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:login/utils/geo_types.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/services/recommendations_api.dart';
 import 'package:login/services/google_place_service.dart';
@@ -30,7 +30,7 @@ class LocationListManager with ChangeNotifier {
   // Device location state is now delegated to LocationService
   double _devicePixelRatio = 1.0; // Default value
   final RecommendationsApi _recommendationsApi = RecommendationsApi();
-  CameraPosition? _cameraPosition;
+  CameraPositionData? _cameraPosition;
   LatLng? _lastSearchedCenter;
   bool _areaChanged = false;
   bool _isSearchingArea = false;
@@ -50,18 +50,18 @@ class LocationListManager with ChangeNotifier {
   LocationListManager(this._googlePlacesService);
 
   // Location lists
-  Map<LocationModel, Marker> _savedLocations = {};
-  Map<LocationModel, Marker> _recommendedLocations = {};
-  Map<LocationModel, Marker> _searchLocations = {};
-  Map<LocationModel, Marker> _currentItems = {};
+  Map<LocationModel, MapMarkerData> _savedLocations = {};
+  Map<LocationModel, MapMarkerData> _recommendedLocations = {};
+  Map<LocationModel, MapMarkerData> _searchLocations = {};
+  Map<LocationModel, MapMarkerData> _currentItems = {};
   LocationListType _currentListType =
       LocationListType.saved; // Default to saved
 
   // Getters
-  Map<LocationModel, Marker> get savedLocations => _savedLocations;
-  Map<LocationModel, Marker> get recommendedLocations => _recommendedLocations;
-  Map<LocationModel, Marker> get searchLocations => _searchLocations;
-  Map<LocationModel, Marker> get currentItems => _currentItems;
+  Map<LocationModel, MapMarkerData> get savedLocations => _savedLocations;
+  Map<LocationModel, MapMarkerData> get recommendedLocations => _recommendedLocations;
+  Map<LocationModel, MapMarkerData> get searchLocations => _searchLocations;
+  Map<LocationModel, MapMarkerData> get currentItems => _currentItems;
   LocationListType get currentListType => _currentListType;
 
   // Device location getters - delegate to LocationService
@@ -69,7 +69,7 @@ class LocationListManager with ChangeNotifier {
   bool get isTracking => _locationService.isTracking;
   bool get permissionGranted => _locationService.permissionGranted;
   String? get error => _error ?? _locationService.error;
-  CameraPosition? get cameraPosition => _cameraPosition;
+  CameraPositionData? get cameraPosition => _cameraPosition;
   LocationService get locationService => _locationService;
 
   // Set device pixel ratio (should be called once from a widget with context)
@@ -80,7 +80,7 @@ class LocationListManager with ChangeNotifier {
     }
   }
 
-  void setCameraPosition(CameraPosition position) {
+  void setCameraPosition(CameraPositionData position) {
     _cameraPosition = position;
     _areaChanged = true;
   }
@@ -222,7 +222,7 @@ class LocationListManager with ChangeNotifier {
 
       // Add to saved locations temporarily with a placeholder marker
       _savedLocations[location] =
-          Marker(markerId: MarkerId(locationId.toString()));
+          MapMarkerData(id: locationId.toString(), position: const LatLng(0, 0), imageBytes: const []);
 
       // Re-apply name selection to all saved locations (including the new one)
       final selectedForNames = _selectLocationsForNameDisplay(
@@ -313,7 +313,7 @@ class LocationListManager with ChangeNotifier {
   /// If 10 or fewer unclustered locations: shows all names
   /// If more than 10 unclustered: randomly selects 10 to show names
   Set<int> _selectLocationsForNameDisplay(
-    Map<LocationModel, Marker> locations, {
+    Map<LocationModel, MapMarkerData> locations, {
     LatLngBounds? viewportBounds,
     double zoom = 15.0,
   }) {
@@ -500,7 +500,7 @@ class LocationListManager with ChangeNotifier {
         // First create a temporary map to select which locations should show names
         final tempMap = Map.fromEntries(supabaseSavedLocations.map((loc) =>
             MapEntry(
-                loc, Marker(markerId: MarkerId(loc.locationId.toString())))));
+                loc, MapMarkerData(id: loc.locationId.toString(), position: const LatLng(0, 0), imageBytes: const []))));
         final selectedForNames = _selectLocationsForNameDisplay(
           tempMap,
           viewportBounds: _currentViewportBounds,
@@ -551,7 +551,7 @@ class LocationListManager with ChangeNotifier {
       if (nearbyLocations.isNotEmpty) {
         // First create a temporary map to select which locations should show names
         final tempMap = Map.fromEntries(nearbyLocations.map((loc) => MapEntry(
-            loc, Marker(markerId: MarkerId(loc.locationId.toString())))));
+            loc, MapMarkerData(id: loc.locationId.toString(), position: const LatLng(0, 0), imageBytes: const []))));
         final selectedForNames = _selectLocationsForNameDisplay(
           tempMap,
           viewportBounds: _currentViewportBounds,
@@ -580,7 +580,7 @@ class LocationListManager with ChangeNotifier {
         );
         // Select which locations should show names
         final tempMap = Map.fromEntries(recommendations.map((loc) => MapEntry(
-            loc, Marker(markerId: MarkerId(loc.locationId.toString())))));
+            loc, MapMarkerData(id: loc.locationId.toString(), position: const LatLng(0, 0), imageBytes: const []))));
         final selectedForNames = _selectLocationsForNameDisplay(
           tempMap,
           viewportBounds: _currentViewportBounds,
@@ -619,7 +619,7 @@ class LocationListManager with ChangeNotifier {
         );
         // Select which locations should show names
         final tempMap = Map.fromEntries(recommendations.map((loc) => MapEntry(
-            loc, Marker(markerId: MarkerId(loc.locationId.toString())))));
+            loc, MapMarkerData(id: loc.locationId.toString(), position: const LatLng(0, 0), imageBytes: const []))));
         final selectedForNames = _selectLocationsForNameDisplay(
           tempMap,
           viewportBounds: _currentViewportBounds,
@@ -650,7 +650,7 @@ class LocationListManager with ChangeNotifier {
     // Add new locations with placeholder markers
     for (var location in locations) {
       _recommendedLocations[location] =
-          Marker(markerId: MarkerId(location.locationId.toString()));
+          MapMarkerData(id: location.locationId.toString(), position: const LatLng(0, 0), imageBytes: const []);
     }
 
     // Re-apply name selection to all recommended locations
@@ -720,7 +720,7 @@ class LocationListManager with ChangeNotifier {
 
       // Select which locations should show names
       final tempMap = Map.fromEntries(locations.map((loc) => MapEntry(
-          loc, Marker(markerId: MarkerId(loc.locationId.toString())))));
+          loc, MapMarkerData(id: loc.locationId.toString(), position: const LatLng(0, 0), imageBytes: const []))));
       final selectedForNames = _selectLocationsForNameDisplay(
         tempMap,
         viewportBounds: _currentViewportBounds,
@@ -737,7 +737,7 @@ class LocationListManager with ChangeNotifier {
       );
 
       _searchLocations =
-          Map.fromEntries(markers.whereType<MapEntry<LocationModel, Marker>>());
+          Map.fromEntries(markers.whereType<MapEntry<LocationModel, MapMarkerData>>());
       _lastSearchedCenter = center;
       _areaChanged = false;
       _error = null;
@@ -837,7 +837,7 @@ class LocationListManager with ChangeNotifier {
 
     // Add location with placeholder marker
     _savedLocations[location] =
-        Marker(markerId: MarkerId(location.locationId.toString()));
+        MapMarkerData(id: location.locationId.toString(), position: const LatLng(0, 0), imageBytes: const []);
 
     // Re-apply name selection to all saved locations
     final selectedForNames = _selectLocationsForNameDisplay(
@@ -1013,7 +1013,7 @@ class LocationListManager with ChangeNotifier {
 
       // Select which locations should show names
       final tempMap = Map.fromEntries(locations.map((loc) => MapEntry(
-          loc, Marker(markerId: MarkerId(loc.locationId.toString())))));
+          loc, MapMarkerData(id: loc.locationId.toString(), position: const LatLng(0, 0), imageBytes: const []))));
       final selectedForNames = _selectLocationsForNameDisplay(
         tempMap,
         viewportBounds: _currentViewportBounds,
@@ -1029,7 +1029,7 @@ class LocationListManager with ChangeNotifier {
         }),
       );
       _searchLocations =
-          Map.fromEntries(markers.whereType<MapEntry<LocationModel, Marker>>());
+          Map.fromEntries(markers.whereType<MapEntry<LocationModel, MapMarkerData>>());
 
       log(
         "LocationListManager: Magic search returned ${_searchLocations.length} results for '$trimmedQuery'.",

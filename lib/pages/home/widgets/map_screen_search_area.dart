@@ -1,7 +1,9 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
+import 'package:login/utils/geo_types.dart';
 import 'package:login/models/markers.dart';
 import 'package:login/models/proximal_models.dart';
 import 'package:login/services/recommendations_api.dart';
@@ -22,36 +24,37 @@ class MapScreenSearchArea extends StatefulWidget {
 
 class _MapScreenSearchAreaState extends State<MapScreenSearchArea> {
   final RecommendationsApi _api = RecommendationsApi();
-  GoogleMapController? _mapController;
-  CameraPosition? _cameraPosition;
+  mapbox.MapboxMap? _mapController;
+  mapbox.PointAnnotationManager? _annotationManager;
+  LatLng? _currentCenter;
   LatLng? _lastSearchedCenter;
   bool _areaChanged = false;
   bool _isSearching = false;
 
   List<Recommendation> _recommendations = [];
-  Set<Marker> _markers = {};
+  List<MapMarkerData> _markerData = [];
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        GoogleMap(
-          initialCameraPosition: const CameraPosition(
-            target: LatLng(37.773972, -122.431297),
+        mapbox.MapWidget(
+          styleUri: mapbox.MapboxStyles.LIGHT,
+          cameraOptions: mapbox.CameraOptions(
+            center: const LatLng(37.773972, -122.431297).toPoint(),
             zoom: 14,
           ),
-          onMapCreated: (controller) {
+          onMapCreated: (controller) async {
             _mapController = controller;
+            _annotationManager = await controller.annotations.createPointAnnotationManager();
           },
-          onCameraMove: (position) {
-            _cameraPosition = position;
+          onCameraChangeListener: (mapbox.CameraChangedEventData data) {
             _areaChanged = true;
           },
-          onCameraIdle: () {
+          onMapIdleListener: (mapbox.MapIdleEventData data) {
             if (!mounted) return;
             setState(() {});
           },
-          markers: _markers,
         ),
         Positioned(
           top: 150,
@@ -99,12 +102,20 @@ class _MapScreenSearchAreaState extends State<MapScreenSearchArea> {
     final controller = _mapController;
     if (controller == null) return;
 
-    final center = _cameraPosition?.target ??
-        await controller.getLatLng(
-          const ScreenCoordinate(x: 0, y: 0),
-        );
-    final bounds = await controller.getVisibleRegion();
-    final radiusKm = radiusKmFromVisibleRegion(bounds, center);
+    final cameraState = await controller.getCameraState();
+    final centerPoint = cameraState.center;
+    final center = LatLng.fromPoint(centerPoint);
+
+    final bounds = await controller.coordinateBoundsForCamera(
+      mapbox.CameraOptions(
+        center: centerPoint,
+        zoom: cameraState.zoom,
+        bearing: cameraState.bearing,
+        pitch: cameraState.pitch,
+      ),
+    );
+    final latLngBounds = LatLngBounds.fromCoordinateBounds(bounds);
+    final radiusKm = radiusKmFromVisibleRegion(latLngBounds, center);
 
     setState(() => _isSearching = true);
     try {
@@ -126,10 +137,11 @@ class _MapScreenSearchAreaState extends State<MapScreenSearchArea> {
 
       setState(() {
         _recommendations = response.recommendations;
-        _markers = markers;
+        _markerData = markers;
         _lastSearchedCenter = center;
         _areaChanged = false;
       });
+      _syncAnnotations();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -145,11 +157,11 @@ class _MapScreenSearchAreaState extends State<MapScreenSearchArea> {
     }
   }
 
-  Future<Set<Marker>> _buildMarkers(
+  Future<List<MapMarkerData>> _buildMarkers(
     List<Recommendation> recommendations,
   ) async {
     final dpr = MediaQuery.of(context).devicePixelRatio;
-    final Set<Marker> markers = {};
+    final List<MapMarkerData> markers = [];
 
     for (final rec in recommendations) {
       final position = widget.locationCoordinates[rec.locationId];
@@ -157,26 +169,40 @@ class _MapScreenSearchAreaState extends State<MapScreenSearchArea> {
         continue;
       }
 
-      final icon = await PinitMarkers.createPinitMarker(
+      final imageBytes = await PinitMarkers.createPinitMarker(
         emoji: '📍',
         name: rec.name,
         devicePixelRatio: dpr,
       );
 
       markers.add(
-        Marker(
-          markerId: MarkerId(rec.locationId.toString()),
+        MapMarkerData(
+          id: rec.locationId.toString(),
           position: position,
-          icon: icon,
-          infoWindow: InfoWindow(
-            title: rec.name,
-            snippet: rec.vicinity ?? '',
-          ),
+          imageBytes: imageBytes,
+          title: rec.name,
+          snippet: rec.vicinity ?? '',
         ),
       );
     }
 
     return markers;
+  }
+
+  Future<void> _syncAnnotations() async {
+    final manager = _annotationManager;
+    if (manager == null) return;
+    await manager.deleteAll();
+    for (final m in _markerData) {
+      final bytes = Uint8List.fromList(m.imageBytes);
+      await manager.create(
+        mapbox.PointAnnotationOptions(
+          geometry: m.position.toPoint(),
+          image: bytes,
+          iconSize: 1.0,
+        ),
+      );
+    }
   }
 
   static double radiusKmFromVisibleRegion(

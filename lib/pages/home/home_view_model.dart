@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:developer';
 
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:login/utils/geo_types.dart';
 import 'package:login/controllers/home_controller.dart';
 import 'package:login/models/bubble.dart';
 import 'package:login/models/locations.dart';
@@ -20,7 +20,7 @@ class HomeViewModel extends ChangeNotifier {
   final PageController pageController = PageController(viewportFraction: 0.80);
 
   bool _showSearchOverlay = false;
-  MarkerId? _lastSelectedMarkerId;
+  String? _lastSelectedMarkerId;
   Timer? _debounce;
   bool _initialized = false;
   bool _isBubbleModeActive = false;
@@ -40,7 +40,7 @@ class HomeViewModel extends ChangeNotifier {
   bool get showSearchOverlay => _showSearchOverlay;
   bool get bottomNavVisible => bottomNavVisibilityProvider.isVisible;
   LocationListType get currentListType => locationListManager.currentListType;
-  MarkerId? get selectedMarkerId => mapStateProvider.selectedMarkerId;
+  String? get selectedMarkerId => mapStateProvider.selectedMarkerId;
   List<LocationModel> get locations =>
       locationListManager.currentItems.keys.toList();
   bool get isBubbleModeActive => _isBubbleModeActive;
@@ -73,14 +73,14 @@ class HomeViewModel extends ChangeNotifier {
       _debounce = Timer(const Duration(milliseconds: 100), () {
         if (newSelectedMarkerId == null) return;
         final index = locations.indexWhere(
-          (loc) => loc.locationId == newSelectedMarkerId.value,
+          (loc) => loc.locationId == newSelectedMarkerId,
         );
 
         if (index != -1 &&
             pageController.hasClients &&
             pageController.page?.round() != index) {
           log(
-            "HomeViewModel: Scrolling carousel to index $index for marker ${newSelectedMarkerId.value}",
+            "HomeViewModel: Scrolling carousel to index $index for marker $newSelectedMarkerId",
           );
           pageController.animateToPage(
             index,
@@ -105,20 +105,20 @@ class HomeViewModel extends ChangeNotifier {
     bottomNavVisibilityProvider.hide();
     final location = locations[index];
     mapStateProvider.setSelectedMarkerId(
-      MarkerId(location.locationId.toString()),
+      location.locationId.toString(),
       triggeredByCarousel: true,
     );
     mapStateProvider.animateCamera(
-      CameraUpdate.newLatLng(location.position!),
+      location.position!,
     );
   }
 
   void onLocationSelected(LocationModel location) {
     mapStateProvider.setSelectedMarkerId(
-      MarkerId(location.locationId.toString()),
+      location.locationId.toString(),
     );
     mapStateProvider.animateCamera(
-      CameraUpdate.newLatLng(location.position!),
+      location.position!,
     );
   }
 
@@ -158,8 +158,8 @@ class HomeViewModel extends ChangeNotifier {
 
   Future<void> searchThisArea() async {
     final center = mapStateProvider.searchThisArea();
-    final controller = await mapStateProvider.controllerFuture;
-    final bounds = await controller.getVisibleRegion();
+    final bounds = await mapStateProvider.getVisibleBounds();
+    if (bounds == null) return;
     await locationListManager.searchThisArea(
       center: center,
       bounds: bounds,

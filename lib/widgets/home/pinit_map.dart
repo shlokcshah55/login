@@ -1,9 +1,10 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/map_state_provider.dart';
+import 'package:login/utils/geo_types.dart';
 import 'package:login/utils/marker_clustering.dart';
 import 'package:provider/provider.dart';
 
@@ -21,24 +22,19 @@ class PinitMap extends StatefulWidget {
 }
 
 class _PinitMapState extends State<PinitMap> {
-  String? _mapStyle;
   bool _locationTrackingStarted = false;
-  Map<String, Marker> _clusteredMarkers = {};
   LocationListManager? _locationListManager;
-
-  // Caching to prevent unnecessary reclustering
-  String? _lastClusterHash;
-
-  // Debounce clustering during rapid zoom/pan
-  bool _isClusteringInProgress = false;
-  DateTime? _lastClusterTime;
-  static const _clusterDebounceMs = 150; // Minimum ms between cluster updates
+  bool _mapReady = false;
+  Map<String, MapMarkerData> _clusteredMarkers = {};
+  
+  // Track last synced items to avoid redundant annotation updates
+  int _lastSyncedItemCount = 0;
+  String _lastSyncedItemIds = '';
+  bool _syncInProgress = false;
 
   @override
   void initState() {
     super.initState();
-    _loadMapStyle();
-    // Start GPS tracking automatically
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _startLocationTracking();
@@ -54,71 +50,35 @@ class _PinitMapState extends State<PinitMap> {
   Future<void> _startLocationTracking() async {
     if (_locationTrackingStarted) return;
     _locationTrackingStarted = true;
-    print('[MapDebug] Starting location tracking...');
-    print('_locationListManager: $_locationListManager');
     await _locationListManager?.startLocationUpdates();
   }
 
-  Future<void> _loadMapStyle() async {
-    final String style =
-        await rootBundle.loadString('lib/assets/map_style.json');
-    if (mounted) {
-      setState(() {
-        _mapStyle = style;
-      });
-    }
-  }
-
-  String _getClusteringCacheKey(
-    Map<dynamic, Marker> items,
-    double zoom,
-  ) {
-    // Round zoom to 0.5 increments (less sensitive for smoother experience)
-    final roundedZoom = (zoom * 2).round() / 2;
-    return '${items.length}_${items.keys.map((l) => l.locationId).join(',')}_$roundedZoom';
-  }
-
   void _applyClusteringAsync(
-    Map<dynamic, Marker> currentItems,
+    Map<dynamic, MapMarkerData> currentItems,
     double dpr,
     LocationListManager locationListManager,
     MapStateProvider mapStateReader,
     MapStateProvider mapStateProvider,
-    double currentZoom,
-    LatLng? viewportCenter,
   ) {
-    // Debounce: skip if already clustering or too soon after last cluster
-    if (_isClusteringInProgress) return;
-
-    final now = DateTime.now();
-    if (_lastClusterTime != null) {
-      final msSinceLastCluster =
-          now.difference(_lastClusterTime!).inMilliseconds;
-      if (msSinceLastCluster < _clusterDebounceMs) {
-        // Schedule a delayed recluster instead of blocking
-        Future.delayed(
-            Duration(milliseconds: _clusterDebounceMs - msSinceLastCluster),
-            () {
-          if (mounted) {
-            _applyClusteringAsync(
-              currentItems,
-              dpr,
-              locationListManager,
-              mapStateReader,
-              mapStateProvider,
-              currentZoom,
-              viewportCenter,
-            );
-          }
-        });
-        return;
-      }
+    if (currentItems.isEmpty) {
+      print('PinitMap: currentItems is empty, skipping clustering');
+      return;
     }
-
-    _isClusteringInProgress = true;
-    _lastClusterTime = now;
-
-    // Apply clustering in the next frame to avoid blocking the build
+    
+    // Check if items actually changed to avoid redundant updates
+    final currentItemIds = currentItems.keys.map((e) => e.toString()).toList()..sort();
+    final itemIdsKey = currentItemIds.join(',');
+    if (itemIdsKey == _lastSyncedItemIds && currentItems.length == _lastSyncedItemCount) {
+      // No change, skip
+      return;
+    }
+    
+    // Prevent concurrent syncs
+    if (_syncInProgress) return;
+    _syncInProgress = true;
+    
+    print('PinitMap: _applyClusteringAsync called with ${currentItems.length} items (changed)');
+    
     Future.microtask(() async {
       try {
         final result = await MarkerClustering.clusterMarkers(
@@ -126,171 +86,126 @@ class _PinitMapState extends State<PinitMap> {
             currentItems.entries.map((e) => MapEntry(e.key, e.value)),
           ),
           devicePixelRatio: dpr,
-          zoom: currentZoom,
-          viewportCenter:
-              viewportCenter, // Pass for accurate latitude-based calculation
         );
 
-        final clusteredMarkers = result['markers'] as Map<dynamic, Marker>;
+        final clusteredMarkers = result['markers'] as Map<dynamic, MapMarkerData>;
+        print('PinitMap: Clustering produced ${clusteredMarkers.length} markers');
 
-        // Add onTap handlers to all markers
-        final Map<String, Marker> markersWithHandlers = {};
+        final Map<String, MapMarkerData> markersWithHandlers = {};
         for (final entry in clusteredMarkers.entries) {
-          final originalMarker = entry.value;
-          final isCluster =
-              originalMarker.markerId.value.startsWith('cluster_');
-
-          markersWithHandlers[originalMarker.markerId.value] =
-              originalMarker.copyWith(
-            onTapParam: () {
-              if (isCluster) {
-                // Zoom in on cluster with smooth animation
-                mapStateProvider.animateCamera(
-                  CameraUpdate.newLatLngZoom(originalMarker.position,
-                      mapStateProvider.currentZoom + 2),
-                );
-              } else {
-                // Handle individual marker tap
-                print("Marker tapped: ${originalMarker.markerId.value}");
-                mapStateReader.setSelectedMarkerId(originalMarker.markerId);
-
-                final index = locationListManager.currentItems.keys
-                    .toList()
-                    .indexWhere((loc) =>
-                        loc.locationId.toString() ==
-                        originalMarker.markerId.value);
-
-                if (index != -1) {
-                  mapStateProvider.animateToCarouselItem(index);
-                }
-              }
-            },
-            infoWindowParam: const InfoWindow(title: ""),
-          );
+          markersWithHandlers[entry.value.id] = entry.value;
         }
 
         if (mounted) {
           setState(() {
             _clusteredMarkers = markersWithHandlers;
           });
+          // Sync annotations to the map
+          await _syncAnnotations(markersWithHandlers, mapStateProvider, mapStateReader, locationListManager);
+          
+          // Update tracking
+          _lastSyncedItemCount = currentItems.length;
+          _lastSyncedItemIds = itemIdsKey;
         }
       } finally {
-        _isClusteringInProgress = false;
+        _syncInProgress = false;
       }
     });
   }
 
+  Future<void> _syncAnnotations(
+    Map<String, MapMarkerData> markers,
+    MapStateProvider mapStateProvider,
+    MapStateProvider mapStateReader,
+    LocationListManager locationListManager,
+  ) async {
+    final mgr = mapStateProvider.pointAnnotationManager;
+    if (mgr == null) {
+      print('PinitMap: pointAnnotationManager is null, cannot sync annotations');
+      return;
+    }
+
+    try {
+      // Clear existing annotations
+      await mgr.deleteAll();
+
+      // Create new annotations
+      final options = <mapbox.PointAnnotationOptions>[];
+      for (final marker in markers.values) {
+        // Skip markers with no image data - they won't render
+        if (marker.imageBytes.isEmpty) {
+          continue;
+        }
+        options.add(mapbox.PointAnnotationOptions(
+          geometry: marker.position.toPoint(),
+          image: Uint8List.fromList(marker.imageBytes),
+          iconAnchor: mapbox.IconAnchor.BOTTOM,
+          iconSize: 1.0,
+        ));
+      }
+
+      print('PinitMap: Creating ${options.length} annotations');
+
+      if (options.isNotEmpty) {
+        final annotations = await mgr.createMulti(options);
+        print('PinitMap: Successfully created ${annotations.length} annotations');
+
+        // Set up click listener
+        mgr.addOnPointAnnotationClickListener(
+          _AnnotationClickListener(
+            markers: markers,
+            annotations: annotations,
+            mapStateProvider: mapStateProvider,
+            mapStateReader: mapStateReader,
+            locationListManager: locationListManager,
+          ),
+        );
+      }
+    } catch (e) {
+      print('PinitMap: Error syncing annotations: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Listen to providers needed for map display
     final locationListManager = context.watch<LocationListManager>();
-    final mapStateProvider = context
-        .watch<MapStateProvider>(); // Watch for polyline/selection changes
-    final mapStateReader =
-        context.read<MapStateProvider>(); // Use read for onTap callback
+    final mapStateProvider = context.watch<MapStateProvider>();
+    final mapStateReader = context.read<MapStateProvider>();
 
-    // Set device pixel ratio for high-quality marker rendering
     final dpr = MediaQuery.of(context).devicePixelRatio;
     locationListManager.setDevicePixelRatio(dpr);
 
-    // Get current zoom level and viewport center
-    final currentZoom = mapStateProvider.currentZoom;
-    final viewportCenter = mapStateProvider.currentVisibleCenter;
+    // Apply clustering
+    _applyClusteringAsync(
+      locationListManager.currentItems,
+      dpr,
+      locationListManager,
+      mapStateReader,
+      mapStateProvider,
+    );
 
-    // Check if we need to recluster
-    final currentItems = locationListManager.currentItems;
-    final cacheKey = _getClusteringCacheKey(currentItems, currentZoom);
-    final shouldRecluster = _lastClusterHash != cacheKey;
-
-    // Apply clustering only if needed (debounced for smoothness)
-    if (shouldRecluster && !_isClusteringInProgress) {
-      _lastClusterHash = cacheKey;
-      _applyClusteringAsync(
-        currentItems,
-        dpr,
-        locationListManager,
-        mapStateReader,
-        mapStateProvider,
-        currentZoom,
-        viewportCenter,
-      );
-    }
-
-    // Use clustered markers
-    final Set<Marker> markers = _clusteredMarkers.values.toSet();
-
-    // Get current position from LocationListManager
     final currentPosition = locationListManager.currentPosition;
-
-    // Get the current list type from location list manager
     final isRecommendedTab =
         locationListManager.currentListType == LocationListType.recommended;
 
+    final initialCenter = currentPosition ??
+        const LatLng(PinitMap.DEFAULT_LAT, PinitMap.DEFAULT_LNG);
+
     return Stack(
       children: [
-        GoogleMap(
-          style: _mapStyle,
-          mapToolbarEnabled: false,
-          myLocationEnabled: true,
-          myLocationButtonEnabled: false, // We add our own button
-          compassEnabled: false,
-          zoomControlsEnabled: false,
-          initialCameraPosition: CameraPosition(
-            // Use current position from LocationListManager for initial target
-            target: currentPosition ??
-                const LatLng(PinitMap.DEFAULT_LAT, PinitMap.DEFAULT_LNG),
-            zoom: 15,
+        mapbox.MapWidget(
+          cameraOptions: mapbox.CameraOptions(
+            center: initialCenter.toPoint(),
+            zoom: 15.0,
           ),
-          onMapCreated: (controller) {
-            // Set the controller in the MapStateProvider
-            final mapState = context.read<MapStateProvider>();
-            mapState.setMapController(controller);
-
-            // Initialize the lastFocusedUserLocation with the current position
-            // or the initial camera position if no current position is available
-            final locationManager = context.read<LocationListManager>();
-            LatLng initialLocation = locationManager.currentPosition ??
-                LatLng(PinitMap.DEFAULT_LAT, PinitMap.DEFAULT_LNG);
-
-            print('Setting initial location in onMapCreated: $initialLocation');
-            mapState.setLastFocusedUserLocation(initialLocation);
-          },
-          onTap: (LatLng position) {
-            // Call the callback when map is tapped
+          styleUri: mapbox.MapboxStyles.LIGHT,
+          onMapCreated: _onMapCreated,
+          onTapListener: (mapbox.MapContentGestureContext context) {
             widget.onMapTap?.call();
           },
-          onCameraMove: (CameraPosition position) {
-            // Update the map center in MapStateProvider when camera moves
-            mapStateProvider.updateMapCenter(position);
-            locationListManager.setCameraPosition(position);
+          onCameraChangeListener: (mapbox.CameraChangedEventData event) {
+            _onCameraChanged(mapStateProvider, locationListManager);
           },
-          onCameraIdle: () async {
-            // Trigger rebuild to recluster when user stops zooming
-            if (mounted) {
-              setState(() {});
-            }
-
-            // Get viewport bounds and trigger name selection
-            final controller = mapStateProvider.mapController;
-            if (controller != null) {
-              try {
-                final bounds = await controller.getVisibleRegion();
-                final center = mapStateProvider.currentVisibleCenter;
-                final zoom = mapStateProvider.currentZoom;
-
-                await locationListManager.onMapViewportChanged(
-                  bounds: bounds,
-                  center: center,
-                  zoom: zoom,
-                );
-              } catch (e) {
-                print('Error updating viewport bounds: $e');
-              }
-            }
-          },
-          markers: markers,
-          // Get polylines from MapStateProvider
-          polylines: mapStateProvider.polylines,
         ),
 
         // "Search this area" button - only show on recommended tab
@@ -351,7 +266,7 @@ class _PinitMapState extends State<PinitMap> {
             ),
           ),
 
-        // "My Location" button - always show at the top left
+        // "My Location" button
         Positioned(
           top: 150,
           left: 20,
@@ -372,25 +287,17 @@ class _PinitMapState extends State<PinitMap> {
                 borderRadius: BorderRadius.circular(30.0),
                 onTap: () async {
                   print('My Location button pressed');
-
                   await _startLocationTracking();
-
                   LatLng? position = locationListManager.currentPosition;
-                  print('Current position from stream: $position');
-
-                  // If no position yet, fetch it directly via the manager.
                   position ??= await locationListManager.getCurrentLocation();
-
                   if (position != null) {
-                    await mapStateReader.focusOnUserLocation(position,
-                        zoom: 15.0);
+                    await mapStateReader.focusOnUserLocation(position, zoom: 15.0);
                     print('Focused on position: $position');
                   } else {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text(
-                              'Unable to get your location. Please ensure GPS is enabled and try again.'),
+                          content: Text('Unable to get your location. Please ensure GPS is enabled and try again.'),
                           duration: Duration(seconds: 3),
                         ),
                       );
@@ -413,11 +320,96 @@ class _PinitMapState extends State<PinitMap> {
     );
   }
 
+  void _onMapCreated(mapbox.MapboxMap map) async {
+    final mapState = context.read<MapStateProvider>();
+    await mapState.setMapboxMap(map);
+
+    // Enable location puck (blue dot)
+    await map.location.updateSettings(mapbox.LocationComponentSettings(
+      enabled: true,
+      pulsingEnabled: true,
+    ));
+
+    final locationManager = context.read<LocationListManager>();
+    LatLng initialLocation = locationManager.currentPosition ??
+        const LatLng(PinitMap.DEFAULT_LAT, PinitMap.DEFAULT_LNG);
+    print('Setting initial location in onMapCreated: $initialLocation');
+    mapState.setLastFocusedUserLocation(initialLocation);
+    _mapReady = true;
+  }
+
+  Future<void> _onCameraChanged(
+    MapStateProvider mapStateProvider,
+    LocationListManager locationListManager,
+  ) async {
+    final map = mapStateProvider.mapboxMap;
+    if (map == null) return;
+    try {
+      final state = await map.getCameraState();
+      final center = LatLng.fromPoint(state.center);
+      mapStateProvider.updateMapCenter(center, state.zoom);
+      locationListManager.setCameraPosition(CameraPositionData(
+        target: center,
+        zoom: state.zoom,
+      ));
+    } catch (_) {}
+  }
+
   @override
   void dispose() {
-    // Note: Don't stop location tracking here.
-    // LocationService is a singleton that should keep running.
-    // Location tracking is managed at the app level.
+    if (_locationTrackingStarted) {
+      _locationListManager?.stopLocationUpdates();
+    }
     super.dispose();
+  }
+}
+
+/// Handles annotation tap events and maps them back to marker IDs.
+class _AnnotationClickListener extends mapbox.OnPointAnnotationClickListener {
+  final Map<String, MapMarkerData> markers;
+  final List<mapbox.PointAnnotation?> annotations;
+  final MapStateProvider mapStateProvider;
+  final MapStateProvider mapStateReader;
+  final LocationListManager locationListManager;
+
+  _AnnotationClickListener({
+    required this.markers,
+    required this.annotations,
+    required this.mapStateProvider,
+    required this.mapStateReader,
+    required this.locationListManager,
+  });
+
+  @override
+  void onPointAnnotationClick(mapbox.PointAnnotation annotation) {
+    // Find which marker was tapped by matching annotation index
+    final annotationIndex = annotations.indexWhere((a) => a?.id == annotation.id);
+    if (annotationIndex < 0) return;
+
+    final markerList = markers.values.toList();
+    if (annotationIndex >= markerList.length) return;
+
+    final tappedMarker = markerList[annotationIndex];
+    final isCluster = tappedMarker.id.startsWith('cluster_');
+
+    if (isCluster) {
+      // Zoom in on cluster
+      mapStateProvider.animateCamera(
+        tappedMarker.position,
+        zoom: mapStateProvider.currentZoom + 2,
+      );
+    } else {
+      // Handle individual marker tap
+      print("Marker tapped: ${tappedMarker.id}");
+      mapStateReader.setSelectedMarkerId(tappedMarker.id);
+
+      final index = locationListManager.currentItems.keys
+          .toList()
+          .indexWhere((loc) => loc.locationId.toString() == tappedMarker.id);
+
+      if (index != -1) {
+        mapStateProvider.animateToCarouselItem(index);
+      }
+    }
   }
 }

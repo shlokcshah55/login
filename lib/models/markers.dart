@@ -1,10 +1,10 @@
 
 import 'dart:collection';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 // Color palette for different place types
 class PinitMarkerPalette {
@@ -47,8 +47,9 @@ class PinitMarkerPalette {
 class PinitMarkers {
   static final _BitmapCache _cache = _BitmapCache(maxEntries: 256);
 
-  /// Creates a Pinit marker with emoji and name
-  static Future<BitmapDescriptor> createPinitMarker({
+  /// Creates a Pinit marker with emoji and name.
+  /// Returns raw PNG bytes (Uint8List) suitable for Mapbox annotations.
+  static Future<Uint8List> createPinitMarker({
     required String emoji,
     required String name,
     double devicePixelRatio = 3.0,
@@ -86,7 +87,7 @@ class PinitMarkers {
     });
   }
 
-  static Future<BitmapDescriptor> createClusterMarker({
+  static Future<Uint8List> createClusterMarker({
     required int count,
     double devicePixelRatio = 3.0,
     Color surfaceColor = const Color(0xFF42143D),
@@ -127,7 +128,7 @@ class PinitMarkers {
     showText: true,
   );
 
-  static Future<BitmapDescriptor> _renderPinitMarker({
+  static Future<Uint8List> _renderPinitMarker({
     required String emoji,
     required String name,
     required double devicePixelRatio,
@@ -274,10 +275,10 @@ class PinitMarkers {
     final ui.Image image = await picture.toImage(outW, outH);
     final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
 
-    return BitmapDescriptor.bytes(byteData!.buffer.asUint8List());
+    return byteData!.buffer.asUint8List();
   }
 
-  static Future<BitmapDescriptor> _renderClusterMarker({
+  static Future<Uint8List> _renderClusterMarker({
     required int count,
     required double devicePixelRatio,
     required Color surfaceColor,
@@ -343,7 +344,7 @@ class PinitMarkers {
     final ui.Image image = await picture.toImage(outW, outH);
     final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
 
-    return BitmapDescriptor.bytes(byteData!.buffer.asUint8List());
+    return byteData!.buffer.asUint8List();
   }
 
   static void _drawBubbleCircle({
@@ -428,11 +429,11 @@ class PinitMarkerStyle {
 
 class _BitmapCache {
   final int maxEntries;
-  final LinkedHashMap<String, BitmapDescriptor> _cache = LinkedHashMap();
+  final LinkedHashMap<String, Uint8List> _cache = LinkedHashMap();
 
   _BitmapCache({required this.maxEntries});
 
-  BitmapDescriptor? get(String key) {
+  Uint8List? get(String key) {
     final value = _cache.remove(key);
     if (value != null) {
       _cache[key] = value;
@@ -440,7 +441,7 @@ class _BitmapCache {
     return value;
   }
 
-  void set(String key, BitmapDescriptor value) {
+  void set(String key, Uint8List value) {
     if (_cache.length >= maxEntries) {
       _cache.remove(_cache.keys.first);
     }

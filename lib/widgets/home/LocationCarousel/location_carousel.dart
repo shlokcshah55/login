@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:login/utils/geo_types.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -9,7 +9,7 @@ import 'dart:developer';
 class LocationCarousel extends StatelessWidget {
   final PageController pageController;
   final List<LocationModel> locations;
-  final MarkerId? selectedMarkerId;
+  final String? selectedMarkerId;
   final bool bottomNavVisible;
   final ValueChanged<int> onPageChanged;
   final ValueChanged<LocationModel> onLocationSelected;
@@ -44,7 +44,7 @@ class LocationCarousel extends StatelessWidget {
         ),
         itemBuilder: (context, index) {
           final location = locations[index];
-          final isSelected = selectedMarkerId?.value == location.locationId;
+          final isSelected = selectedMarkerId == location.locationId;
           return AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeOutQuint,
