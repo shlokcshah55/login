@@ -41,6 +41,8 @@ class HomeController {
   /// Fetches recommended pins using the LocationListManager.
   /// Requires current location.
   Future<void> fetchAndPlotRecommendedPins(LatLng? location) async {
+    const double defaultRadius = 5.0; // Match default from fetchRecommendedLocations
+
     if (location == null) {
       // Get device GPS location
       LatLng? currentLocation = locationListManager.currentPosition ??
@@ -50,7 +52,20 @@ class HomeController {
         await locationListManager.fetchRecommendedLocations(
           latitude: currentLocation.latitude,
           longitude: currentLocation.longitude,
+          radiusKm: defaultRadius,
+          vibeTagIds: locationListManager.vibeTagIds.isNotEmpty
+              ? locationListManager.vibeTagIds
+              : null,
+          cuisineTagIds: locationListManager.cuisineTagIds.isNotEmpty
+              ? locationListManager.cuisineTagIds
+              : null,
         );
+        // Update last searched area in MapStateProvider using values from locationListManager
+        final lastCenter = locationListManager.lastSearchedCenter;
+        final lastRadius = locationListManager.lastSearchedRadius;
+        if (lastCenter != null && lastRadius != null) {
+          mapStateProvider.setLastSearchedArea(lastCenter, lastRadius);
+        }
         // Set the carousel items to recommended
         locationListManager.setCurrentListType(LocationListType.recommended);
       } else {
@@ -61,7 +76,20 @@ class HomeController {
       await locationListManager.fetchRecommendedLocations(
         latitude: location.latitude,
         longitude: location.longitude,
+        radiusKm: defaultRadius,
+        vibeTagIds: locationListManager.vibeTagIds.isNotEmpty
+            ? locationListManager.vibeTagIds
+            : null,
+        cuisineTagIds: locationListManager.cuisineTagIds.isNotEmpty
+            ? locationListManager.cuisineTagIds
+            : null,
       );
+      // Update last searched area in MapStateProvider using values from locationListManager
+      final lastCenter = locationListManager.lastSearchedCenter;
+      final lastRadius = locationListManager.lastSearchedRadius;
+      if (lastCenter != null && lastRadius != null) {
+        mapStateProvider.setLastSearchedArea(lastCenter, lastRadius);
+      }
       locationListManager.setCurrentListType(LocationListType.recommended);
     }
   }

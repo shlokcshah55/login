@@ -5,6 +5,7 @@ import 'package:login/pages/bubble_messaging_page.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/providers/bubble_mode_provider.dart';
 import 'package:login/providers/navigation_provider.dart';
+import 'package:login/widgets/chat/add_members_dialog.dart';
 import 'package:provider/provider.dart';
 import 'dart:math' as math;
 
@@ -35,9 +36,13 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
   List<UserLocationActionModel> _activities = [];
   bool _isLoadingActivities = true;
 
+  // Local state for bubble data that can be updated
+  late Bubble currentBubble;
+
   @override
   void initState() {
     super.initState();
+    currentBubble = widget.bubble;
     _initializeAnimations();
     _loadMessageCount();
     _loadBubbleActivity();
@@ -80,6 +85,35 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
         });
       }
     }
+  }
+
+  Future<void> _reloadBubbleData() async {
+    try {
+      final updatedBubble = await SupabaseService()
+          .bubbles
+          .getBubbleById(widget.bubble.id);
+
+      if (updatedBubble != null && mounted) {
+        setState(() {
+          currentBubble = updatedBubble;
+        });
+      }
+    } catch (e) {
+      print('Error reloading bubble data: $e');
+    }
+  }
+
+  void _showAddMembersDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AddMembersDialog(
+        bubble: currentBubble,
+        onMembersAdded: () async {
+          // Reload the bubble data after members are added
+          await _reloadBubbleData();
+        },
+      ),
+    );
   }
 
   void _initializeAnimations() {
@@ -208,11 +242,11 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
         children: [
           CircleAvatar(
             radius: 24,
-            backgroundImage: widget.bubble.groupAvatar.isNotEmpty
-                ? NetworkImage(widget.bubble.groupAvatar)
+            backgroundImage: currentBubble.groupAvatar.isNotEmpty
+                ? NetworkImage(currentBubble.groupAvatar)
                 : null,
             backgroundColor: theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.2),
-            child: widget.bubble.groupAvatar.isEmpty
+            child: currentBubble.groupAvatar.isEmpty
                 ? Icon(Icons.group, color: theme.primaryColor)
                 : null,
           ),
@@ -222,19 +256,27 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  widget.bubble.name,
+                  currentBubble.name,
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
-                  '${widget.bubble.memberCount} members • ${widget.bubble.groupLocations.length} locations',
+                  '${currentBubble.memberCount} members • ${currentBubble.groupLocations.length} locations',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: Colors.grey[600],
                   ),
                 ),
               ],
             ),
+          ),
+          IconButton(
+            onPressed: _showAddMembersDialog,
+            icon: Icon(Icons.person_add, color: theme.primaryColor),
+            style: IconButton.styleFrom(
+              backgroundColor: theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.1),
+            ),
+            tooltip: 'Add Members',
           ),
           IconButton(
             onPressed: _navigateToBubbleProfile,
@@ -257,13 +299,13 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
   }
 
   Widget _buildGroupInfo(ThemeData theme) {
-    if (widget.bubble.description.isEmpty) return const SizedBox.shrink();
+    if (currentBubble.description.isEmpty) return const SizedBox.shrink();
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       child: Text(
-        widget.bubble.description,
+        currentBubble.description,
         style: theme.textTheme.bodyMedium,
         textAlign: TextAlign.center,
       ),
@@ -286,7 +328,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
               child: _buildStatCard(
                 theme,
                 _showMembersList ? Icons.people : Icons.people_outline,
-                widget.bubble.memberCount.toString(),
+                currentBubble.memberCount.toString(),
                 'MEMBERS',
                 theme.primaryColor,
               ),
@@ -297,7 +339,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
             child: _buildStatCard(
               theme,
               Icons.location_on_outlined,
-              widget.bubble.groupLocations.length.toString(),
+              currentBubble.groupLocations.length.toString(),
               'SHARED',
               Colors.green,
             ),
@@ -437,8 +479,8 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
   }
 
   Widget _buildMemberAvatarsPreview(ThemeData theme) {
-    final avatars = widget.bubble.memberAvatars.take(3).toList();
-    final remaining = widget.bubble.memberAvatars.length - 3;
+    final avatars = currentBubble.memberAvatars.take(3).toList();
+    final remaining = currentBubble.memberAvatars.length - 3;
 
     return SizedBox(
       width: 70,
@@ -753,7 +795,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
   Widget _buildTopRecommendationsPodium(ThemeData theme) {
     // Get random top 3 locations (for now, until we implement actual ranking)
     final random = math.Random();
-    final locations = widget.bubble.groupLocations.toList();
+    final locations = currentBubble.groupLocations.toList();
     locations.shuffle(random);
     final top3 = locations.take(3).toList();
 
@@ -1121,11 +1163,11 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
   }
 
   void _navigateToBubbleProfile() {
-    print('Navigating to bubble profile for bubble: ${widget.bubble.name}');
+    print('Navigating to bubble profile for bubble: ${currentBubble.name}');
     final bubbleModeProvider = context.read<BubbleModeProvider>();
     final navigationProvider = context.read<NavigationProvider>();
 
-    bubbleModeProvider.requestBubbleMode(widget.bubble);
+    bubbleModeProvider.requestBubbleMode(currentBubble);
     navigationProvider.navigateToTab(0);
 
     Navigator.of(context).pop();
@@ -1172,48 +1214,84 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: List.generate(
-              widget.bubble.memberAvatars.length,
-              (index) {
-                final name = index < memberNames.length 
-                    ? memberNames[index] 
-                    : 'Member ${index + 1}';
-                
-                return Container(
+            children: [
+              ...List.generate(
+                currentBubble.memberAvatars.length,
+                (index) {
+                  final name = index < memberNames.length
+                      ? memberNames[index]
+                      : 'Member ${index + 1}';
+
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.2),
+                        width: 1,
+                      ),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircleAvatar(
+                          radius: 12,
+                          backgroundImage: currentBubble.memberAvatars[index].isNotEmpty
+                              ? NetworkImage(currentBubble.memberAvatars[index])
+                              : null,
+                          backgroundColor: theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.3),
+                          child: currentBubble.memberAvatars[index].isEmpty
+                              ? Icon(Icons.person, color: theme.primaryColor, size: 14)
+                              : null,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          name,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+              // Add Members button
+              GestureDetector(
+                onTap: _showAddMembersDialog,
+                child: Container(
                   decoration: BoxDecoration(
                     color: theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.2),
-                      width: 1,
+                      color: theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.3),
+                      width: 1.5,
+                      style: BorderStyle.solid,
                     ),
                   ),
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      CircleAvatar(
-                        radius: 12,
-                        backgroundImage: widget.bubble.memberAvatars[index].isNotEmpty
-                            ? NetworkImage(widget.bubble.memberAvatars[index])
-                            : null,
-                        backgroundColor: theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.3),
-                        child: widget.bubble.memberAvatars[index].isEmpty
-                            ? Icon(Icons.person, color: theme.primaryColor, size: 14)
-                            : null,
+                      Icon(
+                        Icons.person_add,
+                        color: theme.primaryColor,
+                        size: 16,
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       Text(
-                        name,
+                        'Add Members',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.w600,
+                          color: theme.primaryColor,
                         ),
                       ),
                     ],
                   ),
-                );
-              },
-            ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
