@@ -1,0 +1,20 @@
+# Menu Analysis Pipeline Dependencies
+
+# Web crawling and scraping
+crawl4ai>=0.3.0
+httpx>=0.27.0
+
+# PDF processing
+pdfplumber>=0.11.0
+
+# AI/LLM
+openai>=1.12.0
+
+# Database
+supabase>=2.3.0
+
+# Environment variables
+python-dotenv>=1.0.0
+
+# Additional dependencies (installed with crawl4ai but listed for clarity)
+playwright>=1.40.0
