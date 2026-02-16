@@ -28,10 +28,15 @@ import pdfplumber
 from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig
 from supabase import create_client, Client
 from openai import AsyncOpenAI
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # ── Configuration ────────────────────────────────────────────────────────────
 
 XAI_API_KEY=os.getenv("XAI_API_KEY", "your-xai-api-key")
+print(XAI_API_KEY)
 SUPABASE_URL=os.getenv("SUPABASE_URL", "https://your-supabase-url.supabase.co")
 SUPABASE_KEY=os.getenv("SUPABASE_KEY", "your-supabase-key")
 XAI_BASE_URL = "https://api.x.ai/v1"
@@ -1514,6 +1519,7 @@ async def process_and_update_locations(
     xai_api_key: str = "",
     limit: int | None = None,
     order_by: str = "user_ratings_total",
+    ascending: bool = False,
     concurrency: int = 3,
     skip_processed: bool = True,
 ) -> dict:
@@ -1526,6 +1532,7 @@ async def process_and_update_locations(
         xai_api_key: xAI API key for Grok model
         limit: Maximum number of locations to process (None for all)
         order_by: Column to order by when fetching locations
+        ascending: If True, sort ascending (ASC); if False, sort descending (DESC)
         concurrency: Number of parallel crawls
         skip_processed: If True, only process locations without existing analysis (default: True)
 
@@ -1546,6 +1553,7 @@ async def process_and_update_locations(
         supabase_key=supabase_key,
         limit=limit,
         order_by=order_by,
+        ascending=ascending,
         skip_processed=skip_processed,
     )
 
@@ -1667,13 +1675,14 @@ async def main():
         return
     
     print("Getting the locations")
-    # Run complete pipeline
+
     summary = await process_and_update_locations(
         supabase_url=SUPABASE_URL,
         supabase_key=SUPABASE_KEY,
         xai_api_key=XAI_API_KEY_ENV,
         limit=1000,  # Process 1000 at a time to respect rate limits
         order_by="user_ratings_total",
+        ascending=False,
         concurrency=3,
         skip_processed=True,  # Skip locations already analyzed
     )
