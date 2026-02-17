@@ -1,0 +1,10 @@
+# Vibe Tag Generator Dependencies
+
+# AI/LLM
+openai>=1.12.0
+
+# Database
+supabase>=2.3.0
+
+# Environment variables
+python-dotenv>=1.0.0
