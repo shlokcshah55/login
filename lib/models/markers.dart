@@ -300,7 +300,7 @@ class PinitMarkers {
         centre: centre, radius: bubR, dpr: dpr, color: color, selected: selected);
 
     // Emoji
-    _drawEmoji(c, centre: centre, size: bubR * 1.0, emoji: emoji);
+    _drawEmoji(c, centre: centre, size: bubR * 1.3, emoji: emoji);
 
     // Pill label
     if (showText) {
@@ -439,7 +439,7 @@ class PinitMarkers {
         centre: mainCentre, radius: bubR, dpr: dpr, color: color);
 
     // ─── 3. Emoji ───
-    _drawEmoji(c, centre: mainCentre, size: bubR * 1.0, emoji: emoji);
+    _drawEmoji(c, centre: mainCentre, size: bubR * 1.3, emoji: emoji);
 
     // ─── 4. Badge pill (top‑right) ───
     final String label = remainingCount > 99 ? '+99' : '+$remainingCount';

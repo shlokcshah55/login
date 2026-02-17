@@ -18,6 +18,7 @@ ai/tiktok-processor/build
 pubspec.lock
 ai/venv/
 pubspec.lock
+ai/vibe-tags/venv/
 
 # IntelliJ related
 *.iml
