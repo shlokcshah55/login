@@ -16,6 +16,8 @@ pinit_service_account.json
 /venv/
 ai/tiktok-processor/build
 pubspec.lock
+ai/venv/
+pubspec.lock
 
 # IntelliJ related
 *.iml

@@ -2,12 +2,17 @@ import 'dart:async';
 import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
+import 'package:login/models/locations.dart';
+import 'package:login/services/geojson_map_layer_service.dart';
 import 'package:login/utils/geo_types.dart';
 
 class MapStateProvider with ChangeNotifier {
   mapbox.MapboxMap? _mapboxMap;
   mapbox.PointAnnotationManager? _pointAnnotationManager;
   mapbox.PolylineAnnotationManager? _polylineAnnotationManager;
+  
+  // GeoJSON-based map layer service (new approach)
+  GeoJsonMapLayerService? _geoJsonLayerService;
 
   LatLng? _lastFocusedUserLocation;
   LatLng? _currentVisibleCenter;
@@ -16,12 +21,17 @@ class MapStateProvider with ChangeNotifier {
   PageController? _carouselPageController;
   bool _isAwayFromUserArea = false;
   bool _showSearchThisAreaButton = false;
+  
+  // Flag to toggle between old and new rendering approaches
+  bool _useGeoJsonLayers = true;
 
   List<LatLng> _polylinePoints = [];
 
   // Getters
   mapbox.MapboxMap? get mapboxMap => _mapboxMap;
   mapbox.PointAnnotationManager? get pointAnnotationManager => _pointAnnotationManager;
+  GeoJsonMapLayerService? get geoJsonLayerService => _geoJsonLayerService;
+  bool get useGeoJsonLayers => _useGeoJsonLayers;
   String? get selectedMarkerId => _selectedMarkerId;
   bool get showSearchThisAreaButton => _showSearchThisAreaButton;
   double get currentZoom => _currentZoom;
@@ -46,11 +56,66 @@ class MapStateProvider with ChangeNotifier {
   }
 
   /// Call this from MapWidget's onMapCreated callback.
-  Future<void> setMapboxMap(mapbox.MapboxMap map) async {
+  Future<void> setMapboxMap(mapbox.MapboxMap map, {
+    OnLocationTapped? onLocationTapped,
+    OnClusterTapped? onClusterTapped,
+  }) async {
     _mapboxMap = map;
-    _pointAnnotationManager = await map.annotations.createPointAnnotationManager();
+    
+    if (_useGeoJsonLayers) {
+      // Initialize GeoJSON-based layers (new approach)
+      _geoJsonLayerService = GeoJsonMapLayerService(
+        mapboxMap: map,
+        config: const GeoJsonLayerConfig(
+          enableClustering: true,
+          clusterRadius: 30,
+          clusterMaxZoom: 14,
+          showTextLabels: true,
+          allowTextOverlap: false,
+          allowIconOverlap: false,
+        ),
+        onLocationTapped: onLocationTapped,
+        onClusterTapped: onClusterTapped,
+      );
+      await _geoJsonLayerService!.initialize();
+      log("MapStateProvider: GeoJSON layer service initialized.");
+    } else {
+      // Legacy: use PointAnnotationManager
+      _pointAnnotationManager = await map.annotations.createPointAnnotationManager();
+      log("MapStateProvider: PointAnnotationManager initialized (legacy mode).");
+    }
+    
     _polylineAnnotationManager = await map.annotations.createPolylineAnnotationManager();
     log("MapStateProvider: MapboxMap controller initialized.");
+  }
+
+  /// Update the locations displayed on the map (GeoJSON mode).
+  /// 
+  /// This method should be called when the location list changes.
+  /// Mapbox handles clustering automatically.
+  Future<void> updateMapLocations(List<LocationModel> locations) async {
+    if (_useGeoJsonLayers && _geoJsonLayerService != null) {
+      await _geoJsonLayerService!.updateLocations(locations);
+      log("MapStateProvider: Updated ${locations.length} locations on map.");
+    }
+  }
+
+  /// Handle a tap on the map at the given screen coordinates.
+  /// 
+  /// Delegates to GeoJSON layer service if using GeoJSON mode.
+  Future<void> handleMapTap(double x, double y) async {
+    if (_useGeoJsonLayers && _geoJsonLayerService != null) {
+      await _geoJsonLayerService!.handleTapAtPoint(x, y);
+    }
+  }
+
+  /// Toggle between GeoJSON layers and legacy PointAnnotation approach.
+  void setUseGeoJsonLayers(bool value) {
+    if (_useGeoJsonLayers != value) {
+      _useGeoJsonLayers = value;
+      log("MapStateProvider: useGeoJsonLayers set to $value");
+      notifyListeners();
+    }
   }
 
   /// Draws a polyline on the map. Replaces any existing polyline.
@@ -149,6 +214,8 @@ class MapStateProvider with ChangeNotifier {
   void setSelectedMarkerId(String? markerId, {bool triggeredByCarousel = false}) {
     if (_selectedMarkerId != markerId) {
       _selectedMarkerId = markerId;
+      // Update selection in GeoJSON layer service
+      _geoJsonLayerService?.setSelectedLocation(markerId);
       log("MapStateProvider: Selected marker changed to: $markerId");
       notifyListeners();
     }
@@ -206,6 +273,8 @@ class MapStateProvider with ChangeNotifier {
 
   @override
   void dispose() {
+    _geoJsonLayerService?.dispose();
+    _geoJsonLayerService = null;
     _mapboxMap = null;
     log("MapStateProvider: Disposed.");
     super.dispose();
