@@ -1,5 +1,6 @@
 import 'dart:async';
-import 'dart:developer';
+import 'dart:developer' show log;
+import 'dart:math' hide log;
 import 'package:flutter/material.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 import 'package:login/models/locations.dart';
@@ -15,6 +16,8 @@ class MapStateProvider with ChangeNotifier {
   GeoJsonMapLayerService? _geoJsonLayerService;
 
   LatLng? _lastFocusedUserLocation;
+  LatLng? _lastSearchedCenter; // To track the center of the last API search
+  double? _lastSearchedRadius; // To track the radius of the last API search (in km)
   LatLng? _currentVisibleCenter;
   double _currentZoom = 15.0;
   String? _selectedMarkerId;
@@ -48,10 +51,7 @@ class MapStateProvider with ChangeNotifier {
 
   void animateToCarouselItem(int index) {
     if (_carouselPageController != null) {
-      _carouselPageController!.animateToPage(index,
-          duration: const Duration(milliseconds: 500), curve: Curves.easeInOut);
-    } else {
-      log("Cannot animate carousel: pageController is null.");
+      _carouselPageController!.jumpToPage(index);
     }
   }
 
@@ -184,9 +184,59 @@ class MapStateProvider with ChangeNotifier {
       ));
       return LatLngBounds.fromCoordinateBounds(bounds);
     } catch (e) {
-      log('Error getting visible bounds: $e');
       return null;
     }
+  }
+
+  /// Gets the center and radius of the current visible map area
+  /// Returns a map with 'center' (LatLng) and 'radius' (double in km)
+  Future<Map<String, dynamic>?> getVisibleCenterAndRadius() async {
+    final bounds = await getVisibleBounds();
+    if (bounds == null) return null;
+
+    // Calculate center point
+    final centerLat = (bounds.northeast.latitude + bounds.southwest.latitude) / 2;
+    final centerLng = (bounds.northeast.longitude + bounds.southwest.longitude) / 2;
+    final center = LatLng(centerLat, centerLng);
+
+    // Calculate radius as distance from center to northeast corner
+    final rawRadius = _calculateDistance(
+      center.latitude,
+      center.longitude,
+      bounds.northeast.latitude,
+      bounds.northeast.longitude,
+    );
+
+    // IMPORTANT: Adjust radius to account for UI elements that obscure the map
+    final adjustedRadius = rawRadius * 0.65;
+
+    return {
+      'center': center,
+      'radius': adjustedRadius / 1000, // Convert to km
+    };
+  }
+
+  /// Calculate distance between two coordinates using Haversine formula
+  /// Returns distance in meters
+  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+    const double earthRadius = 6371000; // Earth's radius in meters
+
+    final dLat = _degreesToRadians(lat2 - lat1);
+    final dLon = _degreesToRadians(lon2 - lon1);
+
+    final a = (sin(dLat / 2) * sin(dLat / 2)) +
+        cos(_degreesToRadians(lat1)) *
+        cos(_degreesToRadians(lat2)) *
+        sin(dLon / 2) *
+        sin(dLon / 2);
+
+    final c = 2 * atan2(sqrt(a), sqrt(1 - a));
+
+    return earthRadius * c;
+  }
+
+  double _degreesToRadians(double degrees) {
+    return degrees * pi / 180;
   }
 
   /// Focuses the map to show bounds containing two points.
@@ -225,30 +275,50 @@ class MapStateProvider with ChangeNotifier {
   void updateMapCenter(LatLng center, double zoom) {
     _currentVisibleCenter = center;
     _currentZoom = zoom;
-    _checkIfAwayFromUserArea();
+    _checkIfViewDiffersFromLastSearch();
   }
 
-  void _checkIfAwayFromUserArea() {
-    if (_lastFocusedUserLocation != null && _currentVisibleCenter != null) {
-      final double distanceThreshold = 0.01;
-      final double latDiff = (_lastFocusedUserLocation!.latitude - _currentVisibleCenter!.latitude).abs();
-      final double lngDiff = (_lastFocusedUserLocation!.longitude - _currentVisibleCenter!.longitude).abs();
-      final bool wasAwayFromUserArea = _isAwayFromUserArea;
-      _isAwayFromUserArea = latDiff > distanceThreshold || lngDiff > distanceThreshold;
-      if (wasAwayFromUserArea != _isAwayFromUserArea) {
-        _showSearchThisAreaButton = _isAwayFromUserArea;
-        log(_isAwayFromUserArea
-            ? "MapStateProvider: User moved away, showing search button"
-            : "MapStateProvider: User returned, hiding search button");
+  /// Check if current view differs significantly from the last searched area
+  void _checkIfViewDiffersFromLastSearch() {
+    // If no search has been performed yet, don't show the button
+    if (_lastSearchedCenter == null || _lastSearchedRadius == null) {
+      if (_showSearchThisAreaButton) {
+        _showSearchThisAreaButton = false;
         notifyListeners();
       }
+      return;
+    }
+
+    if (_currentVisibleCenter == null) {
+      return;
+    }
+
+    // Calculate distance between current center and last searched center
+    final distanceKm = _calculateDistance(
+      _lastSearchedCenter!.latitude,
+      _lastSearchedCenter!.longitude,
+      _currentVisibleCenter!.latitude,
+      _currentVisibleCenter!.longitude,
+    ) / 1000; // Convert meters to km
+
+    // Store previous state
+    final bool wasShowingButton = _showSearchThisAreaButton;
+
+    // Show button if the center has moved significantly (more than 25% of the last searched radius)
+    final distanceThreshold = _lastSearchedRadius! * 0.25;
+    final viewDiffers = distanceKm > distanceThreshold;
+
+    _showSearchThisAreaButton = viewDiffers;
+
+    // Only notify if state changed
+    if (wasShowingButton != _showSearchThisAreaButton) {
+      notifyListeners();
     }
   }
 
   void setSearchThisAreaButtonVisibility(bool visible) {
     if (_showSearchThisAreaButton != visible) {
       _showSearchThisAreaButton = visible;
-      log("MapStateProvider: Search button visibility set to $visible");
       notifyListeners();
     }
   }
@@ -257,18 +327,29 @@ class MapStateProvider with ChangeNotifier {
     setSearchThisAreaButtonVisibility(false);
   }
 
-  LatLng searchThisArea() {
-    if (_currentVisibleCenter != null) {
-      _lastFocusedUserLocation = _currentVisibleCenter;
-      _isAwayFromUserArea = false;
-      hideSearchThisAreaButton();
-      animateCamera(_currentVisibleCenter!);
-      notifyListeners();
-      return _currentVisibleCenter!;
-    } else {
-      log("MapStateProvider: Cannot search this area, current center is null.");
-      return const LatLng(0, 0);
+  /// Update the last searched center and radius (called after a successful search)
+  void setLastSearchedArea(LatLng center, double radiusKm) {
+    _lastSearchedCenter = center;
+    _lastSearchedRadius = radiusKm;
+    // Hide the button since we just searched this area
+    _showSearchThisAreaButton = false;
+    notifyListeners();
+  }
+
+  /// Handler for when user clicks "Search this area"
+  /// Returns the center and radius of the current visible area
+  Future<Map<String, dynamic>?> searchThisArea() async {
+    // Get the current visible center and radius
+    final viewData = await getVisibleCenterAndRadius();
+
+    if (viewData == null) {
+      return null;
     }
+
+    // The search will be performed by the caller, and they should call
+    // setLastSearchedArea() after a successful search
+
+    return viewData;
   }
 
   @override

@@ -23,7 +23,7 @@ class LocationListManager with ChangeNotifier {
   final SupabaseService _supabaseService = SupabaseService();
   final LocationService _locationService = LocationService();
   static const String _magicSearchEndpoint =
-      'https://pinit-recommendations-api-630839392908.europe-west2.run.app/locations/magic-search';
+      'https://pinit-recommendations-api-lxtqmosyka-nw.a.run.app/locations/magic-search';
 
   String? _userId;
 
@@ -32,9 +32,15 @@ class LocationListManager with ChangeNotifier {
   final RecommendationsApi _recommendationsApi = RecommendationsApi();
   CameraPositionData? _cameraPosition;
   LatLng? _lastSearchedCenter;
+  double? _lastSearchedRadius; // in km
   bool _areaChanged = false;
   bool _isSearchingArea = false;
+  bool _isLoadingRecommendations = false;
   String? _error; // Local error for non-location errors
+
+  // Filter state
+  List<String> _vibeTagIds = [];
+  List<String> _cuisineTagIds = [];
 
   // Viewport-aware name selection state
   LatLngBounds? _currentViewportBounds;
@@ -54,6 +60,7 @@ class LocationListManager with ChangeNotifier {
   Map<LocationModel, MapMarkerData> _recommendedLocations = {};
   Map<LocationModel, MapMarkerData> _searchLocations = {};
   Map<LocationModel, MapMarkerData> _currentItems = {};
+  List<LocationModel> _justDecideLocations = [];
   LocationListType _currentListType =
       LocationListType.saved; // Default to saved
 
@@ -62,7 +69,11 @@ class LocationListManager with ChangeNotifier {
   Map<LocationModel, MapMarkerData> get recommendedLocations => _recommendedLocations;
   Map<LocationModel, MapMarkerData> get searchLocations => _searchLocations;
   Map<LocationModel, MapMarkerData> get currentItems => _currentItems;
+  List<LocationModel> get justDecideLocations => _justDecideLocations;
   LocationListType get currentListType => _currentListType;
+  List<String> get vibeTagIds => List.unmodifiable(_vibeTagIds);
+  List<String> get cuisineTagIds => List.unmodifiable(_cuisineTagIds);
+  bool get hasActiveFilters => _vibeTagIds.isNotEmpty || _cuisineTagIds.isNotEmpty;
 
   // Device location getters - delegate to LocationService
   LatLng? get currentPosition => _locationService.currentPosition;
@@ -94,7 +105,9 @@ class LocationListManager with ChangeNotifier {
 
   bool get areaChanged => _areaChanged;
   bool get isSearchingArea => _isSearchingArea;
+  bool get isLoadingRecommendations => _isLoadingRecommendations;
   LatLng? get lastSearchedCenter => _lastSearchedCenter;
+  double? get lastSearchedRadius => _lastSearchedRadius;
 
   // Method to update the user ID when the user logs in
   void setUserId(String? userId) {
@@ -535,113 +548,316 @@ class LocationListManager with ChangeNotifier {
     }
   }
 
-  /// Fetches recommended locations from Supabase and falls back to Google Places API
-  Future<void> fetchRecommendedLocations(
-      {required double latitude, required double longitude}) async {
-    try {
-      // Try getting nearby locations from Supabase first
-      List<LocationModel> nearbyLocations =
-          await _supabaseService.locations.getLocationsNearby(
-        latitude,
-        longitude,
-        radiusMeters: 5000, // 5km radius
-      );
-      print('nearbyLocations: $nearbyLocations');
-      log("Supabase nearby locations: ${nearbyLocations.length}");
-      if (nearbyLocations.isNotEmpty) {
-        // First create a temporary map to select which locations should show names
-        final tempMap = Map.fromEntries(nearbyLocations.map((loc) => MapEntry(
-            loc, MapMarkerData(id: loc.locationId.toString(), position: const LatLng(0, 0), imageBytes: const []))));
-        final selectedForNames = _selectLocationsForNameDisplay(
-          tempMap,
-          viewportBounds: _currentViewportBounds,
-          zoom: _currentZoom,
-        );
-
-        // Create markers with name selection applied
-        final markers = await Future.wait(
-          nearbyLocations.map((location) async {
-            final shouldShowName =
-                selectedForNames.contains(location.locationId);
-            final marker = await location
-                .setPreference(LocationPreference.recommended)
-                .toMarker(_devicePixelRatio, shouldShowName: shouldShowName);
-            return MapEntry(location, marker!);
-          }),
-        );
-        _recommendedLocations = Map.fromEntries(markers);
-        log("Fetched ${nearbyLocations.length} nearby locations from Supabase.");
-      } else {
-        // Fall back to Google Places API during migration
-        var recommendations = await _googlePlacesService.fetchNearbyPlaces(
-          latitude: latitude,
-          longitude: longitude,
-          placeType: "restaurant",
-        );
-        // Select which locations should show names
-        final tempMap = Map.fromEntries(recommendations.map((loc) => MapEntry(
-            loc, MapMarkerData(id: loc.locationId.toString(), position: const LatLng(0, 0), imageBytes: const []))));
-        final selectedForNames = _selectLocationsForNameDisplay(
-          tempMap,
-          viewportBounds: _currentViewportBounds,
-          zoom: _currentZoom,
-        );
-
-        final markers = await Future.wait(
-          recommendations.map((location) async {
-            final shouldShowName =
-                selectedForNames.contains(location.locationId);
-            final marker = await location
-                .setPreference(LocationPreference.recommended)
-                .toMarker(_devicePixelRatio, shouldShowName: shouldShowName);
-            return MapEntry(location, marker!);
-          }),
-        );
-        _recommendedLocations = Map.fromEntries(markers);
-        print(
-            "Fetched ${recommendations.length} recommended locations from Google Places.");
-
-        print('recommendations: $recommendations[0]');
-      }
-
-      // Optionally set as current list
-      // setCurrentListType(LocationListType.recommended);
+  /// Fetches recommended locations using the Recommendations API
+  Future<void> fetchRecommendedLocations({
+    required double latitude,
+    required double longitude,
+    double radiusKm = 5.0,
+    int maxResults = 20,
+    double tasteWeight = 0.2,
+    double proximityWeight = 0.6,
+    double qualityWeight = 0.2,
+    List<String>? vibeTagIds,
+    List<String>? cuisineTagIds,
+  }) async {
+    // Guard: check if userId is null
+    if (_userId == null) {
+      log("Cannot fetch recommendations: userId is null.");
+      _error = "Please log in to see personalized recommendations";
+      _recommendedLocations = {};
       notifyListeners();
-    } catch (e) {
-      log('Error fetching recommended locations from Supabase: $e');
+      return;
+    }
 
-      // Fall back to Google Places API
-      try {
-        var recommendations = await _googlePlacesService.fetchNearbyPlaces(
-          latitude: latitude,
-          longitude: longitude,
-          placeType: "restaurant",
-        );
-        // Select which locations should show names
-        final tempMap = Map.fromEntries(recommendations.map((loc) => MapEntry(
-            loc, MapMarkerData(id: loc.locationId.toString(), position: const LatLng(0, 0), imageBytes: const []))));
-        final selectedForNames = _selectLocationsForNameDisplay(
-          tempMap,
-          viewportBounds: _currentViewportBounds,
-          zoom: _currentZoom,
-        );
+    // Store the search parameters for later reference
+    final searchCenter = LatLng(latitude, longitude);
+    final searchRadius = radiusKm;
 
-        final markers = await Future.wait(
-          recommendations.map((location) async {
-            final shouldShowName =
-                selectedForNames.contains(location.locationId);
-            final marker = await location
-                .setPreference(LocationPreference.recommended)
-                .toMarker(_devicePixelRatio, shouldShowName: shouldShowName);
-            return MapEntry(location, marker!);
-          }),
-        );
-        _recommendedLocations = Map.fromEntries(markers);
-        log("Fallback: Fetched ${recommendations.length} recommended locations from Google Places.");
+    _isLoadingRecommendations = true;
+    notifyListeners();
+
+    try {
+      log("📍 [LocationListManager] fetchRecommendedLocations called");
+      log("   User ID: $_userId");
+      log("   Location: $latitude, $longitude (radius: ${radiusKm}km)");
+      log("   Filters - Vibes: ${vibeTagIds ?? 'none'}, Cuisines: ${cuisineTagIds ?? 'none'}");
+      log("   Weights - Taste: $tasteWeight, Proximity: $proximityWeight, Quality: $qualityWeight");
+
+      // Call recommendations API
+      final response = await _recommendationsApi.fetchProximal(
+        userId: _userId!,
+        latitude: latitude,
+        longitude: longitude,
+        radiusKm: radiusKm,
+        maxResults: maxResults,
+        tasteWeight: tasteWeight,
+        proximityWeight: proximityWeight,
+        qualityWeight: qualityWeight,
+        vibeTagIds: vibeTagIds,
+        cuisineTagIds: cuisineTagIds,
+      );
+
+      // Extract IDs (preserves ranking!)
+      final locationIds = response.recommendations
+          .map((rec) => rec.locationId)
+          .where((id) => id > 0)
+          .toList();
+
+      if (locationIds.isEmpty) {
+        log("Recommendations API returned no results");
+        _error = "No recommendations found in this area";
+        _recommendedLocations = {};
         notifyListeners();
-      } catch (fallbackError) {
-        log('Error in Google Places fallback: $fallbackError');
+        return;
       }
+
+      log("Found ${locationIds.length} recommended location IDs");
+
+      // Fetch full location data
+      final locations = await _fetchLocationsByIdsInOrder(locationIds);
+
+      // Select which locations should show names
+      final tempMap = Map.fromEntries(locations.map((loc) => MapEntry(
+          loc, MapMarkerData(id: loc.locationId.toString(), position: const LatLng(0, 0), imageBytes: const []))));
+      final selectedForNames = _selectLocationsForNameDisplay(
+        tempMap,
+        viewportBounds: _currentViewportBounds,
+        zoom: _currentZoom,
+      );
+
+      // Generate markers with name selection applied
+      final markers = await Future.wait(
+        locations.map((location) async {
+          final shouldShowName = selectedForNames.contains(location.locationId);
+          final marker = await location
+              .setPreference(LocationPreference.recommended)
+              .toMarker(_devicePixelRatio, shouldShowName: shouldShowName);
+          return MapEntry(location, marker!);
+        }),
+      );
+
+      _recommendedLocations = Map.fromEntries(markers);
+      _error = null; // Clear any previous errors
+
+      // Update last searched area
+      _lastSearchedCenter = searchCenter;
+      _lastSearchedRadius = searchRadius;
+
+      log("Fetched ${locations.length} personalized recommendations");
+
+    } catch (e) {
+      log('Error fetching personalized recommendations: $e');
+      _error = "Failed to load recommendations: ${e.toString()}";
+      _recommendedLocations = {};
+    } finally {
+      _isLoadingRecommendations = false;
+      notifyListeners();
+    }
+  }
+
+  /// Updates filter tags and refetches recommendations if on recommended tab
+  Future<void> applyFilters({
+    required List<String> vibeTagIds,
+    required List<String> cuisineTagIds,
+  }) async {
+    // Update filter state
+    _vibeTagIds = List.from(vibeTagIds);
+    _cuisineTagIds = List.from(cuisineTagIds);
+
+    log("🎯 [LocationListManager] applyFilters called");
+    log("   Vibe tag IDs (${_vibeTagIds.length}): $_vibeTagIds");
+    log("   Cuisine tag IDs (${_cuisineTagIds.length}): $_cuisineTagIds");
+    log("   Current list type: $_currentListType");
+
+    // If we're currently on the recommended tab, refetch with new filters
+    if (_currentListType == LocationListType.recommended) {
+      log("   ✅ On recommended tab - refetching with filters");
+      // Get current location
+      final currentLocation = currentPosition ?? await getCurrentLocation();
+
+      if (currentLocation != null) {
+        log("   Location: ${currentLocation.latitude}, ${currentLocation.longitude}");
+        await fetchRecommendedLocations(
+          latitude: currentLocation.latitude,
+          longitude: currentLocation.longitude,
+          vibeTagIds: _vibeTagIds.isNotEmpty ? _vibeTagIds : null,
+          cuisineTagIds: _cuisineTagIds.isNotEmpty ? _cuisineTagIds : null,
+        );
+      } else {
+        log("   ⚠️ No current location available");
+      }
+    } else {
+      log("   ⏭️ Not on recommended tab - filters saved but not applied yet");
+    }
+
+    notifyListeners();
+  }
+
+  /// Clears all filters and refetches recommendations if on recommended tab
+  Future<void> clearFilters() async {
+    await applyFilters(vibeTagIds: [], cuisineTagIds: []);
+  }
+
+  /// Fetches bubble (group) recommendations using the Recommendations API
+  Future<void> fetchBubbleRecommendations({
+    required List<String> memberIds,
+    required double latitude,
+    required double longitude,
+    double radiusKm = 5.0,
+    int maxResults = 20,
+    double tasteWeight = 0.3,
+    double proximityWeight = 0.5,
+    double qualityWeight = 0.2,
+  }) async {
+    // Guard: check if memberIds is empty
+    if (memberIds.isEmpty) {
+      log("Cannot fetch bubble recommendations: memberIds is empty.");
+      _error = "No members in this bubble";
+      _recommendedLocations = {};
+      notifyListeners();
+      return;
+    }
+
+    // Store the search parameters for later reference
+    final searchCenter = LatLng(latitude, longitude);
+    final searchRadius = radiusKm;
+
+    _isLoadingRecommendations = true;
+    notifyListeners();
+
+    try {
+      log("Fetching bubble recommendations for ${memberIds.length} members");
+
+      // Call bubble recommendations API
+      final response = await _recommendationsApi.fetchProximalBubble(
+        userIds: memberIds,
+        latitude: latitude,
+        longitude: longitude,
+        radiusKm: radiusKm,
+        maxResults: maxResults,
+        tasteWeight: tasteWeight,
+        proximityWeight: proximityWeight,
+        qualityWeight: qualityWeight,
+      );
+
+      // Extract IDs (preserves ranking!)
+      final locationIds = response.recommendations
+          .map((rec) => rec.locationId)
+          .where((id) => id > 0)
+          .toList();
+
+      if (locationIds.isEmpty) {
+        log("Bubble recommendations API returned no results");
+        _error = "No group recommendations found in this area";
+        _recommendedLocations = {};
+        notifyListeners();
+        return;
+      }
+
+      log("Found ${locationIds.length} bubble recommendation IDs");
+
+      // Fetch full location data
+      final locations = await _fetchLocationsByIdsInOrder(locationIds);
+
+      // Select which locations should show names
+      final tempMap = Map.fromEntries(locations.map((loc) => MapEntry(
+          loc, MapMarkerData(id: loc.locationId.toString(), position: const LatLng(0, 0), imageBytes: const []))));
+      final selectedForNames = _selectLocationsForNameDisplay(
+        tempMap,
+        viewportBounds: _currentViewportBounds,
+        zoom: _currentZoom,
+      );
+
+      // Generate markers with name selection applied
+      final markers = await Future.wait(
+        locations.map((location) async {
+          final shouldShowName = selectedForNames.contains(location.locationId);
+          final marker = await location
+              .setPreference(LocationPreference.recommended)
+              .toMarker(_devicePixelRatio, shouldShowName: shouldShowName);
+          return MapEntry(location, marker!);
+        }),
+      );
+
+      _recommendedLocations = Map.fromEntries(markers);
+      _error = null; // Clear any previous errors
+
+      // Update last searched area
+      _lastSearchedCenter = searchCenter;
+      _lastSearchedRadius = searchRadius;
+
+      log("Fetched ${locations.length} bubble recommendations");
+
+    } catch (e) {
+      log('Error fetching bubble recommendations: $e');
+      _error = "Failed to load group recommendations: ${e.toString()}";
+      _recommendedLocations = {};
+    } finally {
+      _isLoadingRecommendations = false;
+      notifyListeners();
+    }
+  }
+
+  /// Fetches "Just Decide" recommendations using the Recommendations API
+  Future<void> fetchJustDecideRecommendations({
+    required double latitude,
+    required double longitude,
+    required double radiusKm,
+    int maxResults = 5,
+  }) async {
+    // Guard: check if userId is null
+    if (_userId == null) {
+      log("Cannot fetch just decide recommendations: userId is null.");
+      _error = "Please log in to use Just Decide";
+      _justDecideLocations = [];
+      notifyListeners();
+      return;
+    }
+
+    try {
+      log("Fetching just decide recommendations for user: $_userId");
+
+      // Call recommendations API with specific weights for "just decide"
+      final response = await _recommendationsApi.fetchProximal(
+        userId: _userId!,
+        latitude: latitude,
+        longitude: longitude,
+        radiusKm: radiusKm,
+        maxResults: maxResults,
+        tasteWeight: 0.3,      // Moderate taste consideration
+        proximityWeight: 0.6,  // Prioritize proximity
+        qualityWeight: 0.1,    // Some quality consideration
+      );
+
+      // Extract IDs (preserves ranking!)
+      final locationIds = response.recommendations
+          .map((rec) => rec.locationId)
+          .where((id) => id > 0)
+          .toList();
+
+      if (locationIds.isEmpty) {
+        log("Just decide API returned no results");
+        _error = "No recommendations found nearby";
+        _justDecideLocations = [];
+        notifyListeners();
+        return;
+      }
+
+      log("Found ${locationIds.length} just decide recommendation IDs");
+
+      // Fetch full location data
+      final locations = await _fetchLocationsByIdsInOrder(locationIds);
+
+      _justDecideLocations = locations;
+      _error = null; // Clear any previous errors
+      log("Fetched ${locations.length} just decide recommendations");
+      notifyListeners();
+
+    } catch (e) {
+      log('Error fetching just decide recommendations: $e');
+      _error = "Failed to load recommendations: ${e.toString()}";
+      _justDecideLocations = [];
+      notifyListeners();
     }
   }
 
@@ -679,14 +895,17 @@ class LocationListManager with ChangeNotifier {
   }
 
   /// Search recommendations in the visible map area using proximal API.
+  /// Updates the Recommended tab with results from the current map area.
   Future<void> searchThisArea({
     required LatLng center,
-    required LatLngBounds bounds,
+    required double radiusKm,
     int maxResults = 20,
     double tasteWeight = 0.2,
     double proximityWeight = 0.6,
     double qualityWeight = 0.2,
     bool includeTasteBreakdown = false,
+    List<String>? vibeTagIds,
+    List<String>? cuisineTagIds,
   }) async {
     if (_userId == null) {
       _error = "User not logged in";
@@ -694,7 +913,6 @@ class LocationListManager with ChangeNotifier {
       return;
     }
 
-    final radiusKm = _radiusKmFromVisibleRegion(bounds, center);
     _isSearchingArea = true;
     notifyListeners();
 
@@ -709,6 +927,8 @@ class LocationListManager with ChangeNotifier {
         proximityWeight: proximityWeight,
         qualityWeight: qualityWeight,
         includeTasteBreakdown: includeTasteBreakdown,
+        vibeTagIds: vibeTagIds,
+        cuisineTagIds: cuisineTagIds,
       );
 
       final locationIds = response.recommendations
@@ -730,18 +950,21 @@ class LocationListManager with ChangeNotifier {
         locations.map((location) async {
           final shouldShowName = selectedForNames.contains(location.locationId);
           final marker = await location
-              .setPreference(LocationPreference.search)
+              .setPreference(LocationPreference.recommended)
               .toMarker(_devicePixelRatio, shouldShowName: shouldShowName);
           return marker != null ? MapEntry(location, marker) : null;
         }),
       );
 
-      _searchLocations =
+      // Update recommended locations instead of search locations
+      _recommendedLocations =
           Map.fromEntries(markers.whereType<MapEntry<LocationModel, MapMarkerData>>());
       _lastSearchedCenter = center;
       _areaChanged = false;
       _error = null;
-      await setCurrentListType(LocationListType.search);
+
+      // Update current items if on recommended tab, or switch to recommended tab
+      await setCurrentListType(LocationListType.recommended);
     } catch (e) {
       log('LocationListManager: Search this area failed: $e');
       _error = "Search failed: ${e.toString()}";

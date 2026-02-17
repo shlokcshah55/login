@@ -7,6 +7,8 @@ import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:login/utils/geo_types.dart';
 import 'package:login/utils/marker_clustering.dart';
+import 'package:login/widgets/home/filter_category_list_popover.dart';
+import 'package:login/widgets/home/tag_selection_popover.dart';
 import 'package:provider/provider.dart';
 
 class PinitMap extends StatefulWidget {
@@ -38,6 +40,14 @@ class _PinitMapState extends State<PinitMap> {
   // GeoJSON: Track last synced location IDs to avoid redundant updates
   String _lastGeoJsonSyncKey = '';
 
+  // Filter state
+  Set<String> _selectedVibeTagIds = {};
+  Set<String> _selectedCuisineTagIds = {};
+  Set<String> _selectedDietaryTagIds = {};
+  List<Map<String, dynamic>>? _vibeTags;
+  List<Map<String, dynamic>>? _cuisineTags;
+  List<Map<String, dynamic>>? _dietaryTags;
+
   @override
   void initState() {
     super.initState();
@@ -57,6 +67,103 @@ class _PinitMapState extends State<PinitMap> {
     if (_locationTrackingStarted) return;
     _locationTrackingStarted = true;
     await _locationListManager?.startLocationUpdates();
+  }
+
+  void _showFilterCategoryList() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => FilterCategoryListPopover(
+        hasVibeFilters: _selectedVibeTagIds.isNotEmpty,
+        hasCuisineFilters: _selectedCuisineTagIds.isNotEmpty,
+        onVibeSelected: () {
+          if (_vibeTags != null) {
+            _showFilterPopover(
+              title: 'Select Vibe',
+              icon: Icons.emoji_emotions_outlined,
+              tags: _vibeTags!,
+              selectedTagIds: _selectedVibeTagIds,
+              onApply: (selected) async {
+                print('🎨 [PinitMap] Vibe filter applied - selected: $selected');
+                _selectedVibeTagIds = selected;
+                // Apply filters to location manager
+                await _locationListManager?.applyFilters(
+                  vibeTagIds: _selectedVibeTagIds.toList(),
+                  cuisineTagIds: _selectedCuisineTagIds.toList(),
+                );
+                // Update MapStateProvider with the last searched area
+                if (mounted) {
+                  final mapState = context.read<MapStateProvider>();
+                  final lastCenter = _locationListManager?.lastSearchedCenter;
+                  final lastRadius = _locationListManager?.lastSearchedRadius;
+                  if (lastCenter != null && lastRadius != null) {
+                    mapState.setLastSearchedArea(lastCenter, lastRadius);
+                  }
+                }
+                print('🎨 [PinitMap] Filter application complete');
+              },
+            );
+          }
+        },
+        onCuisineSelected: () {
+          if (_cuisineTags != null) {
+            _showFilterPopover(
+              title: 'Select Cuisine',
+              icon: Icons.restaurant_menu_outlined,
+              tags: _cuisineTags!,
+              selectedTagIds: _selectedCuisineTagIds,
+              onApply: (selected) async {
+                print('🍽️ [PinitMap] Cuisine filter applied - selected: $selected');
+                _selectedCuisineTagIds = selected;
+                // Apply filters to location manager
+                await _locationListManager?.applyFilters(
+                  vibeTagIds: _selectedVibeTagIds.toList(),
+                  cuisineTagIds: _selectedCuisineTagIds.toList(),
+                );
+                // Update MapStateProvider with the last searched area
+                if (mounted) {
+                  final mapState = context.read<MapStateProvider>();
+                  final lastCenter = _locationListManager?.lastSearchedCenter;
+                  final lastRadius = _locationListManager?.lastSearchedRadius;
+                  if (lastCenter != null && lastRadius != null) {
+                    mapState.setLastSearchedArea(lastCenter, lastRadius);
+                  }
+                }
+                print('🍽️ [PinitMap] Filter application complete');
+              },
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  void _showFilterPopover({
+    required String title,
+    required IconData icon,
+    required List<Map<String, dynamic>> tags,
+    required Set<String> selectedTagIds,
+    required Future<void> Function(Set<String>) onApply,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => TagSelectionPopover(
+        title: title,
+        titleIcon: icon,
+        tags: tags,
+        initialSelectedTagIds: selectedTagIds,
+        onApply: (selected) async {
+          setState(() {
+            // State update happens synchronously
+          });
+          // Then apply filters asynchronously
+          await onApply(selected);
+        },
+      ),
+    );
   }
 
   /// Update locations using GeoJSON source (new approach).
@@ -365,12 +472,17 @@ class _PinitMapState extends State<PinitMap> {
                 onTap: () async {
                   print('My Location button pressed');
                   await _startLocationTracking();
-                  LatLng? position = locationListManager.currentPosition;
-                  position ??= await locationListManager.getCurrentLocation();
+                  
+                  // Always fetch fresh GPS position
+                  print('Fetching fresh GPS location...');
+                  final position = await locationListManager.getCurrentLocation();
+                  
                   if (position != null) {
+                    print('Got fresh position: $position');
                     await mapStateReader.focusOnUserLocation(position, zoom: 15.0);
                     print('Focused on position: $position');
                   } else {
+                    print('Failed to get location');
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -391,6 +503,61 @@ class _PinitMapState extends State<PinitMap> {
                 ),
               ),
             ),
+          ),
+        ),
+
+        // Filter button - positioned below location button
+        Positioned(
+          top: 210,
+          left: 20,
+          child: Stack(
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(30.0),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.2),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    )
+                  ],
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(30.0),
+                    onTap: _showFilterCategoryList,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Icon(
+                        Icons.filter_list,
+                        color: Theme.of(context).primaryColor,
+                        size: 24,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              // Active indicator dot
+              if (_selectedVibeTagIds.isNotEmpty ||
+                  _selectedCuisineTagIds.isNotEmpty ||
+                  _selectedDietaryTagIds.isNotEmpty)
+                Positioned(
+                  top: 4,
+                  right: 4,
+                  child: Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).primaryColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ],

@@ -121,6 +121,7 @@ class LocationService with ChangeNotifier {
   /// Will request permission if not already granted.
   Future<LatLng?> getCurrentLocation() async {
     _log('getCurrentLocation called, permissionGranted=$_permissionGranted');
+    _log('Stack trace: ${StackTrace.current}');
 
     // Ensure permission is granted
     if (!_permissionGranted) {

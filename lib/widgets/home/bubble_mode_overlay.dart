@@ -7,7 +7,7 @@ import 'package:login/models/bubble.dart';
 /// when bubble mode is activated
 class BubbleModeOverlay extends StatefulWidget {
   final Bubble bubble;
-  final VoidCallback onDeactivate;
+  final Future<void> Function() onDeactivate;
 
   const BubbleModeOverlay({
     super.key,
@@ -142,7 +142,7 @@ class _BubbleIndicator extends StatelessWidget {
   final Bubble bubble;
   final bool isExpanded;
   final VoidCallback onTap;
-  final VoidCallback onDeactivate;
+  final Future<void> Function() onDeactivate;
 
   const _BubbleIndicator({
     required this.bubble,

@@ -8,6 +8,8 @@ class ProximalRequest {
   final double proximityWeight;
   final double qualityWeight;
   final bool includeTasteBreakdown;
+  final List<String>? vibeTagIds;
+  final List<String>? cuisineTagIds;
 
   const ProximalRequest({
     required this.userId,
@@ -19,10 +21,12 @@ class ProximalRequest {
     this.proximityWeight = 0.6,
     this.qualityWeight = 0.2,
     this.includeTasteBreakdown = false,
+    this.vibeTagIds,
+    this.cuisineTagIds,
   });
 
   Map<String, dynamic> toJson() {
-    return {
+    final json = <String, dynamic>{
       'user_id': userId,
       'latitude': latitude,
       'longitude': longitude,
@@ -33,6 +37,15 @@ class ProximalRequest {
       'quality_weight': qualityWeight,
       'include_taste_breakdown': includeTasteBreakdown,
     };
+
+    if (vibeTagIds != null && vibeTagIds!.isNotEmpty) {
+      json['vibe_tag_ids'] = vibeTagIds!;
+    }
+    if (cuisineTagIds != null && cuisineTagIds!.isNotEmpty) {
+      json['cuisine_tag_ids'] = cuisineTagIds!;
+    }
+
+    return json;
   }
 }
 

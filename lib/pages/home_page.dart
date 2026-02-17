@@ -1,16 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:login/pages/home/home_view_model.dart';
 import 'package:login/pages/home/widgets/home_carousel.dart';
 import 'package:login/pages/home/widgets/home_header.dart';
 import 'package:login/pages/home/widgets/home_map_layer.dart';
 import 'package:login/pages/home/widgets/magic_search_button.dart';
 import 'package:login/pages/home/widgets/magic_search_overlay.dart';
+import 'package:login/pages/home/widgets/gavel_button.dart';
+import 'package:login/pages/home/widgets/gavel_overlay.dart';
+import 'package:login/pages/home/widgets/sweet_treat_button.dart';
+import 'package:login/pages/home/widgets/sweet_treat_overlay.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:login/providers/nav_bar/visibility_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:login/providers/bubble_mode_provider.dart';
 import 'package:login/widgets/home/bubble_mode_overlay.dart';
+import 'package:login/widgets/swipe_card_stack.dart';
 import 'package:login/widgets/wizard_completion_popover.dart';
 import 'package:provider/provider.dart';
 
@@ -79,7 +85,7 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  void _handleBubbleModeRequest() {
+  Future<void> _handleBubbleModeRequest() async {
     if (!mounted) return; // Guard against calls after dispose
     print('HomePage listener fired! hasPending: ${_bubbleModeProvider.hasPendingActivation}, isActive: ${widget.isActive}');
     if (_bubbleModeProvider.hasPendingActivation && widget.isActive) {
@@ -87,7 +93,7 @@ class _HomePageState extends State<HomePage> {
       print('Processing bubble activation for: ${bubble.name}');
       _bubbleModeProvider.clearPendingBubble();
 
-      _viewModel.activateBubbleMode(bubble);
+      await _viewModel.activateBubbleMode(bubble);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -205,17 +211,152 @@ class _HomePageState extends State<HomePage> {
                     onPressed: () => viewModel.toggleSearchOverlay(true),
                   ),
                 ),
+                Positioned(
+                  top: 160,
+                  right: 20,
+                  child: GavelButton(
+                    onPressed: () => viewModel.toggleJustDecideOverlay(true),
+                  ),
+                ),
+                Positioned(
+                  top: 240,
+                  right: 20,
+                  child: SweetTreatButton(
+                    onPressed: () => viewModel.toggleSweetTreatOverlay(true),
+                  ),
+                ),
                 if (viewModel.showSearchOverlay)
                   MagicSearchOverlay(
                     controller: viewModel.searchController,
                     onClose: () => viewModel.toggleSearchOverlay(false),
                     onSubmit: viewModel.submitMagicSearch,
                   ),
+                if (viewModel.showGavelOverlay)
+                  GavelOverlay(
+                    selectedMinutes: viewModel.justDecideMinutes,
+                    onMinutesChanged: viewModel.setJustDecideMinutes,
+                    onClose: () => viewModel.toggleJustDecideOverlay(false),
+                    onSubmit: viewModel.submitJustDecide,
+                  ),
+                if (viewModel.showSweetTreatOverlay)
+                  SweetTreatOverlay(
+                    onClose: () => viewModel.toggleSweetTreatOverlay(false),
+                    onSubmit: viewModel.submitSweetTreatSearch,
+                  ),
                 // Bubble mode overlay - always in tree, visibility controlled internally
                 if (viewModel.isBubbleModeActive && viewModel.activeBubble != null)
                   BubbleModeOverlay(
                     bubble: viewModel.activeBubble!,
                     onDeactivate: viewModel.deactivateBubbleMode,
+                  ),
+                // Loading indicator for recommended tab (only show when on recommended tab)
+                if (viewModel.isLoadingRecommendations &&
+                    viewModel.currentListType == LocationListType.recommended)
+                  Positioned.fill(
+                    child: Container(
+                      color: Colors.black.withOpacity(0.3),
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.all(24.0),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16.0),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Color.fromARGB(255, 68, 95, 12),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Loading recommendations...',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 16,
+                                  color: Colors.grey[800],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                // Just Decide swipe mode overlay
+                if (viewModel.showJustDecideSwipeMode)
+                  Positioned.fill(
+                    child: Container(
+                      color: Colors.white,
+                      child: SafeArea(
+                        child: Column(
+                          children: [
+                            // Header
+                            Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Row(
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.close),
+                                    onPressed: viewModel.onJustDecideComplete,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Just Decide',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // Content
+                            Expanded(
+                              child: viewModel.justDecideLocations.isEmpty
+                                  ? Center(
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          const CircularProgressIndicator(
+                                            valueColor: AlwaysStoppedAnimation<Color>(
+                                              Color.fromARGB(255, 68, 95, 12),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 16),
+                                          Text(
+                                            'Finding great places...',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 16,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                  : SwipeCardStack(
+                                      locations: viewModel.justDecideLocations,
+                                      onSwipe: viewModel.onJustDecideSwipe,
+                                      onComplete: viewModel.onJustDecideComplete,
+                                    ),
+                            ),
+                            // Footer
+                            Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Text(
+                                'Swipe right to save, left to pass',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  color: Colors.grey,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
               ],
             ),
