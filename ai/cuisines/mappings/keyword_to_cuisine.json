@@ -1,0 +1,385 @@
+{
+  "_comment": "Keyword/phrase to cuisine mapping for text-based detection",
+  "_version": "cuisine_v2",
+  "_last_updated": "2026-02-18",
+  "_notes": "Only national/regional cuisines. Dietary, venue, and meal-type labels excluded. Keywords matched case-insensitively.",
+  
+  "keyword_to_cuisine": {
+    "Afghan": {
+      "high_signal": ["mantu", "kabuli", "qabeli", "bolani", "ashak", "chapli kebab", "karak chai", "afghan bread", "naan-e-afghan"],
+      "medium_signal": ["afghan", "kabul", "kandahar", "pashtun"]
+    },
+    
+    "Chinese": {
+      "high_signal": ["dim sum", "char siu", "peking duck", "mapo tofu", "kung pao", "chow mein", "lo mein", "fried rice", "wonton", "dumpling", "baozi", "jiaozi", "xiaolongbao"],
+      "medium_signal": ["chinese", "cantonese", "mandarin cuisine", "hong kong style"]
+    },
+    
+    "Chinese (Xi'an/Shaanxi)": {
+      "high_signal": ["biang biang", "hand-pulled noodles", "roujiamo", "liangpi", "yangrou paomo", "xi'an", "shaanxi"],
+      "medium_signal": ["xian", "xian noodles", "belt noodles", "cumin lamb"]
+    },
+    
+    "Chinese (Sichuan)": {
+      "high_signal": ["sichuan", "szechuan", "szechwan", "mala", "kung pao", "dan dan", "twice cooked pork", "hot pot", "mapo tofu"],
+      "medium_signal": ["numbing spice", "sichuan peppercorn", "chengdu"]
+    },
+    
+    "Chinese (Cantonese)": {
+      "high_signal": ["cantonese", "yum cha", "har gow", "siu mai", "cheung fun", "char siu"],
+      "medium_signal": ["guangdong", "guangzhou", "hong kong dim sum"]
+    },
+    
+    "Somali": {
+      "high_signal": ["suqaar", "bariis", "canjeero", "malawax", "sambusa", "somali tea", "hilib ari"],
+      "medium_signal": ["somali", "mogadishu", "somaliland"]
+    },
+    
+    "Ethiopian": {
+      "high_signal": ["injera", "doro wat", "kitfo", "tibs", "shiro", "berbere", "awaze"],
+      "medium_signal": ["ethiopian", "habesha", "addis"]
+    },
+    
+    "Eritrean": {
+      "high_signal": ["zigni", "tsebhi", "hilbet", "shahan ful"],
+      "medium_signal": ["eritrean", "asmara"]
+    },
+    
+    "Indian": {
+      "high_signal": ["tikka masala", "biryani", "naan", "samosa", "tandoori", "korma", "rogan josh", "dal", "paneer", "chutney", "raita"],
+      "medium_signal": ["indian", "curry house", "masala", "spices of india"]
+    },
+    
+    "Indian (South Indian)": {
+      "high_signal": ["dosa", "idli", "sambar", "rasam", "uttapam", "vada", "appam", "kerala", "chettinad"],
+      "medium_signal": ["south indian", "tamil", "andhra", "karnataka"]
+    },
+    
+    "Indian (North Indian)": {
+      "high_signal": ["butter chicken", "dal makhani", "chole bhature", "aloo paratha", "lassi"],
+      "medium_signal": ["north indian", "punjabi", "delhi style", "mughlai"]
+    },
+    
+    "Pakistani": {
+      "high_signal": ["nihari", "haleem", "seekh kebab", "chapli kebab", "karahi", "biryani"],
+      "medium_signal": ["pakistani", "lahori", "karachi", "peshawari"]
+    },
+    
+    "Bangladeshi": {
+      "high_signal": ["hilsa", "panta bhat", "shorshe ilish", "bhuna khichuri"],
+      "medium_signal": ["bangladeshi", "bengali", "dhaka", "sylheti"]
+    },
+    
+    "Japanese": {
+      "high_signal": ["sushi", "sashimi", "ramen", "udon", "tempura", "teriyaki", "yakitori", "tonkatsu", "gyudon", "okonomiyaki", "takoyaki", "matcha"],
+      "medium_signal": ["japanese", "izakaya", "tokyo style", "osaka style"]
+    },
+    
+    "Japanese (Ramen)": {
+      "high_signal": ["tonkotsu ramen", "miso ramen", "shoyu ramen", "shio ramen", "tsukemen"],
+      "medium_signal": ["ramen shop", "ramen house", "noodle bar"]
+    },
+    
+    "Korean": {
+      "high_signal": ["bibimbap", "bulgogi", "kimchi", "korean bbq", "kbbq", "japchae", "tteokbokki", "samgyeopsal", "galbi", "sundubu"],
+      "medium_signal": ["korean", "seoul", "k-bbq"]
+    },
+    
+    "Thai": {
+      "high_signal": ["pad thai", "green curry", "red curry", "tom yum", "som tam", "massaman", "panang", "larb", "satay"],
+      "medium_signal": ["thai", "bangkok", "isaan"]
+    },
+    
+    "Vietnamese": {
+      "high_signal": ["pho", "banh mi", "spring rolls", "vermicelli", "bun cha", "com tam", "cao lau"],
+      "medium_signal": ["vietnamese", "saigon", "hanoi"]
+    },
+    
+    "Italian": {
+      "high_signal": ["pasta", "pizza", "risotto", "lasagna", "tiramisu", "carbonara", "bolognese", "margherita", "gnocchi", "bruschetta", "gelato"],
+      "medium_signal": ["italian", "trattoria", "osteria", "ristorante", "pizzeria"]
+    },
+    
+    "French": {
+      "high_signal": ["croissant", "baguette", "coq au vin", "bouillabaisse", "ratatouille", "crepe", "escargot", "foie gras", "boeuf bourguignon"],
+      "medium_signal": ["french", "bistro", "brasserie", "patisserie", "parisian"]
+    },
+    
+    "Greek": {
+      "high_signal": ["gyros", "souvlaki", "moussaka", "tzatziki", "spanakopita", "feta", "dolmades", "baklava"],
+      "medium_signal": ["greek", "hellenic", "taverna", "athens"]
+    },
+    
+    "Turkish": {
+      "high_signal": ["kebab", "doner", "lahmacun", "pide", "manti", "baklava", "kofte", "iskender"],
+      "medium_signal": ["turkish", "ottoman", "istanbul", "anatolian"]
+    },
+    
+    "Lebanese": {
+      "high_signal": ["hummus", "falafel", "shawarma", "tabbouleh", "fattoush", "kibbeh", "manousheh"],
+      "medium_signal": ["lebanese", "beirut", "levantine"]
+    },
+    
+    "Mexican": {
+      "high_signal": ["taco", "burrito", "quesadilla", "enchilada", "guacamole", "churro", "tamale", "mole", "pozole", "elote"],
+      "medium_signal": ["mexican", "tex-mex", "cantina", "taqueria"]
+    },
+
+    "Moroccan": {
+      "high_signal": ["tagine", "couscous", "harira", "pastilla", "msemen", "rfissa", "chermoula", "b'stilla"],
+      "medium_signal": ["moroccan", "marrakech", "casablanca", "north african", "morocco"]
+    },
+    
+    "Spanish": {
+      "high_signal": ["tapas", "paella", "jamon", "patatas bravas", "gazpacho", "croquetas", "tortilla espanola"],
+      "medium_signal": ["spanish", "barcelona", "madrid", "andalusian"]
+    },
+    
+    "Portuguese": {
+      "high_signal": ["piri piri", "pastel de nata", "bacalhau", "caldo verde", "francesinha"],
+      "medium_signal": ["portuguese", "lisbon", "nando's"]
+    },
+    
+    "Caribbean": {
+      "high_signal": ["jerk chicken", "curry goat", "ackee", "saltfish", "rice and peas", "plantain", "roti"],
+      "medium_signal": ["caribbean", "jamaican", "west indian", "trinidadian"]
+    },
+    
+    "African": {
+      "high_signal": ["jollof rice", "egusi", "fufu", "suya", "mafe", "thieboudienne"],
+      "medium_signal": ["african", "west african", "nigerian", "ghanaian", "senegalese"]
+    },
+    
+    "Middle Eastern": {
+      "high_signal": ["shawarma", "falafel", "hummus", "kebab", "mezze", "baba ganoush", "fattoush"],
+      "medium_signal": ["middle eastern", "levant", "arabian"]
+    },
+    
+    "Persian": {
+      "high_signal": ["tahdig", "ghormeh sabzi", "zereshk polo", "koobideh", "joojeh kebab", "fesenjan", "chelow kabab"],
+      "medium_signal": ["persian", "iranian", "tehran", "iran"]
+    },
+    
+    "American": {
+      "high_signal": ["burger", "hot dog", "mac and cheese", "buffalo wings", "bbq ribs", "cornbread"],
+      "medium_signal": ["american", "grill", "smokehouse"]
+    },
+    
+    "American BBQ": {
+      "high_signal": ["bbq brisket", "pulled pork", "smoked ribs", "texas bbq", "kansas city bbq", "carolina bbq"],
+      "medium_signal": ["bbq", "barbecue", "smokehouse", "pitmaster"]
+    },
+    
+    "British": {
+      "high_signal": ["fish and chips", "sunday roast", "full english", "bangers and mash", "shepherd's pie", "cornish pasty"],
+      "medium_signal": ["british", "english", "gastropub"]
+    },
+    
+    "Malaysian": {
+      "high_signal": ["nasi lemak", "laksa", "rendang", "satay", "char kway teow", "roti canai"],
+      "medium_signal": ["malaysian", "kuala lumpur", "penang"]
+    },
+    
+    "Singaporean": {
+      "high_signal": ["hainanese chicken rice", "chili crab", "laksa", "kaya toast"],
+      "medium_signal": ["singaporean", "singapore style"]
+    },
+    
+    "Indonesian": {
+      "high_signal": ["nasi goreng", "satay", "rendang", "gado gado", "soto", "bakso"],
+      "medium_signal": ["indonesian", "jakarta", "bali"]
+    },
+    
+    "Filipino": {
+      "high_signal": ["adobo", "sinigang", "lechon", "lumpia", "pancit", "kare-kare"],
+      "medium_signal": ["filipino", "pinoy", "manila"]
+    },
+    
+    "Nepalese": {
+      "high_signal": ["momo", "dal bhat", "thukpa", "sel roti", "newari"],
+      "medium_signal": ["nepalese", "nepali", "kathmandu", "himalayan"]
+    },
+    
+    "Sri Lankan": {
+      "high_signal": ["hoppers", "kottu", "string hoppers", "pol sambol", "lamprais"],
+      "medium_signal": ["sri lankan", "ceylon", "colombo"]
+    },
+    
+    "Mediterranean": {
+      "high_signal": ["mezze", "grilled halloumi", "feta salad", "hummus"],
+      "medium_signal": ["mediterranean", "healthy mediterranean"]
+    },
+    
+    "Georgian": {
+      "high_signal": ["khachapuri", "khinkali", "lobio", "badrijani", "pkhali", "churchkhela", "adjarian"],
+      "medium_signal": ["georgian", "tbilisi", "georgia cuisine", "caucasian"]
+    },
+    
+    "Brazilian": {
+      "high_signal": ["picanha", "feijoada", "pao de queijo", "coxinha", "churrasco", "brigadeiro", "acai"],
+      "medium_signal": ["brazilian", "brasil", "rio", "sao paulo", "rodizio"]
+    },
+    
+    "Polish": {
+      "high_signal": ["pierogi", "bigos", "zurek", "kielbasa", "kotlet schabowy", "barszcz"],
+      "medium_signal": ["polish", "poland", "warsaw", "krakow"]
+    },
+    
+    "Russian": {
+      "high_signal": ["borscht", "pelmeni", "beef stroganoff", "blini", "olivier salad", "shashlik"],
+      "medium_signal": ["russian", "moscow", "soviet"]
+    },
+    
+    "Ukrainian": {
+      "high_signal": ["borscht", "varenyky", "salo", "holubtsi", "deruny", "chicken kyiv"],
+      "medium_signal": ["ukrainian", "ukraine", "kyiv"]
+    },
+    
+    "German": {
+      "high_signal": ["schnitzel", "bratwurst", "sauerkraut", "pretzel", "currywurst", "spatzle"],
+      "medium_signal": ["german", "bavarian", "munich", "berlin"]
+    },
+    
+    "Israeli": {
+      "high_signal": ["shakshuka", "sabich", "burekas", "malabi", "laffa"],
+      "medium_signal": ["israeli", "tel aviv", "jerusalem"]
+    },
+    
+    "Egyptian": {
+      "high_signal": ["koshari", "ful medames", "taameya", "molokhia", "mahshi"],
+      "medium_signal": ["egyptian", "cairo", "alexandria"]
+    },
+    
+    "Peruvian": {
+      "high_signal": ["ceviche", "lomo saltado", "aji de gallina", "anticuchos", "causa", "pollo a la brasa"],
+      "medium_signal": ["peruvian", "peru", "lima", "nikkei"]
+    },
+    
+    "Argentinian": {
+      "high_signal": ["asado", "empanadas", "chimichurri", "milanesa", "dulce de leche", "choripan"],
+      "medium_signal": ["argentinian", "argentina", "buenos aires", "patagonian"]
+    },
+    
+    "Cuban": {
+      "high_signal": ["ropa vieja", "cubano sandwich", "moros y cristianos", "lechon asado", "tostones"],
+      "medium_signal": ["cuban", "havana", "cuba"]
+    },
+    
+    "Venezuelan": {
+      "high_signal": ["arepa", "pabellon criollo", "cachapa", "tequeños", "hallaca"],
+      "medium_signal": ["venezuelan", "venezuela", "caracas"]
+    },
+    
+    "Colombian": {
+      "high_signal": ["bandeja paisa", "arepas", "sancocho", "empanadas", "patacones"],
+      "medium_signal": ["colombian", "colombia", "bogota", "medellin"]
+    },
+    
+    "Tibetan": {
+      "high_signal": ["thukpa", "momos", "tingmo", "sha phaley", "tsampa"],
+      "medium_signal": ["tibetan", "tibet", "lhasa", "himalayan"]
+    },
+    
+    "Burmese": {
+      "high_signal": ["mohinga", "lahpet thoke", "shan noodles", "tea leaf salad"],
+      "medium_signal": ["burmese", "myanmar", "yangon", "mandalay"]
+    },
+    
+    "Cambodian": {
+      "high_signal": ["amok", "lok lak", "num banh chok", "kuy teav"],
+      "medium_signal": ["cambodian", "khmer", "phnom penh"]
+    },
+    
+    "Laotian": {
+      "high_signal": ["laap", "khao piak", "tam mak hoong", "ping kai"],
+      "medium_signal": ["laotian", "lao", "vientiane"]
+    },
+    
+    "Iraqi": {
+      "high_signal": ["masgouf", "dolma", "kubba", "timman bagilla", "tepsi baytinijan"],
+      "medium_signal": ["iraqi", "baghdad", "kurdish"]
+    },
+    
+    "Syrian": {
+      "high_signal": ["shawarma", "fatteh", "mujaddara", "muhammara"],
+      "medium_signal": ["syrian", "damascus", "aleppo"]
+    },
+    
+    "Yemeni": {
+      "high_signal": ["mandi", "saltah", "fahsa", "bint al sahn", "zhug"],
+      "medium_signal": ["yemeni", "yemen", "sana'a"]
+    },
+    
+    "Tunisian": {
+      "high_signal": ["couscous", "brik", "lablabi", "shakshuka", "harissa"],
+      "medium_signal": ["tunisian", "tunis", "tunisia"]
+    },
+    
+    "Algerian": {
+      "high_signal": ["couscous", "chorba", "makroud", "mechoui"],
+      "medium_signal": ["algerian", "algeria", "algiers"]
+    },
+
+    "Taiwanese": {
+      "high_signal": ["bubble tea", "beef noodle soup", "gua bao", "lu rou fan", "oyster omelette", "ba wan"],
+      "medium_signal": ["taiwanese", "taiwan", "taipei"]
+    },
+
+    "Jamaican": {
+      "high_signal": ["jerk chicken", "ackee and saltfish", "curry goat", "oxtail", "patty", "festival"],
+      "medium_signal": ["jamaican", "jamaica", "kingston"]
+    },
+
+    "Hawaiian": {
+      "high_signal": ["poke", "loco moco", "kalua pork", "spam musubi", "laulau", "haupia"],
+      "medium_signal": ["hawaiian", "hawaii", "honolulu", "aloha"]
+    },
+
+    "Cajun": {
+      "high_signal": ["gumbo", "jambalaya", "crawfish", "boudin", "etouffee", "po boy"],
+      "medium_signal": ["cajun", "creole", "louisiana", "new orleans"]
+    },
+
+    "Southern American": {
+      "high_signal": ["fried chicken", "grits", "collard greens", "biscuits and gravy", "cornbread"],
+      "medium_signal": ["southern", "soul food", "deep south"]
+    },
+
+    "Australian": {
+      "high_signal": ["vegemite", "meat pie", "lamington", "pavlova", "barramundi"],
+      "medium_signal": ["australian", "aussie", "sydney", "melbourne"]
+    },
+
+    "Irish": {
+      "high_signal": ["irish stew", "colcannon", "soda bread", "boxty", "coddle"],
+      "medium_signal": ["irish", "ireland", "dublin"]
+    },
+
+    "Scottish": {
+      "high_signal": ["haggis", "scotch pie", "cullen skink", "cranachan", "neeps and tatties"],
+      "medium_signal": ["scottish", "scotland", "edinburgh", "glasgow"]
+    }
+  },
+  
+  "fusion_phrases": [
+    "fusion",
+    "mix of",
+    "blend of",
+    "combination of",
+    "influenced by",
+    "inspired by",
+    "meets",
+    "with a twist",
+    "modern take on",
+    "cross-cultural",
+    "multi-cultural",
+    "hybrid",
+    "east meets west",
+    "asian fusion",
+    "pan-asian",
+    "indo-chinese",
+    "afro-caribbean",
+    "mexican-japanese",
+    "korean-mexican"
+  ]
+}

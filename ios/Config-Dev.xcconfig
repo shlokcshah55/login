@@ -1,0 +1,19 @@
+// ============================================
+// Development Configuration
+// ============================================
+// Included in Debug builds
+// ============================================
+
+#include "Config.xcconfig"
+
+// Override for development environment
+// Uncomment and modify if you need dev-specific settings:
+
+// Development-specific bundle ID suffix (optional)
+// PRODUCT_BUNDLE_IDENTIFIER = $(inherited).dev
+
+// Development API endpoints
+// API_ENVIRONMENT = development
+
+// Enable additional logging
+// DEBUG_LOGGING = 1

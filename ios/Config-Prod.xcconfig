@@ -1,0 +1,18 @@
+// ============================================
+// Production Configuration  
+// ============================================
+// Included in Release/Profile builds
+// ============================================
+
+#include "Config.xcconfig"
+
+// Production-specific settings
+
+// Ensure we use production bundle ID
+// PRODUCT_BUNDLE_IDENTIFIER = com.srishlok.pinit
+
+// Production API endpoints
+// API_ENVIRONMENT = production
+
+// Disable debug logging
+// DEBUG_LOGGING = 0
