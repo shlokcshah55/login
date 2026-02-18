@@ -321,7 +321,7 @@ def format_vibe_vector_readable(vibe_vector: list[float]) -> str:
 async def process_with_multiple_runs(
     restaurant: dict,
     client: AsyncOpenAI,
-    num_runs: int = 5,
+    num_runs: int = 3,
 ) -> tuple[dict[str, float], list[float]]:
     """
     Process a restaurant with multiple runs and return mean scores.
@@ -366,7 +366,7 @@ async def process_restaurants_with_summary(
     batch_size: int = 1000,
 ) -> dict:
     """
-    Process all restaurants that HAVE generated_summary with 5 runs (mean scores).
+    Process all restaurants that HAVE generated_summary with 3 runs (mean scores).
 
     Args:
         supabase_url: Supabase project URL
@@ -378,7 +378,7 @@ async def process_restaurants_with_summary(
         Summary dict with processing stats
     """
     logger.info("=" * 70)
-    logger.info("PROCESSING RESTAURANTS WITH GENERATED_SUMMARY (5 runs each)")
+    logger.info("PROCESSING RESTAURANTS WITH GENERATED_SUMMARY (3 runs each)")
     logger.info("=" * 70)
 
     supabase: Client = create_client(supabase_url, supabase_key)
@@ -421,12 +421,12 @@ async def process_restaurants_with_summary(
             name = restaurant.get("name", "Unknown")
 
             processed_count += 1
-            logger.info(f"[{processed_count}/{total_count}] {name} (5 runs)")
+            logger.info(f"[{processed_count}/{total_count}] {name} (3 runs)")
 
             try:
-                # Run 5 times and get mean scores
+                # Run 3 times and get mean scores
                 mean_scores, mean_vibe_vector = await process_with_multiple_runs(
-                    restaurant, client, num_runs=5
+                    restaurant, client, num_runs=3
                 )
 
                 # Update database with mean scores
@@ -434,7 +434,7 @@ async def process_restaurants_with_summary(
 
                 if result["success"]:
                     success_count += 1
-                    logger.info(f"    ✓ Updated vibe_vector (mean of 5 runs)")
+                    logger.info(f"    ✓ Updated vibe_vector (mean of 3 runs)")
                 else:
                     failed_count += 1
                     errors.append({"location_id": location_id, "name": name, "error": result.get("error")})
@@ -573,7 +573,7 @@ async def process_all_restaurants(
 ) -> dict:
     """
     Process ALL restaurants with the appropriate strategy:
-    - Restaurants WITH generated_summary: 5 runs, use mean scores
+    - Restaurants WITH generated_summary: 3 runs, use mean scores
     - Restaurants WITHOUT generated_summary: 1 run, use single scores
 
     Args:
@@ -588,7 +588,7 @@ async def process_all_restaurants(
     logger.info("COMPLETE VIBE TAG GENERATION PIPELINE")
     logger.info("=" * 70)
     logger.info("Strategy:")
-    logger.info("  • WITH generated_summary → 5 runs, mean scores")
+    logger.info("  • WITH generated_summary → 3 runs, mean scores")
     logger.info("  • WITHOUT generated_summary → 1 run, direct scores")
     logger.info("=" * 70)
 
@@ -1020,10 +1020,10 @@ Examples:
   # Run analysis 5 times and show mean scores
   python generate_vibe_tags.py --test 123 --runs 5
 
-  # Process ALL restaurants (smart strategy: 5 runs for WITH summary, 1 run for WITHOUT)
+  # Process ALL restaurants (smart strategy: 3 runs for WITH summary, 1 run for WITHOUT)
   python generate_vibe_tags.py --batch
 
-  # Process only restaurants WITH generated_summary (5 runs each)
+  # Process only restaurants WITH generated_summary (3 runs each)
   python generate_vibe_tags.py --batch-with-summary
 
   # Process only restaurants WITHOUT generated_summary (1 run each)
@@ -1124,7 +1124,7 @@ Examples:
         return
 
     elif args.batch_with_summary:
-        # ── BATCH MODE: Only restaurants WITH summary (5 runs) ──
+        # ── BATCH MODE: Only restaurants WITH summary (3 runs) ──
         summary = await process_restaurants_with_summary(
             supabase_url=supabase_url,
             supabase_key=supabase_key,

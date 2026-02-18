@@ -23,7 +23,7 @@ class LocationListManager with ChangeNotifier {
   final SupabaseService _supabaseService = SupabaseService();
   final LocationService _locationService = LocationService();
   static const String _magicSearchEndpoint =
-      'https://pinit-recommendations-api-lxtqmosyka-nw.a.run.app/locations/magic-search';
+      'https://pinit-recommendations-api-1070859807237.europe-west2.run.app/locations/magic-search';
 
   String? _userId;
 

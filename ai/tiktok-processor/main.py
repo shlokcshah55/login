@@ -139,7 +139,7 @@ def save_location_to_supabase(user_id: str, place_data: dict, url: str):
         else:
             # Create location
             try:
-                api_url = "https://pinit-recommendations-api-lxtqmosyka-nw.a.run.app/locations/add"
+                api_url = "https://pinit-recommendations-api-1070859807237.europe-west2.run.app/locations/add"
                 payload = {
                     'google_place_id': place_id,
                     'classify_photo': True

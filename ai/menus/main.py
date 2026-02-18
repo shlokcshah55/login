@@ -1134,6 +1134,15 @@ def fetch_locations_with_websites(
     """
     supabase: Client = create_client(supabase_url, supabase_key)
 
+    # DIAGNOSTIC: Check total count of unprocessed locations
+    if skip_processed:
+        count_query = supabase.table("locations").select(
+            "google_place_id", count="exact"
+        ).not_.is_("website", "null").is_("menu_analysis_confidence", "null")
+        count_response = count_query.execute()
+        total_unprocessed = count_response.count if hasattr(count_response, 'count') else '?'
+        print(f"[DIAGNOSTIC] Total unprocessed locations with websites: {total_unprocessed}")
+
     all_results = []
     batch_size = 1000  # Supabase default max
     offset = 0
@@ -1151,8 +1160,12 @@ def fetch_locations_with_websites(
         # Skip locations that have already been processed (have menu_analysis_confidence)
         if skip_processed:
             query = query.is_("menu_analysis_confidence", "null")
+            print(f"[DEBUG] Filtering for unprocessed locations (menu_analysis_confidence IS NULL)")
+        else:
+            print(f"[DEBUG] NOT filtering by processed status - will fetch all locations with websites")
 
         query = query.limit(batch_size)
+        print(f"[DEBUG] Requesting batch_size: {batch_size}, offset: {offset}")
 
         # Add ordering if specified
         if order_by:
@@ -1162,11 +1175,15 @@ def fetch_locations_with_websites(
         query = query.range(offset, offset + batch_size - 1)
 
         response = query.execute()
-        print("fetched first one with data:", response.data)
         batch = response.data
+
+        print(f"[DEBUG] Query returned {len(batch)} results")
+        if batch:
+            print(f"[DEBUG] First result: {batch[0]}")
 
         if not batch:
             # No more results
+            print(f"[DEBUG] No more results found. Breaking pagination loop.")
             break
 
         all_results.extend(batch)

@@ -7,7 +7,7 @@ Usage:
     # Process 1000 restaurants WITHOUT generated_summary (1 run each)
     python batch_vibe_tags.py --without-summary
 
-    # Process 1000 restaurants WITH generated_summary (5 runs each)
+    # Process 1000 restaurants WITH generated_summary (3 runs each)
     python batch_vibe_tags.py --with-summary
 
 Run repeatedly until all restaurants are processed. The script automatically
@@ -260,13 +260,13 @@ async def process_batch_with_summary(
 ) -> dict:
     """
     Process one batch (up to 1000) of restaurants WITH generated_summary.
-    Runs analysis 5 times per restaurant and uses mean scores.
+    Runs analysis 3 times per restaurant and uses mean scores.
 
     Returns:
         Summary dict with stats
     """
     logger.info("=" * 70)
-    logger.info("BATCH: Restaurants WITH generated_summary (5 runs each)")
+    logger.info("BATCH: Restaurants WITH generated_summary (3 runs each)")
     logger.info("=" * 70)
 
     supabase: Client = create_client(supabase_url, supabase_key)
@@ -304,22 +304,22 @@ async def process_batch_with_summary(
         location_id = restaurant.get("location_id")
         name = restaurant.get("name", "Unknown")
 
-        logger.info(f"[{idx}/{len(batch)}] {name} (5 runs)")
+        logger.info(f"[{idx}/{len(batch)}] {name} (3 runs)")
 
         try:
-            # Run 5 times and calculate mean
+            # Run 3 times and calculate mean
             all_scores = []
 
-            for run_num in range(5):
+            for run_num in range(3):
                 try:
                     scores = await analyze_restaurant_vibes(restaurant, client)
                     all_scores.append(scores)
                 except Exception as e:
-                    logger.warning(f"    Run {run_num + 1}/5 failed: {e}")
+                    logger.warning(f"    Run {run_num + 1}/3 failed: {e}")
                     continue
 
             if not all_scores:
-                raise Exception("All 5 runs failed")
+                raise Exception("All 3 runs failed")
 
             # Calculate mean scores
             mean_scores = {}
@@ -392,7 +392,7 @@ The script automatically skips restaurants that already have vibe_vector.
     parser.add_argument(
         "--with-summary",
         action="store_true",
-        help="Process restaurants WITH generated_summary (5 runs each)"
+        help="Process restaurants WITH generated_summary (3 runs each)"
     )
 
     args = parser.parse_args()

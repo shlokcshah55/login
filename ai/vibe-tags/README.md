@@ -84,8 +84,8 @@ This will:
 Run the analysis multiple times on the same restaurant to measure consistency and get mean scores:
 
 ```bash
-# Run 5 times and show mean/std dev
-python ai/vibe-tags/generate_vibe_tags.py --test 12345 --runs 5
+# Run 3 times and show mean/std dev
+python ai/vibe-tags/generate_vibe_tags.py --test 12345 --runs 3
 
 # Run 10 times and update database with mean scores
 python ai/vibe-tags/generate_vibe_tags.py --test 12345 --runs 10 --update
@@ -103,14 +103,14 @@ Process all restaurants using the smart strategy:
 
 ```bash
 # Process ALL restaurants (smart strategy)
-# - Restaurants WITH generated_summary: 5 runs, use mean scores
+# - Restaurants WITH generated_summary: 3 runs, use mean scores
 # - Restaurants WITHOUT generated_summary: 1 run, use direct scores
 python ai/vibe-tags/generate_vibe_tags.py --batch
 ```
 
 This will:
 1. Query all restaurants with `generated_summary` in batches of 1000
-2. Run analysis 5 times per restaurant and use mean scores
+2. Run analysis 3 times per restaurant and use mean scores
 3. Query all restaurants without `generated_summary` in batches of 1000
 4. Run analysis 1 time per restaurant and use direct scores
 5. Update `vibe_vector` for all restaurants
@@ -118,7 +118,7 @@ This will:
 **Process specific groups:**
 
 ```bash
-# Only process restaurants WITH generated_summary (5 runs each)
+# Only process restaurants WITH generated_summary (3 runs each)
 python ai/vibe-tags/generate_vibe_tags.py --batch-with-summary
 
 # Only process restaurants WITHOUT generated_summary (1 run each)
@@ -138,7 +138,7 @@ python ai/vibe-tags/generate_vibe_tags.py --batch --limit 10
 --limit N             Limit number of restaurants in batch mode
 ```
 
-**Tip:** Use `--runs 5` or higher to get more stable scores, especially if you notice high variability in results.
+**Tip:** Use `--runs 3` or higher to get more stable scores, especially if you notice high variability in results.
 
 ## Output
 
@@ -224,7 +224,7 @@ Processes restaurants in batches of 1000 and can be run repeatedly:
 # Process 1000 restaurants WITHOUT generated_summary (1 run each)
 python ai/vibe-tags/batch_vibe_tags.py --without-summary
 
-# Process 1000 restaurants WITH generated_summary (5 runs each)
+# Process 1000 restaurants WITH generated_summary (3 runs each)
 python ai/vibe-tags/batch_vibe_tags.py --with-summary
 ```
 
