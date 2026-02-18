@@ -1,0 +1,42 @@
+{
+  "summary": {
+    "total_processed": 35367,
+    "success_count": 35367,
+    "failed_count": 0,
+    "skipped_count": 0,
+    "no_cuisine_count": 20457,
+    "top_cuisines": {
+      "Italian": 2800,
+      "Indian": 2038,
+      "American": 1668,
+      "Chinese": 977,
+      "Japanese": 819,
+      "British": 763,
+      "Middle Eastern": 622,
+      "Turkish": 603,
+      "French": 576,
+      "Thai": 428,
+      "Lebanese": 266,
+      "Mediterranean": 254,
+      "African": 253,
+      "Asian": 248,
+      "Caribbean": 208,
+      "Greek": 206,
+      "Mexican": 204,
+      "Korean": 189,
+      "Seafood": 170,
+      "Southern American": 164
+    },
+    "elapsed_seconds": 547.21,
+    "rate_per_second": 64.63,
+    "error_count": 0
+  },
+  "errors": [],
+  "config": {
+    "version": "cuisine_v2",
+    "batch_size": 500,
+    "dry_run": false,
+    "reprocess": false,
+    "start_offset": 0
+  }
+}

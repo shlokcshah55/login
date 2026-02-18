@@ -1,34 +1,45 @@
 import 'dart:async';
-import 'dart:developer';
-import 'dart:math';
+import 'dart:developer' show log;
+import 'dart:math' hide log;
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
+import 'package:login/models/locations.dart';
+import 'package:login/services/geojson_map_layer_service.dart';
+import 'package:login/utils/geo_types.dart';
 
 class MapStateProvider with ChangeNotifier {
-  final Completer<GoogleMapController> _completeController = Completer();
-  GoogleMapController? _mapController; // Make nullable initially
-  Set<Polyline> _polylines = {};
-  LatLng? _lastFocusedUserLocation; // To track where the user was last centered (for My Location button)
+  mapbox.MapboxMap? _mapboxMap;
+  mapbox.PointAnnotationManager? _pointAnnotationManager;
+  mapbox.PolylineAnnotationManager? _polylineAnnotationManager;
+  
+  // GeoJSON-based map layer service (new approach)
+  GeoJsonMapLayerService? _geoJsonLayerService;
+
+  LatLng? _lastFocusedUserLocation;
   LatLng? _lastSearchedCenter; // To track the center of the last API search
   double? _lastSearchedRadius; // To track the radius of the last API search (in km)
-  LatLng?
-      _currentVisibleCenter; // To track the current visible center of the map
-  double _currentZoom = 15.0; // To track the current zoom level
-  MarkerId? _selectedMarkerId; // To track the currently selected marker
-  PageController? _carouselPageController; // To control the carousel page view
-  bool _showSearchThisAreaButton = false; // Control button visibility
+  LatLng? _currentVisibleCenter;
+  double _currentZoom = 15.0;
+  String? _selectedMarkerId;
+  PageController? _carouselPageController;
+  bool _isAwayFromUserArea = false;
+  bool _showSearchThisAreaButton = false;
+  
+  // Flag to toggle between old and new rendering approaches
+  bool _useGeoJsonLayers = true;
+
+  List<LatLng> _polylinePoints = [];
 
   // Getters
-  Future<GoogleMapController> get controllerFuture =>
-      _completeController.future;
-  GoogleMapController? get mapController => _mapController;
-  Set<Polyline> get polylines => _polylines;
-  MarkerId? get selectedMarkerId => _selectedMarkerId;
+  mapbox.MapboxMap? get mapboxMap => _mapboxMap;
+  mapbox.PointAnnotationManager? get pointAnnotationManager => _pointAnnotationManager;
+  GeoJsonMapLayerService? get geoJsonLayerService => _geoJsonLayerService;
+  bool get useGeoJsonLayers => _useGeoJsonLayers;
+  String? get selectedMarkerId => _selectedMarkerId;
   bool get showSearchThisAreaButton => _showSearchThisAreaButton;
   double get currentZoom => _currentZoom;
   LatLng? get currentVisibleCenter => _currentVisibleCenter;
 
-  // Set the carousel page controller
   void setCarouselPageController(PageController controller) {
     _carouselPageController = controller;
   }
@@ -38,80 +49,147 @@ class MapStateProvider with ChangeNotifier {
     print("Set last focused user location to: $location");
   }
 
-  // Animate to a specific item in the carousel
   void animateToCarouselItem(int index) {
     if (_carouselPageController != null) {
       _carouselPageController!.jumpToPage(index);
     }
   }
 
-  /// Assigns the Google Map controller when the map is created.
-  void setMapController(GoogleMapController controller) {
-    _mapController = controller;
-    if (!_completeController.isCompleted) {
-      _completeController.complete(controller);
+  /// Call this from MapWidget's onMapCreated callback.
+  Future<void> setMapboxMap(mapbox.MapboxMap map, {
+    OnLocationTapped? onLocationTapped,
+    OnClusterTapped? onClusterTapped,
+  }) async {
+    _mapboxMap = map;
+    
+    if (_useGeoJsonLayers) {
+      // Initialize GeoJSON-based layers (new approach)
+      _geoJsonLayerService = GeoJsonMapLayerService(
+        mapboxMap: map,
+        config: const GeoJsonLayerConfig(
+          enableClustering: true,
+          clusterRadius: 30,
+          clusterMaxZoom: 14,
+          showTextLabels: true,
+          allowTextOverlap: false,
+          allowIconOverlap: false,
+        ),
+        onLocationTapped: onLocationTapped,
+        onClusterTapped: onClusterTapped,
+      );
+      await _geoJsonLayerService!.initialize();
+      log("MapStateProvider: GeoJSON layer service initialized.");
+    } else {
+      // Legacy: use PointAnnotationManager
+      _pointAnnotationManager = await map.annotations.createPointAnnotationManager();
+      log("MapStateProvider: PointAnnotationManager initialized (legacy mode).");
     }
-    // No need to notifyListeners here unless UI depends on controller existence
+    
+    _polylineAnnotationManager = await map.annotations.createPolylineAnnotationManager();
+    log("MapStateProvider: MapboxMap controller initialized.");
   }
 
-  /// Adds or updates a polyline on the map.
-  void setPolyline(Polyline polyline) {
-    // Using add instead of clear/add allows multiple polylines if needed later
-    _polylines.removeWhere((p) => p.polylineId == polyline.polylineId);
-    _polylines.add(polyline);
-    notifyListeners();
+  /// Update the locations displayed on the map (GeoJSON mode).
+  /// 
+  /// This method should be called when the location list changes.
+  /// Mapbox handles clustering automatically.
+  Future<void> updateMapLocations(List<LocationModel> locations) async {
+    if (_useGeoJsonLayers && _geoJsonLayerService != null) {
+      await _geoJsonLayerService!.updateLocations(locations);
+      log("MapStateProvider: Updated ${locations.length} locations on map.");
+    }
   }
 
-  /// Removes a specific polyline by its ID.
-  void removePolylineById(PolylineId polylineId) {
-    _polylines.removeWhere((p) => p.polylineId == polylineId);
+  /// Handle a tap on the map at the given screen coordinates.
+  /// 
+  /// Delegates to GeoJSON layer service if using GeoJSON mode.
+  Future<void> handleMapTap(double x, double y) async {
+    if (_useGeoJsonLayers && _geoJsonLayerService != null) {
+      await _geoJsonLayerService!.handleTapAtPoint(x, y);
+    }
   }
 
-  /// Clears all polylines from the map.
-  void clearPolylines() {
-    if (_polylines.isNotEmpty) {
-      _polylines.clear();
+  /// Toggle between GeoJSON layers and legacy PointAnnotation approach.
+  void setUseGeoJsonLayers(bool value) {
+    if (_useGeoJsonLayers != value) {
+      _useGeoJsonLayers = value;
+      log("MapStateProvider: useGeoJsonLayers set to $value");
       notifyListeners();
     }
   }
 
-  /// Animates the camera to a specific LatLng position.
-  Future<void> animateCamera(CameraUpdate cameraUpdate) async {
-    print('[MapState] animateCamera called');
-    await _completeController.future; // Ensure controller is ready
-    final controller = _mapController; // Assign to local variable first
-    print('[MapState] Controller null? ${controller == null}');
-    if (controller != null) {
-      print('[MapState] Animating camera...');
-      await controller.animateCamera(cameraUpdate); // Use local variable
-      print('[MapState] Camera animation complete');
-    } else {
-      print('[MapState] ERROR: Map controller is null, cannot animate');
+  /// Draws a polyline on the map. Replaces any existing polyline.
+  Future<void> setPolyline(List<LatLng> points,
+      {Color color = Colors.blue, double width = 4.0}) async {
+    _polylinePoints = points;
+    await _syncPolylines(color: color, width: width);
+    log("MapStateProvider: Polyline set with ${points.length} points.");
+    notifyListeners();
+  }
+
+  /// Clears all polylines from the map.
+  Future<void> clearPolylines() async {
+    _polylinePoints = [];
+    await _polylineAnnotationManager?.deleteAll();
+    log("MapStateProvider: All polylines cleared.");
+    notifyListeners();
+  }
+
+  Future<void> _syncPolylines({Color color = Colors.blue, double width = 4.0}) async {
+    final mgr = _polylineAnnotationManager;
+    if (mgr == null || _polylinePoints.isEmpty) return;
+    await mgr.deleteAll();
+    final coordinates = _polylinePoints
+        .map((p) => mapbox.Position(p.longitude, p.latitude))
+        .toList();
+    await mgr.create(mapbox.PolylineAnnotationOptions(
+      geometry: mapbox.LineString(coordinates: coordinates),
+      lineColor: color.value,
+      lineWidth: width,
+    ));
+  }
+
+  /// Animate camera to a position with optional zoom.
+  Future<void> animateCamera(LatLng target, {double? zoom}) async {
+    final map = _mapboxMap;
+    if (map == null) {
+      log("MapStateProvider: Cannot animate camera, map is null.");
+      return;
     }
-    // No notifyListeners needed as map animates itself
+    await map.flyTo(
+      mapbox.CameraOptions(center: target.toPoint(), zoom: zoom ?? _currentZoom),
+      mapbox.MapAnimationOptions(duration: 500),
+    );
+    log("MapStateProvider: Animating camera to $target");
   }
 
   /// Focuses the map camera on a specific user location.
-  Future<void> focusOnUserLocation(LatLng userPosition,
-      {double zoom = 15.0}) async {
-    print('[MapState] focusOnUserLocation called with position: $userPosition, zoom: $zoom');
+  Future<void> focusOnUserLocation(LatLng userPosition, {double zoom = 15.0}) async {
     _lastFocusedUserLocation = userPosition;
-    await animateCamera(CameraUpdate.newLatLngZoom(userPosition, zoom));
-    print('[MapState] focusOnUserLocation complete');
+    await animateCamera(userPosition, zoom: zoom);
+    log("MapStateProvider: Camera focused on user location: $userPosition");
   }
 
-  /// Gets the current visible bounds of the map
+  /// Gets the current visible bounds of the map.
   Future<LatLngBounds?> getVisibleBounds() async {
-    if (_mapController == null) return null;
+    final map = _mapboxMap;
+    if (map == null) return null;
     try {
-      return await _mapController!.getVisibleRegion();
+      final state = await map.getCameraState();
+      final bounds = await map.coordinateBoundsForCamera(mapbox.CameraOptions(
+        center: state.center,
+        zoom: state.zoom,
+        bearing: state.bearing,
+        pitch: state.pitch,
+      ));
+      return LatLngBounds.fromCoordinateBounds(bounds);
     } catch (e) {
       return null;
     }
   }
 
   /// Gets the center and radius of the current visible map area
-  /// Returns a map with 'center' (LatLng) and 'radius' (double in meters)
+  /// Returns a map with 'center' (LatLng) and 'radius' (double in km)
   Future<Map<String, dynamic>?> getVisibleCenterAndRadius() async {
     final bounds = await getVisibleBounds();
     if (bounds == null) return null;
@@ -130,11 +208,6 @@ class MapStateProvider with ChangeNotifier {
     );
 
     // IMPORTANT: Adjust radius to account for UI elements that obscure the map
-    // The map widget fills the screen, but is partially covered by:
-    // - Header at top (~110-120px)
-    // - Carousel at bottom (~160-250px depending on nav visibility)
-    // This means only ~56-71% of the vertical screen shows the actual map
-    // We apply a 0.65 scaling factor to get a radius closer to what's truly visible
     final adjustedRadius = rawRadius * 0.65;
 
     return {
@@ -166,47 +239,42 @@ class MapStateProvider with ChangeNotifier {
     return degrees * pi / 180;
   }
 
-  /// Focuses the map camera to show bounds containing two points.
-  Future<void> focusOnBounds(LatLng point1, LatLng point2,
-      {double padding = 100.0}) async {
-    await animateCamera(
-      CameraUpdate.newLatLngBounds(
-        LatLngBounds(
-          southwest: LatLng(
-            point1.latitude < point2.latitude
-                ? point1.latitude
-                : point2.latitude,
-            point1.longitude < point2.longitude
-                ? point1.longitude
-                : point2.longitude,
-          ),
-          northeast: LatLng(
-            point1.latitude > point2.latitude
-                ? point1.latitude
-                : point2.latitude,
-            point1.longitude > point2.longitude
-                ? point1.longitude
-                : point2.longitude,
-          ),
-        ),
-        padding,
-      ),
+  /// Focuses the map to show bounds containing two points.
+  Future<void> focusOnBounds(LatLng point1, LatLng point2, {double padding = 100.0}) async {
+    final map = _mapboxMap;
+    if (map == null) return;
+    final sw = LatLng(
+      point1.latitude < point2.latitude ? point1.latitude : point2.latitude,
+      point1.longitude < point2.longitude ? point1.longitude : point2.longitude,
     );
+    final ne = LatLng(
+      point1.latitude > point2.latitude ? point1.latitude : point2.latitude,
+      point1.longitude > point2.longitude ? point1.longitude : point2.longitude,
+    );
+    final camera = await map.cameraForCoordinateBounds(
+      LatLngBounds(southwest: sw, northeast: ne).toCoordinateBounds(),
+      mapbox.MbxEdgeInsets(top: padding, left: padding, bottom: padding, right: padding),
+      null, null, null, null,
+    );
+    await map.flyTo(camera, mapbox.MapAnimationOptions(duration: 600));
+    log("MapStateProvider: Camera focused on bounds containing $point1 and $point2");
   }
 
   /// Sets the currently selected marker ID and notifies listeners.
-  void setSelectedMarkerId(MarkerId? markerId,
-      {bool triggeredByCarousel = false}) {
+  void setSelectedMarkerId(String? markerId, {bool triggeredByCarousel = false}) {
     if (_selectedMarkerId != markerId) {
       _selectedMarkerId = markerId;
+      // Update selection in GeoJSON layer service
+      _geoJsonLayerService?.setSelectedLocation(markerId);
+      log("MapStateProvider: Selected marker changed to: $markerId");
       notifyListeners();
     }
   }
 
-  /// Updates the current visible center of the map from camera position
-  void updateMapCenter(CameraPosition position) {
-    _currentVisibleCenter = position.target;
-    _currentZoom = position.zoom;
+  /// Called from the map's camera-change listener.
+  void updateMapCenter(LatLng center, double zoom) {
+    _currentVisibleCenter = center;
+    _currentZoom = zoom;
     _checkIfViewDiffersFromLastSearch();
   }
 
@@ -237,7 +305,6 @@ class MapStateProvider with ChangeNotifier {
     final bool wasShowingButton = _showSearchThisAreaButton;
 
     // Show button if the center has moved significantly (more than 25% of the last searched radius)
-    // or if the zoom has changed significantly
     final distanceThreshold = _lastSearchedRadius! * 0.25;
     final viewDiffers = distanceKm > distanceThreshold;
 
@@ -249,7 +316,6 @@ class MapStateProvider with ChangeNotifier {
     }
   }
 
-  /// Set the visibility of the "Search this area" button
   void setSearchThisAreaButtonVisibility(bool visible) {
     if (_showSearchThisAreaButton != visible) {
       _showSearchThisAreaButton = visible;
@@ -257,7 +323,6 @@ class MapStateProvider with ChangeNotifier {
     }
   }
 
-  /// Hide the "Search this area" button
   void hideSearchThisAreaButton() {
     setSearchThisAreaButtonVisibility(false);
   }
@@ -287,13 +352,12 @@ class MapStateProvider with ChangeNotifier {
     return viewData;
   }
 
-  // Optional: Add methods for map bounds, etc. if needed later
-
   @override
   void dispose() {
-    // While the controller itself might be managed elsewhere (Map widget),
-    // clear internal references if necessary.
-    _mapController = null; // Help garbage collection
+    _geoJsonLayerService?.dispose();
+    _geoJsonLayerService = null;
+    _mapboxMap = null;
+    log("MapStateProvider: Disposed.");
     super.dispose();
   }
 }

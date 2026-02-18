@@ -1,6 +1,9 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 import 'package:provider/provider.dart';
+import 'package:login/utils/geo_types.dart';
 import 'package:login/models/bubble.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/supabase/service.dart';
@@ -22,8 +25,9 @@ class _BubbleProfilePageState extends State<BubbleProfilePage>
     with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
 
-  GoogleMapController? mapController;
-  Set<Marker> markers = {};
+  mapbox.MapboxMap? mapController;
+  mapbox.PointAnnotationManager? _annotationManager;
+  List<MapMarkerData> _markerData = [];
   List<LocationModel> allMemberLocations = [];
   bool isLoading = true;
   
@@ -83,18 +87,31 @@ class _BubbleProfilePageState extends State<BubbleProfilePage>
   }
 
   void _createMarkers() {
-    markers = allMemberLocations.map((location) {
-      return Marker(
-        markerId: MarkerId(location.locationId.toString()),
+    _markerData = allMemberLocations.map((location) {
+      return MapMarkerData(
+        id: location.locationId.toString(),
         position: LatLng(location.lat!, location.lng!),
-        infoWindow: InfoWindow(
-          title: location.name,
-          snippet: location.vicinity,
-        ),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-        onTap: () => _showLocationDetails(location),
+        imageBytes: const [], // default pin
+        title: location.name,
+        snippet: location.vicinity,
       );
-    }).toSet();
+    }).toList();
+    _syncAnnotations();
+  }
+
+  Future<void> _syncAnnotations() async {
+    final manager = _annotationManager;
+    if (manager == null) return;
+    await manager.deleteAll();
+    for (final m in _markerData) {
+      await manager.create(
+        mapbox.PointAnnotationOptions(
+          geometry: m.position.toPoint(),
+          iconSize: 1.5,
+          iconImage: 'marker-15', // built-in Mapbox marker icon
+        ),
+      );
+    }
   }
 
   void _showLocationDetails(LocationModel location) {
@@ -219,14 +236,16 @@ class _BubbleProfilePageState extends State<BubbleProfilePage>
     );
   }
 
-  void _onMapCreated(GoogleMapController controller) {
+  Future<void> _onMapCreated(mapbox.MapboxMap controller) async {
     mapController = controller;
+    _annotationManager = await controller.annotations.createPointAnnotationManager();
     if (allMemberLocations.isNotEmpty) {
+      _syncAnnotations();
       _fitMarkersInView();
     }
   }
 
-  void _fitMarkersInView() {
+  Future<void> _fitMarkersInView() async {
     if (mapController == null || allMemberLocations.isEmpty) return;
 
     final locations = allMemberLocations;
@@ -242,15 +261,16 @@ class _BubbleProfilePageState extends State<BubbleProfilePage>
       maxLng = maxLng > location.lng! ? maxLng : location.lng!;
     }
 
-    mapController!.animateCamera(
-      CameraUpdate.newLatLngBounds(
-        LatLngBounds(
-          southwest: LatLng(minLat, minLng),
-          northeast: LatLng(maxLat, maxLng),
-        ),
-        100.0,
-      ),
+    final bounds = LatLngBounds(
+      southwest: LatLng(minLat, minLng),
+      northeast: LatLng(maxLat, maxLng),
     );
+    final camera = await mapController!.cameraForCoordinateBounds(
+      bounds.toCoordinateBounds(),
+      mapbox.MbxEdgeInsets(top: 100, left: 100, bottom: 100, right: 100),
+      null, null, null, null,
+    );
+    await mapController!.flyTo(camera, mapbox.MapAnimationOptions(duration: 500));
   }
 
   @override
@@ -497,22 +517,19 @@ class _BubbleProfilePageState extends State<BubbleProfilePage>
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        child: GoogleMap(
+        child: mapbox.MapWidget(
           onMapCreated: _onMapCreated,
-          initialCameraPosition: CameraPosition(
-            target: allMemberLocations.isNotEmpty
-                ? LatLng(
-                    allMemberLocations.first.lat!,
-                    allMemberLocations.first.lng!,
-                  )
-                : const LatLng(37.7749, -122.4194),
+          cameraOptions: mapbox.CameraOptions(
+            center: (allMemberLocations.isNotEmpty
+                    ? LatLng(
+                        allMemberLocations.first.lat!,
+                        allMemberLocations.first.lng!,
+                      )
+                    : const LatLng(37.7749, -122.4194))
+                .toPoint(),
             zoom: 12,
           ),
-          markers: markers,
-          myLocationEnabled: true,
-          myLocationButtonEnabled: true,
-          zoomControlsEnabled: false,
-          mapToolbarEnabled: false,
+          styleUri: mapbox.MapboxStyles.LIGHT,
         ),
       ),
     );

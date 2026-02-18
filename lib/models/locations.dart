@@ -5,7 +5,7 @@ import 'package:flutter/rendering.dart';
 import 'package:login/models/markers.dart';
 
 import '../supabase/constants.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:login/utils/geo_types.dart';
 import 'dart:developer';
 
 enum LocationType { restaurant, hotel, museum, park, other }
@@ -329,23 +329,11 @@ class LocationModel {
   LatLng? get position =>
       (lat != null && lng != null) ? LatLng(lat!, lng!) : null;
 
-  // Static marker icon for all locations
-  static BitmapDescriptor? _customMarkerIcon;
+  // Static marker icon for all locations - no longer needed for Mapbox
+  // Marker icons are rendered as PNG bytes via PinitMarkers
 
   static Future<void> initializeCustomMarker() async {
-    if (_customMarkerIcon == null) {
-      try {
-        _customMarkerIcon = await BitmapDescriptor.asset(
-          const ImageConfiguration(size: Size(48, 48)),
-          'lib/assets/restaurant_pin.png',
-        );
-        log('LocationModel: Custom marker initialized');
-      } catch (e) {
-        log('LocationModel: Failed to initialize custom marker: $e');
-        // Set to default marker as fallback
-        _customMarkerIcon = BitmapDescriptor.defaultMarker;
-      }
-    }
+    // No-op for Mapbox — custom markers are rendered per-annotation
   }
 
   static double _degToRad(double deg) => deg * (math.pi / 180);
@@ -388,18 +376,14 @@ class LocationModel {
     return this;
   }
 
-  /// Creates a map marker from this location
-  Future<Marker?> toMarker(double dpr, {bool shouldShowName = true}) async {
-    // Return null if coordinates are not available
+  /// Creates map marker data from this location.
+  /// Returns [MapMarkerData] containing the rendered PNG bytes for Mapbox annotation.
+  Future<MapMarkerData?> toMarker(double dpr, {bool shouldShowName = true}) async {
     if (lat == null || lng == null) return null;
 
-    BitmapDescriptor markerIcon;
-    Offset anchor = const Offset(0.5, 0.5); // Center anchor for emoji markers
-
-    // Use emoji (or default emoji if none provided)
     String emojiToUse = emoji != null && emoji!.isNotEmpty ? emoji! : '📍';
 
-    markerIcon = await PinitMarkers.createPinitMarker(
+    final imageBytes = await PinitMarkers.createPinitMarker(
       emoji: emojiToUse,
       name: name,
       devicePixelRatio: dpr,
@@ -408,15 +392,12 @@ class LocationModel {
       showText: shouldShowName,
     );
 
-    return Marker(
-      markerId: MarkerId(locationId.toString()),
+    return MapMarkerData(
+      id: locationId.toString(),
       position: LatLng(lat!, lng!),
-      icon: markerIcon,
-      anchor: anchor, // Set anchor point for proper positioning
-      infoWindow: InfoWindow(
-        title: name,
-        snippet: vicinity ?? '',
-      ),
+      imageBytes: imageBytes,
+      title: name,
+      snippet: vicinity ?? '',
     );
   }
 }

@@ -30,7 +30,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  google_maps_flutter: ^2.0.10
+  mapbox_maps_flutter: ^2.4.0
   location: ^7.0.0
   googleapis: any
   googleapis_auth: any

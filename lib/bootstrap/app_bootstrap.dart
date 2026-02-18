@@ -9,6 +9,7 @@ import 'package:login/services/fcm_service.dart';
 import 'package:login/services/google_place_service.dart';
 import 'package:login/services/location_service.dart';
 import 'package:login/supabase/service.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 
 Future<AppDependencies> bootstrap({
   required Future<void> Function(RemoteMessage) backgroundMessageHandler,
@@ -53,6 +54,11 @@ Future<AppDependencies> bootstrap({
 
   print('🔧 Loading .env file...');
   await dotenv.load();
+
+  // Initialize Mapbox access token
+  final mapboxToken = dotenv.env['MAPBOX_ACCESS_TOKEN'] ?? '';
+  mapbox.MapboxOptions.setAccessToken(mapboxToken);
+  print('✅ Mapbox access token configured');
 
   final googlePlacesService = GooglePlacesService();
   googlePlacesService.debugApiKey();

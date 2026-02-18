@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:login/utils/geo_types.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/models/markers.dart';
 
@@ -20,7 +20,7 @@ class MarkerCluster {
 
 /// Result of clustering operation - includes both markers and metadata
 class ClusteringResult {
-  final Map<LocationModel, Marker> markers;
+  final Map<LocationModel, MapMarkerData> markers;
   final List<MarkerCluster> clusters;
   final Set<int> unclusteredLocationIds;
 
@@ -43,7 +43,7 @@ class MarkerClustering {
   /// This is O(N) average case complexity using spatial grid partitioning
   /// instead of O(N²) pairwise distance calculation.
   static Future<Map<String, dynamic>> clusterMarkers({
-    required Map<LocationModel, Marker> locationMarkers,
+    required Map<LocationModel, MapMarkerData> locationMarkers,
     required double devicePixelRatio,
     double zoom = 15.0,
     LatLng?
@@ -52,7 +52,7 @@ class MarkerClustering {
   }) async {
     if (locationMarkers.isEmpty) {
       return {
-        'markers': <LocationModel, Marker>{},
+        'markers': <LocationModel, MapMarkerData>{},
         'clusters': <MarkerCluster>[],
         'unclusteredIds': <int>{},
       };
@@ -77,7 +77,7 @@ class MarkerClustering {
     );
 
     // Optional: Filter to viewport bounds for performance
-    Map<LocationModel, Marker> locationsToCluster = locationMarkers;
+    Map<LocationModel, MapMarkerData> locationsToCluster = locationMarkers;
     if (viewportBounds != null) {
       locationsToCluster = _filterToViewport(locationMarkers, viewportBounds);
       // If viewport filtering removed everything, use all locations
@@ -126,7 +126,7 @@ class MarkerClustering {
 
   /// Generate a stable cache key for clustering results
   static String _generateCacheKey(
-    Map<LocationModel, Marker> locationMarkers,
+    Map<LocationModel, MapMarkerData> locationMarkers,
     double zoom,
   ) {
     // Round zoom to 0.5 increments (less sensitive than 0.25)
@@ -189,8 +189,8 @@ class MarkerClustering {
   }
 
   /// Filter locations to only those within viewport bounds
-  static Map<LocationModel, Marker> _filterToViewport(
-    Map<LocationModel, Marker> locations,
+  static Map<LocationModel, MapMarkerData> _filterToViewport(
+    Map<LocationModel, MapMarkerData> locations,
     LatLngBounds bounds,
   ) {
     // Add small padding to bounds to include edge markers
@@ -242,7 +242,7 @@ class MarkerClustering {
   /// Divides the map into a grid where each cell is clusterDistance-sized.
   /// Only checks neighbors in adjacent cells, avoiding O(N²) pairwise checks.
   static Future<ClusteringResult> _gridBasedClustering({
-    required Map<LocationModel, Marker> locationMarkers,
+    required Map<LocationModel, MapMarkerData> locationMarkers,
     required double clusterDistanceMeters,
     required double devicePixelRatio,
   }) async {
@@ -275,7 +275,7 @@ class MarkerClustering {
     // Track which locations have been assigned to a cluster
     final Set<int> assignedIndices = {};
     final List<MarkerCluster> clusters = [];
-    final Map<LocationModel, Marker> unclustered = {};
+    final Map<LocationModel, MapMarkerData> unclustered = {};
     final Set<int> unclusteredIds = {};
 
     // Process each location
@@ -342,7 +342,7 @@ class MarkerClustering {
     }
 
     // Create cluster markers
-    final Map<LocationModel, Marker> allMarkers = {...unclustered};
+    final Map<LocationModel, MapMarkerData> allMarkers = {...unclustered};
 
     for (final cluster in clusters) {
       final clusterMarker = await _createClusterMarker(
@@ -453,21 +453,20 @@ class MarkerClustering {
   }
 
   /// Create a marker for a cluster
-  static Future<Marker> _createClusterMarker({
+  static Future<MapMarkerData> _createClusterMarker({
     required MarkerCluster cluster,
     required double devicePixelRatio,
   }) async {
-    final icon = await PinitMarkers.createClusterMarker(
+    final imageBytes = await PinitMarkers.createClusterMarker(
       count: cluster.count,
       devicePixelRatio: devicePixelRatio,
     );
 
-    return Marker(
-      markerId: MarkerId(cluster.id),
+    return MapMarkerData(
+      id: cluster.id,
       position: cluster.center,
-      icon: icon,
-      anchor: const Offset(0.5, 0.5),
-      zIndex: 1.0, // Clusters appear above individual markers
+      imageBytes: imageBytes,
+      title: '${cluster.count} locations',
     );
   }
 }

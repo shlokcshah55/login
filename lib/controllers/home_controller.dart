@@ -1,6 +1,6 @@
 import 'dart:developer'; // Added for logging
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:login/utils/geo_types.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/map_state_provider.dart';
@@ -160,14 +160,12 @@ class HomeController {
               onTap: () async {
                 // Animate camera using MapStateProvider
                 await mapStateProvider.animateCamera(
-                  CameraUpdate.newLatLng(location.position!),
+                  location.position!,
                 );
-                // Showing marker info window might need direct controller access or a new MapStateProvider method
-                final controller = mapStateProvider.mapController;
-                final marker = locationListManager.currentItems[location];
-                if (controller != null && marker != null) {
-                  controller.showMarkerInfoWindow(marker.markerId);
-                }
+                // Select the marker
+                mapStateProvider.setSelectedMarkerId(
+                  location.locationId.toString(),
+                );
               },
               child: flipped
                   ? _buildBackSide(context, location)
@@ -377,17 +375,7 @@ class HomeController {
     // For now, just draws a straight dotted line
     List<LatLng> polylinePoints = [start, end];
 
-    final polyline = Polyline(
-      polylineId:
-          const PolylineId('dotted_route'), // Use a constant or unique ID
-      points: polylinePoints,
-      color: Colors.blue,
-      width: 4,
-      // Remove const because PatternItem.gap is not a const constructor
-      patterns: [PatternItem.dot, PatternItem.gap(10)],
-    );
-
-    mapStateProvider.setPolyline(polyline); // Use provider method
+    mapStateProvider.setPolyline(polylinePoints); // Use provider method
   }
 
 // buildGridItem method from before is now largely handled within HomePage.
