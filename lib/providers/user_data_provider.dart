@@ -25,6 +25,16 @@ class UserDataProvider with ChangeNotifier {
       (_userId != null && _userData != null) ||
       _supabaseProvider.users.isAuthenticated;
 
+  /// User's vibe-tag affinity vector (null until profile is loaded).
+  List<int>? get vibeTagAffinity => _supabaseUserData?.vibeTagAffinity;
+
+  /// User's dietary-requirement affinity vector.
+  List<int>? get dietaryRequirementTagAffinity =>
+      _supabaseUserData?.dietaryRequirementTagAffinity;
+
+  /// Whether the user has any affinity data populated.
+  bool get hasAffinityData => _supabaseUserData?.hasAffinityData ?? false;
+
   /// Sets the user ID (typically after login) and fetches user data.
   /// If [cachedProfile] is provided, uses it instead of fetching from DB.
   Future<void> setUserIdAndFetchData(String userId,

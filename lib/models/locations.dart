@@ -173,6 +173,10 @@ class LocationModel {
   final List<int>? dietaryRequirementVector;
   final Map<String, dynamic>? cuisineScoresJson;
 
+  /// Computed match score (0-1) based on dot product of user affinities.
+  /// Null if not yet computed or user has no affinity data.
+  final double? matchScore; 
+
   LocationPreference? preference;
 
 
@@ -249,6 +253,7 @@ class LocationModel {
       this.isTakeaway,
       this.dietaryRequirementVector,
       this.cuisineScoresJson,
+      this.matchScore,
       });
 
   factory LocationModel.fromJson(
@@ -365,6 +370,7 @@ class LocationModel {
         (e) => (e as num).toInt(),
       ),
       cuisineScoresJson: _safeMap(json[SupabaseConstants.columnCuisineScoresJson]),
+      matchScore: null, // Set separately after fetching user affinity data
     );
   }
 
@@ -531,6 +537,7 @@ class LocationModel {
     int? userRatingsTotal,
     int? priceLevel,
     String? photoReference,
+    String? imageUrl,
     int? savedCount,
     bool clearVicinity = false,
     bool clearLat = false,
@@ -592,6 +599,7 @@ class LocationModel {
     bool? isTakeaway,
     List<int>? dietaryRequirementVector,
     Map<String, dynamic>? cuisineScoresJson,
+    double? matchScore,
   }) {
     return LocationModel(
       locationId: locationId ?? this.locationId,
@@ -606,6 +614,7 @@ class LocationModel {
       userRatingsTotal: userRatingsTotal ?? this.userRatingsTotal,
       priceLevel: priceLevel ?? this.priceLevel,
       photoReference: photoReference ?? this.photoReference,
+      imageUrl: imageUrl ?? this.imageUrl,
       savedCount: savedCount ?? this.savedCount,
       googlePlaceId: googlePlaceId ?? this.googlePlaceId,
       businessStatus: businessStatus ?? this.businessStatus,
@@ -665,12 +674,92 @@ class LocationModel {
       isTakeaway: isTakeaway ?? this.isTakeaway,
       dietaryRequirementVector: dietaryRequirementVector ?? this.dietaryRequirementVector,
       cuisineScoresJson: cuisineScoresJson ?? this.cuisineScoresJson,
+      matchScore: matchScore ?? this.matchScore,
     );
   }
 
   // UI helper fields that make this model compatible with the UI
   LatLng? get position =>
       (lat != null && lng != null) ? LatLng(lat!, lng!) : null;
+
+  // ─────────────────────────────────────────────────────────────
+  //  Match scoring – calculates fit between user affinity and location
+  // ─────────────────────────────────────────────────────────────
+
+  /// Calculate composite match score (0-1) from user affinity vectors.
+  /// Uses weighted sum of vibe and dietary match scores.
+  /// Returns 0.0 if user has no affinity data or location lacks vectors.
+  static double calculateMatchScore({
+    required List<int>? userVibeAffinity,
+    required List<int>? userDietaryAffinity,
+    required List<double>? locationVibeVector,
+    required List<int>? locationDietaryVector,
+    double vibeWeight = 0.6,
+    double dietaryWeight = 0.4,
+  }) {
+    if ((userVibeAffinity == null || userVibeAffinity.isEmpty) &&
+        (userDietaryAffinity == null || userDietaryAffinity.isEmpty)) {
+      return 0.0;
+    }
+
+    double vibeScore = 0.0;
+    double dietaryScore = 0.0;
+
+    // Vibe match: dot product of user affinity (int) and location vector (double)
+    if (userVibeAffinity != null &&
+        userVibeAffinity.isNotEmpty &&
+        locationVibeVector != null &&
+        locationVibeVector.isNotEmpty) {
+      double dot = 0, magA = 0, magB = 0;
+      final len = math.min(userVibeAffinity.length, locationVibeVector.length);
+      for (var i = 0; i < len; i++) {
+        final a = userVibeAffinity[i].toDouble();
+        final b = locationVibeVector[i];
+        dot += a * b;
+        magA += a * a;
+        magB += b * b;
+      }
+      if (magA > 0 && magB > 0) {
+        vibeScore = dot / (math.sqrt(magA) * math.sqrt(magB));
+        // Normalize cosine similarity [−1, 1] to [0, 1]
+        vibeScore = (vibeScore + 1) / 2;
+      }
+    }
+
+    // Dietary match: same logic but both are int lists
+    if (userDietaryAffinity != null &&
+        userDietaryAffinity.isNotEmpty &&
+        locationDietaryVector != null &&
+        locationDietaryVector.isNotEmpty) {
+      double dot = 0, magA = 0, magB = 0;
+      final len = math.min(userDietaryAffinity.length, locationDietaryVector.length);
+      for (var i = 0; i < len; i++) {
+        final a = userDietaryAffinity[i].toDouble();
+        final b = locationDietaryVector[i].toDouble();
+        dot += a * b;
+        magA += a * a;
+        magB += b * b;
+      }
+      if (magA > 0 && magB > 0) {
+        dietaryScore = dot / (math.sqrt(magA) * math.sqrt(magB));
+        dietaryScore = (dietaryScore + 1) / 2;
+      }
+    }
+
+    // Weighted combination
+    if (userVibeAffinity != null && userVibeAffinity.isNotEmpty) {
+      if (userDietaryAffinity != null && userDietaryAffinity.isNotEmpty) {
+        // Both available, combine
+        return vibeScore * vibeWeight + dietaryScore * dietaryWeight;
+      } else {
+        // Only vibe, return vibe score normalized by weight
+        return vibeScore * (vibeWeight / (vibeWeight + dietaryWeight));
+      }
+    } else {
+      // Only dietary available
+      return dietaryScore * (dietaryWeight / (vibeWeight + dietaryWeight));
+    }
+  }
 
   static Future<void> initializeCustomMarker() async {
     // No-op for Mapbox — custom markers are rendered per-annotation

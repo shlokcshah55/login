@@ -126,8 +126,12 @@ class LocationHelper {
   /// Handles image URLs efficiently with parallel processing.
   /// Individual location parsing errors are caught and logged so one bad
   /// row does not kill the entire batch.
+  /// Optionally calculates match scores using user affinity vectors.
   Future<List<LocationModel>> _processLocationsWithImages(
-      List<dynamic> locationsData) async {
+      List<dynamic> locationsData, {
+      List<int>? userVibeAffinity,
+      List<int>? userDietaryAffinity,
+  }) async {
     if (locationsData.isEmpty) return [];
 
     // Process in parallel — errors per-item are caught individually
@@ -137,12 +141,38 @@ class LocationHelper {
 
         // Check cache first
         final cached = _getFromCache(locationId);
-        if (cached != null) return cached;
+        if (cached != null) {
+          // Always refresh imageUrl even for cached locations
+          // in case it was added or updated
+          final imageUrl = await _getLocationImageUrl(item);
+          if (imageUrl != null && imageUrl != cached.imageUrl) {
+            final updated = cached.copyWith(imageUrl: imageUrl);
+            _cacheLocation(updated);
+            return updated;
+          }
+          return cached;
+        }
 
         // Get image URL (fast path - just constructs URL)
         final imageUrl = await _getLocationImageUrl(item);
+        developer.log(
+          '[LocationHelper] Location $locationId - imageUrl: $imageUrl',
+          name: 'LocationHelper',
+        );
 
-        final location = LocationModel.fromJson(item, imageUrl);
+        var location = LocationModel.fromJson(item, imageUrl);
+        
+        // Calculate match score if user affinity data is available
+        if (userVibeAffinity != null || userDietaryAffinity != null) {
+          final score = LocationModel.calculateMatchScore(
+            userVibeAffinity: userVibeAffinity,
+            userDietaryAffinity: userDietaryAffinity,
+            locationVibeVector: location.vibeVector,
+            locationDietaryVector: location.dietaryRequirementVector,
+          );
+          location = location.copyWith(matchScore: score);
+        }
+        
         _cacheLocation(location);
         return location;
       } catch (e, st) {
@@ -218,6 +248,33 @@ class LocationHelper {
       // Clean expired cache periodically
       _cleanExpiredCache();
 
+      // Fetch user affinity vectors for match scoring
+      List<int>? userVibeAffinity;
+      List<int>? userDietaryAffinity;
+      try {
+        final userProf = await _client
+            .from(SupabaseConstants.tableUsers)
+            .select(
+              '${SupabaseConstants.columnVibeTagAffinity}, ${SupabaseConstants.columnDietaryRequirementTagAffinity}',
+            )
+            .eq(SupabaseConstants.columnSupabaseId, user.id)
+            .maybeSingle();
+
+        if (userProf != null) {
+          final vibeRaw = userProf[SupabaseConstants.columnVibeTagAffinity];
+          if (vibeRaw is List) {
+            userVibeAffinity = List<int>.from(vibeRaw.map((e) => (e as num).toInt()));
+          }
+          
+          final dietaryRaw = userProf[SupabaseConstants.columnDietaryRequirementTagAffinity];
+          if (dietaryRaw is List) {
+            userDietaryAffinity = List<int>.from(dietaryRaw.map((e) => (e as num).toInt()));
+          }
+        }
+      } catch (e) {
+        developer.log('[Saved] Could not fetch user affinity data: $e', name: 'LocationHelper');
+      }
+
       // First get all user_location_actions with 'save' action for this user
       developer.log('[Saved] Querying saved actions for user ${user.id}', name: 'LocationHelper');
       final savedActions = await _client
@@ -263,8 +320,12 @@ class LocationHelper {
         );
       }
 
-      // Use the efficient batch processor (per-location error resilience)
-      final result = await _processLocationsWithImages(locations);
+      // Use the efficient batch processor with user affinity for match scoring
+      final result = await _processLocationsWithImages(
+        locations,
+        userVibeAffinity: userVibeAffinity,
+        userDietaryAffinity: userDietaryAffinity,
+      );
       developer.log(
         '[Saved] Processed ${result.length}/${(locations as List).length} locations OK in ${stopwatch.elapsedMilliseconds}ms',
         name: 'LocationHelper',

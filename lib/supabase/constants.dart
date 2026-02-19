@@ -35,7 +35,8 @@ class SupabaseConstants {
   static const String columnSpiceTolerance = 'spice_tolerance';
   static const String columnFcmToken = 'fcm_token';
   static const String columnFcmTokenUpdatedAt = 'fcm_token_updated_at';
-
+  static const String columnVibeTagAffinity = 'vibe_tag_affinity';
+  static const String columnDietaryRequirementTagAffinity = 'dietary_requirement_tag_affinity';
 
   // Column names - locations
   static const String columnLocationId = 'location_id';
