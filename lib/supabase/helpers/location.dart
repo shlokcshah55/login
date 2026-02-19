@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter/foundation.dart';
 import 'package:login/supabase/helpers/tags.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -120,34 +122,43 @@ class LocationHelper {
     }
   }
 
-  /// Process a list of location JSON objects into LocationModel list
-  /// Handles image URLs efficiently with parallel processing
+  /// Process a list of location JSON objects into LocationModel list.
+  /// Handles image URLs efficiently with parallel processing.
+  /// Individual location parsing errors are caught and logged so one bad
+  /// row does not kill the entire batch.
   Future<List<LocationModel>> _processLocationsWithImages(
       List<dynamic> locationsData) async {
     if (locationsData.isEmpty) return [];
 
-    final List<LocationModel> results = [];
-
-    // Process in parallel batches for efficiency
+    // Process in parallel — errors per-item are caught individually
     final futures = locationsData.map((item) async {
-      final locationId = item[SupabaseConstants.columnLocationId] as int;
+      try {
+        final locationId = item[SupabaseConstants.columnLocationId] as int;
 
-      // Check cache first
-      final cached = _getFromCache(locationId);
-      if (cached != null) return cached;
+        // Check cache first
+        final cached = _getFromCache(locationId);
+        if (cached != null) return cached;
 
-      // Get image URL (fast path - just constructs URL)
-      final imageUrl = await _getLocationImageUrl(item);
+        // Get image URL (fast path - just constructs URL)
+        final imageUrl = await _getLocationImageUrl(item);
 
-      final location = LocationModel.fromJson(item, imageUrl);
-      _cacheLocation(location);
-      return location;
+        final location = LocationModel.fromJson(item, imageUrl);
+        _cacheLocation(location);
+        return location;
+      } catch (e, st) {
+        final id = item[SupabaseConstants.columnLocationId];
+        developer.log(
+          '[LocationHelper] Failed to parse location $id',
+          error: e,
+          stackTrace: st,
+          name: 'LocationHelper',
+        );
+        return null;
+      }
     }).toList();
 
     final processed = await Future.wait(futures);
-    results.addAll(processed);
-
-    return results;
+    return processed.whereType<LocationModel>().toList();
   }
 
   // This is temporary until we replace this with reccomendation call
@@ -196,6 +207,7 @@ class LocationHelper {
   }
 
   Future<List<LocationModel>> _fetchSavedLocations() async {
+    final stopwatch = Stopwatch()..start();
     try {
       final user = SupabaseClientManager().currentUser;
 
@@ -207,6 +219,7 @@ class LocationHelper {
       _cleanExpiredCache();
 
       // First get all user_location_actions with 'save' action for this user
+      developer.log('[Saved] Querying saved actions for user ${user.id}', name: 'LocationHelper');
       final savedActions = await _client
           .from(SupabaseConstants.tableUserLocationActions)
           .select('${SupabaseConstants.columnLocationId}')
@@ -215,6 +228,7 @@ class LocationHelper {
           .eq(SupabaseConstants.columnAcked, true);
 
       if (savedActions.isEmpty) {
+        developer.log('[Saved] No saved actions found (${stopwatch.elapsedMilliseconds}ms)', name: 'LocationHelper');
         return [];
       }
 
@@ -222,6 +236,7 @@ class LocationHelper {
       final locationIds = (savedActions as List)
           .map((action) => action[SupabaseConstants.columnLocationId] as int)
           .toList();
+      developer.log('[Saved] Found ${locationIds.length} saved IDs: $locationIds', name: 'LocationHelper');
 
       if (locationIds.isEmpty) {
         return [];
@@ -233,13 +248,38 @@ class LocationHelper {
           .select()
           .inFilter(SupabaseConstants.columnLocationId, locationIds);
 
-      // Use the efficient batch processor
-      return await _processLocationsWithImages(locations as List);
-    } catch (e) {
-      if (kDebugMode) {
-        print('Error getting saved locations: $e');
+      developer.log(
+        '[Saved] Fetched ${(locations as List).length} rows from DB in ${stopwatch.elapsedMilliseconds}ms',
+        name: 'LocationHelper',
+      );
+
+      // Log first couple of locations for quick sanity check
+      for (var i = 0; i < (locations as List).length && i < 2; i++) {
+        final loc = locations[i];
+        developer.log(
+          '[Saved] Sample [$i]: id=${loc['location_id']}, name=${loc['name']}, '
+          'keys=${(loc as Map).keys.length}',
+          name: 'LocationHelper',
+        );
       }
+
+      // Use the efficient batch processor (per-location error resilience)
+      final result = await _processLocationsWithImages(locations);
+      developer.log(
+        '[Saved] Processed ${result.length}/${(locations as List).length} locations OK in ${stopwatch.elapsedMilliseconds}ms',
+        name: 'LocationHelper',
+      );
+      return result;
+    } catch (e, st) {
+      developer.log(
+        '[Saved] ERROR fetching saved locations',
+        error: e,
+        stackTrace: st,
+        name: 'LocationHelper',
+      );
       return [];
+    } finally {
+      stopwatch.stop();
     }
   }
 

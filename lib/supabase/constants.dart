@@ -77,7 +77,36 @@ class SupabaseConstants {
   static const String columnIngestedAt = 'ingested_at';
   static const String columnPhotoReferenceValidUntil = 'photo_reference_valid_until';
   static const String columnPhotoReferenceScore = 'photo_reference_score';
+  static const String columnImageStored = 'image_stored';
   static const String columnEmoji = 'emoji';
+  static const String columnGoogleMapsUri = 'google_maps_uri';
+  static const String columnPhotos = 'photos';
+  static const String columnReviews = 'reviews';
+  static const String columnReviewSummary = 'review_summary';
+  static const String columnGoodForChildren = 'good_for_children';
+  static const String columnGoodForGroups = 'good_for_groups';
+  static const String columnGoodForWatchingSports = 'good_for_watching_sports';
+  static const String columnLiveMusic = 'live_music';
+  static const String columnOutdoorSeating = 'outdoor_seating';
+  static const String columnServesBeer = 'serves_beer';
+  static const String columnServesBreakfast = 'serves_breakfast';
+  static const String columnServesBrunch = 'serves_brunch';
+  static const String columnServesCocktails = 'serves_cocktails';
+  static const String columnServesCoffee = 'serves_coffee';
+  static const String columnServesDessert = 'serves_dessert';
+  static const String columnServesDinner = 'serves_dinner';
+  static const String columnServesLunch = 'serves_lunch';
+  static const String columnServesVegetarianFood = 'serves_vegetarian_food';
+  static const String columnServesWine = 'serves_wine';
+  static const String columnMenu = 'menu';
+  static const String columnGeneratedSummary = 'generated_summary';
+  static const String columnRecommendedDishes = 'reccomended_dishes'; // note: DB typo preserved
+  static const String columnMenuAnalysisConfidence = 'menu_analysis_confidence';
+  static const String columnVibeVector = 'vibe_vector';
+  static const String columnUpdatedVibe = 'updated_vibe';
+  static const String columnIsTakeaway = 'is_takeaway';
+  static const String columnDietaryRequirementVector = 'dietary_requirement_vector';
+  static const String columnCuisineScoresJson = 'cuisine_scores_json';
 
   // Column names - videos
   static const String columnVideoId = 'video_id';

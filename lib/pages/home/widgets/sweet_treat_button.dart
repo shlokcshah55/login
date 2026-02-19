@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:login/pages/home/widgets/home_action_pill_button.dart';
 
 class SweetTreatButton extends StatelessWidget {
   final VoidCallback onPressed;
@@ -10,20 +11,18 @@ class SweetTreatButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: FloatingActionButton(
-        heroTag: "sweetTreatButton",
-        onPressed: () {
-          print('🧁 SWEET TREAT BUTTON TAPPED');
-          onPressed();
-        },
-        backgroundColor: Colors.pink.shade400,
-        child: const Icon(
-          Icons.cake_rounded,
-          size: 28.0,
-          color: Colors.white,
-        ),
-        ),
+    return HomeActionPillButton(
+      label: 'sweet treat',
+      icon: Icons.cake_rounded,
+      gradientColors: const [
+        Color(0xFFCC4B7A),
+        Color(0xFFFF7AA9),
+      ],
+      foregroundColor: Colors.white,
+      onPressed: () {
+        print('🧁 SWEET TREAT BUTTON TAPPED');
+        onPressed();
+      },
     );
   }
 }

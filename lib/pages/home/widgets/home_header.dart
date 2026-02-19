@@ -5,11 +5,13 @@ import 'package:login/widgets/home/LocationCarousel/filter_bar.dart';
 class HomeHeader extends StatelessWidget {
   final LocationListType currentListType;
   final ValueChanged<LocationListType> onListTypeChanged;
+  final bool isBubbleModeActive;
 
   const HomeHeader({
     Key? key,
     required this.currentListType,
     required this.onListTypeChanged,
+    this.isBubbleModeActive = false,
   }) : super(key: key);
 
   @override
@@ -34,13 +36,14 @@ class HomeHeader extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 15.0, bottom: 8.0),
-              child: FilterBar(
-                currentListType: currentListType,
-                onListTypeChanged: onListTypeChanged,
+            if (!isBubbleModeActive)
+              Padding(
+                padding: const EdgeInsets.only(top: 15.0, bottom: 8.0),
+                child: FilterBar(
+                  currentListType: currentListType,
+                  onListTypeChanged: onListTypeChanged,
+                ),
               ),
-            ),
           ],
         ),
       ),

@@ -87,7 +87,8 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _handleBubbleModeRequest() async {
     if (!mounted) return; // Guard against calls after dispose
-    print('HomePage listener fired! hasPending: ${_bubbleModeProvider.hasPendingActivation}, isActive: ${widget.isActive}');
+    print(
+        'HomePage listener fired! hasPending: ${_bubbleModeProvider.hasPendingActivation}, isActive: ${widget.isActive}');
     if (_bubbleModeProvider.hasPendingActivation && widget.isActive) {
       final bubble = _bubbleModeProvider.pendingBubble!;
       print('Processing bubble activation for: ${bubble.name}');
@@ -168,6 +169,9 @@ class _HomePageState extends State<HomePage> {
         builder: (context, viewModel, _) {
           final userDataProvider = context.watch<UserDataProvider>();
           _scheduleWizardPopoverIfNeeded(userDataProvider);
+          final carouselBottom = viewModel.bottomNavVisible ? 90.0 : 20.0;
+          final carouselHeight = viewModel.bottomNavVisible ? 160.0 : 200.0;
+          final quickActionsBottom = carouselBottom + carouselHeight + 8.0;
 
           // Build the main scaffold content
           Widget mainContent = Scaffold(
@@ -186,12 +190,13 @@ class _HomePageState extends State<HomePage> {
                   child: HomeHeader(
                     currentListType: viewModel.currentListType,
                     onListTypeChanged: viewModel.setListType,
+                    isBubbleModeActive: viewModel.isBubbleModeActive,
                   ),
                 ),
                 AnimatedPositioned(
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.easeOutQuint,
-                  bottom: viewModel.bottomNavVisible ? 90.0 : 20.0,
+                  bottom: carouselBottom,
                   left: 0,
                   right: 0,
                   child: HomeCarousel(
@@ -204,25 +209,28 @@ class _HomePageState extends State<HomePage> {
                     onLocationSelected: viewModel.onLocationSelected,
                   ),
                 ),
-                Positioned(
-                  top: 80,
-                  right: 20,
-                  child: MagicSearchButton(
-                    onPressed: () => viewModel.toggleSearchOverlay(true),
-                  ),
-                ),
-                Positioned(
-                  top: 160,
-                  right: 20,
-                  child: GavelButton(
-                    onPressed: () => viewModel.toggleJustDecideOverlay(true),
-                  ),
-                ),
-                Positioned(
-                  top: 240,
-                  right: 20,
-                  child: SweetTreatButton(
-                    onPressed: () => viewModel.toggleSweetTreatOverlay(true),
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOutQuint,
+                  bottom: quickActionsBottom,
+                  left: 12.0,
+                  right: 12.0,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      MagicSearchButton(
+                        onPressed: () =>
+                            viewModel.toggleSearchOverlay(true),
+                      ),
+                      GavelButton(
+                        onPressed: () =>
+                            viewModel.toggleJustDecideOverlay(true),
+                      ),
+                      SweetTreatButton(
+                        onPressed: () =>
+                            viewModel.toggleSweetTreatOverlay(true),
+                      ),
+                    ],
                   ),
                 ),
                 if (viewModel.showSearchOverlay)
@@ -244,7 +252,8 @@ class _HomePageState extends State<HomePage> {
                     onSubmit: viewModel.submitSweetTreatSearch,
                   ),
                 // Bubble mode overlay - always in tree, visibility controlled internally
-                if (viewModel.isBubbleModeActive && viewModel.activeBubble != null)
+                if (viewModel.isBubbleModeActive &&
+                    viewModel.activeBubble != null)
                   BubbleModeOverlay(
                     bubble: viewModel.activeBubble!,
                     onDeactivate: viewModel.deactivateBubbleMode,
@@ -254,7 +263,7 @@ class _HomePageState extends State<HomePage> {
                     viewModel.currentListType == LocationListType.recommended)
                   Positioned.fill(
                     child: Container(
-                      color: Colors.black.withOpacity(0.3),
+                      color: Colors.black.withValues(alpha: 77),
                       child: Center(
                         child: Container(
                           padding: const EdgeInsets.all(24.0),
@@ -317,10 +326,12 @@ class _HomePageState extends State<HomePage> {
                               child: viewModel.justDecideLocations.isEmpty
                                   ? Center(
                                       child: Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
                                         children: [
                                           const CircularProgressIndicator(
-                                            valueColor: AlwaysStoppedAnimation<Color>(
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
                                               Color.fromARGB(255, 68, 95, 12),
                                             ),
                                           ),
@@ -338,7 +349,8 @@ class _HomePageState extends State<HomePage> {
                                   : SwipeCardStack(
                                       locations: viewModel.justDecideLocations,
                                       onSwipe: viewModel.onJustDecideSwipe,
-                                      onComplete: viewModel.onJustDecideComplete,
+                                      onComplete:
+                                          viewModel.onJustDecideComplete,
                                     ),
                             ),
                             // Footer

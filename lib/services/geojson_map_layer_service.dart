@@ -383,11 +383,13 @@ class GeoJsonMapLayerService {
 
         try {
           // Use stacked cluster pin (NO badge - badge rendered by text layer)
+          // Use representative emoji and color from the cluster
           final iconBytes = await PinitMarkers.createClusterPinWithBadge(
             emoji: data.emoji,
-            remainingCount: level.stackCount,
-            devicePixelRatio: 3.0,
+            remainingCount: 12,          // was remainingCount, now total
             surfaceColor: data.color,
+            cuisine: null,
+            avatarColors: [],
           );
 
           final image = mapbox.MbxImage(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:login/pages/home/widgets/home_action_pill_button.dart';
 
 class GavelButton extends StatelessWidget {
   final VoidCallback onPressed;
@@ -10,20 +11,18 @@ class GavelButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: FloatingActionButton(
-        heroTag: "justDecideButton",
-        onPressed: () {
-          print('🎲 JUST DECIDE BUTTON TAPPED');
-          onPressed();
-        },
-        backgroundColor: const Color.fromARGB(255, 68, 95, 12),
-        child: const Icon(
-          Icons.explore_rounded,
-          size: 28.0,
-          color: Colors.white,
-        ),
-        ),
-      );
+    return HomeActionPillButton(
+      label: 'just decide',
+      icon: Icons.gavel_rounded,
+      gradientColors: const [
+        Color(0xFF3E5D20),
+        Color(0xFF6A8A3A),
+      ],
+      foregroundColor: Colors.white,
+      onPressed: () {
+        print('🎲 JUST DECIDE BUTTON TAPPED');
+        onPressed();
+      },
+    );
   }
 }

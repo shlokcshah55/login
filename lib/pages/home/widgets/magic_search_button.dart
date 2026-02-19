@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:login/themes/app_colors.dart';
+import 'package:login/pages/home/widgets/home_action_pill_button.dart';
 
 class MagicSearchButton extends StatelessWidget {
   final VoidCallback onPressed;
@@ -11,20 +11,18 @@ class MagicSearchButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: FloatingActionButton(
-        heroTag: "magicButton",
-        onPressed: () {
-          print('🔮 MAGIC SEARCH BUTTON TAPPED');
-          onPressed();
-        },
-        backgroundColor: AppColors.secondary,
-        child: const Icon(
-          Icons.auto_awesome,
-          size: 28.0,
-          color: AppColors.onSecondary,
-        ),
-      ),
+    return HomeActionPillButton(
+      label: 'magic search',
+      icon: Icons.auto_awesome_rounded,
+      gradientColors: const [
+        Color(0xFF6C3FB4),
+        Color(0xFF8E66DF),
+      ],
+      foregroundColor: Colors.white,
+      onPressed: () {
+        print('🔮 MAGIC SEARCH BUTTON TAPPED');
+        onPressed();
+      },
     );
   }
 }

@@ -93,11 +93,14 @@ class MapStateProvider with ChangeNotifier {
   /// 
   /// This method should be called when the location list changes.
   /// Mapbox handles clustering automatically.
-  Future<void> updateMapLocations(List<LocationModel> locations) async {
-    if (_useGeoJsonLayers && _geoJsonLayerService != null) {
+  /// Returns true if the update was actually performed, false if skipped.
+  Future<bool> updateMapLocations(List<LocationModel> locations) async {
+    if (_useGeoJsonLayers && _geoJsonLayerService != null && _geoJsonLayerService!.isInitialized) {
       await _geoJsonLayerService!.updateLocations(locations);
       log("MapStateProvider: Updated ${locations.length} locations on map.");
+      return true;
     }
+    return false;
   }
 
   /// Handle a tap on the map at the given screen coordinates.

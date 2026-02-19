@@ -219,14 +219,18 @@ class LocationListManager with ChangeNotifier {
         return;
       }
 
-      // Fetch location details from Supabase
-      final locationData = await Supabase.instance.client
+        // Fetch location details from Supabase
+        print('[Supabase] Querying location_id=$locationId');
+        final locationData = await Supabase.instance.client
           .from('locations')
           .select()
           .eq('location_id', locationId)
           .single();
+        print('[Supabase] Result for location_id=$locationId: ${locationData.toString().substring(0, math.min(200, locationData.toString().length))}');
 
-      final locationImage = await _supabaseService.locations.getLocationImage(
+        // Optionally log image fetch
+        print('[Supabase] Fetching image for location_id=$locationId, google_place_id=${locationData['google_place_id']}, photo_reference=${locationData['photo_reference']}');
+        final locationImage = await _supabaseService.locations.getLocationImage(
           locationId,
           locationData['google_place_id'],
           locationData['photo_reference']);
@@ -491,23 +495,30 @@ class LocationListManager with ChangeNotifier {
       return;
     }
 
-    // Prevent duplicate fetches
+    // Prevent duplicate fetches while one is in-flight
     if (_isLoadingSaved) {
-      print("Already loading saved locations, skipping duplicate request");
+      log('[fetchSavedLocations] Already in-flight, skipping');
       return;
     }
 
-    if (_savedLocationsLoaded && _savedLocations.isNotEmpty) {
-      print(
-          "Saved locations already loaded (${_savedLocations.length} items), skipping fetch");
+    // Already completed a successful load — don't re-fetch
+    if (_savedLocationsLoaded) {
+      log('[fetchSavedLocations] Already loaded (${_savedLocations.length} items), skipping');
       return;
     }
 
     _isLoadingSaved = true;
+    log('[fetchSavedLocations] Starting fetch for user $_userId');
+    final stopwatch = Stopwatch()..start();
 
     try {
       List<LocationModel> supabaseSavedLocations =
           await _supabaseService.locations.getSavedLocations();
+
+      log('[fetchSavedLocations] Got ${supabaseSavedLocations.length} locations in ${stopwatch.elapsedMilliseconds}ms');
+
+      // Always mark as loaded — even if empty (user simply has no saves yet)
+      _savedLocationsLoaded = true;
 
       if (supabaseSavedLocations.isNotEmpty) {
         // First create a temporary map to select which locations should show names
@@ -532,8 +543,7 @@ class LocationListManager with ChangeNotifier {
           }),
         );
         _savedLocations = Map.fromEntries(markers);
-        log("Fetched ${supabaseSavedLocations.length} saved locations from Supabase.");
-        _savedLocationsLoaded = true;
+        log('[fetchSavedLocations] Created ${markers.length} markers in ${stopwatch.elapsedMilliseconds}ms');
       }
 
       // If the current type is saved, update currentItems
@@ -541,9 +551,12 @@ class LocationListManager with ChangeNotifier {
         _currentItems = _savedLocations;
       }
       notifyListeners();
-    } catch (e) {
-      log('Error fetching saved locations: $e');
+    } catch (e, st) {
+      log('[fetchSavedLocations] ERROR: $e\n$st');
+      // Still mark as loaded so we don't retry in an infinite loop
+      _savedLocationsLoaded = true;
     } finally {
+      stopwatch.stop();
       _isLoadingSaved = false;
     }
   }
