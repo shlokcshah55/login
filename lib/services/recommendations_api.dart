@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
 
@@ -57,15 +58,43 @@ class RecommendationsApi {
     log('📤 [RecommendationsApi] POST request to: $uri');
     log('📤 [RecommendationsApi] Request body: ${jsonEncode(requestJson)}');
 
-    final response = await _client.post(
-      uri,
-      headers: const {
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode(requestJson),
-    );
+    // Retry logic for 500 errors (transient failures)
+    const maxRetries = 3;
+    const retryDelays = [Duration(milliseconds: 500), Duration(seconds: 1), Duration(seconds: 2)];
+    
+    late http.Response response;
+    for (int attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        response = await _client.post(
+          uri,
+          headers: const {
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode(requestJson),
+        ).timeout(const Duration(seconds: 30));
 
-    log('📥 [RecommendationsApi] Response status: ${response.statusCode}');
+        log('📥 [RecommendationsApi] Response status: ${response.statusCode}');
+
+        // Success or client error - don't retry
+        if (response.statusCode < 500) {
+          break;
+        }
+
+        // 500+ error - retry if we haven't exhausted attempts
+        if (attempt < maxRetries) {
+          log('⚠️ [RecommendationsApi] Server error (${response.statusCode}), retrying in ${retryDelays[attempt].inMilliseconds}ms (attempt ${attempt + 1}/$maxRetries)');
+          await Future.delayed(retryDelays[attempt]);
+          continue;
+        }
+      } on TimeoutException {
+        if (attempt < maxRetries) {
+          log('⏱️ [RecommendationsApi] Request timeout, retrying (attempt ${attempt + 1}/$maxRetries)');
+          await Future.delayed(retryDelays[attempt]);
+          continue;
+        }
+        rethrow;
+      }
+    }
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       log('❌ [RecommendationsApi] Request failed: ${response.body}');

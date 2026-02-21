@@ -56,6 +56,9 @@ class MapStateProvider with ChangeNotifier {
   }
 
   /// Call this from MapWidget's onMapCreated callback.
+  /// 
+  /// Note: GeoJSON layer service initialization is deferred until the first
+  /// location update to ensure supabase restaurants have loaded first.
   Future<void> setMapboxMap(mapbox.MapboxMap map, {
     OnLocationTapped? onLocationTapped,
     OnClusterTapped? onClusterTapped,
@@ -63,7 +66,8 @@ class MapStateProvider with ChangeNotifier {
     _mapboxMap = map;
     
     if (_useGeoJsonLayers) {
-      // Initialize GeoJSON-based layers (new approach)
+      // Create GeoJSON service but defer initialization until locations arrive
+      // This ensures supabase restaurants are loaded before we set up the layers
       _geoJsonLayerService = GeoJsonMapLayerService(
         mapboxMap: map,
         config: const GeoJsonLayerConfig(
@@ -77,8 +81,7 @@ class MapStateProvider with ChangeNotifier {
         onLocationTapped: onLocationTapped,
         onClusterTapped: onClusterTapped,
       );
-      await _geoJsonLayerService!.initialize();
-      log("MapStateProvider: GeoJSON layer service initialized.");
+      log("MapStateProvider: GeoJSON layer service created (initialization deferred until locations arrive).");
     } else {
       // Legacy: use PointAnnotationManager
       _pointAnnotationManager = await map.annotations.createPointAnnotationManager();
@@ -93,14 +96,28 @@ class MapStateProvider with ChangeNotifier {
   /// 
   /// This method should be called when the location list changes.
   /// Mapbox handles clustering automatically.
+  /// If the service hasn't been initialized yet, it will be initialized now
+  /// (ensuring supabase restaurants have loaded first).
   /// Returns true if the update was actually performed, false if skipped.
   Future<bool> updateMapLocations(List<LocationModel> locations) async {
-    if (_useGeoJsonLayers && _geoJsonLayerService != null && _geoJsonLayerService!.isInitialized) {
-      await _geoJsonLayerService!.updateLocations(locations);
-      log("MapStateProvider: Updated ${locations.length} locations on map.");
-      return true;
+    if (!_useGeoJsonLayers || _geoJsonLayerService == null) {
+      return false;
     }
-    return false;
+    
+    // Lazy initialization: initialize on first location update
+    if (!_geoJsonLayerService!.isInitialized) {
+      try {
+        await _geoJsonLayerService!.initialize();
+        log("MapStateProvider: GeoJSON layer service initialized on first location update.");
+      } catch (e) {
+        log("MapStateProvider: Failed to initialize GeoJSON layer service: $e");
+        return false;
+      }
+    }
+    
+    await _geoJsonLayerService!.updateLocations(locations);
+    log("MapStateProvider: Updated ${locations.length} locations on map.");
+    return true;
   }
 
   /// Handle a tap on the map at the given screen coordinates.

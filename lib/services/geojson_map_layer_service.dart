@@ -88,6 +88,7 @@ class GeoJsonMapLayerService {
 
   bool _isInitialized = false;
   String? _selectedLocationId;
+  List<LocationModel>? _pendingLocations;
 
   // Layer IDs
   static const String _clusterCircleLayerId = 'pinit-cluster-circles';
@@ -118,6 +119,7 @@ class GeoJsonMapLayerService {
   /// Initialize the GeoJSON source and symbol layers.
   /// 
   /// Must be called after the map style has loaded.
+  /// Any locations that arrived before initialization will be flushed after setup completes.
   Future<void> initialize() async {
     if (_isInitialized) {
       log('GeoJsonMapLayerService: Already initialized');
@@ -140,6 +142,14 @@ class GeoJsonMapLayerService {
 
       _isInitialized = true;
       log('GeoJsonMapLayerService: Initialized successfully');
+      
+      // Flush any locations that arrived before initialization completed
+      if (_pendingLocations != null) {
+        log('GeoJsonMapLayerService: Flushing ${_pendingLocations!.length} buffered locations');
+        final pending = _pendingLocations!;
+        _pendingLocations = null;
+        await _applyLocations(pending);
+      }
     } catch (e, stack) {
       log('GeoJsonMapLayerService: Initialization failed: $e\n$stack');
       rethrow;
@@ -148,14 +158,24 @@ class GeoJsonMapLayerService {
 
   /// Update the locations displayed on the map.
   /// 
-  /// Converts [locations] to GeoJSON and updates the source.
+  /// If initialization hasn't completed yet, locations are buffered and will be
+  /// applied once initialize() completes. Otherwise, updates are applied immediately.
   /// Mapbox will automatically handle clustering.
   Future<void> updateLocations(List<LocationModel> locations) async {
     if (!_isInitialized) {
-      log('GeoJsonMapLayerService: Not initialized, cannot update locations');
+      log('GeoJsonMapLayerService: Buffering ${locations.length} locations until initialized');
+      _pendingLocations = locations;
       return;
     }
+    
+    await _applyLocations(locations);
+  }
 
+  /// Apply locations to the map immediately.
+  /// 
+  /// Registers icons and updates the GeoJSON source with the provided locations.
+  /// Should only be called after initialize() completes.
+  Future<void> _applyLocations(List<LocationModel> locations) async {
     try {
       // Register icons for all unique emoji+color combinations (both regular and cluster)
       await _registerEmojiIcons(locations);
@@ -170,9 +190,9 @@ class GeoJsonMapLayerService {
         geoJsonString,
       );
       
-      log('GeoJsonMapLayerService: Updated ${locations.length} locations');
+      log('GeoJsonMapLayerService: Applied ${locations.length} locations');
     } catch (e) {
-      log('GeoJsonMapLayerService: Failed to update locations: $e');
+      log('GeoJsonMapLayerService: Failed to apply locations: $e');
       rethrow;
     }
   }
@@ -290,7 +310,8 @@ class GeoJsonMapLayerService {
     final iconData = <String, ({String emoji, Color color})>{};
 
     for (final location in locations) {
-      final emoji = location.emoji ?? '📍';
+      // Ensure emoji is not null or empty - default to pin if missing
+      final emoji = (location.emoji?.isNotEmpty == true) ? location.emoji! : '📍';
       final color = PinitMarkerPalette.forCuisine(
         location.cuisine,
         location.types,
@@ -350,7 +371,8 @@ class GeoJsonMapLayerService {
     final iconData = <String, ({String emoji, Color color})>{};
 
     for (final location in locations) {
-      final emoji = location.emoji ?? '📍';
+      // Ensure emoji is not null or empty - default to pin if missing
+      final emoji = (location.emoji?.isNotEmpty == true) ? location.emoji! : '📍';
       final color = PinitMarkerPalette.forCuisine(
         location.cuisine,
         location.types,
@@ -669,13 +691,15 @@ class GeoJsonMapLayerService {
 
       // Store colorHex without '#' for icon lookup
       final colorHex = color.value.toRadixString(16).substring(2).toUpperCase();
+      // Ensure emoji is not null or empty - default to pin if missing
+      final emoji = (location.emoji?.isNotEmpty == true) ? location.emoji! : '📍';
 
       features.add({
         'type': 'Feature',
         'properties': {
           'locationId': location.locationId,
           'name': location.name,
-          'emoji': location.emoji ?? '📍',
+          'emoji': emoji,
           'cuisine': location.cuisine,
           'types': location.types,
           'rating': location.rating,
