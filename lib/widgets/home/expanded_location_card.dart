@@ -55,37 +55,26 @@ class _MatchResult {
   }
 }
 
-_MatchResult _computeMatch({
+_MatchResult _buildMatchResult({
+  required double? matchScore,
   required VibeVector? locationVibe,
   required List<int>? userVibeAffinity,
   required List<int>? locationDietary,
   required List<int>? userDietary,
 }) {
-  // ── Vibe match via dot-product ──
-  double vibeScore = 0.0;
+  // Use pre-calculated match score from LocationModel to avoid double calculation
+  final score = matchScore ?? 0.0;
+  
   final contributors = <MapEntry<String, double>>[];
+  double? dietaryMatch;
 
+  // Calculate contributors for display (vibe-based)
   if (locationVibe != null &&
       locationVibe.values.isNotEmpty &&
       userVibeAffinity != null &&
       userVibeAffinity.isNotEmpty) {
     final locVals = locationVibe.values;
     final int len = math.min(locVals.length, userVibeAffinity.length);
-
-    double dot = 0.0;
-    double magA = 0.0;
-    double magB = 0.0;
-
-    for (int i = 0; i < len; i++) {
-      final a = locVals[i];
-      final b = userVibeAffinity[i].toDouble();
-      dot += a * b;
-      magA += a * a;
-      magB += b * b;
-    }
-
-    final denom = math.sqrt(magA) * math.sqrt(magB);
-    vibeScore = denom > 0 ? (dot / denom).clamp(0.0, 1.0) : 0.0;
 
     // Find top contributors: element-wise product, sorted descending.
     for (int i = 0; i < len && i < vibeTagsByIndex.length; i++) {
@@ -97,8 +86,7 @@ _MatchResult _computeMatch({
     contributors.sort((a, b) => b.value.compareTo(a.value));
   }
 
-  // ── Dietary match ──
-  double? dietaryMatch;
+  // Calculate dietary match for display
   if (locationDietary != null &&
       locationDietary.isNotEmpty &&
       userDietary != null &&
@@ -115,14 +103,8 @@ _MatchResult _computeMatch({
     dietaryMatch = required > 0 ? matched / required : 1.0;
   }
 
-  // ── Composite score (vibe-dominant, dietary as bonus) ──
-  double composite = vibeScore;
-  if (dietaryMatch != null) {
-    composite = vibeScore * 0.75 + dietaryMatch * 0.25;
-  }
-
   return _MatchResult(
-    score: composite,
+    score: score,
     topContributors: contributors.take(5).toList(),
     dietaryMatch: dietaryMatch,
   );
@@ -257,9 +239,10 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
       widget.location.types,
     );
 
-    // Compute match using provider data
+    // Use pre-calculated match score from LocationModel, with locally-computed contributors
     final userProvider = Provider.of<UserDataProvider>(context, listen: false);
-    _match = _computeMatch(
+    _match = _buildMatchResult(
+      matchScore: widget.location.matchScore,
       locationVibe: widget.location.vibe,
       userVibeAffinity: userProvider.vibeTagAffinity,
       locationDietary: widget.location.dietaryRequirementVector,

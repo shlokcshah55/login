@@ -139,6 +139,7 @@ class PinitMarkers {
     double wavyScore = 0.0,
     double bossmanScore = 0.0,
     int savedCount = 0,
+    double matchScore = 0.0,
   }) {
     final color =
         surfaceColor ?? PinitMarkerPalette.forCuisine(cuisine, types);
@@ -146,7 +147,7 @@ class PinitMarkers {
     final key = 'pin3|$emoji|$name|${devicePixelRatio.toStringAsFixed(2)}'
         '|${color.value}|${textColor.value}|$selected|$showText|$avatarKey'
         '|${wavyScore.toStringAsFixed(2)}|${bossmanScore.toStringAsFixed(2)}'
-        '|$savedCount';
+        '|$savedCount|${matchScore.toStringAsFixed(2)}';
     final cached = _cache.get(key);
     if (cached != null) return Future.value(cached);
 
@@ -162,6 +163,7 @@ class PinitMarkers {
       wavyScore: wavyScore,
       bossmanScore: bossmanScore,
       savedCount: savedCount,
+      matchScore: matchScore,
     ).then((b) {
       _cache.set(key, b);
       return b;
@@ -375,6 +377,52 @@ class PinitMarkers {
     canvas.drawCircle(centre, ringRadius, paint);
   }
 
+  /// Draws a shimmer ring for high match score locations (>50%).
+  /// More intense shimmer for higher match scores.
+  static void _drawMatchScoreShimmer(
+    Canvas canvas, {
+    required Offset centre,
+    required double outerRadius,
+    required double dpr,
+    required double matchScore,
+  }) {
+    // Ring geometry — outside the avatar ring
+    final double shimmerWidth = 1.8 * dpr;
+    final double shimmerRadius = outerRadius + shimmerWidth / 2 + 2.0 * dpr;
+
+    // Intensity scales with match score (0.5–1.0)
+    final double t = ((matchScore - 0.5) / 0.5).clamp(0.0, 1.0);
+    final double shimmerOpacity = 0.3 + 0.5 * t; // 0.3–0.8
+
+    // Warm golden shimmer for high match scores
+    final Color baseColor = Color.lerp(
+      const Color(0xFFFFB800),
+      const Color(0xFFFF6B9D),
+      (t * 0.3).clamp(0.0, 1.0),
+    )!;
+
+    // Draw dual-layer glow for depth
+    // Outer soft glow
+    canvas.drawCircle(
+      centre,
+      shimmerRadius + 1.5 * dpr,
+      Paint()
+        ..color = baseColor.withOpacity(shimmerOpacity * 0.4)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 2.5 * dpr),
+    );
+
+    // Inner shimmer ring
+    canvas.drawCircle(
+      centre,
+      shimmerRadius,
+      Paint()
+        ..color = baseColor.withOpacity(shimmerOpacity)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = shimmerWidth
+        ..strokeCap = StrokeCap.round,
+    );
+  }
+
   /// Draws the teardrop pointer / tail beneath the bubble.
   static void _drawPointerTail(
     Canvas canvas, {
@@ -566,6 +614,7 @@ class PinitMarkers {
     required double wavyScore,
     required double bossmanScore,
     required int savedCount,
+    required double matchScore,
   }) async {
     // ── Determine vibe mode ──
     final bool isWavy = _isWavy(wavyScore, bossmanScore);
@@ -672,6 +721,15 @@ class PinitMarkers {
           innerRadius: bubR + avatarRingExtra,
           dpr: dpr,
           wavyScore: wavyScore);
+    }
+
+    // 3b. Match score shimmer ring (>50% match)
+    if (matchScore > 0.3) {
+      _drawMatchScoreShimmer(c,
+          centre: centre,
+          outerRadius: bubR + avatarRingExtra,
+          dpr: dpr,
+          matchScore: matchScore);
     }
 
     // 4. Avatar ring
@@ -885,7 +943,6 @@ class PinitMarkers {
           dpr: dpr,
           wavyScore: wavyScore);
     }
-
     // ─── 5. Avatar ring ──────────────────────────────────────
     if (avatarColors.isNotEmpty) {
       _drawAvatarRing(c,

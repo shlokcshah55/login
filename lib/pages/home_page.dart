@@ -4,12 +4,10 @@ import 'package:login/pages/home/home_view_model.dart';
 import 'package:login/pages/home/widgets/home_carousel.dart';
 import 'package:login/pages/home/widgets/home_header.dart';
 import 'package:login/pages/home/widgets/home_map_layer.dart';
-import 'package:login/pages/home/widgets/magic_search_button.dart';
 import 'package:login/pages/home/widgets/magic_search_overlay.dart';
-import 'package:login/pages/home/widgets/gavel_button.dart';
 import 'package:login/pages/home/widgets/gavel_overlay.dart';
-import 'package:login/pages/home/widgets/sweet_treat_button.dart';
 import 'package:login/pages/home/widgets/sweet_treat_overlay.dart';
+import 'package:login/pages/home/widgets/quick_actions_bar.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:login/providers/nav_bar/visibility_provider.dart';
@@ -55,17 +53,13 @@ class _HomePageState extends State<HomePage> {
     );
     _viewModel.init();
 
-    // Listen to location list manager errors and show snackbar
     _locationListManager.addListener(_checkForErrors);
-
-    // Listen for bubble mode activation requests
     _bubbleModeProvider.addListener(_handleBubbleModeRequest);
   }
 
   @override
   void didUpdateWidget(HomePage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Check for pending activation when page becomes active
     if (!oldWidget.isActive && widget.isActive) {
       print('HomePage became active, checking for pending activation');
       _handleBubbleModeRequest();
@@ -73,7 +67,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _checkForErrors() {
-    if (!mounted) return; // Guard against calls after dispose
+    if (!mounted) return;
     if (_locationListManager.error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -86,7 +80,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _handleBubbleModeRequest() async {
-    if (!mounted) return; // Guard against calls after dispose
+    if (!mounted) return;
     print(
         'HomePage listener fired! hasPending: ${_bubbleModeProvider.hasPendingActivation}, isActive: ${widget.isActive}');
     if (_bubbleModeProvider.hasPendingActivation && widget.isActive) {
@@ -119,7 +113,6 @@ class _HomePageState extends State<HomePage> {
     }
 
     _wizardPopoverScheduled = true;
-    // Wait for map to be ready, then show wizard
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _showWizardPopoverIfNeeded();
@@ -170,19 +163,19 @@ class _HomePageState extends State<HomePage> {
           final userDataProvider = context.watch<UserDataProvider>();
           _scheduleWizardPopoverIfNeeded(userDataProvider);
           final carouselBottom = viewModel.bottomNavVisible ? 90.0 : 20.0;
-          final carouselHeight = viewModel.bottomNavVisible ? 160.0 : 200.0;
-          final quickActionsBottom = carouselBottom + carouselHeight + 8.0;
 
-          // Build the main scaffold content
           Widget mainContent = Scaffold(
             body: Stack(
               children: [
+                // ── Map ──
                 Positioned.fill(
                   child: HomeMapLayer(
                     onMapTap: viewModel.onMapTap,
                     onSearchThisArea: viewModel.searchThisArea,
                   ),
                 ),
+
+                // ── Header (Saved / Recommended / Near Me tabs) ──
                 Positioned(
                   top: 0,
                   left: 0,
@@ -193,6 +186,23 @@ class _HomePageState extends State<HomePage> {
                     isBubbleModeActive: viewModel.isBubbleModeActive,
                   ),
                 ),
+
+                // ── Quick Actions Bar (below header, right-aligned) ──
+                // The HomeHeader typically occupies ~100-110pt including
+                // the safe area. Adjust `top` if your header height differs.
+                Positioned(
+                  top: MediaQuery.of(context).padding.top + 90,
+                  right: 12,
+                  child: QuickActionsBar(
+                    onMagicSearch: () => viewModel.toggleSearchOverlay(true),
+                    onJustDecide: () =>
+                        viewModel.toggleJustDecideOverlay(true),
+                    onSweetTreat: () =>
+                        viewModel.toggleSweetTreatOverlay(true),
+                  ),
+                ),
+
+                // ── Carousel ──
                 AnimatedPositioned(
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.easeOutQuint,
@@ -209,30 +219,8 @@ class _HomePageState extends State<HomePage> {
                     onLocationSelected: viewModel.onLocationSelected,
                   ),
                 ),
-                AnimatedPositioned(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeOutQuint,
-                  bottom: quickActionsBottom,
-                  left: 12.0,
-                  right: 12.0,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      MagicSearchButton(
-                        onPressed: () =>
-                            viewModel.toggleSearchOverlay(true),
-                      ),
-                      GavelButton(
-                        onPressed: () =>
-                            viewModel.toggleJustDecideOverlay(true),
-                      ),
-                      SweetTreatButton(
-                        onPressed: () =>
-                            viewModel.toggleSweetTreatOverlay(true),
-                      ),
-                    ],
-                  ),
-                ),
+
+                // ── Overlays ──
                 if (viewModel.showSearchOverlay)
                   MagicSearchOverlay(
                     controller: viewModel.searchController,
@@ -251,14 +239,16 @@ class _HomePageState extends State<HomePage> {
                     onClose: () => viewModel.toggleSweetTreatOverlay(false),
                     onSubmit: viewModel.submitSweetTreatSearch,
                   ),
-                // Bubble mode overlay - always in tree, visibility controlled internally
+
+                // ── Bubble mode overlay ──
                 if (viewModel.isBubbleModeActive &&
                     viewModel.activeBubble != null)
                   BubbleModeOverlay(
                     bubble: viewModel.activeBubble!,
                     onDeactivate: viewModel.deactivateBubbleMode,
                   ),
-                // Loading indicator for recommended tab (only show when on recommended tab)
+
+                // ── Loading indicator for recommendations ──
                 if (viewModel.isLoadingRecommendations &&
                     viewModel.currentListType == LocationListType.recommended)
                   Positioned.fill(
@@ -293,7 +283,8 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                   ),
-                // Just Decide swipe mode overlay
+
+                // ── Just Decide swipe mode ──
                 if (viewModel.showJustDecideSwipeMode)
                   Positioned.fill(
                     child: Container(
@@ -301,7 +292,6 @@ class _HomePageState extends State<HomePage> {
                       child: SafeArea(
                         child: Column(
                           children: [
-                            // Header
                             Padding(
                               padding: const EdgeInsets.all(16.0),
                               child: Row(
@@ -321,7 +311,6 @@ class _HomePageState extends State<HomePage> {
                                 ],
                               ),
                             ),
-                            // Content
                             Expanded(
                               child: viewModel.justDecideLocations.isEmpty
                                   ? Center(
@@ -353,7 +342,6 @@ class _HomePageState extends State<HomePage> {
                                           viewModel.onJustDecideComplete,
                                     ),
                             ),
-                            // Footer
                             Padding(
                               padding: const EdgeInsets.all(16.0),
                               child: Text(

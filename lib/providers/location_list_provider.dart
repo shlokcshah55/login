@@ -465,6 +465,67 @@ class LocationListManager with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Calculates distance between two LatLng points using Haversine formula
+  /// Returns distance in kilometers
+  double _calculateDistance(LatLng point1, LatLng point2) {
+    const earthRadiusKm = 6371.0;
+    final lat1Rad = point1.latitude * math.pi / 180.0;
+    final lat2Rad = point2.latitude * math.pi / 180.0;
+    final deltaLatRad = (point2.latitude - point1.latitude) * math.pi / 180.0;
+    final deltaLngRad = (point2.longitude - point1.longitude) * math.pi / 180.0;
+
+    final a = math.sin(deltaLatRad / 2) * math.sin(deltaLatRad / 2) +
+        math.cos(lat1Rad) *
+            math.cos(lat2Rad) *
+            math.sin(deltaLngRad / 2) *
+            math.sin(deltaLngRad / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return earthRadiusKm * c;
+  }
+
+  /// Sorts locations by distance (nearest first) and then by match score (highest first)
+  List<MapEntry<LocationModel, MapMarkerData>> _sortLocationsByDistanceAndScore(
+    List<LocationModel> locations,
+    List<MapEntry<LocationModel, MapMarkerData>> markers,
+    LatLng? userPosition,
+  ) {
+    if (userPosition == null || locations.isEmpty) {
+      // If no user position, sort by match score only (highest first)
+      final markersMap = Map.fromEntries(markers);
+      final sorted = locations..sort((a, b) {
+        final scoreA = a.matchScore ?? 0.0;
+        final scoreB = b.matchScore ?? 0.0;
+        return scoreB.compareTo(scoreA); // Higher score first
+      });
+      return sorted.map((loc) => MapEntry(loc, markersMap[loc]!)).toList();
+    }
+
+    // Sort with distance as primary key, match score as secondary
+    final markersMap = Map.fromEntries(markers);
+    final sorted = locations..sort((a, b) {
+      if (a.lat == null || a.lng == null || b.lat == null || b.lng == null) {
+        return 0; // Can't calculate distance, keep order
+      }
+
+      final posA = LatLng(a.lat!, a.lng!);
+      final posB = LatLng(b.lat!, b.lng!);
+      
+      final distA = _calculateDistance(userPosition, posA);
+      final distB = _calculateDistance(userPosition, posB);
+      
+      // Primary sort: by distance (nearest first)
+      final distCompare = distA.compareTo(distB);
+      if (distCompare != 0) return distCompare;
+      
+      // Secondary sort: by match score (highest first)
+      final scoreA = a.matchScore ?? 0.0;
+      final scoreB = b.matchScore ?? 0.0;
+      return scoreB.compareTo(scoreA);
+    });
+
+    return sorted.map((loc) => MapEntry(loc, markersMap[loc]!)).toList();
+  }
+
   /// Sets the currently displayed locations in the carousel
   Future<void> setCurrentListType(LocationListType type) async {
     _currentListType = type;
@@ -542,8 +603,16 @@ class LocationListManager with ChangeNotifier {
             return MapEntry(location, marker!);
           }),
         );
-        _savedLocations = Map.fromEntries(markers);
-        log('[fetchSavedLocations] Created ${markers.length} markers in ${stopwatch.elapsedMilliseconds}ms');
+
+        // Sort saved locations by distance (nearest first), then by match score (highest first)
+        final sortedMarkers = _sortLocationsByDistanceAndScore(
+          markers.map((e) => e.key).toList(),
+          markers,
+          currentPosition,
+        );
+
+        _savedLocations = Map.fromEntries(sortedMarkers);
+        log('[fetchSavedLocations] Created ${sortedMarkers.length} markers in ${stopwatch.elapsedMilliseconds}ms');
       }
 
       // If the current type is saved, update currentItems

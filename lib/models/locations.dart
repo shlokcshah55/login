@@ -829,6 +829,7 @@ class LocationModel {
       wavyScore: wavyScore,
       bossmanScore: bossmanScore,
       savedCount: savedCount ?? 0,
+      matchScore: matchScore ?? 0.0,
     );
 
     return MapMarkerData(

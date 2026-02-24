@@ -1,10 +1,48 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
-import 'package:login/utils/geo_types.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:developer';
+
+// ─────────────────────────────────────────────────────────────
+//  Vibe tag display config: label, icon, colour
+// ─────────────────────────────────────────────────────────────
+class _VibeTagStyle {
+  final String label;
+  final IconData icon;
+  final Color color;
+  const _VibeTagStyle(this.label, this.icon, this.color);
+}
+
+const Map<String, _VibeTagStyle> _vibeStyles = {
+  'cafe':             _VibeTagStyle('Café',          FeatherIcons.coffee,    Color(0xFFA0522D)),
+  'casual':           _VibeTagStyle('Casual',         FeatherIcons.smile,     Color(0xFF5B9BD5)),
+  'cozy':             _VibeTagStyle('Cozy',           FeatherIcons.home,      Color(0xFFE8915A)),
+  'coffee_shop':      _VibeTagStyle('Coffee',         FeatherIcons.coffee,    Color(0xFF6F4E37)),
+  'bar':              _VibeTagStyle('Bar',            FeatherIcons.moon,      Color(0xFF7B68EE)),
+  'elegant':          _VibeTagStyle('Elegant',        FeatherIcons.feather,   Color(0xFFB8860B)),
+  'fine_dining':      _VibeTagStyle('Fine Dining',    FeatherIcons.award,     Color(0xFFC9A96E)),
+  'food_truck':       _VibeTagStyle('Food Truck',     FeatherIcons.truck,     Color(0xFFFF6347)),
+  'hole_in_the_wall': _VibeTagStyle('Hidden Gem',     FeatherIcons.key,       Color(0xFFCD853F)),
+  'late_night':       _VibeTagStyle('Late Night',     FeatherIcons.moon,      Color(0xFF483D8B)),
+  'live_music':       _VibeTagStyle('Live Music',     FeatherIcons.music,     Color(0xFFDC143C)),
+  'michelin_starred':  _VibeTagStyle('Michelin',       FeatherIcons.star,      Color(0xFFFFD700)),
+  'modern':           _VibeTagStyle('Modern',         FeatherIcons.zap,       Color(0xFF00CED1)),
+  'fast_food':        _VibeTagStyle('Fast Food',      FeatherIcons.fastForward, Color(0xFFFF4500)),
+  'quiet':            _VibeTagStyle('Quiet',          FeatherIcons.volumeX,   Color(0xFF8FBC8F)),
+  'romantic':         _VibeTagStyle('Romantic',        FeatherIcons.heart,     Color(0xFFFF69B4)),
+  'sports_bar':       _VibeTagStyle('Sports Bar',     FeatherIcons.tv,        Color(0xFF228B22)),
+  'trendy':           _VibeTagStyle('Trendy',         FeatherIcons.trendingUp, Color(0xFFFF1493)),
+  'takeout_friendly': _VibeTagStyle('Takeaway',       FeatherIcons.package,   Color(0xFF20B2AA)),
+  'pub':              _VibeTagStyle('Pub',            FeatherIcons.home,      Color(0xFF8B4513)),
+  'grocery_store':    _VibeTagStyle('Grocery',        FeatherIcons.shoppingCart, Color(0xFF3CB371)),
+  'brunch':           _VibeTagStyle('Brunch',         FeatherIcons.sun,       Color(0xFFFFA07A)),
+  'outdoor_dining':   _VibeTagStyle('Outdoor',        FeatherIcons.wind,      Color(0xFF87CEEB)),
+  'wavy':             _VibeTagStyle('Wavy 🌊',        FeatherIcons.activity,  Color(0xFF6C5CE7)),
+  'bossman':          _VibeTagStyle('Bossman',        FeatherIcons.shield,    Color(0xFF636E72)),
+};
 
 class LocationCarousel extends StatelessWidget {
   final PageController pageController;
@@ -26,15 +64,12 @@ class LocationCarousel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     if (locations.isEmpty) return const SizedBox.shrink();
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOutQuint,
-      height: bottomNavVisible ? 160.0 : 200.0,
-      padding: const EdgeInsets.symmetric(horizontal: 0),
+      height: bottomNavVisible ? 185.0 : 215.0,
       child: PageView.builder(
         controller: pageController,
         itemCount: locations.length,
@@ -44,48 +79,63 @@ class LocationCarousel extends StatelessWidget {
         ),
         itemBuilder: (context, index) {
           final location = locations[index];
-          final isSelected = selectedMarkerId == location.locationId;
+          final isSelected =
+              selectedMarkerId == location.locationId.toString();
           return AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeOutQuint,
             margin: EdgeInsets.symmetric(
-              horizontal: 5.0,
-              vertical: isSelected ? 0 : 10.0,
+              horizontal: 6.0,
+              vertical: isSelected ? 0 : 8.0,
             ),
             transform: isSelected
                 ? Matrix4.identity()
-                : (Matrix4.identity()..scale(0.95)),
-            child: _buildCarouselCard(
-              context,
-              theme,
-              location,
-              isSelected,
+                : (Matrix4.identity()..scale(0.96)),
+            transformAlignment: Alignment.center,
+            child: _CarouselCard(
+              location: location,
+              isSelected: isSelected,
+              bottomNavVisible: bottomNavVisible,
+              onLocationSelected: onLocationSelected,
             ),
           );
         },
-        onPageChanged: (index) {
-          onPageChanged(index);
-        },
+        onPageChanged: onPageChanged,
       ),
     );
   }
+}
 
-  Widget _buildCarouselCard(
-    BuildContext context,
-    ThemeData theme,
-    LocationModel location,
-    bool isSelected,
-  ) {
+// ─────────────────────────────────────────────────────────────
+//  Individual card – image-dominant with overlaid info
+// ─────────────────────────────────────────────────────────────
+class _CarouselCard extends StatelessWidget {
+  final LocationModel location;
+  final bool isSelected;
+  final bool bottomNavVisible;
+  final ValueChanged<LocationModel> onLocationSelected;
+
+  const _CarouselCard({
+    required this.location,
+    required this.isSelected,
+    required this.bottomNavVisible,
+    required this.onLocationSelected,
+  });
+
+  // ── Whether this location is "wavy" enough to get the shimmer border ──
+  bool get _isWavy => (location.vibe?.wavyScore ?? 0) > 0.45;
+  bool get _isBossman => (location.vibe?.bossmanScore ?? 0) > 0.5;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final textTheme = theme.textTheme;
+    final isDark = theme.brightness == Brightness.dark;
 
-    return InkWell(
+    return GestureDetector(
       onTap: () {
         log("Tapped card for: ${location.name} (ID: ${location.locationId})");
-
         onLocationSelected(location);
-
-        // Open the expanded location card with slide-up animation
         showGeneralDialog(
           context: context,
           barrierDismissible: true,
@@ -93,252 +143,309 @@ class LocationCarousel extends StatelessWidget {
               MaterialLocalizations.of(context).modalBarrierDismissLabel,
           barrierColor: Colors.transparent,
           transitionDuration: const Duration(milliseconds: 300),
-          pageBuilder: (context, animation, secondaryAnimation) {
-            return ExpandedLocationCard(
-              location: location,
-              onClose: () => Navigator.of(context).pop(),
-            );
-          },
-          transitionBuilder: (context, animation, secondaryAnimation, child) {
-            return FadeTransition(
-              opacity: animation,
-              child: child,
-            );
-          },
+          pageBuilder: (ctx, anim, secondAnim) => ExpandedLocationCard(
+            location: location,
+            onClose: () => Navigator.of(ctx).pop(),
+          ),
+          transitionBuilder: (ctx, anim, _, child) =>
+              FadeTransition(opacity: anim, child: child),
         );
       },
-      child: Card(
-        clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24), // More rounded corners
-          side: isSelected
-              ? BorderSide(
-                  color: colorScheme.primary,
-                  width: 2.5) // Slightly thinner border
-              : BorderSide.none,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(22),
+          // Wavy locations get a vibrant gradient border
+          border: _isWavy
+              ? Border.all(
+                  color: const Color(0xFF6C5CE7).withOpacity(0.8), width: 2.5)
+              : isSelected
+                  ? Border.all(color: colorScheme.primary, width: 2.5)
+                  : null,
+          boxShadow: [
+            if (_isWavy) ...[
+              BoxShadow(
+                color: const Color(0xFF6C5CE7).withOpacity(0.25),
+                blurRadius: 16,
+                spreadRadius: 1,
+                offset: const Offset(0, 4),
+              ),
+              BoxShadow(
+                color: const Color(0xFFA29BFE).withOpacity(0.15),
+                blurRadius: 24,
+                spreadRadius: -2,
+                offset: const Offset(0, 8),
+              ),
+            ] else ...[
+              BoxShadow(
+                color: colorScheme.shadow.withOpacity(isSelected ? 0.25 : 0.12),
+                blurRadius: isSelected ? 16 : 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ],
         ),
-        elevation: isSelected ? 12.0 : 6.0, // Higher elevation for more depth
-        shadowColor:
-            colorScheme.shadow.withValues(alpha: isSelected ? 100 : 50),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOutQuint,
-          height: bottomNavVisible ? 140 : 170,
-          child: Row(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Stack(
+            fit: StackFit.expand,
             children: [
-              // --- Text Section (Left Half) ---
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(
-                      16.0), // Increased padding for better spacing
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Location Name
-                      Flexible(
+              // ── 1. Full-bleed image ──
+              _buildImage(theme),
+
+              // ── 2. Gradient scrim for readability ──
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withOpacity(0.05),
+                        Colors.black.withOpacity(0.15),
+                        Colors.black.withOpacity(0.75),
+                      ],
+                      stops: const [0.0, 0.35, 1.0],
+                    ),
+                  ),
+                ),
+              ),
+
+              // ── 3. Top-left: Emoji avatar + preference badge ──
+              Positioned(
+                top: 10,
+                left: 10,
+                child: Row(
+                  children: [
+                    // Emoji circle
+                    if (location.emoji != null && location.emoji!.isNotEmpty)
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? Colors.black.withOpacity(0.6)
+                              : Colors.white.withOpacity(0.9),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.2),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        alignment: Alignment.center,
                         child: Text(
-                          location.name,
-                          style: textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: colorScheme.onSurface,
-                            fontSize: 16,
-                            letterSpacing: -0.2,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                          location.emoji!,
+                          style: const TextStyle(fontSize: 18),
                         ),
                       ),
-                      const SizedBox(height: 6.0),
+                    const SizedBox(width: 6),
+                    if (location.preference != null)
+                      _buildPreferenceBadge(location.preference!, theme),
+                  ],
+                ),
+              ),
 
-                      // Rating Row
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6.0, vertical: 2.0),
-                            decoration: BoxDecoration(
-                              color: colorScheme.secondary.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8.0),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  FeatherIcons.star,
-                                  size: 12,
-                                  color: colorScheme.secondary,
-                                ),
-                                const SizedBox(width: 3),
-                                Text(
-                                  location.rating?.toStringAsFixed(1) ?? 'N/A',
-                                  style: textTheme.bodySmall?.copyWith(
-                                    color: colorScheme.secondary,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: Text(
-                              "(${location.userRatingsTotal?.toString() ?? '0'})",
-                              style: textTheme.bodySmall?.copyWith(
-                                color: colorScheme.onSurfaceVariant
-                                    .withOpacity(0.7),
-                                fontSize: 11,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
+              // ── 4. Top-right: status badges stack ──
+              Positioned(
+                top: 10,
+                right: 10,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    // Open / Closed live indicator
+                    if (location.openNow != null)
+                      _StatusPill(
+                        text: location.openNow! ? 'Open' : 'Closed',
+                        color: location.openNow!
+                            ? const Color(0xFF00B894)
+                            : const Color(0xFFE17055),
+                        icon: location.openNow!
+                            ? FeatherIcons.checkCircle
+                            : FeatherIcons.xCircle,
                       ),
-                      const SizedBox(height: 6.0),
+                    if (location.openNow != null) const SizedBox(height: 4),
 
-                      // Price and Cuisine Row
-                      Row(
+                    // Match score badge
+                    if (location.matchScore != null &&
+                        location.matchScore! > 0.1)
+                      _StatusPill(
+                        text: '${(location.matchScore! * 100).round()}% match',
+                        color: colorScheme.primary,
+                        icon: FeatherIcons.target,
+                      ),
+                    if (location.matchScore != null &&
+                        location.matchScore! > 0.1)
+                      const SizedBox(height: 4),
+
+                    // Saved count
+                    if (location.savedCount != null &&
+                        location.savedCount! > 0)
+                      _StatusPill(
+                        text: '${location.savedCount} saves',
+                        color: Colors.white.withOpacity(0.85),
+                        textColor: Colors.black87,
+                        icon: FeatherIcons.bookmark,
+                        iconColor: colorScheme.primary,
+                      ),
+                  ],
+                ),
+              ),
+
+              // ── 5. Bottom overlay: all the info ──
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                      bottom: Radius.circular(20)),
+                  child: BackdropFilter(
+                    filter: ui.ImageFilter.blur(sigmaX: 2, sigmaY: 2),
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withOpacity(0.3),
+                            Colors.black.withOpacity(0.65),
+                          ],
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (location.priceLevel != null &&
-                              location.priceLevel! > 0)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8.0, vertical: 3.0),
-                              decoration: BoxDecoration(
-                                color: theme.brightness == Brightness.dark
-                                    ? Colors.green.withOpacity(0.2)
-                                    : Colors.green.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12.0),
-                              ),
-                              child: Text(
-                                '\$' * location.priceLevel!,
-                                style: textTheme.bodySmall?.copyWith(
-                                  color: theme.brightness == Brightness.dark
-                                      ? Colors.greenAccent
-                                      : Colors.green[700],
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 1.0,
-                                ),
-                              ),
-                            ),
-                          if (location.priceLevel != null &&
-                              location.priceLevel! > 0 &&
-                              location.cuisine != null &&
-                              location.cuisine!.isNotEmpty)
-                            const SizedBox(width: 8.0),
-                          if (location.cuisine != null &&
-                              location.cuisine!.isNotEmpty)
-                            Flexible(
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 8.0, vertical: 3.0),
-                                decoration: BoxDecoration(
-                                  color: colorScheme.primaryContainer
-                                      .withOpacity(0.6),
-                                  borderRadius: BorderRadius.circular(12.0),
-                                ),
+                          // ── Name + rating row ──
+                          Row(
+                            children: [
+                              Expanded(
                                 child: Text(
-                                  location.cuisine!,
-                                  style: textTheme.bodySmall?.copyWith(
-                                    color: colorScheme.onPrimaryContainer,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 10,
+                                  location.name,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 16,
+                                    letterSpacing: -0.3,
+                                    height: 1.2,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
+                              const SizedBox(width: 8),
+                              if (location.rating != null)
+                                _RatingChip(
+                                  rating: location.rating!,
+                                  reviewCount: location.userRatingsTotal,
+                                ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 6),
+
+                          // ── One-liner summary or vicinity ──
+                          if (_summaryText != null)
+                            Text(
+                              _summaryText!,
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.85),
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w400,
+                                height: 1.3,
+                                fontStyle: FontStyle.italic,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
+                          if (_summaryText != null) const SizedBox(height: 7),
+
+                          // ── Tags row: price + cuisine + vibe pills ──
+                          SizedBox(
+                            height: 24,
+                            child: ListView(
+                              scrollDirection: Axis.horizontal,
+                              physics: const BouncingScrollPhysics(),
+                              children: [
+                                // Price level
+                                if (location.priceLevel != null &&
+                                    location.priceLevel! > 0)
+                                  _InfoPill(
+                                    text: '£' * location.priceLevel!,
+                                    bgColor:
+                                        const Color(0xFF00B894).withOpacity(0.25),
+                                    textColor: const Color(0xFF55EFC4),
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                // Cuisine
+                                if (location.cuisine != null &&
+                                    location.cuisine!.isNotEmpty)
+                                  _InfoPill(
+                                    text: location.cuisine!,
+                                    bgColor: Colors.white.withOpacity(0.15),
+                                    textColor: Colors.white,
+                                  ),
+                                // Top 2 vibe tags
+                                ..._topVibeTags.map((entry) {
+                                  final style = _vibeStyles[entry.key];
+                                  if (style == null) return const SizedBox.shrink();
+                                  return _InfoPill(
+                                    text: style.label,
+                                    icon: style.icon,
+                                    bgColor: style.color.withOpacity(0.25),
+                                    textColor:
+                                        Color.lerp(style.color, Colors.white, 0.5)!,
+                                  );
+                                }),
+                                // Feature micro-icons
+                                ..._featureIcons,
+                              ],
+                            ),
+                          ),
                         ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
-              // --- Photo Section (Right Half) ---
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeOutQuint,
-                width: bottomNavVisible
-                    ? 125
-                    : 145, // Expand width when nav is hidden
-                height: double.infinity,
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.only(
-                    topRight: Radius.circular(24),
-                    bottomRight: Radius.circular(24),
-                  ),
-                  child: Stack(
-                    children: [
-                      _buildCardImage(location, theme),
-                      // Enhanced gradient overlay
-                      Positioned.fill(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                colorScheme.surface.withOpacity(0.3),
-                                Colors.transparent,
-                                Colors.black.withOpacity(0.4),
-                              ],
-                              stops: const [0.0, 0.4, 1.0],
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                            ),
-                          ),
-                        ),
+
+              // ── 6. Wavy shimmer overlay (top edge gleam) ──
+              if (_isWavy)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: 3,
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Color(0xFF6C5CE7),
+                          Color(0xFFA29BFE),
+                          Color(0xFF74B9FF),
+                          Color(0xFFA29BFE),
+                          Color(0xFF6C5CE7),
+                        ],
                       ),
-                      // Type indicator badge with enhanced styling
-                      Positioned(
-                        top: 8,
-                        left: 8,
-                        child: _buildTypeIndicator(location.preference!, theme),
-                      ),
-                      // Saved count badge with enhanced styling
-                      if (location.savedCount != null &&
-                          location.savedCount! > 0)
-                        Positioned(
-                          top: 8,
-                          right: 8,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8.0, vertical: 4.0),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.7),
-                              borderRadius: BorderRadius.circular(12.0),
-                              border: Border.all(
-                                color: colorScheme.primary.withOpacity(0.3),
-                                width: 1,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  FeatherIcons.bookmark,
-                                  size: 12,
-                                  color: colorScheme.primary,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  location.savedCount.toString(),
-                                  style: textTheme.bodySmall?.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
+
+              // ── 7. Late night indicator (bottom-right) ──
+              if (location.isOpenLate == true)
+                Positioned(
+                  top: 10,
+                  left: location.emoji != null ? 100 : 60,
+                  child: _StatusPill(
+                    text: 'Late Night',
+                    color: const Color(0xFF2D3436),
+                    icon: FeatherIcons.moon,
+                    iconColor: const Color(0xFFFDCB6E),
+                  ),
+                ),
             ],
           ),
         ),
@@ -346,57 +453,123 @@ class LocationCarousel extends StatelessWidget {
     );
   }
 
-  Widget _buildTypeIndicator(LocationPreference preference, ThemeData theme) {
-    IconData iconData;
-    String text;
-    Color bgColor;
-    Color fgColor;
+  // ── Computed helpers ──
 
-    switch (preference) {
-      case LocationPreference.saved:
-        iconData = FeatherIcons.heart;
-        text = 'Saved';
-        bgColor = theme.colorScheme.primary;
-        fgColor = theme.colorScheme.onPrimary;
-        break;
-      case LocationPreference.recommended:
-        iconData = FeatherIcons.award;
-        text = 'Top Pick';
-        bgColor = theme.colorScheme.secondary;
-        fgColor = theme.colorScheme.onSecondary;
-        break;
-      case LocationPreference.search:
-        iconData = FeatherIcons.search;
-        text = 'Match';
-        bgColor = theme.colorScheme.tertiaryContainer;
-        fgColor = theme.colorScheme.onTertiaryContainer;
-        break;
+  String? get _summaryText {
+    if (location.generatedSummary != null &&
+        location.generatedSummary!.isNotEmpty) {
+      return location.generatedSummary!;
+    }
+    if (location.editorialSummary != null &&
+        location.editorialSummary!.isNotEmpty) {
+      return location.editorialSummary!;
+    }
+    if (location.recommendedDishes != null &&
+        location.recommendedDishes!.isNotEmpty) {
+      return '🍽 Try: ${location.recommendedDishes!}';
+    }
+    if (location.vicinity != null && location.vicinity!.isNotEmpty) {
+      return location.vicinity!;
+    }
+    return null;
+  }
+
+  List<MapEntry<String, double>> get _topVibeTags {
+    if (location.vibe == null) return [];
+    return location.vibe!
+        .topTags(3)
+        .where((e) => e.value > 0.3 && e.key != 'bossman')
+        .take(2)
+        .toList();
+  }
+
+  List<Widget> get _featureIcons {
+    final icons = <Widget>[];
+    void addIf(bool? flag, IconData icon, Color color, String tooltip) {
+      if (flag == true) {
+        icons.add(
+          Tooltip(
+            message: tooltip,
+            child: Container(
+              margin: const EdgeInsets.only(left: 4),
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, size: 13, color: color),
+            ),
+          ),
+        );
+      }
     }
 
+    addIf(location.outdoorSeating, FeatherIcons.sun, const Color(0xFFFDCB6E),
+        'Outdoor seating');
+    addIf(location.liveMusic, FeatherIcons.music, const Color(0xFFE17055),
+        'Live music');
+    addIf(location.servesCocktails, FeatherIcons.droplet,
+        const Color(0xFF74B9FF), 'Cocktails');
+    addIf(location.servesBrunch, FeatherIcons.sunrise, const Color(0xFFFFA502),
+        'Brunch');
+    addIf(location.servesVegetarianFood, FeatherIcons.feather,
+        const Color(0xFF00B894), 'Vegetarian');
+    addIf(location.goodForGroups, FeatherIcons.users, const Color(0xFFA29BFE),
+        'Good for groups');
+    addIf(location.isTakeaway, FeatherIcons.package, const Color(0xFF81ECEC),
+        'Takeaway');
+
+    return icons;
+  }
+
+  // ── Preference badge ──
+
+  Widget _buildPreferenceBadge(LocationPreference pref, ThemeData theme) {
+    final (IconData icon, String label, Color bg, Color fg) = switch (pref) {
+      LocationPreference.saved => (
+          FeatherIcons.heart,
+          'Saved',
+          theme.colorScheme.primary,
+          theme.colorScheme.onPrimary,
+        ),
+      LocationPreference.recommended => (
+          FeatherIcons.award,
+          'Top Pick',
+          const Color(0xFFFDCB6E),
+          Colors.black87,
+        ),
+      LocationPreference.search => (
+          FeatherIcons.search,
+          'Match',
+          Colors.white.withOpacity(0.9),
+          Colors.black87,
+        ),
+    };
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(12.0),
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: bgColor.withOpacity(0.3),
-            blurRadius: 4.0,
+            color: bg.withOpacity(0.4),
+            blurRadius: 6,
             offset: const Offset(0, 2),
-          )
+          ),
         ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(iconData, size: 12, color: fgColor),
+          Icon(icon, size: 11, color: fg),
           const SizedBox(width: 4),
           Text(
-            text,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: fgColor,
-              fontWeight: FontWeight.w600,
-              fontSize: 10,
+            label,
+            style: TextStyle(
+              color: fg,
+              fontWeight: FontWeight.w700,
+              fontSize: 10.5,
               letterSpacing: 0.2,
             ),
           ),
@@ -405,192 +578,229 @@ class LocationCarousel extends StatelessWidget {
     );
   }
 
-  Widget _buildCardImage(LocationModel location, ThemeData theme) {
+  // ── Image builder ──
+
+  Widget _buildImage(ThemeData theme) {
     final colorScheme = theme.colorScheme;
-    return SizedBox(
-      height: double.infinity,
-      width: double.infinity,
-      child: location.imageUrl != null
-          ? CachedNetworkImage(
-              imageUrl: location.imageUrl!,
-              fit: BoxFit.cover,
-              placeholder: (context, url) => Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      colorScheme.surfaceContainerHighest,
-                      colorScheme.surfaceContainerHighest.withOpacity(0.8),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      CircularProgressIndicator(
-                        strokeWidth: 2.0,
-                        valueColor:
-                            AlwaysStoppedAnimation<Color>(colorScheme.primary),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Loading...',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+    final url = location.imageUrl ?? location.photoReference;
+
+    if (url != null) {
+      return CachedNetworkImage(
+        imageUrl: url,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        placeholder: (_, __) => _imagePlaceholder(colorScheme),
+        errorWidget: (_, __, error) {
+          log("Error loading image for ${location.name}: $error");
+          return _imageError(colorScheme);
+        },
+      );
+    }
+    return _imageEmpty(colorScheme);
+  }
+
+  Widget _imagePlaceholder(ColorScheme cs) => Container(
+        color: cs.surfaceContainerHighest,
+        child: Center(
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation(cs.primary),
+          ),
+        ),
+      );
+
+  Widget _imageError(ColorScheme cs) => Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              cs.surfaceContainerHighest,
+              cs.surfaceContainerHighest.withOpacity(0.7),
+            ],
+          ),
+        ),
+        child: Center(
+          child: Icon(FeatherIcons.image,
+              size: 36, color: cs.onSurfaceVariant.withOpacity(0.4)),
+        ),
+      );
+
+  Widget _imageEmpty(ColorScheme cs) => Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              cs.primaryContainer.withOpacity(0.3),
+              cs.surfaceContainerHighest,
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Center(
+          child: Text(
+            location.emoji ?? '📍',
+            style: const TextStyle(fontSize: 48),
+          ),
+        ),
+      );
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Reusable micro-widgets
+// ─────────────────────────────────────────────────────────────
+
+/// Compact rating chip: "4.5 ★ (1.2k)"
+class _RatingChip extends StatelessWidget {
+  final double rating;
+  final int? reviewCount;
+  const _RatingChip({required this.rating, this.reviewCount});
+
+  String _formatCount(int n) {
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}k';
+    return n.toString();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.amber.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.amber.withOpacity(0.3), width: 0.5),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            rating.toStringAsFixed(1),
+            style: const TextStyle(
+              color: Colors.amber,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(width: 2),
+          const Icon(FeatherIcons.star, size: 10, color: Colors.amber),
+          if (reviewCount != null && reviewCount! > 0) ...[
+            const SizedBox(width: 4),
+            Text(
+              '(${_formatCount(reviewCount!)})',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.6),
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
               ),
-              errorWidget: (context, url, error) {
-                log("Error loading image for ${location.name}: $error");
-                return Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        colorScheme.errorContainer.withOpacity(0.3),
-                        colorScheme.surfaceContainerHighest,
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          FeatherIcons.image,
-                          size: 32,
-                          color: colorScheme.onSurfaceVariant.withOpacity(0.6),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'No Image',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color:
-                                colorScheme.onSurfaceVariant.withOpacity(0.7),
-                            fontSize: 10,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            )
-          : location.photoReference != null
-              ? CachedNetworkImage(
-                  imageUrl: location.photoReference!,
-                  fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          colorScheme.surfaceContainerHighest,
-                          colorScheme.surfaceContainerHighest.withOpacity(0.8),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                    ),
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          CircularProgressIndicator(
-                            strokeWidth: 2.0,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                                colorScheme.primary),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Loading...',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                              fontSize: 10,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  errorWidget: (context, url, error) {
-                    log("Error loading image for ${location.name}: $error");
-                    return Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            colorScheme.errorContainer.withOpacity(0.3),
-                            colorScheme.surfaceContainerHighest,
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                      ),
-                      child: Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              FeatherIcons.image,
-                              size: 32,
-                              color:
-                                  colorScheme.onSurfaceVariant.withOpacity(0.6),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'No Image',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: colorScheme.onSurfaceVariant
-                                    .withOpacity(0.7),
-                                fontSize: 10,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                )
-              : Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        colorScheme.surfaceContainerHighest,
-                        colorScheme.surfaceContainerHighest.withOpacity(0.7),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          FeatherIcons.mapPin,
-                          size: 32,
-                          color: colorScheme.primary.withOpacity(0.7),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Location',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color:
-                                colorScheme.onSurfaceVariant.withOpacity(0.8),
-                            fontSize: 10,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Status pill used for Open/Closed, match %, saves count
+class _StatusPill extends StatelessWidget {
+  final String text;
+  final Color color;
+  final Color? textColor;
+  final IconData? icon;
+  final Color? iconColor;
+
+  const _StatusPill({
+    required this.text,
+    required this.color,
+    this.textColor,
+    this.icon,
+    this.iconColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+      decoration: BoxDecoration(
+        color: color.withOpacity(color == Colors.white.withOpacity(0.85) ? 0.85 : 0.85),
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.15),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 10, color: iconColor ?? textColor ?? Colors.white),
+            const SizedBox(width: 3),
+          ],
+          Text(
+            text,
+            style: TextStyle(
+              color: textColor ?? Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: 10,
+              letterSpacing: 0.1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Small info pill for tags row (price, cuisine, vibe tags)
+class _InfoPill extends StatelessWidget {
+  final String text;
+  final IconData? icon;
+  final Color bgColor;
+  final Color textColor;
+  final FontWeight fontWeight;
+
+  const _InfoPill({
+    required this.text,
+    this.icon,
+    required this.bgColor,
+    required this.textColor,
+    this.fontWeight = FontWeight.w600,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: textColor.withOpacity(0.15),
+          width: 0.5,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 10, color: textColor),
+            const SizedBox(width: 3),
+          ],
+          Text(
+            text,
+            style: TextStyle(
+              color: textColor,
+              fontWeight: fontWeight,
+              fontSize: 10.5,
+              letterSpacing: 0.1,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
     );
   }
 }
