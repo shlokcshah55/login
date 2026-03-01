@@ -381,7 +381,7 @@ class _PinitMapState extends State<PinitMap> {
         mapbox.MapWidget(
           cameraOptions: mapbox.CameraOptions(
             center: initialCenter.toPoint(),
-            zoom: 15.0,
+            zoom: 11.5,
           ),
           styleUri: "mapbox://styles/srishlok/cmlpttggl000p01rz51whgzk9",
           onMapCreated: _onMapCreated,
@@ -486,7 +486,7 @@ class _PinitMapState extends State<PinitMap> {
                   
                   if (position != null) {
                     print('Got fresh position: $position');
-                    await mapStateReader.focusOnUserLocation(position, zoom: 15.0);
+                    await mapStateReader.focusOnUserLocation(position, zoom: 11.5);
                     print('Focused on position: $position');
                   } else {
                     print('Failed to get location');

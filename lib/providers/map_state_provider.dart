@@ -19,7 +19,7 @@ class MapStateProvider with ChangeNotifier {
   LatLng? _lastSearchedCenter; // To track the center of the last API search
   double? _lastSearchedRadius; // To track the radius of the last API search (in km)
   LatLng? _currentVisibleCenter;
-  double _currentZoom = 15.0;
+  double _currentZoom = 11.5;
   String? _selectedMarkerId;
   PageController? _carouselPageController;
   bool _isAwayFromUserArea = false;
@@ -184,7 +184,7 @@ class MapStateProvider with ChangeNotifier {
   }
 
   /// Focuses the map camera on a specific user location.
-  Future<void> focusOnUserLocation(LatLng userPosition, {double zoom = 15.0}) async {
+  Future<void> focusOnUserLocation(LatLng userPosition, {double zoom = 11.5}) async {
     _lastFocusedUserLocation = userPosition;
     await animateCamera(userPosition, zoom: zoom);
     log("MapStateProvider: Camera focused on user location: $userPosition");
@@ -298,7 +298,7 @@ class MapStateProvider with ChangeNotifier {
     _checkIfViewDiffersFromLastSearch();
   }
 
-  /// Check if current view differs significantly from the last searched area
+  /// Show the search button whenever the map is moved from the last searched area
   void _checkIfViewDiffersFromLastSearch() {
     // If no search has been performed yet, don't show the button
     if (_lastSearchedCenter == null || _lastSearchedRadius == null) {
@@ -324,11 +324,8 @@ class MapStateProvider with ChangeNotifier {
     // Store previous state
     final bool wasShowingButton = _showSearchThisAreaButton;
 
-    // Show button if the center has moved significantly (more than 25% of the last searched radius)
-    final distanceThreshold = _lastSearchedRadius! * 0.25;
-    final viewDiffers = distanceKm > distanceThreshold;
-
-    _showSearchThisAreaButton = viewDiffers;
+    // Show button if the map has moved at all (any meaningful movement)
+    _showSearchThisAreaButton = distanceKm > 0.05; // ~50m threshold to avoid noise
 
     // Only notify if state changed
     if (wasShowingButton != _showSearchThisAreaButton) {

@@ -1,10 +1,11 @@
 """
-TikTok Processor - Extracts location from TikTok videos
-Workflow: TikTok API → OpenAI LLM → Google Places API
+TikTok Processor - Extracts location from TikTok videos and Instagram posts
+Workflow: Social Media API → xAI LLM → Google Places API
 """
 import json
 import logging
 import asyncio
+import re
 from typing import Dict, Optional, List
 import googlemaps
 from openai import OpenAI
@@ -14,21 +15,39 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def detect_platform(url: str) -> str:
+    """Detect which social media platform a URL belongs to."""
+    if re.search(r'(tiktok\.com|vm\.tiktok)', url, re.IGNORECASE):
+        return 'tiktok'
+    if re.search(r'(instagram\.com|instagr\.am)', url, re.IGNORECASE):
+        return 'instagram'
+    return 'unknown'
+
+
 class TikTokProcessor:
-    def __init__(self, openaiKey: str, gmaps_key: str, appify_client:str):
+    def __init__(self, xai_key: str, gmaps_key: str, appify_client:str):
         self.gmaps = googlemaps.Client(key=gmaps_key)
-        self.openai_client = OpenAI(api_key=openaiKey)
+        self.xai_client = OpenAI(api_key=xai_key, base_url="https://api.x.ai/v1")
         self.appify_client = ApifyClient(appify_client)
 
-    async def process_url(self, tiktok_url: str) -> Dict:
+    async def process_url(self, url: str) -> Dict:
+        platform = detect_platform(url)
+        logger.info(f"Detected platform: {platform} for URL: {url}")
+
+        if platform == 'instagram':
+            return await self._process_instagram(url)
+        else:
+            return await self._process_tiktok(url)
+
+    async def _process_tiktok(self, tiktok_url: str) -> Dict:
         try:
             video_data = await self._get_tiktok_data_appify(tiktok_url, fetch_comments=False)
             logger.info("Extracted locaiton information", video_data)
 
             # Extracting location without comments
-            logger.info("Sending to OpenAI")
+            logger.info("Sending to xAI")
             location_queries = self._extract_location_with_llm(video_data)
-            logger.info(f"OpenAI extracted location queries: {location_queries}")
+            logger.info(f"xAI extracted location queries: {location_queries}")
 
             # If location found, proceed immediately
             if location_queries:
@@ -40,7 +59,7 @@ class TikTokProcessor:
            # No location found, retry with comments
             video_data_with_comments = await self._get_tiktok_data_appify(tiktok_url, fetch_comments=True)
             location_queries = self._extract_location_with_llm(video_data_with_comments)
-            logger.info(f"OpenAI extracted location queries with comments: {location_queries}")
+            logger.info(f"xAI extracted location queries with comments: {location_queries}")
 
             if not location_queries:
                 return {
@@ -53,6 +72,33 @@ class TikTokProcessor:
 
         except Exception as e:
             logger.error(f"Error processing TikTok URL: {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def _process_instagram(self, instagram_url: str) -> Dict:
+        try:
+            post_data = await self._get_instagram_data_appify(instagram_url)
+            logger.info("Extracted Instagram post information", post_data)
+
+            logger.info("Sending to xAI")
+            location_queries = self._extract_location_with_llm(post_data)
+            logger.info(f"xAI extracted location queries: {location_queries}")
+
+            if not location_queries:
+                return {
+                    "success": False,
+                    "error": "Could not extract location from Instagram post"
+                }
+
+            logger.info(f"✅ Location found! Queries: {location_queries}")
+            location = self._search_and_return_locations(location_queries, post_data)
+            logger.info("Completed Google Places search")
+            return location
+
+        except Exception as e:
+            logger.error(f"Error processing Instagram URL: {e}", exc_info=True)
             return {
                 "success": False,
                 "error": str(e)
@@ -117,9 +163,45 @@ class TikTokProcessor:
 
         return to_return
 
+    async def _get_instagram_data_appify(self, instagram_url: str) -> Dict:
+        """Fetch Instagram post data via Apify scraper."""
+        run_input = {"directUrls": [instagram_url]}
+
+        logger.info("Calling Apify Instagram scraper...")
+        run_meta = await asyncio.to_thread(
+            self.appify_client.actor("shu8hvrXbJbY3Eb9W").call,
+            run_input=run_input
+        )
+        logger.info("Instagram scraper completed")
+
+        meta_items = list(self.appify_client.dataset(run_meta["defaultDatasetId"]).iterate_items())
+
+        if not meta_items:
+            return {}
+
+        post_info = meta_items[0]
+        logger.info(post_info)
+
+        hashtags = post_info.get("hashtags", [])
+
+        # Extract comment text from latestComments
+        comments = [
+            c.get("text") for c in post_info.get("latestComments", [])
+            if c.get("text")
+        ]
+
+        return {
+            "id": post_info.get("id") or post_info.get("shortCode"),
+            "url": instagram_url,
+            "description": post_info.get("caption", ""),
+            "hashtags": hashtags,
+            "comments": comments,
+            "locationCreated": post_info.get("locationName"),
+        }
+
     def _extract_location_with_llm(self, video_data: Dict) -> Optional[str]:
         """
-        Use OpenAI to extract location information from comprehensive video data
+        Use xAI to extract location information from comprehensive video data
         including description, hashtags, and comments
         """
         try:
@@ -132,9 +214,9 @@ class TikTokProcessor:
             prompt = f"""
 
 # Role and Objective
-You are a specialized location extraction tool. Your job is to analyze TikTok video metadata and extract specific restaurant/venue names that can be successfully queried in the Google Places API. You must extract precise, verifiable locations - NOT generic areas, cities, or vague references.
+You are a specialized location extraction tool. Your job is to analyze social media post metadata and extract specific restaurant/venue names that can be successfully queried in the Google Places API. You must extract precise, verifiable locations - NOT generic areas, cities, or vague references.
 
-There may be more than one restaurant within the tiktok so be prepared to return more than one result.
+There may be more than one restaurant within the post so be prepared to return more than one result.
 
 Be liberal with trying to extract the locations, it is not the worst thing if they are incorrect.
 
@@ -214,8 +296,8 @@ Format Pattern:
 }}
 """
 
-            response = self.openai_client.chat.completions.create(
-                model="gpt-4o-mini",
+            response = self.xai_client.chat.completions.create(
+                model="grok-3-mini-fast",
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"}
             )
@@ -230,7 +312,7 @@ Format Pattern:
             return search_queries
 
         except Exception as e:
-            logger.error(f"Error extracting location with OpenAI: {e}")
+            logger.error(f"Error extracting location with xAI: {e}")
             return None
 
     def _search_and_return_locations(self, location_queries: List[str], video_data: Dict) -> Dict:
@@ -298,11 +380,11 @@ Format Pattern:
             return None
 
     def _safe_parse_json(self, text: str) -> Dict:
-        """Parse JSON from OpenAI response, handling markdown code blocks"""
+        """Parse JSON from xAI response, handling markdown code blocks"""
         try:
             # Remove markdown code blocks and whitespace
             cleaned = text.strip().strip('`').replace('json\n', '').replace('json', '').strip()
             return json.loads(cleaned)
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse JSON from OpenAI response: {text}")
+            logger.error(f"Failed to parse JSON from xAI response: {text}")
             return {}

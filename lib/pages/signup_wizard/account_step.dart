@@ -664,7 +664,7 @@ class _AccountStepState extends State<AccountStep>
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'Sorry fella, this needs to be unique..',
+                    'This will be your username that appears publicly',
                     style: TextStyle(
                       fontSize: 16,
                       color: Colors.grey.shade600,

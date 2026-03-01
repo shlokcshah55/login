@@ -66,6 +66,9 @@ class LocationCarousel extends StatelessWidget {
   Widget build(BuildContext context) {
     if (locations.isEmpty) return const SizedBox.shrink();
 
+    final imgCount = locations.where((l) => l.imageUrl != null && l.imageUrl!.isNotEmpty).length;
+    print('[Carousel] Building with ${locations.length} locations ($imgCount have imageUrl, ${locations.length - imgCount} without)');
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOutQuint,
@@ -583,6 +586,8 @@ class _CarouselCard extends StatelessWidget {
   Widget _buildImage(ThemeData theme) {
     final colorScheme = theme.colorScheme;
     final url = location.imageUrl ?? location.photoReference;
+
+    print('[CarouselCard] "${location.name}" — imageUrl=${location.imageUrl != null ? "YES" : "null"}, photoRef=${location.photoReference != null ? "YES" : "null"}, using=${url != null ? "network" : "placeholder"}');
 
     if (url != null) {
       return CachedNetworkImage(

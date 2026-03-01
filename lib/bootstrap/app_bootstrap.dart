@@ -8,6 +8,8 @@ import 'package:login/models/locations.dart';
 import 'package:login/services/fcm_service.dart';
 import 'package:login/services/google_place_service.dart';
 import 'package:login/services/location_service.dart';
+import 'package:login/services/proximity/geofence_service.dart';
+import 'package:login/services/proximity/proximity_notification_service.dart';
 import 'package:login/supabase/service.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 
@@ -76,6 +78,24 @@ Future<AppDependencies> bootstrap({
   } catch (e) {
     print('⚠️ FCM initialization failed: $e');
     print('⚠️ Push notifications may not work');
+  }
+
+  // Initialize proximity notification services
+  print('🔧 Initializing proximity notifications...');
+  try {
+    await ProximityNotificationService().initialize();
+    print('✅ Proximity notification service initialized');
+  } catch (e) {
+    print('⚠️ Proximity notification service failed: $e');
+  }
+
+  try {
+    if (supabaseService.isAuthenticated) {
+      await GeofenceService().registerGeofences();
+      print('✅ Geofences registered');
+    }
+  } catch (e) {
+    print('⚠️ Geofence registration failed: $e');
   }
 
   return AppDependencies(

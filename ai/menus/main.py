@@ -70,12 +70,7 @@ DIETARY_REQUIREMENTS = [
 
 # Tag IDs for dietary requirements in Supabase
 DIETARY_TAG_IDS = {
-    "halal": "f63c9f41-8f9a-4bf1-8268-d21613d9f45b",
-    "vegan": "f84b570b-64a3-4055-9ab5-81806876eea2",
-    "gluten-free": "d01fbf0d-a31f-4a6f-a5f4-29acf65ec471",
-    "vegetarian": "4d7627f0-cd72-48d1-a595-824dd22caf0d",
-    "dairy-free": "8cad845c-8207-4cd6-a877-306bc4e2a45d",
-    "nut-free": "196df3ce-ebdd-4d7c-8521-ea9070c24d93",
+w 
 }
 
 MAX_PAGES_PER_SITE = 15

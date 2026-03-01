@@ -6,7 +6,8 @@ import os
 
 # 1. Initialize Firebase Admin SDK
 try:
-    initialize_app()
+    cred = credentials.Certificate(json.loads(os.environ.get('FIREBASE_CREDENTIALS')))
+    initialize_app(credential=cred)
 except ValueError:
     # Already initialized
     pass

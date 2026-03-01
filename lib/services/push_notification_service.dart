@@ -7,7 +7,7 @@ import 'package:login/supabase/constants.dart';
 
 class PushNotificationService {
   final String? apiSecretKey = dotenv.env["API_SECRET_KEY"];
-  final String apiEndpoint = 'https://europe-west1-pinit-a97eb.cloudfunctions.net/send_push_notification';
+  final String apiEndpoint = 'https://send-push-notification-3e26rjbtca-ew.a.run.app/send_push_notification';
 
   /// Send notification when someone requests to follow a user
   Future<bool> sendFollowRequestNotification({

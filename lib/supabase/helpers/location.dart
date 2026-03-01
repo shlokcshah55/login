@@ -57,69 +57,17 @@ class LocationHelper {
   }
 
   // ==================== IMAGE URL HELPER ====================
-  /// Constructs the image URL for a location.
-  /// Uses a simple, predictable URL format instead of expensive storage checks.
-  /// If image doesn't exist in storage, it will be fetched from Google on demand.
-  Future<String?> _getLocationImageUrl(
-      Map<String, dynamic> locationData) async {
+  /// Constructs the image URL for a location using the `image_stored` boolean.
+  /// Synchronous — no awaits, no network calls.
+  /// Returns the storage URL if the image is stored, otherwise null.
+  String? _getLocationImageUrl(Map<String, dynamic> locationData) {
     final locationId = locationData[SupabaseConstants.columnLocationId] as int;
-    final filename = '$locationId.jpg';
+    final imageStored = locationData[SupabaseConstants.columnImageStored] == true;
 
-    // First check if we have image_url stored in database (fastest)
-    final storedUrl = locationData[SupabaseConstants.columnImageUrl];
-    if (storedUrl != null && storedUrl.toString().isNotEmpty) {
-      return storedUrl.toString();
+    if (imageStored) {
+      return _client.storage.from('location_photos').getPublicUrl('$locationId.jpg');
     }
-
-    // Construct the predictable public URL
-    // This avoids the expensive storage.list() call
-    final publicUrl =
-        _client.storage.from('location_photos').getPublicUrl(filename);
-
-    // Check if we need to download from Google (only if no photo exists)
-    // We do this lazily - assume the URL works, and if it doesn't, the UI can handle it
-    final photoReference = locationData[SupabaseConstants.columnPhotoReference];
-    final googlePlaceId = locationData[SupabaseConstants.columnGooglePlaceId];
-
-    if (photoReference != null && photoReference.toString().isNotEmpty) {
-      // If we have a photo reference, try to download if not already cached
-      // This runs in background and won't block
-      _ensureImageUploaded(locationId, googlePlaceId?.toString() ?? '',
-          photoReference.toString());
-    }
-
-    return publicUrl;
-  }
-
-  /// Background task to ensure image is uploaded to storage
-  /// This is fire-and-forget - doesn't block the main flow
-  Future<void> _ensureImageUploaded(
-      int locationId, String googlePlaceId, String photoReference) async {
-    // Skip if already downloading
-    if (_activeDownloads.containsKey(locationId)) return;
-
-    try {
-      // Quick check if file exists by trying to get metadata (cheaper than list())
-      final filename = '$locationId.jpg';
-      try {
-        // Try a HEAD request to check if URL is valid
-        final url =
-            _client.storage.from('location_photos').getPublicUrl(filename);
-        final response = await http.head(Uri.parse(url));
-        if (response.statusCode == 200) {
-          // Image already exists, no need to download
-          return;
-        }
-      } catch (_) {
-        // URL doesn't exist or error - proceed with download
-      }
-
-      // Download and upload
-      await getLocationImage(locationId, googlePlaceId, photoReference);
-    } catch (e) {
-      if (kDebugMode)
-        print('Background image upload failed for $locationId: $e');
-    }
+    return null; // no image yet — caller handles background fetch
   }
 
   /// Process a list of location JSON objects into LocationModel list.
@@ -144,7 +92,7 @@ class LocationHelper {
         if (cached != null) {
           // Always refresh imageUrl even for cached locations
           // in case it was added or updated
-          final imageUrl = await _getLocationImageUrl(item);
+          final imageUrl = _getLocationImageUrl(item);
           if (imageUrl != null && imageUrl != cached.imageUrl) {
             final updated = cached.copyWith(imageUrl: imageUrl);
             _cacheLocation(updated);
@@ -153,8 +101,8 @@ class LocationHelper {
           return cached;
         }
 
-        // Get image URL (fast path - just constructs URL)
-        final imageUrl = await _getLocationImageUrl(item);
+        // Get image URL (synchronous - just constructs URL if image_stored)
+        final imageUrl = _getLocationImageUrl(item);
         developer.log(
           '[LocationHelper] Location $locationId - imageUrl: $imageUrl',
           name: 'LocationHelper',
@@ -794,6 +742,9 @@ class LocationHelper {
   }
 
   // Method that performs the actual download (called only once per location)
+  // Downloads image bytes from Google, then fires off the storage upload + DB
+  // update in the background. Returns the predictable storage URL immediately
+  // once we have the bytes (so the caller can update the UI fast).
   Future<String?> _performImageDownload(
       int locationId, String photoReference, String placeId) async {
     try {
@@ -808,23 +759,31 @@ class LocationHelper {
               'p_photo_reference': photoReference,
             },
           );
+        } else {
+          return null; // no photo reference available
         }
       } else {
         if (kDebugMode) print('✓ Photo reference found in database');
       }
 
-      // Download image bytes and upload to Supabase (pass locationId for filename)
+      // Download image bytes from Google (need to await — we need the bytes)
+      final filename = '$locationId.jpg';
+      final tempImageUrl = await _tryMediaApi(photoReference);
+      if (tempImageUrl == null) return null;
+
+      final response = await http.get(Uri.parse(tempImageUrl));
+      if (response.statusCode != 200) return null;
+      final imageBytes = response.bodyBytes;
+
+      // Construct the permanent storage URL (predictable)
       final permanentUrl =
-          await _downloadAndUploadImage(photoReference, locationId);
-      if (permanentUrl != null) {
-        await _client.rpc(
-          'update_location_image_url',
-          params: {
-            'p_location_id': locationId,
-            'p_image_url': permanentUrl,
-          },
-        );
-      }
+          _client.storage.from('location_photos').getPublicUrl(filename);
+
+      // Fire-and-forget: upload to storage + update DB (image_url + image_stored)
+      // The URL will be live once the upload completes; CachedNetworkImage
+      // will retry on its own.
+      _uploadAndPersist(locationId, filename, imageBytes, permanentUrl);
+
       return permanentUrl;
     } catch (e) {
       if (kDebugMode) print('❌ Error in _performImageDownload: $e');
@@ -832,43 +791,23 @@ class LocationHelper {
     }
   }
 
-  // Helper function to download image from Google and upload to Supabase Storage
-  Future<String?> _downloadAndUploadImage(
-      String photoReference, int locationId) async {
+  /// Fire-and-forget helper: uploads image bytes to storage and updates the DB.
+  void _uploadAndPersist(
+      int locationId, String filename, Uint8List imageBytes, String permanentUrl) async {
     try {
-      if (kDebugMode) {
-        print('');
-        print('🔄 Starting image download and upload process...');
-      }
-
-      // Use location_id as the filename for easy identification and deduplication
-      final filename = '$locationId.jpg';
-
-      // 1. Get temporary signed URL from Google Media API (1 API call)
-      final tempImageUrl = await _tryMediaApi(photoReference);
-      if (tempImageUrl == null) {
-        return null;
-      }
-
-      // 2. Download actual image before the URL expires
-      final response = await http.get(Uri.parse(tempImageUrl));
-      if (response.statusCode != 200) {
-        return null;
-      }
-      final imageBytes = response.bodyBytes; // The actual image data
-
-      // 3. Upload image bytes to Supabase Storage
       await _client.storage
-          .from('location_photos') // Existing bucket name
+          .from('location_photos')
           .uploadBinary(filename, imageBytes);
 
-      final permanentUrl = _client.storage
-          .from('location_photos') // Existing bucket name
-          .getPublicUrl(filename);
-      return permanentUrl; // This URL will work forever
+      await _client.rpc(
+        'update_location_image_url',
+        params: {
+          'p_location_id': locationId,
+          'p_image_url': permanentUrl,
+        },
+      );
     } catch (e) {
-      if (kDebugMode) print('❌ Error downloading and uploading image: $e');
-      return null;
+      if (kDebugMode) print('❌ Background upload/persist failed for $locationId: $e');
     }
   }
 

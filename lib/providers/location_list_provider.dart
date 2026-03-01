@@ -540,8 +540,8 @@ class LocationListManager with ChangeNotifier {
         _currentItems = _searchLocations;
         break;
     }
-    print(
-        "Set current list type to: $type, item count: ${_currentItems.length}");
+    final imgCount = _currentItems.keys.where((l) => l.imageUrl != null && l.imageUrl!.isNotEmpty).length;
+    print('[ListType] Switched to $type: ${_currentItems.length} items ($imgCount with imageUrl) — notifyListeners()');
 
     // Apply name selection with current viewport if available
     await _applyNameSelectionToCurrentItems(
@@ -576,6 +576,8 @@ class LocationListManager with ChangeNotifier {
       List<LocationModel> supabaseSavedLocations =
           await _supabaseService.locations.getSavedLocations();
 
+      final withImg = supabaseSavedLocations.where((l) => l.imageUrl != null && l.imageUrl!.isNotEmpty).length;
+      print('[SavedLocations] Got ${supabaseSavedLocations.length} locations ($withImg with imageUrl, ${supabaseSavedLocations.length - withImg} without) in ${stopwatch.elapsedMilliseconds}ms');
       log('[fetchSavedLocations] Got ${supabaseSavedLocations.length} locations in ${stopwatch.elapsedMilliseconds}ms');
 
       // Always mark as loaded — even if empty (user simply has no saves yet)
@@ -612,6 +614,7 @@ class LocationListManager with ChangeNotifier {
         );
 
         _savedLocations = Map.fromEntries(sortedMarkers);
+        print('[SavedLocations] Markers created: ${sortedMarkers.length} (${stopwatch.elapsedMilliseconds}ms)');
         log('[fetchSavedLocations] Created ${sortedMarkers.length} markers in ${stopwatch.elapsedMilliseconds}ms');
       }
 
@@ -619,7 +622,20 @@ class LocationListManager with ChangeNotifier {
       if (_currentListType == LocationListType.saved) {
         _currentItems = _savedLocations;
       }
+      print('[SavedLocations] Carousel can now render with ${_savedLocations.length} items — notifyListeners() (${stopwatch.elapsedMilliseconds}ms)');
       notifyListeners();
+
+      // Kick off background image hydration for locations missing images
+      final missingImages = supabaseSavedLocations
+          .where((loc) => loc.imageUrl == null || loc.imageUrl!.isEmpty)
+          .toList();
+      if (missingImages.isNotEmpty) {
+        print('[SavedLocations] Kicking off hydration for ${missingImages.length} missing images');
+        log('[fetchSavedLocations] Hydrating ${missingImages.length} images in background');
+        _hydrateImagesInBackground(missingImages);
+      } else {
+        print('[SavedLocations] All images already available, no hydration needed');
+      }
     } catch (e, st) {
       log('[fetchSavedLocations] ERROR: $e\n$st');
       // Still mark as loaded so we don't retry in an infinite loop
@@ -658,6 +674,9 @@ class LocationListManager with ChangeNotifier {
     _isLoadingRecommendations = true;
     notifyListeners();
 
+    final rsw = Stopwatch()..start();
+    print('[Recommendations] START');
+
     try {
       log("📍 [LocationListManager] fetchRecommendedLocations called");
       log("   User ID: $_userId");
@@ -679,6 +698,8 @@ class LocationListManager with ChangeNotifier {
         cuisineTagIds: cuisineTagIds,
       );
 
+      print('[Recommendations] API response received (${rsw.elapsedMilliseconds}ms)');
+
       // Extract IDs (preserves ranking!)
       final locationIds = response.recommendations
           .map((rec) => rec.locationId)
@@ -686,6 +707,7 @@ class LocationListManager with ChangeNotifier {
           .toList();
 
       if (locationIds.isEmpty) {
+        print('[Recommendations] API returned 0 results (${rsw.elapsedMilliseconds}ms)');
         log("Recommendations API returned no results");
         _error = "No recommendations found in this area";
         _recommendedLocations = {};
@@ -693,10 +715,12 @@ class LocationListManager with ChangeNotifier {
         return;
       }
 
-      log("Found ${locationIds.length} recommended location IDs");
+      print('[Recommendations] ${locationIds.length} IDs from API, fetching from Supabase...');
 
       // Fetch full location data
       final locations = await _fetchLocationsByIdsInOrder(locationIds);
+      final withImg = locations.where((l) => l.imageUrl != null && l.imageUrl!.isNotEmpty).length;
+      print('[Recommendations] Locations fetched: ${locations.length} total, $withImg with imageUrl, ${locations.length - withImg} without (${rsw.elapsedMilliseconds}ms)');
 
       // Select which locations should show names
       final tempMap = Map.fromEntries(locations.map((loc) => MapEntry(
@@ -718,6 +742,8 @@ class LocationListManager with ChangeNotifier {
         }),
       );
 
+      print('[Recommendations] Markers generated: ${markers.length} (${rsw.elapsedMilliseconds}ms)');
+
       _recommendedLocations = Map.fromEntries(markers);
       _error = null; // Clear any previous errors
 
@@ -727,12 +753,23 @@ class LocationListManager with ChangeNotifier {
 
       log("Fetched ${locations.length} personalized recommendations");
 
+      // Kick off background image hydration for locations missing images
+      final missingImages = locations
+          .where((loc) => loc.imageUrl == null || loc.imageUrl!.isEmpty)
+          .toList();
+      if (missingImages.isNotEmpty) {
+        print('[Recommendations] Kicking off hydration for ${missingImages.length} missing images');
+        _hydrateImagesInBackground(missingImages);
+      }
+
     } catch (e) {
+      print('[Recommendations] ERROR: $e (${rsw.elapsedMilliseconds}ms)');
       log('Error fetching personalized recommendations: $e');
       _error = "Failed to load recommendations: ${e.toString()}";
       _recommendedLocations = {};
     } finally {
       _isLoadingRecommendations = false;
+      print('[Recommendations] DONE, isLoading=false — notifyListeners() (${rsw.elapsedMilliseconds}ms)');
       notifyListeners();
     }
   }
@@ -974,6 +1011,15 @@ class LocationListManager with ChangeNotifier {
       _currentItems = _recommendedLocations;
     }
     notifyListeners();
+
+    // Kick off background image hydration for locations missing images
+    final missingImages = locations
+        .where((loc) => loc.imageUrl == null || loc.imageUrl!.isEmpty)
+        .toList();
+    if (missingImages.isNotEmpty) {
+      log('[addRecommendedLocations] Hydrating ${missingImages.length} images in background');
+      _hydrateImagesInBackground(missingImages);
+    }
   }
 
   /// Search recommendations in the visible map area using proximal API.
@@ -1186,25 +1232,34 @@ class LocationListManager with ChangeNotifier {
       List<int> locationIds) async {
     if (locationIds.isEmpty) return [];
 
+    final sw = Stopwatch()..start();
     final uniqueIds = locationIds.toSet().toList();
     final response = await Supabase.instance.client
         .from(SupabaseConstants.tableLocations)
         .select()
         .inFilter(SupabaseConstants.columnLocationId, uniqueIds);
 
+    print('[FetchByIds] Supabase query done (${sw.elapsedMilliseconds}ms) for ${uniqueIds.length} IDs');
+
+    int withImage = 0;
+    int withoutImage = 0;
     final Map<int, LocationModel> byId = {};
     for (var item in response as List) {
       final int locationId = item[SupabaseConstants.columnLocationId] as int;
-      String? locationImage = item[SupabaseConstants.columnImageUrl];
-      if (locationImage == null || locationImage.isEmpty) {
-        locationImage = await _supabaseService.locations.getLocationImage(
-          locationId,
-          item[SupabaseConstants.columnGooglePlaceId],
-          item[SupabaseConstants.columnPhotoReference],
-        );
+      final imageStored = item[SupabaseConstants.columnImageStored] == true;
+      String? locationImage;
+      if (imageStored) {
+        locationImage = Supabase.instance.client.storage
+            .from('location_photos')
+            .getPublicUrl('$locationId.jpg');
+        withImage++;
+      } else {
+        withoutImage++;
       }
       byId[locationId] = LocationModel.fromJson(item, locationImage);
     }
+
+    print('[FetchByIds] ${response.length} locations: $withImage with stored image, $withoutImage without (${sw.elapsedMilliseconds}ms)');
 
     final List<LocationModel> ordered = [];
     for (final id in locationIds) {
@@ -1215,7 +1270,100 @@ class LocationListManager with ChangeNotifier {
         log('LocationListManager: Missing location data for id $id');
       }
     }
+    print('[FetchByIds] Returning ${ordered.length} ordered locations (${sw.elapsedMilliseconds}ms)');
     return ordered;
+  }
+
+  /// Updates a location's image URL across all three location maps.
+  /// Does NOT call notifyListeners() — caller is responsible for batching.
+  void _updateLocationImage(int locationId, String imageUrl) {
+    for (final map in [_recommendedLocations, _savedLocations, _searchLocations]) {
+      LocationModel? oldKey;
+      for (final loc in map.keys) {
+        if (loc.locationId == locationId) {
+          oldKey = loc;
+          break;
+        }
+      }
+      if (oldKey != null) {
+        final markerData = map.remove(oldKey)!;
+        final updated = oldKey.copyWith(imageUrl: imageUrl, imageStored: true);
+        map[updated] = markerData;
+      }
+    }
+
+    // Also update _justDecideLocations list
+    for (int i = 0; i < _justDecideLocations.length; i++) {
+      if (_justDecideLocations[i].locationId == locationId) {
+        _justDecideLocations[i] = _justDecideLocations[i]
+            .copyWith(imageUrl: imageUrl, imageStored: true);
+        break;
+      }
+    }
+  }
+
+  /// Background-fetches images for locations with image_stored == false.
+  /// Batches notifyListeners() calls every [batchSize] completions.
+  void _hydrateImagesInBackground(List<LocationModel> missingLocations) {
+    if (missingLocations.isEmpty) return;
+
+    final sw = Stopwatch()..start();
+    final total = missingLocations.length;
+    print('[ImageHydration] Starting hydration for $total locations');
+
+    int completed = 0;
+    const batchSize = 4;
+
+    Future.wait(missingLocations.map((loc) async {
+      try {
+        final url = await _supabaseService.locations.getLocationImage(
+          loc.locationId,
+          loc.googlePlaceId ?? '',
+          loc.photoReference,
+        );
+        if (url != null) {
+          _updateLocationImage(loc.locationId, url);
+          completed++;
+          print('[ImageHydration] "${loc.name}" image ready ($completed/$total, ${sw.elapsedMilliseconds}ms)');
+          if (completed % batchSize == 0) {
+            print('[ImageHydration] Batch done $completed/$total (${sw.elapsedMilliseconds}ms) — notifyListeners()');
+            // Refresh currentItems reference before notifying
+            _syncCurrentItems();
+            notifyListeners();
+          }
+        } else {
+          print('[ImageHydration] "${loc.name}" returned null URL (${sw.elapsedMilliseconds}ms)');
+        }
+      } catch (e) {
+        print('[ImageHydration] FAILED "${loc.name}": $e (${sw.elapsedMilliseconds}ms)');
+        log('Background image hydration failed for ${loc.locationId}: $e');
+      }
+    })).then((_) {
+      // Flush remaining updates
+      print('[ImageHydration] All done: $completed/$total hydrated in ${sw.elapsedMilliseconds}ms');
+      if (completed % batchSize != 0) {
+        print('[ImageHydration] Final flush — notifyListeners()');
+        _syncCurrentItems();
+        notifyListeners();
+      }
+    });
+  }
+
+  /// Re-points _currentItems at the active map after background mutations.
+  void _syncCurrentItems() {
+    switch (_currentListType) {
+      case LocationListType.saved:
+        _currentItems = _savedLocations;
+        break;
+      case LocationListType.recommended:
+        _currentItems = _recommendedLocations;
+        break;
+      case LocationListType.search:
+        _currentItems = _searchLocations;
+        break;
+    }
+    final imgCount = _currentItems.keys.where((l) => l.imageUrl != null && l.imageUrl!.isNotEmpty).length;
+    print('[SyncItems] $_currentListType: ${_currentItems.length} items ($imgCount with imageUrl)');
   }
 
   /// Handles the magic search feature using the recommendations API.
@@ -1264,6 +1412,9 @@ class LocationListManager with ChangeNotifier {
       "maxResults: $maxResults, includeTasteBreakdown: $includeTasteBreakdown",
     );
 
+    final msw = Stopwatch()..start();
+    print('[MagicSearch] START query="$trimmedQuery"');
+
     try {
       final response = await http.post(
         Uri.parse(_magicSearchEndpoint),
@@ -1279,6 +1430,7 @@ class LocationListManager with ChangeNotifier {
         }),
       );
 
+      print('[MagicSearch] API response received: status=${response.statusCode} (${msw.elapsedMilliseconds}ms)');
       log(
         "LocationListManager: Magic search response status ${response.statusCode}",
       );
@@ -1298,22 +1450,18 @@ class LocationListManager with ChangeNotifier {
       final decoded = jsonDecode(response.body) as Map<String, dynamic>;
       final recommendations =
           decoded['recommendations'] as List<dynamic>? ?? [];
-      log(
-        "LocationListManager: Magic search returned ${recommendations.length} recommendations",
-      );
+      print('[MagicSearch] ${recommendations.length} recommendations from API (${msw.elapsedMilliseconds}ms)');
       final locationIds = recommendations
           .map((item) => (item as Map<String, dynamic>)['location_id'])
           .where((id) => id != null)
           .map((id) => (id as num).toInt())
           .toList();
 
-      log(
-        "LocationListManager: Magic search location IDs count ${locationIds.length}",
-      );
+      print('[MagicSearch] Fetching ${locationIds.length} locations from Supabase...');
       final locations = await _fetchLocationsByIdsInOrder(locationIds);
-      log(
-        "LocationListManager: Loaded ${locations.length} locations from Supabase for magic search",
-      );
+      final withImg = locations.where((l) => l.imageUrl != null && l.imageUrl!.isNotEmpty).length;
+      final withoutImg = locations.length - withImg;
+      print('[MagicSearch] Locations fetched: ${locations.length} total, $withImg with imageUrl, $withoutImg without (${msw.elapsedMilliseconds}ms)');
       _searchLocations = {};
 
       // Select which locations should show names
@@ -1336,10 +1484,10 @@ class LocationListManager with ChangeNotifier {
       _searchLocations =
           Map.fromEntries(markers.whereType<MapEntry<LocationModel, MapMarkerData>>());
 
-      log(
-        "LocationListManager: Magic search returned ${_searchLocations.length} results for '$trimmedQuery'.",
-      );
+      print('[MagicSearch] Markers generated: ${_searchLocations.length} (${msw.elapsedMilliseconds}ms)');
+      print('[MagicSearch] Calling setCurrentListType(search) — carousel will populate');
       await setCurrentListType(LocationListType.search);
+      print('[MagicSearch] DONE (${msw.elapsedMilliseconds}ms)');
     } catch (e) {
       log('LocationListManager: Error during magic search: $e');
       _error = "Search error: ${e.toString()}";

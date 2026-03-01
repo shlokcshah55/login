@@ -7,7 +7,7 @@ DECLARE
     v_location_name TEXT;
     v_location_id TEXT;
     v_fcm_token TEXT;
-    v_api_url TEXT := 'https://europe-west1-pinit-a97eb.cloudfunctions.net/send_push_notification';
+    v_api_url TEXT := 'https://send-push-notification-3e26rjbtca-ew.a.run.app/send_push_notification';
     v_api_key TEXT := 'RnP9BGrHqnMLpWcvwFFnxDmTf+ES21Yd15pIFz5CjGg='; -- Replace with the key used in your Cloud Function
 BEGIN
     RAISE LOG 'notify_tiktok_save triggered for user % on location %', NEW.user_id, NEW.location_id;

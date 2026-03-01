@@ -10,6 +10,7 @@ import 'package:login/pages/home_page.dart';
 import 'package:login/pages/profile/profile_page.dart';
 import 'package:login/pages/signup_wizard/wizard_completion_page.dart';
 import 'package:login/pages/splash_screen.dart';
+import 'package:login/services/proximity/geofence_service.dart';
 import 'package:login/supabase/supabase_client.dart';
 import 'package:login/themes/app_theme.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
@@ -44,13 +45,16 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
 
     SupabaseClientManager().client.auth.onAuthStateChange.listen((data) {
       final session = data.session;
       if (session != null) {
         _saveUserIdToAppGroup();
+        GeofenceService().registerGeofences();
       } else {
         _clearUserIdFromAppGroup();
+        GeofenceService().clearGeofences();
       }
     });
 
@@ -113,7 +117,18 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Re-register geofences on resume to pick up newly saved locations
+      if (SupabaseClientManager().currentUser != null) {
+        GeofenceService().registerGeofences();
+      }
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _intentSub.cancel();
     super.dispose();
   }

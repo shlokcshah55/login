@@ -13,6 +13,7 @@
 .swiftpm/
 migrate_working_dir/
 pinit_service_account.json
+pinit-a97eb-8f62b614bdc2.json
 /venv/
 ai/tiktok-processor/build
 pubspec.lock

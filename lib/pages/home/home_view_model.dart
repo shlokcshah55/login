@@ -85,6 +85,9 @@ class HomeViewModel extends ChangeNotifier {
         locationListManager.currentPosition
       );
     }
+    final locCount = locationListManager.currentItems.keys.length;
+    final imgCount = locationListManager.currentItems.keys.where((l) => l.imageUrl != null && l.imageUrl!.isNotEmpty).length;
+    print('[HomeViewModel] _onExternalStateChanged: ${locationListManager.currentListType} has $locCount locations ($imgCount with imageUrl) — notifyListeners()');
     notifyListeners();
   }
 
