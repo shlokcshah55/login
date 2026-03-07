@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:googleapis/mybusinessbusinessinformation/v1.dart';
@@ -18,6 +19,42 @@ class AuthHelper {
 
 
  
+
+  /// Resend the signup confirmation OTP to the given email
+  Future<void> resendSignUpOtp(String email) async {
+    try {
+      await _client.auth.resend(type: OtpType.signup, email: email);
+      if (kDebugMode) {
+        print('Signup OTP resent to $email');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error resending signup OTP: $e');
+      }
+      rethrow;
+    }
+  }
+
+  /// Verify the signup confirmation OTP code
+  /// Returns true if verification succeeds (user is now confirmed and signed in)
+  Future<bool> verifyEmailOtp(String email, String token) async {
+    try {
+      final response = await _client.auth.verifyOTP(
+        email: email,
+        token: token,
+        type: OtpType.signup,
+      );
+      if (kDebugMode) {
+        print('Signup OTP verified for $email');
+      }
+      return response.user != null;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error verifying signup OTP: $e');
+      }
+      return false;
+    }
+  }
 
   /// Sign up a new user with email and password
   Future<UserModel> signUp({
@@ -132,10 +169,11 @@ class AuthHelper {
 
   /// Ensure user record exists in database for OAuth users
   /// Called automatically when auth state changes to signed in
-  Future<void> ensureUserRecordExists() async {
+  /// Returns true if a new user record was created, false if it already existed
+  Future<bool> ensureUserRecordExists() async {
     try {
       final user = currentUser;
-      if (user == null) return;
+      if (user == null) return false;
 
       // Check if user exists in your users table
       final existingUser = await _client
@@ -150,23 +188,50 @@ class AuthHelper {
           print('Creating database record for new OAuth user: ${user.email}');
         }
 
+        final name = user.userMetadata?['name'] ?? user.userMetadata?['full_name'] ?? '';
+        final username = await _generateUniqueUsername(name);
+
         await _client.rpc('ensure_user_record_exists', params: {
           'p_supabase_id': user.id,
           'p_email': user.email,
-          'p_name': user.userMetadata?['name'] ?? user.userMetadata?['full_name'],
-          'p_username': user.userMetadata?['username'] ?? '',
+          'p_name': name,
+          'p_username': username,
         });
 
         if (kDebugMode) {
-          print('User record created successfully');
+          print('User record created successfully with username: $username');
         }
+        return true;
       }
+      return false;
     } catch (e) {
       if (kDebugMode) {
         print('Error ensuring user record exists: $e');
       }
       // Don't rethrow - this is a background operation
+      return false;
     }
+  }
+
+  /// Generate a unique username from the user's display name
+  /// e.g. "John Smith" → "johnsmith4821"
+  Future<String> _generateUniqueUsername(String name) async {
+    final random = Random();
+    // Clean the name: lowercase, remove non-alphanumeric, remove spaces
+    final base = name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+    final prefix = base.isNotEmpty ? base : 'user';
+
+    // Try up to 10 times to find a unique username
+    for (int i = 0; i < 10; i++) {
+      final suffix = random.nextInt(9000) + 1000; // 4-digit number 1000-9999
+      final candidate = '$prefix$suffix';
+      if (!await usernameExists(candidate)) {
+        return candidate;
+      }
+    }
+
+    // Fallback: use timestamp for guaranteed uniqueness
+    return '$prefix${DateTime.now().millisecondsSinceEpoch % 100000}';
   }
 
   /// Sign out the current user
@@ -305,9 +370,10 @@ class AuthHelper {
       userCreds['following_count'] = followingDetails.length;
 
       return UserModel.fromJson(userCreds);
-    } catch (e) {
+    } catch (e, stackTrace) {
       if (kDebugMode) {
         print('Error getting user profile by ID: $e');
+        print('Stack trace: $stackTrace');
       }
       return null;
     }

@@ -36,14 +36,19 @@ class _AccountStepState extends State<AccountStep>
   final TextEditingController nameController = TextEditingController();
   final TextEditingController usernameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
+  final TextEditingController otpController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController confirmPasswordController = TextEditingController();
 
-  // Focus nodes for first 3 fields (keep keyboard open and control focus)
+  // Focus nodes for fields (keep keyboard open and control focus)
   late FocusNode nameFocusNode;
   late FocusNode emailFocusNode;
+  late FocusNode otpFocusNode;
   late FocusNode passwordFocusNode;
   late FocusNode usernameFocusNode;
+
+  bool _isSendingOtp = false;
+  bool _isVerifyingOtp = false;
 
   // Profile picture state
   File? _selectedProfileImage;
@@ -63,6 +68,7 @@ class _AccountStepState extends State<AccountStep>
     // initialize focus nodes
     nameFocusNode = FocusNode();
     emailFocusNode = FocusNode();
+    otpFocusNode = FocusNode();
     passwordFocusNode = FocusNode();
     usernameFocusNode = FocusNode();
 
@@ -80,11 +86,13 @@ class _AccountStepState extends State<AccountStep>
     _transitionController.dispose();
     nameController.dispose();
     emailController.dispose();
+    otpController.dispose();
     passwordController.dispose();
     confirmPasswordController.dispose();
     errorNotifier.dispose();
     nameFocusNode.dispose();
     emailFocusNode.dispose();
+    otpFocusNode.dispose();
     passwordFocusNode.dispose();
     usernameFocusNode.dispose();
     usernameController.dispose();
@@ -245,21 +253,14 @@ class _AccountStepState extends State<AccountStep>
       final wizardState =
           Provider.of<SignupWizardState>(context, listen: false);
 
-      // Create Supabase account
+      // Create Supabase account — with "Confirm email" enabled in Supabase,
+      // this sends a 6-digit OTP to the user's email automatically
       String userID = await supabaseProvider.signUp(
         emailController.text,
         passwordController.text,
         name: nameController.text,
         username: usernameController.text,
       );
-      await supabaseProvider.tags.initializeVibeTagsForUser(userID);
-
-      // Spinning for user to be fully registered
-      int retryCount = 0;
-      while (supabaseProvider.users.currentUser == null && retryCount < 10) {
-        await Future.delayed(const Duration(milliseconds: 200));
-        retryCount++;
-      }
 
       if (userID.isEmpty) {
         throw Exception('Failed to create account');
@@ -268,13 +269,68 @@ class _AccountStepState extends State<AccountStep>
       wizardState.setUserId(userID);
       wizardState.setAccountInfo(nameController.text, emailController.text);
 
-      // Add profile picture step
-      if (userID.isNotEmpty) await _addProfilePic();
+      // Advance to OTP verification step
+      _advanceToNextSubStep();
     } catch (e) {
       errorNotifier.value = 'Sign up failed: ${e.toString()}';
     } finally {
       if (mounted) {
         setState(() => isLoading = false);
+      }
+    }
+  }
+
+  /// Verify the OTP code and complete account setup
+  Future<void> _verifyOtpAndComplete() async {
+    final code = otpController.text.trim();
+    if (code.isEmpty) {
+      errorNotifier.value = 'Please enter the verification code';
+      return;
+    }
+    if (code.length != 6) {
+      errorNotifier.value = 'Code must be 6 digits';
+      return;
+    }
+
+    setState(() => _isVerifyingOtp = true);
+    errorNotifier.value = null;
+
+    try {
+      final supabaseProvider =
+          Provider.of<SupabaseService>(context, listen: false);
+      final wizardState =
+          Provider.of<SignupWizardState>(context, listen: false);
+
+      // Verify the signup confirmation OTP
+      final verified = await supabaseProvider.users.verifyEmailOtp(
+        emailController.text.trim(),
+        code,
+      );
+
+      if (!verified) {
+        errorNotifier.value = 'Invalid code. Please try again.';
+        return;
+      }
+
+      // Email verified — now initialize vibe tags
+      if (wizardState.userId != null) {
+        await supabaseProvider.tags.initializeVibeTagsForUser(wizardState.userId!);
+      }
+
+      // Spinning for user to be fully registered
+      int retryCount = 0;
+      while (supabaseProvider.users.currentUser == null && retryCount < 10) {
+        await Future.delayed(const Duration(milliseconds: 200));
+        retryCount++;
+      }
+
+      // Advance to profile picture step
+      await _addProfilePic();
+    } catch (e) {
+      errorNotifier.value = 'Verification failed: ${e.toString()}';
+    } finally {
+      if (mounted) {
+        setState(() => _isVerifyingOtp = false);
       }
     }
   }
@@ -514,6 +570,9 @@ class _AccountStepState extends State<AccountStep>
       case 3:
         FocusScope.of(context).requestFocus(passwordFocusNode);
         break;
+      case 4:
+        FocusScope.of(context).requestFocus(otpFocusNode);
+        break;
       default:
         FocusScope.of(context).unfocus();
     }
@@ -544,6 +603,7 @@ class _AccountStepState extends State<AccountStep>
             _buildKeyboardAwareSubStep(_buildUserNameSubStep(), lockKeyboard: true),
             _buildKeyboardAwareSubStep(_buildEmailSubStep(), lockKeyboard: true),
             _buildKeyboardAwareSubStep(_buildPasswordSubStep(), lockKeyboard: true),
+            _buildKeyboardAwareSubStep(_buildOtpSubStep(), lockKeyboard: true),
             _buildKeyboardAwareSubStep(_buildProfilePictureSubStep()),
           ],
         ),
@@ -813,6 +873,136 @@ class _AccountStepState extends State<AccountStep>
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Sub-Step 4: OTP Verification (shown after signUp sends confirmation email)
+  Widget _buildOtpSubStep() {
+    return _buildAnimatedSubStep(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Top text
+          SlideTransition(
+            position: AnimationBuilders.createTextSlideAnimation(_transitionController),
+            child: FadeTransition(
+              opacity: AnimationBuilders.createFadeAnimation(_transitionController),
+              child: Column(
+                children: [
+                  const SizedBox(height: 10),
+                  TypingText(
+                    key: ValueKey(_currentSubStep == 4),
+                    text: 'Check your email',
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                    totalDuration: const Duration(milliseconds: 2200),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'We sent a 6-digit code to ${emailController.text}',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey.shade600,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Middle: OTP field + resend
+          SlideTransition(
+            position: AnimationBuilders.createFieldSlideAnimation(_transitionController),
+            child: FadeTransition(
+              opacity: AnimationBuilders.createFadeAnimation(_transitionController),
+              child: Column(
+                children: [
+                  _buildErrorBanner(),
+                  _buildTextField(
+                    controller: otpController,
+                    hintText: 'Verification Code',
+                    icon: Icons.lock_outline,
+                    keyboardType: TextInputType.number,
+                    focusNode: otpFocusNode,
+                  ),
+                  const SizedBox(height: 12),
+                  GestureDetector(
+                    onTap: _isSendingOtp ? null : () async {
+                      setState(() => _isSendingOtp = true);
+                      try {
+                        final supabaseService = Provider.of<SupabaseService>(context, listen: false);
+                        await supabaseService.users.resendSignUpOtp(emailController.text.trim());
+                        errorNotifier.value = null;
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Code resent!')),
+                          );
+                        }
+                      } catch (e) {
+                        errorNotifier.value = 'Failed to resend code';
+                      } finally {
+                        if (mounted) setState(() => _isSendingOtp = false);
+                      }
+                    },
+                    child: Text(
+                      'Resend code',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: const Color(0xFF42143d),
+                        fontWeight: FontWeight.w600,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Bottom: Verify button
+          SlideTransition(
+            position: AnimationBuilders.createBottomSlideAnimation(_transitionController),
+            child: FadeTransition(
+              opacity: AnimationBuilders.createFadeAnimation(_transitionController),
+              child: SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: _isVerifyingOtp ? null : _verifyOtpAndComplete,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF42143d),
+                    foregroundColor: Colors.white,
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: _isVerifyingOtp
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text(
+                          'Verify',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                 ),
               ),
             ),

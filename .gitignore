@@ -19,6 +19,7 @@ pubspec.lock
 ai/venv/
 pubspec.lock
 ai/vibe-tags/venv/
+ai/send-notification/pinit-a97eb-8f62b614bdc2.json
 
 # IntelliJ related
 *.iml

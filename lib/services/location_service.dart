@@ -10,6 +10,9 @@ class LocationService with ChangeNotifier {
   factory LocationService() => _instance;
   LocationService._internal();
 
+  // DEBUG: Set to non-null to override GPS with a fixed location
+  static const LatLng? _debugOverrideLocation = LatLng(51.517045, -0.08631);
+
   // State
   LatLng? _currentPosition;
   StreamSubscription<Position>? _positionStreamSubscription;
@@ -20,7 +23,7 @@ class LocationService with ChangeNotifier {
   bool _initialized = false;
 
   // Getters
-  LatLng? get currentPosition => _currentPosition;
+  LatLng? get currentPosition => _debugOverrideLocation ?? _currentPosition;
   bool get isTracking => _isTracking;
   bool get permissionGranted => _permissionGranted;
   bool get locationServiceEnabled => _locationServiceEnabled;
@@ -120,6 +123,14 @@ class LocationService with ChangeNotifier {
   /// Get the current location once.
   /// Will request permission if not already granted.
   Future<LatLng?> getCurrentLocation() async {
+    // DEBUG: Return override location if set
+    if (_debugOverrideLocation != null) {
+      _currentPosition = _debugOverrideLocation;
+      _log('Using debug override location: $_debugOverrideLocation');
+      notifyListeners();
+      return _debugOverrideLocation;
+    }
+
     _log('getCurrentLocation called, permissionGranted=$_permissionGranted');
     _log('Stack trace: ${StackTrace.current}');
 

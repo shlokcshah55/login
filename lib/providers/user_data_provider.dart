@@ -65,8 +65,10 @@ class UserDataProvider with ChangeNotifier {
 
       // Try to fetch from Supabase
       if (_supabaseProvider.users.isAuthenticated) {
+        log("UserDataProvider: Fetching profile for userId: $userId, currentUser: ${_supabaseProvider.users.currentUser?.id}");
         final UserModel? userModel =
             await _supabaseProvider.users.getUserProfile();
+        log("UserDataProvider: getUserProfile returned: ${userModel != null ? 'UserModel(${userModel.email})' : 'null'}");
         if (userModel != null) {
           _supabaseUserData = userModel;
           log("UserDataProvider: Fetched Supabase data for user");

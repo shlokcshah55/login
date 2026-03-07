@@ -1,11 +1,15 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:login/models/users.dart';
 import 'package:login/supabase/helpers/auth.dart';
 import 'package:login/supabase/helpers/location.dart';
 import 'package:login/supabase/helpers/location_reviews.dart';
 import 'package:login/supabase/helpers/tags.dart';
 import 'package:login/services/fcm_service.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'helpers/bubbles.dart';
@@ -293,8 +297,18 @@ class SupabaseService extends ChangeNotifier {
         switch (state.event) {
           case AuthChangeEvent.signedIn:
             // User just signed in - this is the ONLY place we call ensureUserRecordExists
-            await _authService.ensureUserRecordExists();
+            final isNewUser = await _authService.ensureUserRecordExists();
             _hasValidSession = true;
+
+            // For new OAuth users, initialize vibe tags and assign a default profile picture
+            if (isNewUser && _authService.currentUser != null) {
+              final userId = _authService.currentUser!.id;
+              await _tagsService.initializeVibeTagsForUser(userId);
+              await _uploadDefaultProfilePicture(userId);
+              if (kDebugMode) {
+                print('SupabaseService: Initialized vibe tags and profile picture for new OAuth user');
+              }
+            }
 
             // Save FCM token to new user account
             await FCMService().refreshAndSaveToken();
@@ -361,6 +375,48 @@ class SupabaseService extends ChangeNotifier {
         signOut();
       },
     );
+  }
+
+  /// Upload a random default food icon as the profile picture for a new user
+  Future<void> _uploadDefaultProfilePicture(String userId) async {
+    try {
+      final iconFiles = [
+        'lib/assets/burgerIcon.jpg',
+        'lib/assets/curryIcon.jpg',
+        'lib/assets/donutIcon.jpg',
+        'lib/assets/phoIcon.jpg',
+        'lib/assets/pizzaIcon.jpg',
+        'lib/assets/steakIcon.jpg',
+        'lib/assets/sushiIcon.jpg',
+        'lib/assets/tacoIcon.jpg',
+        'lib/assets/thaiIcon.jpg',
+      ];
+
+      final random = Random();
+      final selectedIcon = iconFiles[random.nextInt(iconFiles.length)];
+
+      final byteData = await rootBundle.load(selectedIcon);
+      final bytes = byteData.buffer.asUint8List();
+
+      final tempDir = await getTemporaryDirectory();
+      final fileName = selectedIcon.split('/').last;
+      final tempFile = File('${tempDir.path}/$fileName');
+      await tempFile.writeAsBytes(bytes);
+
+      final fileExt = fileName.split('.').last;
+      final filePath = '$userId.$fileExt';
+
+      await _authService.uploadImage(tempFile, filePath, userId);
+
+      if (kDebugMode) {
+        print('SupabaseService: Default profile picture uploaded for user $userId');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('SupabaseService: Error uploading default profile picture: $e');
+      }
+      // Don't rethrow - this is a background operation
+    }
   }
 
   // Helper methods
