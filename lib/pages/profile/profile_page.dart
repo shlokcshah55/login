@@ -11,7 +11,6 @@ import 'package:login/pages/auth_handler.dart';
 import 'package:login/services/fcm_service.dart';
 import 'package:login/models/notifications/base_notification.dart';
 import 'widgets/profile_header.dart';
-import 'widgets/map_preview_card.dart';
 import 'widgets/hidden_gems_section.dart';
 import 'widgets/trending_now_section.dart';
 import 'widgets/collections_grid.dart';
@@ -35,7 +34,7 @@ class _ProfilePageState extends State<ProfilePage>
   double _scrollOffset = 0.0;
   int _selectedTab = 0;
 
-  final List<String> _tabs = ['Pins', 'Collections', 'Map', 'Discover'];
+  final List<String> _tabs = ['Pins', 'Collections', 'Discover'];
 
   @override
   void initState() {
@@ -48,8 +47,10 @@ class _ProfilePageState extends State<ProfilePage>
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<LocationListManager>(context, listen: false)
-          .fetchSavedLocations();
+      final manager = Provider.of<LocationListManager>(context, listen: false);
+      manager.fetchSavedLocations();
+      manager.fetchPopularLocations();
+      manager.fetchHiddenGems();
     });
   }
 
@@ -108,6 +109,8 @@ class _ProfilePageState extends State<ProfilePage>
     }
 
     final savedPins = locationListManager.savedLocations.keys.toList();
+    final popularLocations = locationListManager.popularLocations;
+    final hiddenGemLocations = locationListManager.hiddenGemLocations;
     final collapsedHeader = _scrollOffset > 120;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -148,9 +151,9 @@ class _ProfilePageState extends State<ProfilePage>
                     automaticallyImplyLeading: false,
                     toolbarHeight: 56,
                     flexibleSpace: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      alignment: Alignment.centerLeft,
+                      alignment: Alignment.center,
                       child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: _tabs.asMap().entries.map((entry) {
                           final isSelected = entry.key == _selectedTab;
                           return GestureDetector(
@@ -189,7 +192,7 @@ class _ProfilePageState extends State<ProfilePage>
 
                   // Content based on selected tab - using single SliverToBoxAdapter to avoid tree changes
                   SliverToBoxAdapter(
-                    child: _buildTabContent(savedPins),
+                    child: _buildTabContent(savedPins, popularLocations, hiddenGemLocations),
                   ),
 
                   // Bottom padding
@@ -214,7 +217,7 @@ class _ProfilePageState extends State<ProfilePage>
     );
   }
 
-  Widget _buildTabContent(List<LocationModel> savedPins) {
+  Widget _buildTabContent(List<LocationModel> savedPins, List<LocationModel> popularLocations, List<LocationModel> hiddenGemLocations) {
     switch (_selectedTab) {
       case 0:
         return Column(
@@ -222,26 +225,19 @@ class _ProfilePageState extends State<ProfilePage>
             // Taste Match Section
             // Hidden Gems
             HiddenGemsSection(
-              savedPins: savedPins,
+              locations: hiddenGemLocations,
             ),
             // Trending Now
             TrendingNowSection(
-              savedPins: savedPins,
+              locations: popularLocations,
             ),
             // Recent Activity
-            RecentActivitySection(
-              savedPins: savedPins,
-            ),
+            const RecentActivitySection(),
           ],
         );
       case 1:
-        return CollectionsGrid();
+        return const CollectionsGrid();
       case 2:
-        return MapPreviewCard(
-          savedPins: savedPins,
-          isFullView: true,
-        );
-      case 3:
         return _buildDiscoverSection();
       default:
         return const SizedBox.shrink();
@@ -262,85 +258,10 @@ class _ProfilePageState extends State<ProfilePage>
             );
           },
         ),
-        const SizedBox(height: 24),
-        // Add search section
-        _buildSearchSection(),
       ],
     );
   }
 
-  Widget _buildSearchSection() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.search, color: PinitColors.primary, size: 24),
-              const SizedBox(width: 8),
-              const Text(
-                'Search Users',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          GestureDetector(
-            onTap: () => _showUserSearchSheet(),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              decoration: BoxDecoration(
-                color: PinitColors.surfaceLight,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: PinitColors.textMuted.withOpacity(0.2),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.search,
-                    color: PinitColors.textMuted,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Search by name or username...',
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: PinitColors.textMuted,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showUserSearchSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _UserSearchSheet(
-        onUserSelected: (user) {
-          Navigator.pop(context);
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => OtherUserProfilePage(user: user),
-            ),
-          );
-        },
-      ),
-    );
-  }
 
   Widget _buildCollapsedHeader(UserModel user) {
     return Container(
@@ -350,15 +271,8 @@ class _ProfilePageState extends State<ProfilePage>
         right: 20,
         bottom: 12,
       ),
-      decoration: BoxDecoration(
-        color: PinitColors.background,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
+      decoration: const BoxDecoration(
+        color: Color(0xFF41133D),
       ),
       child: Row(
         children: [
@@ -376,7 +290,7 @@ class _ProfilePageState extends State<ProfilePage>
                 fit: BoxFit.cover,
               ),
               border: Border.all(
-                color: PinitColors.primary.withOpacity(0.3),
+                color: Colors.white.withOpacity(0.5),
                 width: 2,
               ),
             ),
@@ -388,7 +302,7 @@ class _ProfilePageState extends State<ProfilePage>
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
-                color: PinitColors.textPrimary,
+                color: Colors.white,
                 letterSpacing: -0.3,
               ),
             ),
@@ -409,8 +323,9 @@ class _ProfilePageState extends State<ProfilePage>
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: PinitColors.surfaceLight,
+          color: Colors.white.withOpacity(0.15),
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withOpacity(0.2)),
         ),
         child: Stack(
           children: [
@@ -418,7 +333,7 @@ class _ProfilePageState extends State<ProfilePage>
               child: Icon(
                 Icons.notifications_outlined,
                 size: 22,
-                color: PinitColors.textSecondary,
+                color: Colors.white,
               ),
             ),
             if (unreadCount > 0)
@@ -460,14 +375,15 @@ class _ProfilePageState extends State<ProfilePage>
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: PinitColors.surfaceLight,
+          color: Colors.white.withOpacity(0.15),
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withOpacity(0.2)),
         ),
         child: const Center(
           child: Icon(
             Icons.more_horiz,
             size: 22,
-            color: PinitColors.textSecondary,
+            color: Colors.white,
           ),
         ),
       ),
@@ -683,236 +599,6 @@ class _ProfilePageState extends State<ProfilePage>
                 fontWeight: FontWeight.w500,
                 color: color,
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _UserSearchSheet extends StatefulWidget {
-  final Function(UserModel) onUserSelected;
-
-  const _UserSearchSheet({
-    required this.onUserSelected,
-  });
-
-  @override
-  State<_UserSearchSheet> createState() => _UserSearchSheetState();
-}
-
-class _UserSearchSheetState extends State<_UserSearchSheet> {
-  final TextEditingController _searchController = TextEditingController();
-  List<UserModel> _searchResults = [];
-  bool _isSearching = false;
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _performSearch(String query) async {
-    if (query.trim().isEmpty) {
-      setState(() => _searchResults = []);
-      return;
-    }
-
-    setState(() => _isSearching = true);
-    try {
-      final supabaseService =
-          Provider.of<SupabaseService>(context, listen: false);
-      final results = await supabaseService.users.searchUsers(query);
-      if (mounted) {
-        setState(() {
-          _searchResults = results;
-          _isSearching = false;
-        });
-      }
-    } catch (e) {
-      print('Error searching users: $e');
-      if (mounted) {
-        setState(() => _isSearching = false);
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.85,
-      decoration: const BoxDecoration(
-        color: PinitColors.background,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          children: [
-            const SizedBox(height: 12),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: PinitColors.textMuted.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      decoration: BoxDecoration(
-                        color: PinitColors.surfaceLight,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: PinitColors.primary.withOpacity(0.2),
-                        ),
-                      ),
-                      child: TextField(
-                        controller: _searchController,
-                        autofocus: true,
-                        decoration: const InputDecoration(
-                          hintText: 'Search users...',
-                          border: InputBorder.none,
-                          icon: Icon(Icons.search, color: PinitColors.primary),
-                        ),
-                        onChanged: (value) {
-                          _performSearch(value);
-                        },
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Text(
-                      'Cancel',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: PinitColors.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            Expanded(
-              child: _isSearching
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        color: PinitColors.primary,
-                      ),
-                    )
-                  : _searchResults.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.person_search,
-                                size: 64,
-                                color: PinitColors.textMuted.withOpacity(0.5),
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                _searchController.text.isEmpty
-                                    ? 'Search for users'
-                                    : 'No users found',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: PinitColors.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          itemCount: _searchResults.length,
-                          itemBuilder: (context, index) {
-                            final user = _searchResults[index];
-                            return GestureDetector(
-                              onTap: () => widget.onUserSelected(user),
-                              child: Container(
-                                margin: const EdgeInsets.only(bottom: 12),
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: PinitColors.surfaceLight,
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 50,
-                                      height: 50,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        image: DecorationImage(
-                                          image: user.profileImageUrl != null &&
-                                                  user.profileImageUrl!
-                                                      .isNotEmpty
-                                              ? NetworkImage(
-                                                  user.profileImageUrl!)
-                                              : const AssetImage(
-                                                      'lib/assets/default_avatar.png')
-                                                  as ImageProvider,
-                                          fit: BoxFit.cover,
-                                        ),
-                                        border: Border.all(
-                                          color: PinitColors.primary
-                                              .withOpacity(0.2),
-                                          width: 2,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            user.name ?? 'No Name',
-                                            style: const TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w700,
-                                              color: PinitColors.textPrimary,
-                                            ),
-                                          ),
-                                          if (user.bio != null &&
-                                              user.bio!.isNotEmpty)
-                                            Text(
-                                              user.bio!.length > 50
-                                                  ? '${user.bio!.substring(0, 47)}...'
-                                                  : user.bio!,
-                                              style: TextStyle(
-                                                fontSize: 14,
-                                                color:
-                                                    PinitColors.textSecondary,
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                    ),
-                                    Icon(
-                                      Icons.arrow_forward_ios,
-                                      size: 16,
-                                      color: PinitColors.textMuted,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        ),
             ),
           ],
         ),

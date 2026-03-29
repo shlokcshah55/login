@@ -131,7 +131,9 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
         userId,
         wizardState.spiceTolerance,
       );
-      await supabase.tags.updateUserTagsPhotos(userId, wizardState.selectedVibeTagIds);
+
+      // TODO: Update based on the vibes selected
+      //await supabase.tags.updateUserTagsPhotos(userId, wizardState.selectedVibeTagIds);
 
 
       // Step 2: Process restaurant decisions
@@ -145,10 +147,6 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
             locationId,
             savedMethod: SupabaseConstants.savedMethodInApp,
           );
-          // CRITICAL: Update tag affinities (+8 weight)
-          if (wizardState.userId != null) {
-            await supabase.tags.updateUserTagsSaving(wizardState.userId!, locationId);
-          }
         } else {
           await supabase.locations.dislikeLocation(locationId);
         }

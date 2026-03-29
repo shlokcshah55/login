@@ -1,21 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:login/models/locations.dart';
+import 'location_detail_sheet.dart';
 import 'pinit_colors.dart';
 
 /// Places currently trending that this user has saved
 /// Feels like "you're early, but not alone"
 class TrendingNowSection extends StatelessWidget {
-  final List<LocationModel> savedPins;
+  final List<LocationModel> locations;
 
   const TrendingNowSection({
     Key? key,
-    required this.savedPins,
+    required this.locations,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    // TODO: Filter for trending places (high saves this week)
-    final trendingPins = savedPins.skip(2).take(4).toList();
+    final trendingPins = locations;
 
     if (trendingPins.isEmpty) {
       return const SizedBox.shrink();
@@ -73,159 +73,123 @@ class TrendingNowSection extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
-            children: trendingPins.asMap().entries.map((entry) {
-              final location = entry.value;
-
-              return _TrendingCard(
-                name: location.name,
-                category: location.cuisine ?? 'Restaurant',
-                savesThisWeek: 143, // TODO: Get actual data
-                trendTag: _getTrendTag(entry.key),
-              );
+            children: trendingPins.map((location) {
+              return _TrendingCard(location: location);
             }).toList(),
           ),
         ),
       ],
     );
   }
-
-  String? _getTrendTag(int index) {
-    final tags = [
-      'London dessert wave',
-      'New wine bar wave',
-      null,
-      'Brunch revival',
-    ];
-    return index < tags.length ? tags[index] : null;
-  }
 }
 
 class _TrendingCard extends StatelessWidget {
-  final String name;
-  final String category;
-  final int savesThisWeek;
-  final String? trendTag;
+  final LocationModel location;
 
-  const _TrendingCard({
-    required this.name,
-    required this.category,
-    required this.savesThisWeek,
-    this.trendTag,
-  });
+  const _TrendingCard({required this.location});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: PinitColors.cardShadow,
+    return GestureDetector(
+      onTap: () => showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => LocationDetailSheet(location: location),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            // Place image placeholder
-            Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                color: PinitColors.surfaceLight,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Center(
-                child: Icon(
-                  Icons.restaurant,
-                  size: 24,
-                  color: PinitColors.textMuted,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: PinitColors.cardShadow,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              // Place image placeholder
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: PinitColors.surfaceLight,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              ),
-            ),
-
-            const SizedBox(width: 14),
-
-            // Place info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    name,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: PinitColors.textPrimary,
-                      letterSpacing: -0.2,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    category,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: PinitColors.textSecondary,
-                    ),
-                  ),
-                  if (trendTag != null) ...[
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: PinitColors.primary.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        trendTag!,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: PinitColors.primary,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-
-            // Trending indicator
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Row(
-                  children: [
-                    const Text(
-                      '🔥',
-                      style: TextStyle(fontSize: 14),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '$savesThisWeek',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: PinitColors.primary,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'this week',
-                  style: TextStyle(
-                    fontSize: 11,
+                child: Center(
+                  child: Icon(
+                    Icons.restaurant,
+                    size: 24,
                     color: PinitColors.textMuted,
                   ),
                 ),
-              ],
-            ),
-          ],
+              ),
+
+              const SizedBox(width: 14),
+
+              // Place info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      location.name,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: PinitColors.textPrimary,
+                        letterSpacing: -0.2,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      location.cuisine ?? 'Restaurant',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: PinitColors.textSecondary,
+                      ),
+                    ),
+                    if (location.rating != null) ...[
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Icon(Icons.star_rounded,
+                              size: 14, color: const Color(0xFFF59E0B)),
+                          const SizedBox(width: 3),
+                          Text(
+                            location.rating!.toStringAsFixed(1),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: PinitColors.textSecondary,
+                            ),
+                          ),
+                          if (location.userRatingsTotal != null) ...[
+                            const SizedBox(width: 4),
+                            Text(
+                              '(${location.userRatingsTotal})',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: PinitColors.textMuted,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: PinitColors.textMuted,
+                size: 20,
+              ),
+            ],
+          ),
         ),
       ),
     );

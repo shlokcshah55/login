@@ -1,22 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:login/models/locations.dart';
+import 'location_detail_sheet.dart';
 import 'pinit_colors.dart';
 
 /// Places this user saved early, before hype
 /// Shows the user's taste-making credentials
 class HiddenGemsSection extends StatelessWidget {
-  final List<LocationModel> savedPins;
+  final List<LocationModel> locations;
 
   const HiddenGemsSection({
     Key? key,
-    required this.savedPins,
+    required this.locations,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    // TODO: Filter for early-saved places with rising popularity
-    // For now, showing first 5 pins as examples
-    final gems = savedPins.take(5).toList();
+    final gems = locations;
 
     if (gems.isEmpty) {
       return const SizedBox.shrink();
@@ -66,19 +65,6 @@ class HiddenGemsSection extends StatelessWidget {
                   ],
                 ),
               ),
-              TextButton(
-                onPressed: () {
-                  // View all hidden gems
-                },
-                child: const Text(
-                  'See all',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: PinitColors.primary,
-                  ),
-                ),
-              ),
             ],
           ),
         ),
@@ -91,15 +77,7 @@ class HiddenGemsSection extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             itemCount: gems.length,
             itemBuilder: (context, index) {
-              final location = gems[index];
-
-              return _HiddenGemCard(
-                name: location.name,
-                category: location.cuisine ?? 'Restaurant',
-                reason: null, // TODO: Add reason from location data
-                saveCount: 12, // TODO: Get actual save count
-                index: index,
-              );
+              return _HiddenGemCard(location: gems[index]);
             },
           ),
         ),
@@ -109,130 +87,130 @@ class HiddenGemsSection extends StatelessWidget {
 }
 
 class _HiddenGemCard extends StatelessWidget {
-  final String name;
-  final String category;
-  final String? reason;
-  final int saveCount;
-  final int index;
+  final LocationModel location;
 
-  const _HiddenGemCard({
-    required this.name,
-    required this.category,
-    this.reason,
-    required this.saveCount,
-    required this.index,
-  });
+  const _HiddenGemCard({required this.location});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 200,
-      margin: const EdgeInsets.only(right: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: PinitColors.cardShadow,
+    return GestureDetector(
+      onTap: () => showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => LocationDetailSheet(location: location),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Early badge
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0FDF4),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.schedule,
-                    size: 12,
-                    color: PinitColors.success,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Pinned early',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
+      child: Container(
+        width: 200,
+        margin: const EdgeInsets.only(right: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: PinitColors.cardShadow,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Early badge
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0FDF4),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.schedule,
+                      size: 12,
                       color: PinitColors.success,
                     ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // Place name
-            Text(
-              name,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: PinitColors.textPrimary,
-                letterSpacing: -0.2,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-
-            const SizedBox(height: 4),
-
-            // Category
-            Text(
-              category,
-              style: const TextStyle(
-                fontSize: 13,
-                color: PinitColors.textSecondary,
-              ),
-            ),
-
-            const Spacer(),
-
-            // Save count
-            Row(
-              children: [
-                Icon(
-                  Icons.bookmark_outline,
-                  size: 14,
-                  color: PinitColors.textMuted,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  '$saveCount saves',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: PinitColors.textMuted,
-                  ),
-                ),
-                if (saveCount < 50) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: PinitColors.success.withOpacity(0.6),
-                      shape: BoxShape.circle,
+                    const SizedBox(width: 4),
+                    Text(
+                      'Pinned early',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: PinitColors.success,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '↗ rising',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: PinitColors.success,
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // Place name
+              Text(
+                location.name,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: PinitColors.textPrimary,
+                  letterSpacing: -0.2,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+
+              const SizedBox(height: 4),
+
+              // Category
+              Text(
+                location.cuisine ?? 'Restaurant',
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: PinitColors.textSecondary,
+                ),
+              ),
+
+              const Spacer(),
+
+              // Rating if available, otherwise rising indicator
+              if (location.rating != null)
+                Row(
+                  children: [
+                    Icon(Icons.star_rounded,
+                        size: 14, color: const Color(0xFFF59E0B)),
+                    const SizedBox(width: 3),
+                    Text(
+                      location.rating!.toStringAsFixed(1),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: PinitColors.textSecondary,
+                      ),
                     ),
-                  ),
-                ],
-              ],
-            ),
-          ],
+                  ],
+                )
+              else
+                Row(
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: PinitColors.success.withOpacity(0.6),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '↗ rising',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: PinitColors.success,
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
         ),
       ),
     );

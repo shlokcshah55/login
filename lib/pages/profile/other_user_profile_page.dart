@@ -436,10 +436,10 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
           children: [
             if (_userPins.isNotEmpty) ...[
               HiddenGemsSection(
-                savedPins: _userPins,
+                locations: _userPins,
               ),
               TrendingNowSection(
-                savedPins: _userPins,
+                locations: _userPins,
               ),
             ] else
               Padding(

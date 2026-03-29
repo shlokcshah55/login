@@ -6,14 +6,13 @@ class SupabaseConstants {
   static const String tableUserFriends = 'user_friends';
   static const String tableUserLocationActions = 'user_location_actions';
   static const String tableLocationPopularityApp = 'location_popularity_app';
-  static const String tableLocationPopularitySocial =
-      'location_popularity_social';
   static const String tableUsers = 'users';
   static const String tableBubbles = 'bubbles';
   static const String tableBubbleMembers = 'bubble_members';
   static const String tableBubbleLocations = 'bubble_locations';
+  static const String tableCollections = 'collections';
+  static const String tableCollectionLocations = 'collection_locations';
   static const String tableTags = 'tags';
-  static const String tableLocationTags = 'location_tags';
   static const String tableUserTags = 'user_tag_affinities';
   static const String tableUserTagAffinities = 'user_tag_affinities';
   static const String tableNotifications = 'notifications';
@@ -153,6 +152,13 @@ class SupabaseConstants {
   static const String columnBubbleLocationId = 'bubble_location_id';
   static const String columnAddedBy = 'added_by';
   static const String columnNote = 'note';
+
+  // Column names - collections
+  static const String columnCollectionId = 'collection_id';
+  static const String columnDescription = 'description';
+  static const String columnCoverColor = 'cover_color';
+  static const String columnIsCurated = 'is_curated';
+  static const String columnIsPublic = 'is_public';
 
   // Column names - tags
   static const String columnTagId = 'tag_id';

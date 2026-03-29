@@ -5,6 +5,7 @@ import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 import 'package:login/models/locations.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/map_state_provider.dart';
+import 'package:login/supabase/helpers/tags.dart';
 import 'package:login/utils/geo_types.dart';
 import 'package:login/utils/marker_clustering.dart';
 import 'package:login/widgets/home/filter_category_list_popover.dart';
@@ -54,6 +55,20 @@ class _PinitMapState extends State<PinitMap> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _startLocationTracking();
+    });
+    _loadTags();
+  }
+
+  Future<void> _loadTags() async {
+    final tagsHelper = TagsHelper();
+    final results = await Future.wait([
+      tagsHelper.getVibeTags(),
+      tagsHelper.getCuisineTags(),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _vibeTags = results[0];
+      _cuisineTags = results[1];
     });
   }
 

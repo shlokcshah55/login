@@ -52,6 +52,8 @@ class LocationListManager with ChangeNotifier {
   bool _isLoadingSaved = false;
   bool _savedLocationsLoaded = false;
   bool _isSubscribed = false;
+  bool _isLoadingPopular = false;
+  bool _isLoadingHiddenGems = false;
 
   LocationListManager(this._googlePlacesService);
 
@@ -61,11 +63,15 @@ class LocationListManager with ChangeNotifier {
   Map<LocationModel, MapMarkerData> _searchLocations = {};
   Map<LocationModel, MapMarkerData> _currentItems = {};
   List<LocationModel> _justDecideLocations = [];
+  List<LocationModel> _popularLocations = [];
+  List<LocationModel> _hiddenGemLocations = [];
   LocationListType _currentListType =
       LocationListType.saved; // Default to saved
 
   // Getters
   Map<LocationModel, MapMarkerData> get savedLocations => _savedLocations;
+  List<LocationModel> get popularLocations => _popularLocations;
+  List<LocationModel> get hiddenGemLocations => _hiddenGemLocations;
   Map<LocationModel, MapMarkerData> get recommendedLocations => _recommendedLocations;
   Map<LocationModel, MapMarkerData> get searchLocations => _searchLocations;
   Map<LocationModel, MapMarkerData> get currentItems => _currentItems;
@@ -138,6 +144,8 @@ class LocationListManager with ChangeNotifier {
     } else {
       // Fetch initial data ONCE when user logs in
       fetchSavedLocations();
+      fetchPopularLocations();
+      fetchHiddenGems();
 
       // Subscribe to realtime updates for this user
       // This will handle all future changes without needing to refetch
@@ -627,6 +635,45 @@ class LocationListManager with ChangeNotifier {
     } finally {
       stopwatch.stop();
       _isLoadingSaved = false;
+    }
+  }
+
+  Future<void> fetchPopularLocations({int limit = 5}) async {
+    if (_isLoadingPopular) return;
+    _isLoadingPopular = true;
+    notifyListeners();
+    try {
+      _popularLocations = await _supabaseService.locations.getPopularLocations(limit: limit);
+    } finally {
+      _isLoadingPopular = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> focusSingleLocation(LocationModel location) async {
+    final markerData = MapMarkerData(
+      id: location.locationId.toString(),
+      position: LatLng(location.lat ?? 0, location.lng ?? 0),
+      imageBytes: const [],
+    );
+    _searchLocations = {location: markerData};
+    await setCurrentListType(LocationListType.search);
+  }
+
+  Future<void> fetchHiddenGems() async {
+    if (_isLoadingHiddenGems) return;
+    final position = currentPosition ?? await getCurrentLocation();
+    if (position == null) return;
+    _isLoadingHiddenGems = true;
+    notifyListeners();
+    try {
+      _hiddenGemLocations = await _supabaseService.locations.getHiddenGems(
+        latitude: position.latitude,
+        longitude: position.longitude,
+      );
+    } finally {
+      _isLoadingHiddenGems = false;
+      notifyListeners();
     }
   }
 
@@ -1192,20 +1239,14 @@ class LocationListManager with ChangeNotifier {
         .select()
         .inFilter(SupabaseConstants.columnLocationId, uniqueIds);
 
-    final Map<int, LocationModel> byId = {};
-    for (var item in response as List) {
-      final int locationId = item[SupabaseConstants.columnLocationId] as int;
-      String? locationImage = item[SupabaseConstants.columnImageUrl];
-      if (locationImage == null || locationImage.isEmpty) {
-        locationImage = await _supabaseService.locations.getLocationImage(
-          locationId,
-          item[SupabaseConstants.columnGooglePlaceId],
-          item[SupabaseConstants.columnPhotoReference],
-        );
-      }
-      byId[locationId] = LocationModel.fromJson(item, locationImage);
-    }
+    // Non-blocking: constructs public URLs immediately, background-downloads any missing images
+    final locations =
+        await _supabaseService.locations.processLocationsWithImages(response as List);
 
+    // Restore the ranking order from the recommendations API
+    final Map<int, LocationModel> byId = {
+      for (final loc in locations) loc.locationId: loc,
+    };
     final List<LocationModel> ordered = [];
     for (final id in locationIds) {
       final location = byId[id];

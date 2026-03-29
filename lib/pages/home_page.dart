@@ -13,6 +13,7 @@ import 'package:login/providers/map_state_provider.dart';
 import 'package:login/providers/nav_bar/visibility_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:login/providers/bubble_mode_provider.dart';
+import 'package:login/providers/navigation_provider.dart';
 import 'package:login/widgets/home/bubble_mode_overlay.dart';
 import 'package:login/widgets/swipe_card_stack.dart';
 import 'package:login/widgets/wizard_completion_popover.dart';
@@ -63,7 +64,17 @@ class _HomePageState extends State<HomePage> {
     if (!oldWidget.isActive && widget.isActive) {
       print('HomePage became active, checking for pending activation');
       _handleBubbleModeRequest();
+      _handlePendingFocusLocation();
     }
+  }
+
+  void _handlePendingFocusLocation() {
+    final navProvider = context.read<NavigationProvider>();
+    final location = navProvider.pendingFocusLocation;
+    if (location == null) return;
+    navProvider.clearPendingFocusLocation();
+    _locationListManager.focusSingleLocation(location);
+    _mapStateProvider.setSelectedMarkerId(location.locationId.toString());
   }
 
   void _checkForErrors() {

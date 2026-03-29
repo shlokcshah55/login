@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:login/models/users.dart';
+import 'package:login/supabase/supabase_client.dart';
 import 'pinit_colors.dart';
 
 class ProfileHeader extends StatelessWidget {
@@ -18,6 +19,9 @@ class ProfileHeader extends StatelessWidget {
     required this.unreadCount,
   }) : super(key: key);
 
+  static const Color _plum = Color(0xFF41133D);
+  static const Color _plumLight = Color(0xFF6B2465);
+
   @override
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
@@ -25,98 +29,81 @@ class ProfileHeader extends StatelessWidget {
 
     return Container(
       decoration: const BoxDecoration(
-        gradient: PinitColors.warmGradient,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_plum, _plumLight],
+        ),
       ),
       child: Padding(
         padding: EdgeInsets.only(top: topPadding),
-        child: Column(
-          children: [
-            // Top actions row
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  _ActionButton(
-                    icon: Icons.notifications_outlined,
-                    onTap: onNotificationsTap,
-                    badgeCount: unreadCount,
-                  ),
-                  const SizedBox(width: 8),
-                  _ActionButton(
-                    icon: Icons.more_horiz,
-                    onTap: onSettingsTap,
-                  ),
-                ],
-              ),
-            ),
-
-            // Profile content (fades on scroll)
-            Opacity(
-              opacity: opacity,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+        child: Opacity(
+          opacity: opacity,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 26),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    // Avatar + Name + Follow button row
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Profile Photo
-                        _ProfileAvatar(user: user),
-                        const SizedBox(width: 16),
-                        
-                        // Name + Bio + Location
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                user.name ?? 'No Name',
-                                style: const TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.w800,
-                                  color: PinitColors.textPrimary,
-                                  letterSpacing: -0.5,
-                                  height: 1.1,
-                                ),
-                              ),
-                              if (user.bio != null && user.bio!.isNotEmpty) ...[
-                                const SizedBox(height: 6),
-                                Text(
-                                  user.bio!.length > 80
-                                      ? '${user.bio!.substring(0, 77)}...'
-                                      : user.bio!,
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    color: PinitColors.textSecondary,
-                                    height: 1.35,
-                                  ),
-                                  maxLines: 2,
-                                ),
-                              ],
-                              // Location display removed - not in UserModel
-                            ],
+                    _ProfileAvatar(user: user),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            user.name ?? 'No Name',
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                              letterSpacing: -0.4,
+                              height: 1.1,
+                            ),
                           ),
+                          if (user.bio != null && user.bio!.isNotEmpty) ...[
+                            const SizedBox(height: 3),
+                            Text(
+                              user.bio!.length > 60
+                                  ? '${user.bio!.substring(0, 57)}...'
+                                  : user.bio!,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white.withOpacity(0.7),
+                                height: 1.3,
+                              ),
+                              maxLines: 2,
+                            ),
+                          ],
+                          const SizedBox(height: 8),
+                          _StatsRow(user: user),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Column(
+                      children: [
+                        _ActionButton(
+                          icon: Icons.notifications_outlined,
+                          onTap: onNotificationsTap,
+                          badgeCount: unreadCount,
+                        ),
+                        const SizedBox(height: 8),
+                        _ActionButton(
+                          icon: Icons.more_horiz,
+                          onTap: onSettingsTap,
                         ),
                       ],
                     ),
-
-                    const SizedBox(height: 20),
-
-                    // Stats Row
-                    _StatsRow(user: user),
-
-                    const SizedBox(height: 20),
-
-                    // Taste Chips
-                    _TasteChips(),
                   ],
                 ),
-              ),
+                const SizedBox(height: 14),
+                _TasteChips(),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -139,20 +126,20 @@ class _ActionButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 40,
-        height: 40,
+        width: 38,
+        height: 38,
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.9),
+          color: Colors.white.withOpacity(0.15),
           borderRadius: BorderRadius.circular(12),
-          boxShadow: PinitColors.subtleShadow,
+          border: Border.all(color: Colors.white.withOpacity(0.2)),
         ),
         child: Stack(
           children: [
             Center(
               child: Icon(
                 icon,
-                size: 22,
-                color: PinitColors.textSecondary,
+                size: 20,
+                color: Colors.white,
               ),
             ),
             if (badgeCount > 0)
@@ -198,17 +185,17 @@ class _ProfileAvatar extends StatelessWidget {
     return Hero(
       tag: 'profile_avatar',
       child: Container(
-        width: 80,
-        height: 80,
+        width: 72,
+        height: 72,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.all(
-            color: Colors.white,
+            color: Colors.white.withOpacity(0.6),
             width: 3,
           ),
           boxShadow: [
             BoxShadow(
-              color: PinitColors.primary.withOpacity(0.2),
+              color: Colors.black.withOpacity(0.3),
               blurRadius: 16,
               spreadRadius: 2,
             ),
@@ -248,32 +235,21 @@ class _StatsRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        _StatItem(
-          value: '0', // TODO: Get pins count from location provider
-          label: 'Pins',
-        ),
-        const SizedBox(width: 24),
-        _StatItem(
-          value: user.followersCount.toString(),
-          label: 'Followers',
-          onTap: () {
-            // Navigate to followers
-          },
-        ),
-        const SizedBox(width: 24),
-        _StatItem(
-          value: user.followingCount.toString(),
-          label: 'Following',
-          onTap: () {
-            // Navigate to following
-          },
-        ),
-        const Spacer(),
-        // Edit Profile button
-        _EditProfileButton(),
+        _StatItem(value: '0', label: 'Pins'),
+        _buildDivider(),
+        _StatItem(value: user.followersCount.toString(), label: 'Followers'),
+        _buildDivider(),
+        _StatItem(value: user.followingCount.toString(), label: 'Following'),
       ],
     );
   }
+
+  Widget _buildDivider() => Container(
+        width: 1,
+        height: 22,
+        margin: const EdgeInsets.symmetric(horizontal: 12),
+        color: Colors.white.withOpacity(0.25),
+      );
 }
 
 class _StatItem extends StatelessWidget {
@@ -297,18 +273,18 @@ class _StatItem extends StatelessWidget {
           Text(
             value,
             style: const TextStyle(
-              fontSize: 20,
+              fontSize: 16,
               fontWeight: FontWeight.w800,
-              color: PinitColors.textPrimary,
-              letterSpacing: -0.5,
+              color: Colors.white,
+              letterSpacing: -0.4,
             ),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 1),
           Text(
             label,
-            style: const TextStyle(
-              fontSize: 13,
-              color: PinitColors.textSecondary,
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.white.withOpacity(0.65),
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -318,83 +294,142 @@ class _StatItem extends StatelessWidget {
   }
 }
 
-class _EditProfileButton extends StatelessWidget {
+
+class _TasteChips extends StatefulWidget {
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        // Navigate to edit profile
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: PinitColors.textPrimary.withOpacity(0.1),
-            width: 1.5,
-          ),
-        ),
-        child: const Text(
-          'Edit',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: PinitColors.textPrimary,
-          ),
-        ),
-      ),
-    );
-  }
+  State<_TasteChips> createState() => _TasteChipsState();
 }
 
-class _TasteChips extends StatelessWidget {
+class _TasteChipsState extends State<_TasteChips> {
+  static const Map<String, String> _emojiMap = {
+    // Dietary
+    'halal': '☪️',
+    'vegan': '🌱',
+    'gluten-free': '🌾',
+    'vegetarian': '🥗',
+    'dairy-free': '🥛',
+    'nut-free': '🥜',
+    // Vibes
+    'cafe': '☕',
+    'casual': '😊',
+    'cozy': '🧸',
+    'coffee shop': '☕',
+    'bar': '🍸',
+    'elegant': '🥂',
+    'fine dining': '🍽️',
+    'food truck': '🚚',
+    'hole in the wall': '🕳️',
+    'late night': '🌙',
+    'live music': '🎵',
+    'michelin starred': '⭐',
+    'modern': '✨',
+    'fast food': '🍔',
+    'quiet': '🤫',
+    'romantic': '🌹',
+    'sports bar': '🏈',
+    'trendy': '🔥',
+    'takeout friendly': '📦',
+    'pub': '🍺',
+    'grocery store': '🛒',
+    'brunch': '🥞',
+    'outdoor dining': '🌿',
+    'wavy': '🌊',
+    'bossman': '👑',
+  };
+
+  List<String> _tags = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchTopVibes();
+  }
+
+  Future<void> _fetchTopVibes() async {
+    final userId = SupabaseClientManager().currentUser?.id;
+    print('[TasteChips] userId: $userId');
+    if (userId == null) {
+      print('[TasteChips] No user, aborting');
+      return;
+    }
+
+    try {
+      print('[TasteChips] Calling get_user_top_vibes(p_user_id: $userId)');
+      final response = await SupabaseClientManager().client.rpc(
+        'get_user_top_vibes',
+        params: {'p_user_id': userId},
+      );
+
+      print('[TasteChips] Raw response: $response');
+
+      final tags = (response as List)
+          .map((e) => (e['tag'] ?? '').toString())
+          .where((t) => t.isNotEmpty)
+          .toList();
+
+      print('[TasteChips] Parsed tags: $tags');
+
+      if (mounted) setState(() => _tags = tags);
+    } catch (e, stack) {
+      print('[TasteChips] Error: $e');
+      print('[TasteChips] Stack: $stack');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // TODO: Get actual taste data from user preferences
-    final chips = [
-      TasteChipData.cuisineTags[0], // Ramen
-      TasteChipData.cuisineTags[1], // Veg
-      TasteChipData.cuisineTags[2], // Wine Bars
-      TasteChipData.vibeTags[0],    // Date night
-      TasteChipData.vibeTags[2],    // Late night
+    if (_tags.isEmpty) return const SizedBox.shrink();
+
+    const colors = [
+      PinitColors.chipRamen,
+      PinitColors.chipVeg,
+      PinitColors.chipWine,
+      PinitColors.chipDateNight,
+      PinitColors.chipCheapEats,
+      PinitColors.chipLateNight,
     ];
 
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: chips.map((chip) => _TasteChip(data: chip)).toList(),
+      children: _tags.asMap().entries.map((entry) {
+        final emoji = _emojiMap[entry.value.toLowerCase()] ?? '🍴';
+        return _TasteChip(
+          label: entry.value,
+          emoji: emoji,
+          color: colors[entry.key % colors.length],
+        );
+      }).toList(),
     );
   }
 }
 
 class _TasteChip extends StatelessWidget {
-  final TasteChipData data;
+  final String label;
+  final String emoji;
+  final Color color;
 
-  const _TasteChip({required this.data});
+  const _TasteChip({required this.label, required this.emoji, required this.color});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: data.backgroundColor,
+        color: color,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            data.emoji,
-            style: const TextStyle(fontSize: 14),
-          ),
+          Text(emoji, style: const TextStyle(fontSize: 14)),
           const SizedBox(width: 6),
           Text(
-            data.label,
-            style: TextStyle(
+            label,
+            style: const TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: data.textColor,
+              color: PinitColors.textPrimary,
             ),
           ),
         ],

@@ -21,7 +21,6 @@ class FindFriendsSection extends StatefulWidget {
 class _FindFriendsSectionState extends State<FindFriendsSection> {
   List<UserModel> _suggestedUsers = [];
   bool _isLoading = false;
-  bool _isExpanded = false;
 
   @override
   void initState() {
@@ -73,18 +72,6 @@ class _FindFriendsSectionState extends State<FindFriendsSection> {
                   ),
                 ],
               ),
-              if (_suggestedUsers.isNotEmpty)
-                IconButton(
-                  icon: Icon(
-                    _isExpanded ? Icons.expand_less : Icons.expand_more,
-                    color: widget.theme.primaryColor,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _isExpanded = !_isExpanded;
-                    });
-                  },
-                ),
             ],
           ),
           const SizedBox(height: 16),
@@ -167,46 +154,24 @@ class _FindFriendsSectionState extends State<FindFriendsSection> {
       );
     }
 
-    // Show either 3 users or all based on expanded state
-    final displayCount = _isExpanded ? _suggestedUsers.length : 3;
-    final usersToShow = _suggestedUsers.take(displayCount).toList();
+    final cardWidth = (MediaQuery.of(context).size.width - 20 * 2 - 12) / 2;
 
-    return Column(
-      children: [
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 0.7,
-          ),
-          itemCount: usersToShow.length,
-          itemBuilder: (context, index) {
-            return UserCard(
-              user: usersToShow[index],
+    return SizedBox(
+      height: cardWidth / 0.7,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: _suggestedUsers.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (context, index) {
+          return SizedBox(
+            width: cardWidth,
+            child: UserCard(
+              user: _suggestedUsers[index],
               onTap: widget.onUserTap,
-            );
-          },
-        ),
-        if (_suggestedUsers.length > 3 && !_isExpanded)
-          Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: TextButton.icon(
-              onPressed: () {
-                setState(() {
-                  _isExpanded = true;
-                });
-              },
-              icon: const Icon(Icons.add_circle_outline),
-              label: Text('View ${_suggestedUsers.length - 3} more'),
-              style: TextButton.styleFrom(
-                foregroundColor: widget.theme.primaryColor,
-              ),
             ),
-          ),
-      ],
+          );
+        },
+      ),
     );
   }
 }

@@ -1,7 +1,6 @@
 import 'dart:developer' as developer;
 
 import 'package:flutter/foundation.dart';
-import 'package:login/supabase/helpers/tags.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -58,32 +57,27 @@ class LocationHelper {
 
   // ==================== IMAGE URL HELPER ====================
   /// Constructs the image URL for a location.
-  /// Uses a simple, predictable URL format instead of expensive storage checks.
-  /// If image doesn't exist in storage, it will be fetched from Google on demand.
+  /// If image_stored is true, the image is already in storage — return its public URL.
+  /// Otherwise, trigger a background download from Google and return the URL optimistically.
   Future<String?> _getLocationImageUrl(
       Map<String, dynamic> locationData) async {
     final locationId = locationData[SupabaseConstants.columnLocationId] as int;
     final filename = '$locationId.jpg';
 
-    // First check if we have image_url stored in database (fastest)
-    final storedUrl = locationData[SupabaseConstants.columnImageUrl];
-    if (storedUrl != null && storedUrl.toString().isNotEmpty) {
-      return storedUrl.toString();
-    }
-
-    // Construct the predictable public URL
-    // This avoids the expensive storage.list() call
     final publicUrl =
         _client.storage.from('location_photos').getPublicUrl(filename);
 
-    // Check if we need to download from Google (only if no photo exists)
-    // We do this lazily - assume the URL works, and if it doesn't, the UI can handle it
+    // If image_stored is true, the file is already in storage — return immediately.
+    final imageStored = locationData[SupabaseConstants.columnImageStored];
+    if (imageStored == true) {
+      return publicUrl;
+    }
+
+    // Image not yet in storage — kick off a background download if we have a reference.
     final photoReference = locationData[SupabaseConstants.columnPhotoReference];
     final googlePlaceId = locationData[SupabaseConstants.columnGooglePlaceId];
 
     if (photoReference != null && photoReference.toString().isNotEmpty) {
-      // If we have a photo reference, try to download if not already cached
-      // This runs in background and won't block
       _ensureImageUploaded(locationId, googlePlaceId?.toString() ?? '',
           photoReference.toString());
     }
@@ -127,7 +121,7 @@ class LocationHelper {
   /// Individual location parsing errors are caught and logged so one bad
   /// row does not kill the entire batch.
   /// Optionally calculates match scores using user affinity vectors.
-  Future<List<LocationModel>> _processLocationsWithImages(
+  Future<List<LocationModel>> processLocationsWithImages(
       List<dynamic> locationsData, {
       List<int>? userVibeAffinity,
       List<int>? userDietaryAffinity,
@@ -204,7 +198,7 @@ class LocationHelper {
           .limit(5);
 
       // Use the efficient batch processor
-      return await _processLocationsWithImages(response as List);
+      return await processLocationsWithImages(response as List);
     } catch (e) {
       if (kDebugMode) {
         print('Error getting locations: $e');
@@ -321,7 +315,7 @@ class LocationHelper {
       }
 
       // Use the efficient batch processor with user affinity for match scoring
-      final result = await _processLocationsWithImages(
+      final result = await processLocationsWithImages(
         locations,
         userVibeAffinity: userVibeAffinity,
         userDietaryAffinity: userDietaryAffinity,
@@ -375,7 +369,7 @@ class LocationHelper {
           .inFilter(SupabaseConstants.columnLocationId, locationIds);
 
       // Use the efficient batch processor
-      return await _processLocationsWithImages(locations as List);
+      return await processLocationsWithImages(locations as List);
     } catch (e) {
       if (kDebugMode) {
         print('Error getting user saved locations: $e');
@@ -411,11 +405,52 @@ class LocationHelper {
       });
 
       // Use the efficient batch processor
-      return await _processLocationsWithImages(response as List);
+      return await processLocationsWithImages(response as List);
     } catch (e) {
-      if (kDebugMode) {
-        print('Error getting popular locations: $e');
+      if (kDebugMode) print('Error getting popular locations: $e');
+      return [];
+    }
+  }
+
+  Future<List<LocationModel>> getHiddenGems({
+    required double latitude,
+    required double longitude,
+    double radiusKm = 10,
+    int maxResults = 10,
+    int minReviews = 5,
+  }) async {
+    try {
+      final uri = Uri.parse(
+        'https://pinit-recommendations-api-1070859807237.europe-west2.run.app/hidden-gems',
+      ).replace(queryParameters: {
+        'latitude': latitude.toString(),
+        'longitude': longitude.toString(),
+        'radius_km': radiusKm.toString(),
+        'max_results': maxResults.toString(),
+        'min_reviews': minReviews.toString(),
+      });
+
+      final httpResponse = await http.get(uri).timeout(const Duration(seconds: 30));
+
+      if (httpResponse.statusCode < 200 || httpResponse.statusCode >= 300) {
+        if (kDebugMode) print('Error getting hidden gems: ${httpResponse.statusCode}');
+        return [];
       }
+
+      final decoded = jsonDecode(httpResponse.body);
+      final recommendations = decoded['recommendations'] as List;
+      final locationIds = recommendations.map((r) => r['location_id'] as int).toList();
+
+      if (locationIds.isEmpty) return [];
+
+      final response = await _client
+          .from(SupabaseConstants.tableLocations)
+          .select()
+          .inFilter(SupabaseConstants.columnLocationId, locationIds);
+
+      return await processLocationsWithImages(response as List);
+    } catch (e) {
+      if (kDebugMode) print('Error getting hidden gems: $e');
       return [];
     }
   }
@@ -484,7 +519,7 @@ class LocationHelper {
       }
 
       // Use the efficient batch processor with the location data
-      return await _processLocationsWithImages(
+      return await processLocationsWithImages(
           uniqueLocationData.values.toList());
     } catch (e) {
       if (kDebugMode) {
@@ -494,125 +529,25 @@ class LocationHelper {
     }
   }
 
-  /// Get all tags for a specific location with their scores
-  /// Returns a list of maps containing tag information and scores
-  Future<List<Map<String, dynamic>>> getLocationTags(
-      int locationId, String? type) async {
-    try {
-      var query = _client.from(SupabaseConstants.tableLocationTags).select('''
-            ${SupabaseConstants.columnId},
-            ${SupabaseConstants.columnScore},
-            ${SupabaseConstants.tableTags}!inner(
-              ${SupabaseConstants.columnTagId},
-              ${SupabaseConstants.columnText},
-              ${SupabaseConstants.columnPromptDescription},
-              ${SupabaseConstants.columnTagType}
-            )
-          ''').eq(SupabaseConstants.columnLocationId, locationId);
 
-      if (type != null) {
-        query = query.eq(
-            '${SupabaseConstants.tableTags}.${SupabaseConstants.columnTagType}',
-            type);
-      }
-
-      final response =
-          await query.order(SupabaseConstants.columnScore, ascending: false);
-
-      if ((response as List).isEmpty) {
-        return [];
-      }
-
-      return (response as List).map((item) {
-        final tag = item[SupabaseConstants.tableTags] as Map<String, dynamic>;
-        return {
-          'id': item[SupabaseConstants.columnId],
-          'score': item[SupabaseConstants.columnScore],
-          'tag_id': tag[SupabaseConstants.columnTagId],
-          'text': tag[SupabaseConstants.columnText],
-          'prompt_description': tag[SupabaseConstants.columnPromptDescription],
-          'tag_type': tag[SupabaseConstants.columnTagType],
-        };
-      }).toList();
-    } catch (e) {
-      if (kDebugMode) {
-        print('Error getting location tags: $e');
-      }
-      return [];
-    }
-  }
-
-  /// Get location presence/popularity metrics
-  /// Returns combined metrics from app and social popularity tables
-  Future<Map<String, dynamic>?> getLocationPresence(int locationId) async {
-    try {
-      // Get app popularity metrics
-      final appPopularity = await _client
-          .from(SupabaseConstants.tableLocationPopularityApp)
-          .select()
-          .eq(SupabaseConstants.columnLocationId, locationId)
-          .maybeSingle();
-
-      // Get social popularity metrics
-      final socialPopularity = await _client
-          .from(SupabaseConstants.tableLocationPopularitySocial)
-          .select()
-          .eq(SupabaseConstants.columnLocationId, locationId)
-          .maybeSingle();
-
-      // Combine metrics
-      return {
-        'location_id': locationId,
-        'saves_count': appPopularity?[SupabaseConstants.columnSavesCount] ?? 0,
-        'app_updated_at': appPopularity?[SupabaseConstants.columnUpdatedAt],
-        'mention_count':
-            socialPopularity?[SupabaseConstants.columnMentionCount] ?? 0,
-        'last_scanned': socialPopularity?[SupabaseConstants.columnLastScanned],
-      };
-    } catch (e) {
-      if (kDebugMode) {
-        print('Error getting location presence: $e');
-      }
-      return null;
-    }
-  }
 
   /// Save a location for the current user
   Future<bool> saveLocation(int locationId, {String? savedMethod}) async {
     try {
       final user = SupabaseClientManager().currentUser;
-      final TagsHelper tagsHelper = TagsHelper();
       if (user == null) {
         throw Exception('User not authenticated');
       }
 
-      final isSaved = await isLocationSaved(locationId);
-      if (isSaved) {
-        // If already saved, return true
-        return true;
-      }
-
-      // Create the action
-      await _client.rpc('create_user_location_action', params: {
+      final result = await _client.rpc('save_location_with_tags', params: {
         'p_user_id': user.id,
         'p_location_id': locationId,
-        'p_action': SupabaseConstants.actionSave,
-        'p_saved_method': savedMethod,
+        'p_saved_method': savedMethod ?? 'in-app',
         'p_acked': true,
+        'p_source_video_url': null,
       });
 
-      incrementSaveCount(locationId);
-      if (savedMethod != null) {
-        if (savedMethod == SupabaseConstants.savedMethodInApp) {
-          await tagsHelper.updateUserTagsSaving(user.id, locationId);
-        }
-        if (savedMethod == SupabaseConstants.savedMethodTikTok) {
-          await tagsHelper.updateUserTagsSharing(user.id, locationId);
-        }
-      }
-      tagsHelper.updateUserTagsSaving(user.id, locationId);
-
-      return true;
+      return result['success'] == true;
     } catch (e) {
       if (kDebugMode) {
         print('Error saving location: $e');
@@ -621,28 +556,24 @@ class LocationHelper {
     }
   }
 
-  /// Disike a location for the current user
+  /// Dislike a location for the current user
   Future<bool> dislikeLocation(int locationId) async {
     try {
-      final TagsHelper tagsHelper = TagsHelper();
       final user = SupabaseClientManager().currentUser;
 
       if (user == null) {
         throw Exception('User not authenticated');
       }
 
-      await _client.rpc('create_user_location_action', params: {
+      final result = await _client.rpc('dislike_location_with_tags', params: {
         'p_user_id': user.id,
         'p_location_id': locationId,
-        'p_action': SupabaseConstants.actionDislike,
-        'p_acked': true,
       });
 
-      await tagsHelper.updateUserTagsDismissGavel(user.id, locationId);
-      return true;
+      return result['success'] == true;
     } catch (e) {
       if (kDebugMode) {
-        print('Error liking location: $e');
+        print('Error disliking location: $e');
       }
       return false;
     }
@@ -785,7 +716,7 @@ class LocationHelper {
       }
 
       if (kDebugMode)
-        print('⚠️  Places API returned status: ${response.statusCode}');
+        print('⚠️  Places API returned non-200 status: ${response.statusCode}');
       return null;
     } catch (e) {
       if (kDebugMode) print('❌ Error in Places API call: $e');
@@ -797,20 +728,20 @@ class LocationHelper {
   Future<String?> _performImageDownload(
       int locationId, String photoReference, String placeId) async {
     try {
-      if (photoReference.isEmpty) {
-        String? obtainedPhotoReference = await _fetchNewPhotoReference(placeId);
-        if (obtainedPhotoReference != null) {
-          photoReference = obtainedPhotoReference;
-          await _client.rpc(
-            'update_location_photo_reference',
-            params: {
-              'p_location_id': locationId,
-              'p_photo_reference': photoReference,
-            },
-          );
-        }
-      } else {
-        if (kDebugMode) print('✓ Photo reference found in database');
+      // Always fetch a fresh photo reference — stored ones expire
+      final freshReference = await _fetchNewPhotoReference(placeId);
+      if (freshReference != null) {
+        photoReference = freshReference;
+        await _client.rpc(
+          'update_location_photo_reference',
+          params: {
+            'p_location_id': locationId,
+            'p_photo_reference': photoReference,
+          },
+        );
+      } else if (photoReference.isEmpty) {
+        if (kDebugMode) print('⚠️  No photo reference available for $locationId');
+        return null;
       }
 
       // Download image bytes and upload to Supabase (pass locationId for filename)
