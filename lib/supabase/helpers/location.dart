@@ -128,9 +128,9 @@ class LocationHelper {
   /// row does not kill the entire batch.
   /// Optionally calculates match scores using user affinity vectors.
   Future<List<LocationModel>> _processLocationsWithImages(
-      List<dynamic> locationsData, {
-      List<int>? userVibeAffinity,
-      List<int>? userDietaryAffinity,
+    List<dynamic> locationsData, {
+    List<int>? userVibeAffinity,
+    List<int>? userDietaryAffinity,
   }) async {
     if (locationsData.isEmpty) return [];
 
@@ -161,7 +161,7 @@ class LocationHelper {
         );
 
         var location = LocationModel.fromJson(item, imageUrl);
-        
+
         // Calculate match score if user affinity data is available
         if (userVibeAffinity != null || userDietaryAffinity != null) {
           final score = LocationModel.calculateMatchScore(
@@ -172,7 +172,7 @@ class LocationHelper {
           );
           location = location.copyWith(matchScore: score);
         }
-        
+
         _cacheLocation(location);
         return location;
       } catch (e, st) {
@@ -263,37 +263,64 @@ class LocationHelper {
         if (userProf != null) {
           final vibeRaw = userProf[SupabaseConstants.columnVibeTagAffinity];
           if (vibeRaw is List) {
-            userVibeAffinity = List<int>.from(vibeRaw.map((e) => (e as num).toInt()));
+            userVibeAffinity =
+                List<int>.from(vibeRaw.map((e) => (e as num).toInt()));
           }
-          
-          final dietaryRaw = userProf[SupabaseConstants.columnDietaryRequirementTagAffinity];
+
+          final dietaryRaw =
+              userProf[SupabaseConstants.columnDietaryRequirementTagAffinity];
           if (dietaryRaw is List) {
-            userDietaryAffinity = List<int>.from(dietaryRaw.map((e) => (e as num).toInt()));
+            userDietaryAffinity =
+                List<int>.from(dietaryRaw.map((e) => (e as num).toInt()));
           }
         }
       } catch (e) {
-        developer.log('[Saved] Could not fetch user affinity data: $e', name: 'LocationHelper');
+        developer.log('[Saved] Could not fetch user affinity data: $e',
+            name: 'LocationHelper');
       }
 
       // First get all user_location_actions with 'save' action for this user
-      developer.log('[Saved] Querying saved actions for user ${user.id}', name: 'LocationHelper');
+      developer.log('[Saved] Querying saved actions for user ${user.id}',
+          name: 'LocationHelper');
       final savedActions = await _client
           .from(SupabaseConstants.tableUserLocationActions)
-          .select('${SupabaseConstants.columnLocationId}')
+          .select(
+              '${SupabaseConstants.columnLocationId}, ${SupabaseConstants.columnCreatedAt}')
           .eq(SupabaseConstants.columnUserId, user.id)
           .eq(SupabaseConstants.columnAction, SupabaseConstants.actionSave)
           .eq(SupabaseConstants.columnAcked, true);
 
       if (savedActions.isEmpty) {
-        developer.log('[Saved] No saved actions found (${stopwatch.elapsedMilliseconds}ms)', name: 'LocationHelper');
+        developer.log(
+            '[Saved] No saved actions found (${stopwatch.elapsedMilliseconds}ms)',
+            name: 'LocationHelper');
         return [];
       }
 
-      // Extract location IDs
-      final locationIds = (savedActions as List)
-          .map((action) => action[SupabaseConstants.columnLocationId] as int)
-          .toList();
-      developer.log('[Saved] Found ${locationIds.length} saved IDs: $locationIds', name: 'LocationHelper');
+      final latestSavedAtByLocationId = <int, DateTime>{};
+      final locationIds = <int>{};
+      for (final action in savedActions as List) {
+        if (action is! Map) continue;
+        final idRaw = action[SupabaseConstants.columnLocationId];
+        if (idRaw is! num) continue;
+
+        final locationId = idRaw.toInt();
+        locationIds.add(locationId);
+
+        final createdAtRaw = action[SupabaseConstants.columnCreatedAt];
+        final createdAt = createdAtRaw == null
+            ? null
+            : DateTime.tryParse(createdAtRaw.toString());
+        if (createdAt == null) continue;
+
+        final currentLatest = latestSavedAtByLocationId[locationId];
+        if (currentLatest == null || createdAt.isAfter(currentLatest)) {
+          latestSavedAtByLocationId[locationId] = createdAt;
+        }
+      }
+      developer.log(
+          '[Saved] Found ${locationIds.length} saved IDs: $locationIds',
+          name: 'LocationHelper');
 
       if (locationIds.isEmpty) {
         return [];
@@ -303,7 +330,7 @@ class LocationHelper {
       final locations = await _client
           .from(SupabaseConstants.tableLocations)
           .select()
-          .inFilter(SupabaseConstants.columnLocationId, locationIds);
+          .inFilter(SupabaseConstants.columnLocationId, locationIds.toList());
 
       developer.log(
         '[Saved] Fetched ${(locations as List).length} rows from DB in ${stopwatch.elapsedMilliseconds}ms',
@@ -326,11 +353,19 @@ class LocationHelper {
         userVibeAffinity: userVibeAffinity,
         userDietaryAffinity: userDietaryAffinity,
       );
+      final enrichedResult = result
+          .map(
+            (location) => location.copyWith(
+              savedActionCreatedAt:
+                  latestSavedAtByLocationId[location.locationId],
+            ),
+          )
+          .toList();
       developer.log(
-        '[Saved] Processed ${result.length}/${(locations as List).length} locations OK in ${stopwatch.elapsedMilliseconds}ms',
+        '[Saved] Processed ${enrichedResult.length}/${(locations as List).length} locations OK in ${stopwatch.elapsedMilliseconds}ms',
         name: 'LocationHelper',
       );
-      return result;
+      return enrichedResult;
     } catch (e, st) {
       developer.log(
         '[Saved] ERROR fetching saved locations',
@@ -350,7 +385,8 @@ class LocationHelper {
       // First get all user_location_actions with 'save' action for this user
       final savedActions = await _client
           .from(SupabaseConstants.tableUserLocationActions)
-          .select('${SupabaseConstants.columnLocationId}')
+          .select(
+              '${SupabaseConstants.columnLocationId}, ${SupabaseConstants.columnCreatedAt}')
           .eq(SupabaseConstants.columnUserId, userId)
           .eq(SupabaseConstants.columnAction, SupabaseConstants.actionSave)
           .eq(SupabaseConstants.columnAcked, true);
@@ -359,10 +395,27 @@ class LocationHelper {
         return [];
       }
 
-      // Extract location IDs
-      final locationIds = (savedActions as List)
-          .map((action) => action[SupabaseConstants.columnLocationId] as int)
-          .toList();
+      final latestSavedAtByLocationId = <int, DateTime>{};
+      final locationIds = <int>{};
+      for (final action in savedActions as List) {
+        if (action is! Map) continue;
+        final idRaw = action[SupabaseConstants.columnLocationId];
+        if (idRaw is! num) continue;
+
+        final locationId = idRaw.toInt();
+        locationIds.add(locationId);
+
+        final createdAtRaw = action[SupabaseConstants.columnCreatedAt];
+        final createdAt = createdAtRaw == null
+            ? null
+            : DateTime.tryParse(createdAtRaw.toString());
+        if (createdAt == null) continue;
+
+        final currentLatest = latestSavedAtByLocationId[locationId];
+        if (currentLatest == null || createdAt.isAfter(currentLatest)) {
+          latestSavedAtByLocationId[locationId] = createdAt;
+        }
+      }
 
       if (locationIds.isEmpty) {
         return [];
@@ -372,10 +425,19 @@ class LocationHelper {
       final locations = await _client
           .from(SupabaseConstants.tableLocations)
           .select()
-          .inFilter(SupabaseConstants.columnLocationId, locationIds);
+          .inFilter(SupabaseConstants.columnLocationId, locationIds.toList());
 
       // Use the efficient batch processor
-      return await _processLocationsWithImages(locations as List);
+      final processedLocations =
+          await _processLocationsWithImages(locations as List);
+      return processedLocations
+          .map(
+            (location) => location.copyWith(
+              savedActionCreatedAt:
+                  latestSavedAtByLocationId[location.locationId],
+            ),
+          )
+          .toList();
     } catch (e) {
       if (kDebugMode) {
         print('Error getting user saved locations: $e');

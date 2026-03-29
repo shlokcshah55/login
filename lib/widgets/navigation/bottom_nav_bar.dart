@@ -134,8 +134,9 @@ class _BottomNavBarState extends State<BottomNavBar>
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         _buildNavItem(FeatherIcons.home, 0, 'Home', theme),
-        _buildNavItem(FontAwesomeIcons.comments, 1, 'Bubbles', theme),
-        _buildNavItem(FeatherIcons.user, 2, 'Profile', theme),
+        _buildNavItem(FeatherIcons.compass, 1, 'Explore', theme),
+        _buildNavItem(FontAwesomeIcons.comments, 2, 'Bubbles', theme),
+        _buildNavItem(FeatherIcons.user, 3, 'Profile', theme),
       ],
     );
   }

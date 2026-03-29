@@ -106,7 +106,7 @@ class AuthHelper {
       // The client ID and secret are configured in Supabase Dashboard
       final result = await _client.auth.signInWithOAuth(
         OAuthProvider.google,
-        redirectTo: 'com.example.srishlok.pinit://login-callback/',
+        redirectTo: 'com.srishlok.pinit://login-callback/',
         authScreenLaunchMode: LaunchMode.externalApplication,
       );
 

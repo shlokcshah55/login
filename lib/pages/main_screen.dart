@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:login/pages/bubbles_page.dart';
 import 'package:login/pages/home_page.dart';
+import 'package:login/pages/explore/explore_page.dart';
 import 'package:login/pages/profile/profile_page.dart';
 import 'package:login/widgets/navigation/bottom_nav_bar.dart';
 import 'package:login/providers/navigation_provider.dart';
@@ -60,6 +61,7 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     final pages = [
       HomePage(isActive: _currentIndex == 0),
+      const ExplorePage(),
       const BubblesPage(),
       const ProfilePage(),
     ];

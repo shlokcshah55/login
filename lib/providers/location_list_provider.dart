@@ -66,14 +66,16 @@ class LocationListManager with ChangeNotifier {
 
   // Getters
   Map<LocationModel, MapMarkerData> get savedLocations => _savedLocations;
-  Map<LocationModel, MapMarkerData> get recommendedLocations => _recommendedLocations;
+  Map<LocationModel, MapMarkerData> get recommendedLocations =>
+      _recommendedLocations;
   Map<LocationModel, MapMarkerData> get searchLocations => _searchLocations;
   Map<LocationModel, MapMarkerData> get currentItems => _currentItems;
   List<LocationModel> get justDecideLocations => _justDecideLocations;
   LocationListType get currentListType => _currentListType;
   List<String> get vibeTagIds => List.unmodifiable(_vibeTagIds);
   List<String> get cuisineTagIds => List.unmodifiable(_cuisineTagIds);
-  bool get hasActiveFilters => _vibeTagIds.isNotEmpty || _cuisineTagIds.isNotEmpty;
+  bool get hasActiveFilters =>
+      _vibeTagIds.isNotEmpty || _cuisineTagIds.isNotEmpty;
 
   // Device location getters - delegate to LocationService
   LatLng? get currentPosition => _locationService.currentPosition;
@@ -172,13 +174,20 @@ class LocationListManager with ChangeNotifier {
   void _handleRealtimeEvent(PostgresChangePayload payload) async {
     final record = payload.newRecord;
     final oldRecord = payload.oldRecord;
+    final createdAt = _parseTimestamp(record['created_at']);
+    final action = record['action']?.toString();
+    final isSaveAction =
+        action == SupabaseConstants.actionSave || action == 'saved';
 
     switch (payload.eventType) {
       case PostgresChangeEvent.insert:
         // New location saved
-        if (record['action'] == 'saved' && record['acked'] == true) {
+        if (isSaveAction && record['acked'] == true) {
           print('Location saved realtime: ${record['location_id']}');
-          await _addLocationToSaved(record['location_id']);
+          await _addLocationToSaved(
+            record['location_id'],
+            savedActionCreatedAt: createdAt,
+          );
         }
         break;
 
@@ -190,10 +199,13 @@ class LocationListManager with ChangeNotifier {
 
       case PostgresChangeEvent.update:
         // Handle acked status change
-        if (record['action'] == 'saved') {
+        if (isSaveAction) {
           if (record['acked'] == true && oldRecord['acked'] == false) {
             print('Location acknowledged: ${record['location_id']}');
-            await _addLocationToSaved(record['location_id']);
+            await _addLocationToSaved(
+              record['location_id'],
+              savedActionCreatedAt: createdAt,
+            );
           } else if (record['acked'] == false && oldRecord['acked'] == true) {
             print('Location unacknowledged: ${record['location_id']}');
             await _removeLocationFromSaved(record['location_id']);
@@ -208,8 +220,16 @@ class LocationListManager with ChangeNotifier {
     }
   }
 
+  DateTime? _parseTimestamp(dynamic value) {
+    if (value == null) return null;
+    return DateTime.tryParse(value.toString());
+  }
+
   /// Add a location to saved list by fetching its details
-  Future<void> _addLocationToSaved(int locationId) async {
+  Future<void> _addLocationToSaved(
+    int locationId, {
+    DateTime? savedActionCreatedAt,
+  }) async {
     try {
       // Check if location already exists in saved locations
       final alreadyExists =
@@ -219,27 +239,49 @@ class LocationListManager with ChangeNotifier {
         return;
       }
 
-        // Fetch location details from Supabase
-        print('[Supabase] Querying location_id=$locationId');
-        final locationData = await Supabase.instance.client
+      // Fetch location details from Supabase
+      print('[Supabase] Querying location_id=$locationId');
+      final locationData = await Supabase.instance.client
           .from('locations')
           .select()
           .eq('location_id', locationId)
           .single();
-        print('[Supabase] Result for location_id=$locationId: ${locationData.toString().substring(0, math.min(200, locationData.toString().length))}');
+      print(
+          '[Supabase] Result for location_id=$locationId: ${locationData.toString().substring(0, math.min(200, locationData.toString().length))}');
 
-        // Optionally log image fetch
-        print('[Supabase] Fetching image for location_id=$locationId, google_place_id=${locationData['google_place_id']}, photo_reference=${locationData['photo_reference']}');
-        final locationImage = await _supabaseService.locations.getLocationImage(
+      // Optionally log image fetch
+      print(
+          '[Supabase] Fetching image for location_id=$locationId, google_place_id=${locationData['google_place_id']}, photo_reference=${locationData['photo_reference']}');
+      final locationImage = await _supabaseService.locations.getLocationImage(
           locationId,
           locationData['google_place_id'],
           locationData['photo_reference']);
 
-      final location = LocationModel.fromJson(locationData, locationImage);
+      var resolvedSavedAt = savedActionCreatedAt;
+      if (resolvedSavedAt == null && _userId != null) {
+        final saveAction = await Supabase.instance.client
+            .from(SupabaseConstants.tableUserLocationActions)
+            .select(SupabaseConstants.columnCreatedAt)
+            .eq(SupabaseConstants.columnUserId, _userId!)
+            .eq(SupabaseConstants.columnLocationId, locationId)
+            .eq(SupabaseConstants.columnAction, SupabaseConstants.actionSave)
+            .eq(SupabaseConstants.columnAcked, true)
+            .order(SupabaseConstants.columnCreatedAt, ascending: false)
+            .limit(1)
+            .maybeSingle();
+        resolvedSavedAt = _parseTimestamp(
+          saveAction?[SupabaseConstants.columnCreatedAt],
+        );
+      }
+
+      final location = LocationModel.fromJson(locationData, locationImage)
+          .copyWith(savedActionCreatedAt: resolvedSavedAt);
 
       // Add to saved locations temporarily with a placeholder marker
-      _savedLocations[location] =
-          MapMarkerData(id: locationId.toString(), position: const LatLng(0, 0), imageBytes: const []);
+      _savedLocations[location] = MapMarkerData(
+          id: locationId.toString(),
+          position: const LatLng(0, 0),
+          imageBytes: const []);
 
       // Re-apply name selection to all saved locations (including the new one)
       final selectedForNames = _selectLocationsForNameDisplay(
@@ -492,36 +534,38 @@ class LocationListManager with ChangeNotifier {
     if (userPosition == null || locations.isEmpty) {
       // If no user position, sort by match score only (highest first)
       final markersMap = Map.fromEntries(markers);
-      final sorted = locations..sort((a, b) {
-        final scoreA = a.matchScore ?? 0.0;
-        final scoreB = b.matchScore ?? 0.0;
-        return scoreB.compareTo(scoreA); // Higher score first
-      });
+      final sorted = locations
+        ..sort((a, b) {
+          final scoreA = a.matchScore ?? 0.0;
+          final scoreB = b.matchScore ?? 0.0;
+          return scoreB.compareTo(scoreA); // Higher score first
+        });
       return sorted.map((loc) => MapEntry(loc, markersMap[loc]!)).toList();
     }
 
     // Sort with distance as primary key, match score as secondary
     final markersMap = Map.fromEntries(markers);
-    final sorted = locations..sort((a, b) {
-      if (a.lat == null || a.lng == null || b.lat == null || b.lng == null) {
-        return 0; // Can't calculate distance, keep order
-      }
+    final sorted = locations
+      ..sort((a, b) {
+        if (a.lat == null || a.lng == null || b.lat == null || b.lng == null) {
+          return 0; // Can't calculate distance, keep order
+        }
 
-      final posA = LatLng(a.lat!, a.lng!);
-      final posB = LatLng(b.lat!, b.lng!);
-      
-      final distA = _calculateDistance(userPosition, posA);
-      final distB = _calculateDistance(userPosition, posB);
-      
-      // Primary sort: by distance (nearest first)
-      final distCompare = distA.compareTo(distB);
-      if (distCompare != 0) return distCompare;
-      
-      // Secondary sort: by match score (highest first)
-      final scoreA = a.matchScore ?? 0.0;
-      final scoreB = b.matchScore ?? 0.0;
-      return scoreB.compareTo(scoreA);
-    });
+        final posA = LatLng(a.lat!, a.lng!);
+        final posB = LatLng(b.lat!, b.lng!);
+
+        final distA = _calculateDistance(userPosition, posA);
+        final distB = _calculateDistance(userPosition, posB);
+
+        // Primary sort: by distance (nearest first)
+        final distCompare = distA.compareTo(distB);
+        if (distCompare != 0) return distCompare;
+
+        // Secondary sort: by match score (highest first)
+        final scoreA = a.matchScore ?? 0.0;
+        final scoreB = b.matchScore ?? 0.0;
+        return scoreB.compareTo(scoreA);
+      });
 
     return sorted.map((loc) => MapEntry(loc, markersMap[loc]!)).toList();
   }
@@ -585,7 +629,11 @@ class LocationListManager with ChangeNotifier {
         // First create a temporary map to select which locations should show names
         final tempMap = Map.fromEntries(supabaseSavedLocations.map((loc) =>
             MapEntry(
-                loc, MapMarkerData(id: loc.locationId.toString(), position: const LatLng(0, 0), imageBytes: const []))));
+                loc,
+                MapMarkerData(
+                    id: loc.locationId.toString(),
+                    position: const LatLng(0, 0),
+                    imageBytes: const []))));
         final selectedForNames = _selectLocationsForNameDisplay(
           tempMap,
           viewportBounds: _currentViewportBounds,
@@ -700,7 +748,11 @@ class LocationListManager with ChangeNotifier {
 
       // Select which locations should show names
       final tempMap = Map.fromEntries(locations.map((loc) => MapEntry(
-          loc, MapMarkerData(id: loc.locationId.toString(), position: const LatLng(0, 0), imageBytes: const []))));
+          loc,
+          MapMarkerData(
+              id: loc.locationId.toString(),
+              position: const LatLng(0, 0),
+              imageBytes: const []))));
       final selectedForNames = _selectLocationsForNameDisplay(
         tempMap,
         viewportBounds: _currentViewportBounds,
@@ -726,7 +778,6 @@ class LocationListManager with ChangeNotifier {
       _lastSearchedRadius = searchRadius;
 
       log("Fetched ${locations.length} personalized recommendations");
-
     } catch (e) {
       log('Error fetching personalized recommendations: $e');
       _error = "Failed to load recommendations: ${e.toString()}";
@@ -843,7 +894,11 @@ class LocationListManager with ChangeNotifier {
 
       // Select which locations should show names
       final tempMap = Map.fromEntries(locations.map((loc) => MapEntry(
-          loc, MapMarkerData(id: loc.locationId.toString(), position: const LatLng(0, 0), imageBytes: const []))));
+          loc,
+          MapMarkerData(
+              id: loc.locationId.toString(),
+              position: const LatLng(0, 0),
+              imageBytes: const []))));
       final selectedForNames = _selectLocationsForNameDisplay(
         tempMap,
         viewportBounds: _currentViewportBounds,
@@ -869,7 +924,6 @@ class LocationListManager with ChangeNotifier {
       _lastSearchedRadius = searchRadius;
 
       log("Fetched ${locations.length} bubble recommendations");
-
     } catch (e) {
       log('Error fetching bubble recommendations: $e');
       _error = "Failed to load group recommendations: ${e.toString()}";
@@ -906,9 +960,9 @@ class LocationListManager with ChangeNotifier {
         longitude: longitude,
         radiusKm: radiusKm,
         maxResults: maxResults,
-        tasteWeight: 0.3,      // Moderate taste consideration
-        proximityWeight: 0.6,  // Prioritize proximity
-        qualityWeight: 0.1,    // Some quality consideration
+        tasteWeight: 0.3, // Moderate taste consideration
+        proximityWeight: 0.6, // Prioritize proximity
+        qualityWeight: 0.1, // Some quality consideration
       );
 
       // Extract IDs (preserves ranking!)
@@ -934,7 +988,6 @@ class LocationListManager with ChangeNotifier {
       _error = null; // Clear any previous errors
       log("Fetched ${locations.length} just decide recommendations");
       notifyListeners();
-
     } catch (e) {
       log('Error fetching just decide recommendations: $e');
       _error = "Failed to load recommendations: ${e.toString()}";
@@ -947,8 +1000,10 @@ class LocationListManager with ChangeNotifier {
   Future<void> addRecommendedLocations(List<LocationModel> locations) async {
     // Add new locations with placeholder markers
     for (var location in locations) {
-      _recommendedLocations[location] =
-          MapMarkerData(id: location.locationId.toString(), position: const LatLng(0, 0), imageBytes: const []);
+      _recommendedLocations[location] = MapMarkerData(
+          id: location.locationId.toString(),
+          position: const LatLng(0, 0),
+          imageBytes: const []);
     }
 
     // Re-apply name selection to all recommended locations
@@ -1022,7 +1077,11 @@ class LocationListManager with ChangeNotifier {
 
       // Select which locations should show names
       final tempMap = Map.fromEntries(locations.map((loc) => MapEntry(
-          loc, MapMarkerData(id: loc.locationId.toString(), position: const LatLng(0, 0), imageBytes: const []))));
+          loc,
+          MapMarkerData(
+              id: loc.locationId.toString(),
+              position: const LatLng(0, 0),
+              imageBytes: const []))));
       final selectedForNames = _selectLocationsForNameDisplay(
         tempMap,
         viewportBounds: _currentViewportBounds,
@@ -1039,8 +1098,8 @@ class LocationListManager with ChangeNotifier {
       );
 
       // Update recommended locations instead of search locations
-      _recommendedLocations =
-          Map.fromEntries(markers.whereType<MapEntry<LocationModel, MapMarkerData>>());
+      _recommendedLocations = Map.fromEntries(
+          markers.whereType<MapEntry<LocationModel, MapMarkerData>>());
       _lastSearchedCenter = center;
       _areaChanged = false;
       _error = null;
@@ -1141,8 +1200,12 @@ class LocationListManager with ChangeNotifier {
     }
 
     // Add location with placeholder marker
-    _savedLocations[location] =
-        MapMarkerData(id: location.locationId.toString(), position: const LatLng(0, 0), imageBytes: const []);
+    final locationWithSavedAt =
+        location.copyWith(savedActionCreatedAt: DateTime.now());
+    _savedLocations[locationWithSavedAt] = MapMarkerData(
+        id: location.locationId.toString(),
+        position: const LatLng(0, 0),
+        imageBytes: const []);
 
     // Re-apply name selection to all saved locations
     final selectedForNames = _selectLocationsForNameDisplay(
@@ -1318,7 +1381,11 @@ class LocationListManager with ChangeNotifier {
 
       // Select which locations should show names
       final tempMap = Map.fromEntries(locations.map((loc) => MapEntry(
-          loc, MapMarkerData(id: loc.locationId.toString(), position: const LatLng(0, 0), imageBytes: const []))));
+          loc,
+          MapMarkerData(
+              id: loc.locationId.toString(),
+              position: const LatLng(0, 0),
+              imageBytes: const []))));
       final selectedForNames = _selectLocationsForNameDisplay(
         tempMap,
         viewportBounds: _currentViewportBounds,
@@ -1333,8 +1400,8 @@ class LocationListManager with ChangeNotifier {
           return marker != null ? MapEntry(location, marker) : null;
         }),
       );
-      _searchLocations =
-          Map.fromEntries(markers.whereType<MapEntry<LocationModel, MapMarkerData>>());
+      _searchLocations = Map.fromEntries(
+          markers.whereType<MapEntry<LocationModel, MapMarkerData>>());
 
       log(
         "LocationListManager: Magic search returned ${_searchLocations.length} results for '$trimmedQuery'.",

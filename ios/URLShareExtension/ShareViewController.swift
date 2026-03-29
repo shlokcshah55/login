@@ -68,6 +68,9 @@ class ShareViewController: UIViewController {
                             if let url = item as? URL {
                                 sharedURLs.append(url.absoluteString)
                                 print("📎 Share Extension: Found URL: \(url.absoluteString)")
+                            } else if let urlString = item as? String, !urlString.isEmpty {
+                                sharedURLs.append(urlString)
+                                print("📎 Share Extension: Found URL string: \(urlString)")
                             }
 
                             processedCount += 1
@@ -77,14 +80,24 @@ class ShareViewController: UIViewController {
                         }
                     }
                     // Handle text (in case URL is shared as text)
-                    else if provider.hasItemConformingToTypeIdentifier("public.plain-text") {
-                        provider.loadItem(forTypeIdentifier: "public.plain-text", options: nil) { (item, error) in
+                    else if provider.hasItemConformingToTypeIdentifier("public.plain-text") ||
+                            provider.hasItemConformingToTypeIdentifier("public.text") {
+                        let textTypeIdentifier = provider.hasItemConformingToTypeIdentifier("public.plain-text")
+                            ? "public.plain-text"
+                            : "public.text"
+                        provider.loadItem(forTypeIdentifier: textTypeIdentifier, options: nil) { (item, error) in
                             if let error = error {
                                 print("❌ Share Extension: Error loading text: \(error)")
                             }
                             if let text = item as? String {
                                 sharedURLs.append(text)
                                 print("📎 Share Extension: Found text: \(text)")
+                            } else if let attributedText = item as? NSAttributedString {
+                                let text = attributedText.string
+                                if !text.isEmpty {
+                                    sharedURLs.append(text)
+                                    print("📎 Share Extension: Found attributed text: \(text)")
+                                }
                             }
 
                             processedCount += 1
@@ -120,7 +133,7 @@ class ShareViewController: UIViewController {
 
         // Get userId from App Group UserDefaults
         print("🔍 Share Extension: Attempting to access App Group UserDefaults")
-        guard let userDefaults = UserDefaults(suiteName: "group.com.example.srishlok.pinit") else {
+        guard let userDefaults = UserDefaults(suiteName: "group.com.srishlok.pinit") else {
             print("❌ Share Extension: FAILED to access App Group UserDefaults!")
             DispatchQueue.main.async { [weak self] in
                 self?.showError("Configuration error - cannot access app group")

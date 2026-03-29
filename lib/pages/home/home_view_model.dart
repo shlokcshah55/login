@@ -11,6 +11,8 @@ import 'package:login/providers/map_state_provider.dart';
 import 'package:login/providers/nav_bar/visibility_provider.dart';
 
 class HomeViewModel extends ChangeNotifier {
+  static const double _selectedPlaceMinZoom = 16.2;
+
   final LocationListManager locationListManager;
   final MapStateProvider mapStateProvider;
   final BottomNavVisibilityProvider bottomNavVisibilityProvider;
@@ -81,9 +83,8 @@ class HomeViewModel extends ChangeNotifier {
         locationListManager.currentPosition != null) {
       _initialRecommendationsFetched = true;
       log("HomeViewModel: Location stream provided position, fetching initial recommendations");
-      _homeController.fetchAndPlotRecommendedPins(
-        locationListManager.currentPosition
-      );
+      _homeController
+          .fetchAndPlotRecommendedPins(locationListManager.currentPosition);
     }
     notifyListeners();
   }
@@ -128,21 +129,29 @@ class HomeViewModel extends ChangeNotifier {
   void onCarouselPageChanged(int index) {
     bottomNavVisibilityProvider.hide();
     final location = locations[index];
+    final targetZoom = mapStateProvider.currentZoom < _selectedPlaceMinZoom
+        ? _selectedPlaceMinZoom
+        : mapStateProvider.currentZoom;
     mapStateProvider.setSelectedMarkerId(
       location.locationId.toString(),
       triggeredByCarousel: true,
     );
     mapStateProvider.animateCamera(
       location.position!,
+      zoom: targetZoom,
     );
   }
 
   void onLocationSelected(LocationModel location) {
+    final targetZoom = mapStateProvider.currentZoom < _selectedPlaceMinZoom
+        ? _selectedPlaceMinZoom
+        : mapStateProvider.currentZoom;
     mapStateProvider.setSelectedMarkerId(
       location.locationId.toString(),
     );
     mapStateProvider.animateCamera(
       location.position!,
+      zoom: targetZoom,
     );
   }
 
@@ -151,7 +160,8 @@ class HomeViewModel extends ChangeNotifier {
   }
 
   void toggleSearchOverlay(bool visible) {
-    print('🎭 toggleSearchOverlay called with visible=$visible, current=$_showSearchOverlay');
+    print(
+        '🎭 toggleSearchOverlay called with visible=$visible, current=$_showSearchOverlay');
     if (_showSearchOverlay == visible) return;
     _showSearchOverlay = visible;
     notifyListeners();
@@ -181,7 +191,8 @@ class HomeViewModel extends ChangeNotifier {
   }
 
   void toggleJustDecideOverlay(bool visible) {
-    print('🎲 toggleJustDecideOverlay called with visible=$visible, current=$_showGavelOverlay');
+    print(
+        '🎲 toggleJustDecideOverlay called with visible=$visible, current=$_showGavelOverlay');
     if (_showGavelOverlay == visible) return;
     _showGavelOverlay = visible;
     notifyListeners();
@@ -246,7 +257,8 @@ class HomeViewModel extends ChangeNotifier {
   }
 
   void toggleSweetTreatOverlay(bool visible) {
-    print('🧁 toggleSweetTreatOverlay called with visible=$visible, current=$_showSweetTreatOverlay');
+    print(
+        '🧁 toggleSweetTreatOverlay called with visible=$visible, current=$_showSweetTreatOverlay');
     if (_showSweetTreatOverlay == visible) return;
     _showSweetTreatOverlay = visible;
     notifyListeners();
@@ -344,7 +356,8 @@ class HomeViewModel extends ChangeNotifier {
         await locationListManager.getCurrentLocation();
 
     if (currentLocation != null) {
-      const double defaultRadius = 5.0; // Match default from fetchRecommendedLocations
+      const double defaultRadius =
+          5.0; // Match default from fetchRecommendedLocations
       await locationListManager.fetchRecommendedLocations(
         latitude: currentLocation.latitude,
         longitude: currentLocation.longitude,
