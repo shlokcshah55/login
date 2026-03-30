@@ -73,13 +73,15 @@ class LocationHelper {
       return publicUrl;
     }
 
-    // Image not yet in storage — kick off a background download if we have a reference.
+    // Image not yet in storage — kick off a background download if we have a reference or place ID.
     final photoReference = locationData[SupabaseConstants.columnPhotoReference];
     final googlePlaceId = locationData[SupabaseConstants.columnGooglePlaceId];
 
-    if (photoReference != null && photoReference.toString().isNotEmpty) {
+    final hasPhotoRef = photoReference != null && photoReference.toString().isNotEmpty;
+    final hasPlaceId = googlePlaceId != null && googlePlaceId.toString().isNotEmpty;
+    if (hasPhotoRef || hasPlaceId) {
       _ensureImageUploaded(locationId, googlePlaceId?.toString() ?? '',
-          photoReference.toString());
+          photoReference?.toString() ?? '');
     }
 
     return publicUrl;
@@ -93,22 +95,6 @@ class LocationHelper {
     if (_activeDownloads.containsKey(locationId)) return;
 
     try {
-      // Quick check if file exists by trying to get metadata (cheaper than list())
-      final filename = '$locationId.jpg';
-      try {
-        // Try a HEAD request to check if URL is valid
-        final url =
-            _client.storage.from('location_photos').getPublicUrl(filename);
-        final response = await http.head(Uri.parse(url));
-        if (response.statusCode == 200) {
-          // Image already exists, no need to download
-          return;
-        }
-      } catch (_) {
-        // URL doesn't exist or error - proceed with download
-      }
-
-      // Download and upload
       await getLocationImage(locationId, googlePlaceId, photoReference);
     } catch (e) {
       if (kDebugMode)
@@ -666,10 +652,6 @@ class LocationHelper {
   Future<String?> getLocationImage(
       int locationId, String google_place_id, String? photoReference) async {
     try {
-      if (photoReference == null || photoReference.isEmpty) {
-        return null;
-      }
-
       // Check if another call is already downloading this location
       if (_activeDownloads.containsKey(locationId)) {
         return await _activeDownloads[locationId];
@@ -691,8 +673,8 @@ class LocationHelper {
     }
   }
 
-  // Helper function to fetch new photo reference from Google Places API v1
-  Future<String?> _fetchNewPhotoReference(String placeId) async {
+  // Helper function to fetch photos array from Google Places API v1
+  Future<List<dynamic>?> _fetchPlacePhotos(String placeId) async {
     try {
       final apiKey = dotenv.env["GOOGLE_PLACE_API_KEY"];
       if (apiKey == null || apiKey.isEmpty) {
@@ -710,8 +692,9 @@ class LocationHelper {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['photos'] != null && (data['photos'] as List).isNotEmpty) {
-          return data['photos'][0]['name'] as String?;
+        final photos = data['photos'] as List?;
+        if (photos != null && photos.isNotEmpty) {
+          return photos;
         }
       }
 
@@ -726,41 +709,64 @@ class LocationHelper {
 
   // Method that performs the actual download (called only once per location)
   Future<String?> _performImageDownload(
-      int locationId, String photoReference, String placeId) async {
-    try {
-      // Always fetch a fresh photo reference — stored ones expire
-      final freshReference = await _fetchNewPhotoReference(placeId);
-      if (freshReference != null) {
-        photoReference = freshReference;
-        await _client.rpc(
-          'update_location_photo_reference',
-          params: {
-            'p_location_id': locationId,
-            'p_photo_reference': photoReference,
-          },
-        );
-      } else if (photoReference.isEmpty) {
-        if (kDebugMode) print('⚠️  No photo reference available for $locationId');
-        return null;
-      }
-
-      // Download image bytes and upload to Supabase (pass locationId for filename)
-      final permanentUrl =
-          await _downloadAndUploadImage(photoReference, locationId);
+      int locationId, String? photoReference, String placeId) async {
+    // Try the stored photo reference first if we have one
+    if (photoReference != null && photoReference.isNotEmpty) {
+      final permanentUrl = await _downloadAndUploadImage(photoReference, locationId);
       if (permanentUrl != null) {
-        await _client.rpc(
-          'update_location_image_url',
-          params: {
+        try {
+          await _client.rpc('update_location_image_url', params: {
             'p_location_id': locationId,
             'p_image_url': permanentUrl,
-          },
-        );
+          });
+        } catch (e) {
+          if (kDebugMode) print('⚠️  Failed to mark image_stored for $locationId: $e');
+        }
+        return permanentUrl;
       }
-      return permanentUrl;
-    } catch (e) {
-      if (kDebugMode) print('❌ Error in _performImageDownload: $e');
+      if (kDebugMode) print('⚠️  Stored photo reference failed for $locationId, fetching fresh...');
+    }
+
+    // Stored reference was empty or failed — fetch fresh using place ID
+    if (placeId.isEmpty) {
+      if (kDebugMode) print('⚠️  No photo reference or place ID available for $locationId');
       return null;
     }
+
+    final freshPhotos = await _fetchPlacePhotos(placeId);
+    if (freshPhotos == null || freshPhotos.isEmpty) {
+      if (kDebugMode) print('⚠️  Could not fetch fresh photos for $locationId');
+      return null;
+    }
+
+    final freshReference = freshPhotos[0]['name'] as String;
+
+    // Save references back to DB — best effort, don't block the download
+    try {
+      await _client.rpc('update_location_photo_reference', params: {
+        'p_location_id': locationId,
+        'p_photo_reference': freshReference,
+      });
+      await _client.rpc('update_location_photos', params: {
+        'p_location_id': locationId,
+        'p_photos': jsonEncode(freshPhotos),
+      });
+    } catch (e) {
+      if (kDebugMode) print('⚠️  Failed to save fresh photo reference for $locationId: $e');
+    }
+
+    final permanentUrl = await _downloadAndUploadImage(freshReference, locationId);
+    if (permanentUrl != null) {
+      try {
+        await _client.rpc('update_location_image_url', params: {
+          'p_location_id': locationId,
+          'p_image_url': permanentUrl,
+        });
+      } catch (e) {
+        if (kDebugMode) print('⚠️  Failed to mark image_stored for $locationId: $e');
+      }
+    }
+    return permanentUrl;
   }
 
   // Helper function to download image from Google and upload to Supabase Storage
