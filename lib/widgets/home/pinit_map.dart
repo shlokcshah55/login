@@ -423,11 +423,11 @@ class _PinitMapState extends State<PinitMap> {
             child: Center(
               child: Container(
                 decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor.withOpacity(0.85),
+                    color: Theme.of(context).primaryColor.withValues(alpha: 0.85),
                     borderRadius: BorderRadius.circular(20.0),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.15),
+                        color: Colors.black.withValues(alpha: 0.15),
                         blurRadius: 3,
                         offset: const Offset(0, 1),
                       )
@@ -471,117 +471,6 @@ class _PinitMapState extends State<PinitMap> {
               ),
             ),
           ),
-
-        // "My Location" button
-        Positioned(
-          top: 150,
-          left: 20,
-          child: Container(
-            decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(30.0),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  )
-                ]),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(30.0),
-                onTap: () async {
-                  print('My Location button pressed');
-                  await _startLocationTracking();
-                  
-                  // Always fetch fresh GPS position
-                  print('Fetching fresh GPS location...');
-                  final position = await locationListManager.getCurrentLocation();
-                  
-                  if (position != null) {
-                    print('Got fresh position: $position');
-                    await mapStateReader.focusOnUserLocation(position, zoom: 15.0);
-                    print('Focused on position: $position');
-                  } else {
-                    print('Failed to get location');
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Unable to get your location. Please ensure GPS is enabled and try again.'),
-                          duration: Duration(seconds: 3),
-                        ),
-                      );
-                    }
-                  }
-                },
-                child: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Icon(
-                    FeatherIcons.crosshair,
-                    color: Theme.of(context).primaryColor,
-                    size: 24,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-
-        // Filter button - positioned below location button
-        Positioned(
-          top: 210,
-          left: 20,
-          child: Stack(
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(30.0),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.2),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    )
-                  ],
-                ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(30.0),
-                    onTap: _showFilterCategoryList,
-                    child: Padding(
-                      padding: const EdgeInsets.all(12.0),
-                      child: Icon(
-                        Icons.filter_list,
-                        color: Theme.of(context).primaryColor,
-                        size: 24,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              // Active indicator dot
-              if (_selectedVibeTagIds.isNotEmpty ||
-                  _selectedCuisineTagIds.isNotEmpty ||
-                  _selectedDietaryTagIds.isNotEmpty)
-                Positioned(
-                  top: 4,
-                  right: 4,
-                  child: Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).primaryColor,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
       ],
     );
   }

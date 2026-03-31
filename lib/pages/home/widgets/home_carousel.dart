@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:login/utils/geo_types.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/widgets/home/LocationCarousel/location_carousel.dart';
 
@@ -11,6 +10,8 @@ class HomeCarousel extends StatelessWidget {
   final ValueChanged<int> onPageChanged;
   final VoidCallback onScrollStart;
   final ValueChanged<LocationModel> onLocationSelected;
+  final void Function(LocationModel location)? onSwipeUp;
+  final void Function(LocationModel location)? onSwipeDown;
 
   const HomeCarousel({
     Key? key,
@@ -21,6 +22,8 @@ class HomeCarousel extends StatelessWidget {
     required this.onPageChanged,
     required this.onScrollStart,
     required this.onLocationSelected,
+    this.onSwipeUp,
+    this.onSwipeDown,
   }) : super(key: key);
 
   @override
@@ -39,6 +42,8 @@ class HomeCarousel extends StatelessWidget {
         bottomNavVisible: bottomNavVisible,
         onPageChanged: onPageChanged,
         onLocationSelected: onLocationSelected,
+        onSwipeUp: onSwipeUp,
+        onSwipeDown: onSwipeDown,
       ),
     );
   }

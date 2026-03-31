@@ -98,6 +98,7 @@ flutter:
     - lib/assets/logo.jpg
     - lib/assets/background.jpg
     - lib/assets/logo-transparent.png
+    - lib/assets/purplePinit.png
     - lib/assets/AppLogo.jpg
     - lib/assets/AppLogo.png
     - lib/assets/splashscren.json
@@ -108,15 +109,15 @@ flutter:
     - lib/assets/vibe/rooftop.jpg
     - lib/assets/vibe/rusticLocal.png
     - lib/assets/vibe/upscaleGuy.png
-    - lib/assets/burgerIcon.jpg
-    - lib/assets/curryIcon.jpg
-    - lib/assets/donutIcon.jpg
-    - lib/assets/phoIcon.jpg
-    - lib/assets/pizzaIcon.jpg
-    - lib/assets/steakIcon.jpg
-    - lib/assets/sushiIcon.jpg
-    - lib/assets/tacoIcon.jpg
-    - lib/assets/thaiIcon.jpg
+    - lib/assets/pin_emojis/burgerIcon.jpg
+    - lib/assets/pin_emojis/curryIcon.jpg
+    - lib/assets/pin_emojis/donutIcon.jpg
+    - lib/assets/pin_emojis/phoIcon.jpg
+    - lib/assets/pin_emojis/pizzaIcon.jpg
+    - lib/assets/pin_emojis/steakIcon.jpg
+    - lib/assets/pin_emojis/sushiIcon.jpg
+    - lib/assets/pin_emojis/tacoIcon.jpg
+    - lib/assets/pin_emojis/thaiIcon.jpg
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware

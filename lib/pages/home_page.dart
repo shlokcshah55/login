@@ -2,15 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/pages/home/home_view_model.dart';
 import 'package:login/pages/home/widgets/home_carousel.dart';
-import 'package:login/pages/home/widgets/home_header.dart';
 import 'package:login/pages/home/widgets/home_map_layer.dart';
 import 'package:login/pages/home/widgets/magic_search_overlay.dart';
 import 'package:login/pages/home/widgets/gavel_overlay.dart';
 import 'package:login/pages/home/widgets/sweet_treat_overlay.dart';
-import 'package:login/pages/home/widgets/quick_actions_bar.dart';
+import 'package:login/pages/home/widgets/pinit_search_bar.dart';
+import 'package:login/themes/pinit_colors.dart';
+import 'package:login/pages/home/widgets/mode_toggle.dart';
+import 'package:login/pages/home/widgets/decide_bottom_sheet.dart';
+import 'package:login/pages/home/widgets/shortlist_pill.dart';
+import 'package:login/pages/home/widgets/shortlist_carousel_sheet.dart';
+import 'package:login/pages/home/widgets/my_location_button.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:login/providers/nav_bar/visibility_provider.dart';
+import 'package:login/providers/shortlist_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:login/providers/bubble_mode_provider.dart';
 import 'package:login/providers/navigation_provider.dart';
@@ -36,6 +42,7 @@ class _HomePageState extends State<HomePage> {
   late final LocationListManager _locationListManager;
   late final MapStateProvider _mapStateProvider;
   late final BottomNavVisibilityProvider _bottomNavVisibilityProvider;
+  late final ShortlistProvider _shortlistProvider;
   late final BubbleModeProvider _bubbleModeProvider;
   bool _wizardPopoverScheduled = false;
   bool _wizardPopoverShown = false;
@@ -46,11 +53,13 @@ class _HomePageState extends State<HomePage> {
     _locationListManager = context.read<LocationListManager>();
     _mapStateProvider = context.read<MapStateProvider>();
     _bottomNavVisibilityProvider = context.read<BottomNavVisibilityProvider>();
+    _shortlistProvider = context.read<ShortlistProvider>();
     _bubbleModeProvider = context.read<BubbleModeProvider>();
     _viewModel = HomeViewModel(
       locationListManager: _locationListManager,
       mapStateProvider: _mapStateProvider,
       bottomNavVisibilityProvider: _bottomNavVisibilityProvider,
+      shortlistProvider: _shortlistProvider,
     );
     _viewModel.init();
 
@@ -62,7 +71,6 @@ class _HomePageState extends State<HomePage> {
   void didUpdateWidget(HomePage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!oldWidget.isActive && widget.isActive) {
-      print('HomePage became active, checking for pending activation');
       _handleBubbleModeRequest();
       _handlePendingFocusLocation();
     }
@@ -92,20 +100,15 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _handleBubbleModeRequest() async {
     if (!mounted) return;
-    print(
-        'HomePage listener fired! hasPending: ${_bubbleModeProvider.hasPendingActivation}, isActive: ${widget.isActive}');
     if (_bubbleModeProvider.hasPendingActivation && widget.isActive) {
       final bubble = _bubbleModeProvider.pendingBubble!;
-      print('Processing bubble activation for: ${bubble.name}');
       _bubbleModeProvider.clearPendingBubble();
-
       await _viewModel.activateBubbleMode(bubble);
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Bubble mode activated for ${bubble.name}'),
-            backgroundColor: Colors.purple,
+            backgroundColor: PinitColors.dark.primaryPurple,
             duration: const Duration(seconds: 2),
           ),
         );
@@ -117,12 +120,8 @@ class _HomePageState extends State<HomePage> {
     if (_wizardPopoverShown || _wizardPopoverScheduled || !widget.isActive) {
       return;
     }
-
     final userData = userDataProvider.supabaseUserData;
-    if (userData == null || userData.wizardCompleted) {
-      return;
-    }
-
+    if (userData == null || userData.wizardCompleted) return;
     _wizardPopoverScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -132,14 +131,12 @@ class _HomePageState extends State<HomePage> {
 
   void _showWizardPopoverIfNeeded() {
     if (_wizardPopoverShown || !widget.isActive) return;
-
     final userDataProvider = context.read<UserDataProvider>();
     final userData = userDataProvider.supabaseUserData;
     if (userData == null || userData.wizardCompleted) {
       _wizardPopoverScheduled = false;
       return;
     }
-
     _wizardPopoverShown = true;
     showDialog<void>(
       context: context,
@@ -165,6 +162,8 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
+  // ─── Build ─────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider.value(
@@ -173,12 +172,14 @@ class _HomePageState extends State<HomePage> {
         builder: (context, viewModel, _) {
           final userDataProvider = context.watch<UserDataProvider>();
           _scheduleWizardPopoverIfNeeded(userDataProvider);
-          final carouselBottom = viewModel.bottomNavVisible ? 90.0 : 20.0;
+          final carouselBottom = viewModel.bottomNavVisible ? 110.0 : 20.0;
+          final topPadding = MediaQuery.of(context).padding.top;
 
-          Widget mainContent = Scaffold(
+          return Scaffold(
+            resizeToAvoidBottomInset: false,
             body: Stack(
               children: [
-                // ── Map ──
+                // ─── Layer 1: Map ──────────────────────────────
                 Positioned.fill(
                   child: HomeMapLayer(
                     onMapTap: viewModel.onMapTap,
@@ -186,34 +187,51 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
 
-                // ── Header (Saved / Recommended / Near Me tabs) ──
+                // ─── Layer 2+3: Purple header panel ────────────
+                //     Logo + Search + Chip row as one unified surface
                 Positioned(
                   top: 0,
                   left: 0,
                   right: 0,
-                  child: HomeHeader(
-                    currentListType: viewModel.currentListType,
-                    onListTypeChanged: viewModel.setListType,
-                    isBubbleModeActive: viewModel.isBubbleModeActive,
+                  child: _TopPanel(
+                    topPadding: topPadding,
+                    viewModel: viewModel,
                   ),
                 ),
 
-                // ── Quick Actions Bar (below header, right-aligned) ──
-                // The HomeHeader typically occupies ~100-110pt including
-                // the safe area. Adjust `top` if your header height differs.
-                Positioned(
-                  top: MediaQuery.of(context).padding.top + 90,
-                  right: 12,
-                  child: QuickActionsBar(
-                    onMagicSearch: () => viewModel.toggleSearchOverlay(true),
-                    onJustDecide: () =>
-                        viewModel.toggleJustDecideOverlay(true),
-                    onSweetTreat: () =>
-                        viewModel.toggleSweetTreatOverlay(true),
+                // ─── Layer 4a: Location FAB ────────────────────
+                //     Only visible floating button on the map
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOutQuint,
+                  bottom: carouselBottom + 225,
+                  left: 16,
+                  child: MyLocationButton(
+                    onTap: () => _viewModel.locateUser(),
                   ),
                 ),
 
-                // ── Carousel ──
+                // ─── Layer 4b: Shortlist pill (conditional) ────
+                if (viewModel.shortlistIsNotEmpty)
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeOutQuint,
+                    bottom: carouselBottom + 225,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: ShortlistPill(
+                        count: viewModel.shortlistCount,
+                        onTap: () => ShortlistCarouselSheet.show(
+                          context,
+                          currentMode: viewModel.homeMode,
+                          onReturnToMode: viewModel.setHomeMode,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                // ─── Layer 5: Carousel (untouched) ─────────────
                 AnimatedPositioned(
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.easeOutQuint,
@@ -228,10 +246,12 @@ class _HomePageState extends State<HomePage> {
                     onPageChanged: viewModel.onCarouselPageChanged,
                     onScrollStart: viewModel.onCarouselScrollStart,
                     onLocationSelected: viewModel.onLocationSelected,
+                    onSwipeUp: viewModel.onCarouselSwipeUp,
+                    onSwipeDown: viewModel.onCarouselSwipeDown,
                   ),
                 ),
 
-                // ── Overlays ──
+                // ─── Overlays (unchanged) ──────────────────────
                 if (viewModel.showSearchOverlay)
                   MagicSearchOverlay(
                     controller: viewModel.searchController,
@@ -251,7 +271,7 @@ class _HomePageState extends State<HomePage> {
                     onSubmit: viewModel.submitSweetTreatSearch,
                   ),
 
-                // ── Bubble mode overlay ──
+                // ─── Bubble mode overlay ───────────────────────
                 if (viewModel.isBubbleModeActive &&
                     viewModel.activeBubble != null)
                   BubbleModeOverlay(
@@ -259,122 +279,221 @@ class _HomePageState extends State<HomePage> {
                     onDeactivate: viewModel.deactivateBubbleMode,
                   ),
 
-                // ── Loading indicator for recommendations ──
+                // ─── Loading state ─────────────────────────────
                 if (viewModel.isLoadingRecommendations &&
                     viewModel.currentListType == LocationListType.recommended)
-                  Positioned.fill(
-                    child: Container(
-                      color: Colors.black.withValues(alpha: 77),
-                      child: Center(
-                        child: Container(
-                          padding: const EdgeInsets.all(24.0),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16.0),
+                  Builder(builder: (ctx) {
+                    final pc = Theme.of(ctx).extension<PinitColors>()!;
+                    return Positioned.fill(
+                      child: Container(
+                        color: Colors.black.withValues(alpha: 0.25),
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.all(24.0),
+                            decoration: BoxDecoration(
+                              color: pc.elevatedSurface,
+                              borderRadius: BorderRadius.circular(14),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.10),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    pc.primaryPurple,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Loading recommendations…',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 15,
+                                    color: pc.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
+                        ),
+                      ),
+                    );
+                  }),
+
+                // ─── Just Decide swipe mode ────────────────────
+                if (viewModel.showJustDecideSwipeMode)
+                  Builder(builder: (ctx) {
+                    final pc = Theme.of(ctx).extension<PinitColors>()!;
+                    return Positioned.fill(
+                      child: Container(
+                        color: pc.surfaceBg,
+                        child: SafeArea(
                           child: Column(
-                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              const CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Color.fromARGB(255, 68, 95, 12),
+                              Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: Row(
+                                  children: [
+                                    IconButton(
+                                      icon: Icon(Icons.close, color: pc.textPrimary),
+                                      onPressed: viewModel.onJustDecideComplete,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Just Decide',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.bold,
+                                        color: pc.textPrimary,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'Loading recommendations...',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 16,
-                                  color: Colors.grey[800],
+                              Expanded(
+                                child: viewModel.justDecideLocations.isEmpty
+                                    ? Center(
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            CircularProgressIndicator(
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                pc.primaryPurple,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 16),
+                                            Text(
+                                              'Finding great places…',
+                                              style: GoogleFonts.poppins(
+                                                fontSize: 15,
+                                                color: pc.textSecondary,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      )
+                                    : SwipeCardStack(
+                                        locations:
+                                            viewModel.justDecideLocations,
+                                        onSwipe: viewModel.onJustDecideSwipe,
+                                        onComplete:
+                                            viewModel.onJustDecideComplete,
+                                      ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: Text(
+                                  'Swipe right to save, left to pass',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    color: pc.textMuted,
+                                  ),
+                                  textAlign: TextAlign.center,
                                 ),
                               ),
                             ],
                           ),
                         ),
                       ),
-                    ),
-                  ),
-
-                // ── Just Decide swipe mode ──
-                if (viewModel.showJustDecideSwipeMode)
-                  Positioned.fill(
-                    child: Container(
-                      color: Colors.white,
-                      child: SafeArea(
-                        child: Column(
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Row(
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.close),
-                                    onPressed: viewModel.onJustDecideComplete,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Just Decide',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Expanded(
-                              child: viewModel.justDecideLocations.isEmpty
-                                  ? Center(
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          const CircularProgressIndicator(
-                                            valueColor:
-                                                AlwaysStoppedAnimation<Color>(
-                                              Color.fromARGB(255, 68, 95, 12),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 16),
-                                          Text(
-                                            'Finding great places...',
-                                            style: GoogleFonts.poppins(
-                                              fontSize: 16,
-                                              color: Colors.grey,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    )
-                                  : SwipeCardStack(
-                                      locations: viewModel.justDecideLocations,
-                                      onSwipe: viewModel.onJustDecideSwipe,
-                                      onComplete:
-                                          viewModel.onJustDecideComplete,
-                                    ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Text(
-                                'Swipe right to save, left to pass',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 14,
-                                  color: Colors.grey,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
+                    );
+                  }),
               ],
             ),
           );
-
-          return mainContent;
         },
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  Top panel — theme-aware surface, logo + search + chips.
+//  Dark: near-black purple surface. Light: white surface.
+// ─────────────────────────────────────────────────────────────────
+class _TopPanel extends StatelessWidget {
+  final double topPadding;
+  final HomeViewModel viewModel;
+
+  const _TopPanel({
+    required this.topPadding,
+    required this.viewModel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Theme.of(context).extension<PinitColors>()!;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? c.surfaceBg : c.elevatedSurface,
+        borderRadius: isDark
+            ? null  // no radius in dark mode — attached to top
+            : const BorderRadius.only(
+                bottomLeft: Radius.circular(22),
+                bottomRight: Radius.circular(22),
+              ),
+        boxShadow: isDark
+            ? null  // rely on contrast in dark mode
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.06),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+      ),
+      child: Padding(
+        padding: EdgeInsets.only(
+          top: topPadding + 8,
+          left: 16,
+          right: 16,
+          bottom: 14,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Logo (bigger per user request)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 4, left: 10),
+                child: Image.asset(
+                  'lib/assets/logo-transparent.png',
+                  height: 40,
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            // Search bar
+            PinitSearchBar(
+              controller: viewModel.searchController,
+              onSubmit: viewModel.submitMagicSearch,
+            ),
+            const SizedBox(height: 10),
+            // Chip row
+            HomeChipRow(
+              currentMode: viewModel.homeMode,
+              onModeChanged: viewModel.setHomeMode,
+              onDecideTap: () {
+                DecideBottomSheet.show(
+                  context,
+                  onQuickPicks: () => viewModel.toggleJustDecideOverlay(true),
+                  onSweetTreat: () => viewModel.toggleSweetTreatOverlay(true),
+                  onSurpriseMe: viewModel.submitSurpriseMe,
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

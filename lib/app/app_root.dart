@@ -11,7 +11,7 @@ import 'package:login/pages/profile/profile_page.dart';
 import 'package:login/pages/signup_wizard/wizard_completion_page.dart';
 import 'package:login/pages/splash_screen.dart';
 import 'package:login/supabase/supabase_client.dart';
-import 'package:login/themes/app_theme.dart';
+import 'package:login/themes/pinit_theme.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
 class AppRoot extends StatelessWidget {
@@ -123,7 +123,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     return MaterialApp(
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
-      theme: buildThemeData(),
+      theme: PinitTheme.light(),
+      darkTheme: PinitTheme.dark(),
+      themeMode: ThemeMode.dark,
       home: const SplashScreenActual(),
       routes: {
         '/home': (context) => const HomePage(),

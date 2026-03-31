@@ -6,25 +6,34 @@ import 'package:login/utils/geo_types.dart';
 import 'package:login/controllers/home_controller.dart';
 import 'package:login/models/bubble.dart';
 import 'package:login/models/locations.dart';
+import 'package:login/pages/home/widgets/mode_toggle.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:login/providers/nav_bar/visibility_provider.dart';
+import 'package:login/providers/shortlist_provider.dart';
 
 class HomeViewModel extends ChangeNotifier {
   final LocationListManager locationListManager;
   final MapStateProvider mapStateProvider;
   final BottomNavVisibilityProvider bottomNavVisibilityProvider;
+  final ShortlistProvider shortlistProvider;
   late final HomeController _homeController;
 
   final TextEditingController searchController = TextEditingController();
   final PageController pageController = PageController(viewportFraction: 0.80);
 
+  // ── Overlay state ─────────────────────────────────────────────
   bool _showSearchOverlay = false;
   bool _showGavelOverlay = false;
   bool _showSweetTreatOverlay = false;
   double _justDecideMinutes = 15.0;
   bool _showJustDecideSwipeMode = false;
   List<LocationModel> _justDecideLocations = [];
+
+  // ── Mode toggle state ─────────────────────────────────────────
+  HomeMode _homeMode = HomeMode.you;
+
+  // ── Internal state ────────────────────────────────────────────
   String? _lastSelectedMarkerId;
   Timer? _debounce;
   bool _initialized = false;
@@ -36,12 +45,15 @@ class HomeViewModel extends ChangeNotifier {
     required this.locationListManager,
     required this.mapStateProvider,
     required this.bottomNavVisibilityProvider,
+    required this.shortlistProvider,
   }) {
     _homeController = HomeController(
       locationListManager: locationListManager,
       mapStateProvider: mapStateProvider,
     );
   }
+
+  // ── Getters ───────────────────────────────────────────────────
 
   bool get showSearchOverlay => _showSearchOverlay;
   bool get showGavelOverlay => _showGavelOverlay;
@@ -60,6 +72,62 @@ class HomeViewModel extends ChangeNotifier {
       locationListManager.isLoadingRecommendations ||
       locationListManager.isSearchingArea;
 
+  // ── Mode toggle ───────────────────────────────────────────────
+  HomeMode get homeMode => _homeMode;
+
+  void setHomeMode(HomeMode mode) {
+    if (_homeMode == mode) return;
+    _homeMode = mode;
+
+    // Map the mode to LocationListType
+    switch (mode) {
+      case HomeMode.you:
+        locationListManager.setCurrentListType(LocationListType.saved);
+        break;
+      case HomeMode.explore:
+        locationListManager.setCurrentListType(LocationListType.recommended);
+        break;
+    }
+    notifyListeners();
+  }
+
+  // ── Shortlist delegates ───────────────────────────────────────
+  int get shortlistCount => shortlistProvider.count;
+  bool get shortlistIsNotEmpty => shortlistProvider.isNotEmpty;
+  List<LocationModel> get shortlistItems => shortlistProvider.items;
+
+  // ── Locate user ───────────────────────────────────────────────
+
+  Future<void> locateUser() async {
+    log("HomeViewModel: Locating user...");
+    final position = await locationListManager.getCurrentLocation();
+    if (position != null) {
+      await mapStateProvider.focusOnUserLocation(position, zoom: 15.0);
+    } else {
+      log("HomeViewModel: Could not get user location");
+    }
+  }
+
+  // ── Carousel swipe gestures ───────────────────────────────────
+
+  /// Swipe up → add to shortlist (and save if not already saved).
+  void onCarouselSwipeUp(LocationModel location) {
+    log("HomeViewModel: Swipe up → shortlist: ${location.name}");
+    shortlistProvider.add(location);
+    // Also save it if it's not already a saved location
+    locationListManager.saveLocation(location);
+    notifyListeners();
+  }
+
+  /// Swipe down → save the location.
+  void onCarouselSwipeDown(LocationModel location) {
+    log("HomeViewModel: Swipe down → save: ${location.name}");
+    locationListManager.saveLocation(location);
+    notifyListeners();
+  }
+
+  // ── Init / lifecycle ──────────────────────────────────────────
+
   void init() {
     if (_initialized) return;
     _initialized = true;
@@ -68,9 +136,7 @@ class HomeViewModel extends ChangeNotifier {
     mapStateProvider.addListener(_onSelectedMarkerChanged);
     locationListManager.addListener(_onExternalStateChanged);
     bottomNavVisibilityProvider.addListener(_onExternalStateChanged);
-
-    // Don't fetch recommendations immediately - wait for location stream to provide first position
-    // This will be triggered in _onExternalStateChanged when currentPosition becomes available
+    shortlistProvider.addListener(_onExternalStateChanged);
 
     _lastSelectedMarkerId = mapStateProvider.selectedMarkerId;
   }
@@ -117,6 +183,8 @@ class HomeViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ── Map interactions ──────────────────────────────────────────
+
   void onMapTap() {
     bottomNavVisibilityProvider.showTemporarily();
   }
@@ -150,38 +218,33 @@ class HomeViewModel extends ChangeNotifier {
     locationListManager.setCurrentListType(type);
   }
 
+  // ── Search overlay ────────────────────────────────────────────
+
   void toggleSearchOverlay(bool visible) {
-    print('🎭 toggleSearchOverlay called with visible=$visible, current=$_showSearchOverlay');
     if (_showSearchOverlay == visible) return;
     _showSearchOverlay = visible;
     notifyListeners();
   }
 
   Future<void> submitMagicSearch(String query) async {
-    print('✨ submitMagicSearch CALLED with query: "$query"');
     final trimmed = query.trim();
-    if (trimmed.isEmpty) {
-      print('❌ Query is empty after trim, aborting');
-      return;
-    }
-    print('✅ Query trimmed: "$trimmed"');
+    if (trimmed.isEmpty) return;
 
     log("HomeViewModel: Triggering magic search for: $trimmed");
 
     searchController.clear();
     toggleSearchOverlay(false);
 
-    // Perform the search
     await locationListManager.magicSearch(trimmed);
 
-    // Check for errors after search completes
     if (locationListManager.error != null) {
       log("HomeViewModel: Magic search error: ${locationListManager.error}");
     }
   }
 
+  // ── Just Decide (Gavel) overlay ───────────────────────────────
+
   void toggleJustDecideOverlay(bool visible) {
-    print('🎲 toggleJustDecideOverlay called with visible=$visible, current=$_showGavelOverlay');
     if (_showGavelOverlay == visible) return;
     _showGavelOverlay = visible;
     notifyListeners();
@@ -193,17 +256,12 @@ class HomeViewModel extends ChangeNotifier {
   }
 
   Future<void> submitJustDecide(double walkingMinutes) async {
-    print('🎲 submitJustDecide CALLED with minutes: $walkingMinutes');
-
-    // Convert minutes to km: distance_km = (minutes * 5.0) / 60.0
     final radiusKm = (walkingMinutes * 5.0) / 60.0;
 
     log("HomeViewModel: Triggering just decide for: $walkingMinutes minutes (~$radiusKm km)");
 
-    // Close overlay
     toggleJustDecideOverlay(false);
 
-    // Get current location
     final currentLocation = locationListManager.currentPosition ??
         await locationListManager.getCurrentLocation();
 
@@ -212,7 +270,6 @@ class HomeViewModel extends ChangeNotifier {
       return;
     }
 
-    // Call fetchJustDecideRecommendations
     await locationListManager.fetchJustDecideRecommendations(
       latitude: currentLocation.latitude,
       longitude: currentLocation.longitude,
@@ -220,12 +277,10 @@ class HomeViewModel extends ChangeNotifier {
       maxResults: 5,
     );
 
-    // Set the locations and show swipe mode
     _justDecideLocations = locationListManager.justDecideLocations;
     _showJustDecideSwipeMode = true;
     notifyListeners();
 
-    // Check for errors after fetch completes
     if (locationListManager.error != null) {
       log("HomeViewModel: Just decide error: ${locationListManager.error}");
     }
@@ -245,34 +300,45 @@ class HomeViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ── Sweet Treat overlay ───────────────────────────────────────
+
   void toggleSweetTreatOverlay(bool visible) {
-    print('🧁 toggleSweetTreatOverlay called with visible=$visible, current=$_showSweetTreatOverlay');
     if (_showSweetTreatOverlay == visible) return;
     _showSweetTreatOverlay = visible;
     notifyListeners();
   }
 
   Future<void> submitSweetTreatSearch(String query) async {
-    print('🧁 submitSweetTreatSearch CALLED with query: "$query"');
     final trimmed = query.trim();
-    if (trimmed.isEmpty) {
-      print('❌ Query is empty after trim, aborting');
-      return;
-    }
-    print('✅ Query trimmed: "$trimmed"');
+    if (trimmed.isEmpty) return;
 
     log("HomeViewModel: Triggering sweet treat search for: $trimmed");
 
     toggleSweetTreatOverlay(false);
 
-    // Perform the search (using magic search for now)
     await locationListManager.magicSearch(trimmed);
 
-    // Check for errors after search completes
     if (locationListManager.error != null) {
       log("HomeViewModel: Sweet treat search error: ${locationListManager.error}");
     }
   }
+
+  // ── Surprise Me (random vibe search) ──────────────────────────
+
+  Future<void> submitSurpriseMe() async {
+    const vibePrompts = [
+      'Something fun and different near me',
+      'A hidden gem I haven\'t tried',
+      'Best vibes near me right now',
+      'Somewhere cozy and interesting',
+      'A wavy spot with great food',
+    ];
+    final prompt = (vibePrompts..shuffle()).first;
+    log("HomeViewModel: Surprise me with: $prompt");
+    await locationListManager.magicSearch(prompt);
+  }
+
+  // ── Search this area ──────────────────────────────────────────
 
   Future<void> searchThisArea() async {
     final viewData = await mapStateProvider.searchThisArea();
@@ -296,16 +362,16 @@ class HomeViewModel extends ChangeNotifier {
           : null,
     );
 
-    // Update the last searched area in MapStateProvider
     mapStateProvider.setLastSearchedArea(center, radiusKm);
   }
+
+  // ── Bubble mode ───────────────────────────────────────────────
 
   Future<void> activateBubbleMode(Bubble chatGroup) async {
     _isBubbleModeActive = true;
     _activeBubble = chatGroup;
     print('activated bubble mode for bubble: ${chatGroup.name}');
 
-    // Get current location
     final currentLocation = locationListManager.currentPosition ??
         await locationListManager.getCurrentLocation();
 
@@ -315,21 +381,18 @@ class HomeViewModel extends ChangeNotifier {
       return;
     }
 
-    // Fetch bubble recommendations
     await locationListManager.fetchBubbleRecommendations(
       memberIds: chatGroup.memberIds,
       latitude: currentLocation.latitude,
       longitude: currentLocation.longitude,
     );
 
-    // Update last searched area in MapStateProvider using values from locationListManager
     final lastCenter = locationListManager.lastSearchedCenter;
     final lastRadius = locationListManager.lastSearchedRadius;
     if (lastCenter != null && lastRadius != null) {
       mapStateProvider.setLastSearchedArea(lastCenter, lastRadius);
     }
 
-    // Switch to recommended view
     await locationListManager.setCurrentListType(LocationListType.recommended);
 
     notifyListeners();
@@ -339,12 +402,11 @@ class HomeViewModel extends ChangeNotifier {
     _isBubbleModeActive = false;
     _activeBubble = null;
 
-    // Restore individual recommendations
     final currentLocation = locationListManager.currentPosition ??
         await locationListManager.getCurrentLocation();
 
     if (currentLocation != null) {
-      const double defaultRadius = 5.0; // Match default from fetchRecommendedLocations
+      const double defaultRadius = 5.0;
       await locationListManager.fetchRecommendedLocations(
         latitude: currentLocation.latitude,
         longitude: currentLocation.longitude,
@@ -356,7 +418,6 @@ class HomeViewModel extends ChangeNotifier {
             ? locationListManager.cuisineTagIds
             : null,
       );
-      // Update last searched area in MapStateProvider using values from locationListManager
       final lastCenter = locationListManager.lastSearchedCenter;
       final lastRadius = locationListManager.lastSearchedRadius;
       if (lastCenter != null && lastRadius != null) {
@@ -367,11 +428,14 @@ class HomeViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ── Dispose ───────────────────────────────────────────────────
+
   @override
   void dispose() {
     mapStateProvider.removeListener(_onSelectedMarkerChanged);
     locationListManager.removeListener(_onExternalStateChanged);
     bottomNavVisibilityProvider.removeListener(_onExternalStateChanged);
+    shortlistProvider.removeListener(_onExternalStateChanged);
     pageController.dispose();
     searchController.dispose();
     _debounce?.cancel();

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 // ─────────────────────────────────────────────────────────────
@@ -76,6 +77,80 @@ class PinitMarkerPalette {
 class PinitMarkers {
   static final _BitmapCache _cache = _BitmapCache(maxEntries: 256);
 
+  static final Map<String, ui.Image> _imageAssetCache = {};
+
+  static Future<ui.Image?> _loadAssetImage(String path) async {
+    if (_imageAssetCache.containsKey(path)) {
+      return _imageAssetCache[path];
+    }
+    try {
+      final data = await rootBundle.load(path);
+      final list = Uint8List.view(data.buffer);
+      final codec = await ui.instantiateImageCodec(list);
+      final frame = await codec.getNextFrame();
+      final image = frame.image;
+      _imageAssetCache[path] = image;
+      return image;
+    } catch (e) {
+      debugPrint('Error loading image $path: $e');
+      return null;
+    }
+  }
+
+  static String _normalizeLookupText(String input) {
+    return input
+        .toLowerCase()
+        .replaceAll('\uFE0F', '')
+        .replaceAll(':', ' ')
+        .replaceAll('_', ' ')
+        .replaceAll('-', ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  static bool _containsAny(String input, List<String> tokens) {
+    for (final token in tokens) {
+      if (input.contains(token)) return true;
+    }
+    return false;
+  }
+
+  static String? getAssetForLocation(String? cuisine, String? types, String emoji) {
+    final normalizedEmoji = _normalizeLookupText(emoji);
+    final normalizedCuisine = _normalizeLookupText(cuisine ?? '');
+    final normalizedTypes = _normalizeLookupText(types ?? '');
+    final combined = '$normalizedEmoji $normalizedCuisine $normalizedTypes';
+
+    if (_containsAny(combined, ['🍔', 'burger', 'hamburger'])) {
+      return 'lib/assets/pin_emojis/burgerIcon.jpg';
+    }
+    if (_containsAny(combined, ['🍛', 'curry', 'indian'])) {
+      return 'lib/assets/pin_emojis/curryIcon.jpg';
+    }
+    if (_containsAny(combined, ['🍩', 'donut', 'doughnut', 'bakery', 'pastry'])) {
+      return 'lib/assets/pin_emojis/donutIcon.jpg';
+    }
+    if (_containsAny(combined, ['🍜', 'pho', 'ramen', 'noodle', 'vietnamese'])) {
+      return 'lib/assets/pin_emojis/phoIcon.jpg';
+    }
+    if (_containsAny(combined, ['🍕', 'pizza'])) {
+      return 'lib/assets/pin_emojis/pizzaIcon.jpg';
+    }
+    if (_containsAny(combined, ['🥩', 'steak', 'bbq', 'barbecue', 'grill'])) {
+      return 'lib/assets/pin_emojis/steakIcon.jpg';
+    }
+    if (_containsAny(combined, ['🍣', 'sushi', 'japanese'])) {
+      return 'lib/assets/pin_emojis/sushiIcon.jpg';
+    }
+    if (_containsAny(combined, ['🌮', 'taco', 'mexican'])) {
+      return 'lib/assets/pin_emojis/tacoIcon.jpg';
+    }
+    if (_containsAny(combined, ['🍲', 'thai', 'tom yum'])) {
+      return 'lib/assets/pin_emojis/thaiIcon.jpg';
+    }
+    return null;
+  }
+
   /// Logical bubble diameter — bumped up for better readability & presence.
   static const double pinBubbleDiameter = 32.0;
 
@@ -140,18 +215,26 @@ class PinitMarkers {
     double bossmanScore = 0.0,
     int savedCount = 0,
     double matchScore = 0.0,
-  }) {
+  }) async {
     final color =
         surfaceColor ?? PinitMarkerPalette.forCuisine(cuisine, types);
     final avatarKey = avatarColors.map((c) => c.value).join(',');
+    final assetPath = getAssetForLocation(cuisine, types, emoji);
+    
     final key = 'pin3|$emoji|$name|${devicePixelRatio.toStringAsFixed(2)}'
         '|${color.value}|${textColor.value}|$selected|$showText|$avatarKey'
         '|${wavyScore.toStringAsFixed(2)}|${bossmanScore.toStringAsFixed(2)}'
-        '|$savedCount|${matchScore.toStringAsFixed(2)}';
+        '|$savedCount|${matchScore.toStringAsFixed(2)}|$assetPath';
+        
     final cached = _cache.get(key);
-    if (cached != null) return Future.value(cached);
+    if (cached != null) return cached;
 
-    return _renderSinglePin(
+    ui.Image? assetImage;
+    if (assetPath != null) {
+      assetImage = await _loadAssetImage(assetPath);
+    }
+
+    final b = await _renderSinglePin(
       emoji: emoji,
       name: name,
       dpr: devicePixelRatio,
@@ -164,10 +247,10 @@ class PinitMarkers {
       bossmanScore: bossmanScore,
       savedCount: savedCount,
       matchScore: matchScore,
-    ).then((b) {
-      _cache.set(key, b);
-      return b;
-    });
+      assetImage: assetImage,
+    );
+    _cache.set(key, b);
+    return b;
   }
 
   // ==================================================================
@@ -185,18 +268,26 @@ class PinitMarkers {
     double wavyScore = 0.0,
     double bossmanScore = 0.0,
     int savedCount = 0,
-  }) {
+  }) async {
     final color =
         surfaceColor ?? PinitMarkerPalette.forCuisine(cuisine, types);
     final avatarKey = avatarColors.map((c) => c.value).join(',');
+    final assetPath = getAssetForLocation(cuisine, types, emoji);
+    
     final key = 'cfan4|$emoji|$remainingCount'
         '|${devicePixelRatio.toStringAsFixed(2)}|${color.value}|$avatarKey'
         '|${wavyScore.toStringAsFixed(2)}|${bossmanScore.toStringAsFixed(2)}'
-        '|$savedCount';
+        '|$savedCount|$assetPath';
+        
     final cached = _cache.get(key);
-    if (cached != null) return Future.value(cached);
+    if (cached != null) return cached;
 
-    return _renderClusterFan(
+    ui.Image? assetImage;
+    if (assetPath != null) {
+      assetImage = await _loadAssetImage(assetPath);
+    }
+
+    final b = await _renderClusterFan(
       emoji: emoji,
       remainingCount: remainingCount,
       dpr: devicePixelRatio,
@@ -205,10 +296,10 @@ class PinitMarkers {
       wavyScore: wavyScore,
       bossmanScore: bossmanScore,
       savedCount: savedCount,
-    ).then((b) {
-      _cache.set(key, b);
-      return b;
-    });
+      assetImage: assetImage,
+    );
+    _cache.set(key, b);
+    return b;
   }
 
   // ==================================================================
@@ -515,8 +606,10 @@ class PinitMarkers {
     required double radius,
     required double dpr,
     required Color color,
+    required String emoji,
     bool selected = false,
     double shadowOpacity = 0.18,
+    ui.Image? assetImage,
   }) {
     final double shadowOffY = 2.0 * dpr;
     final double shadowSigma = 3.0 * dpr;
@@ -563,6 +656,21 @@ class PinitMarkers {
           [0.0, 0.45, 1.0],
         ),
     );
+
+    if (assetImage != null) {
+      final double imgRadius = radius - 1.2 * dpr;
+      canvas.save();
+      canvas.clipPath(Path()..addOval(Rect.fromCircle(center: centre, radius: imgRadius)));
+      paintImage(
+        canvas: canvas,
+        rect: Rect.fromCircle(center: centre, radius: imgRadius),
+        image: assetImage,
+        fit: BoxFit.cover,
+      );
+      canvas.restore();
+    } else {
+      _drawEmoji(canvas, centre: centre, size: radius * 1.2, emoji: emoji);
+    }
 
     // Inner highlight ring — glossy feel
     canvas.drawCircle(
@@ -615,6 +723,7 @@ class PinitMarkers {
     required double bossmanScore,
     required int savedCount,
     required double matchScore,
+    ui.Image? assetImage,
   }) async {
     // ── Determine vibe mode ──
     final bool isWavy = _isWavy(wavyScore, bossmanScore);
@@ -747,10 +856,9 @@ class PinitMarkers {
         radius: bubR,
         dpr: dpr,
         color: effectiveColor,
-        selected: selected);
-
-    // 6. Emoji
-    _drawEmoji(c, centre: centre, size: bubR * 1.2, emoji: emoji);
+        selected: selected,
+        emoji: emoji,
+        assetImage: assetImage);
 
     // 7. Pill label
     if (showText) {
@@ -829,6 +937,7 @@ class PinitMarkers {
     required double wavyScore,
     required double bossmanScore,
     required int savedCount,
+    ui.Image? assetImage,
   }) async {
     // ── Vibe mode ──
     final bool isWavy = _isWavy(wavyScore, bossmanScore);
@@ -957,10 +1066,9 @@ class PinitMarkers {
         centre: mainCentre,
         radius: bubR,
         dpr: dpr,
-        color: effectiveColor);
-
-    // ─── 7. Emoji ────────────────────────────────────────────
-    _drawEmoji(c, centre: mainCentre, size: bubR * 1.2, emoji: emoji);
+        color: effectiveColor,
+        emoji: emoji,
+        assetImage: assetImage);
 
     return _rasterise(rec, outW, outH);
   }

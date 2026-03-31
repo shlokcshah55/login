@@ -4,6 +4,7 @@ import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:login/providers/nav_bar/visibility_provider.dart';
 import 'package:login/providers/nav_bar/dynamic_nav_provider.dart';
+import 'package:login/themes/pinit_colors.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:provider/provider.dart';
 
@@ -85,6 +86,7 @@ class _BottomNavBarState extends State<BottomNavBar>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final pinitColors = theme.extension<PinitColors>();
     
     return Consumer2<BottomNavVisibilityProvider, DynamicNavProvider>(
       builder: (context, bottomNavProvider, dynamicNavProvider, child) {
@@ -107,11 +109,16 @@ class _BottomNavBarState extends State<BottomNavBar>
                 margin:
                     const EdgeInsets.only(left: 32, right: 32, bottom: 35, top: 0),
                 decoration: BoxDecoration(
-                  color: theme.cardColor,
+                  color: pinitColors?.elevatedSurface.withValues(alpha: 0.95) ??
+                      theme.cardColor,
                   borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.10),
+                    width: 1,
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withValues(alpha: 0.16),
                       blurRadius: bottomNavProvider.isVisible ? 20 : 8,
                       spreadRadius: 0,
                       offset: Offset(0, bottomNavProvider.isVisible ? 6 : 2),
@@ -146,7 +153,7 @@ class _BottomNavBarState extends State<BottomNavBar>
       children: [
         IconButton(
           icon: const Icon(Icons.apps),
-          color: theme.primaryColor,
+          color: Colors.white,
           onPressed: () {
             dynamicNavProvider.showStandardNav();
           },
@@ -179,7 +186,7 @@ class _BottomNavBarState extends State<BottomNavBar>
   Widget _buildNavItem(IconData icon, int index, String label, ThemeData theme,
       {bool hasBadge = false}) {
     final isSelected = widget.currentIndex == index;
-    final color = isSelected ? theme.primaryColor : theme.unselectedWidgetColor;
+    final color = isSelected ? Colors.white : Colors.white70;
 
     final navItem = InkWell(
       onTap: () {
@@ -197,7 +204,7 @@ class _BottomNavBarState extends State<BottomNavBar>
         ),
         decoration: BoxDecoration(
           color: isSelected
-              ? theme.primaryColor.withOpacity(0.1)
+              ? Colors.white.withValues(alpha: 0.14)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(24),
         ),

@@ -381,15 +381,15 @@ class SupabaseService extends ChangeNotifier {
   Future<void> _uploadDefaultProfilePicture(String userId) async {
     try {
       final iconFiles = [
-        'lib/assets/burgerIcon.jpg',
-        'lib/assets/curryIcon.jpg',
-        'lib/assets/donutIcon.jpg',
-        'lib/assets/phoIcon.jpg',
-        'lib/assets/pizzaIcon.jpg',
-        'lib/assets/steakIcon.jpg',
-        'lib/assets/sushiIcon.jpg',
-        'lib/assets/tacoIcon.jpg',
-        'lib/assets/thaiIcon.jpg',
+        'lib/assets/pin_emojis/burgerIcon.jpg',
+        'lib/assets/pin_emojis/curryIcon.jpg',
+        'lib/assets/pin_emojis/donutIcon.jpg',
+        'lib/assets/pin_emojis/phoIcon.jpg',
+        'lib/assets/pin_emojis/pizzaIcon.jpg',
+        'lib/assets/pin_emojis/steakIcon.jpg',
+        'lib/assets/pin_emojis/sushiIcon.jpg',
+        'lib/assets/pin_emojis/tacoIcon.jpg',
+        'lib/assets/pin_emojis/thaiIcon.jpg',
       ];
 
       final random = Random();

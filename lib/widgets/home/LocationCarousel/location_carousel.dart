@@ -51,6 +51,8 @@ class LocationCarousel extends StatelessWidget {
   final bool bottomNavVisible;
   final ValueChanged<int> onPageChanged;
   final ValueChanged<LocationModel> onLocationSelected;
+  final void Function(LocationModel location)? onSwipeUp;
+  final void Function(LocationModel location)? onSwipeDown;
 
   const LocationCarousel({
     Key? key,
@@ -60,6 +62,8 @@ class LocationCarousel extends StatelessWidget {
     required this.bottomNavVisible,
     required this.onPageChanged,
     required this.onLocationSelected,
+    this.onSwipeUp,
+    this.onSwipeDown,
   }) : super(key: key);
 
   @override
@@ -92,11 +96,13 @@ class LocationCarousel extends StatelessWidget {
                 ? Matrix4.identity()
                 : (Matrix4.identity()..scale(0.96)),
             transformAlignment: Alignment.center,
-            child: _CarouselCard(
+            child: _SwipeableCard(
               location: location,
               isSelected: isSelected,
               bottomNavVisible: bottomNavVisible,
               onLocationSelected: onLocationSelected,
+              onSwipeUp: onSwipeUp,
+              onSwipeDown: onSwipeDown,
             ),
           );
         },
@@ -105,6 +111,141 @@ class LocationCarousel extends StatelessWidget {
     );
   }
 }
+
+/// Wraps a [_CarouselCard] with vertical swipe gesture detection.
+/// Swipe up → shortlist; swipe down → save.
+/// Shows animated vertical translation + opacity for tactile feedback.
+class _SwipeableCard extends StatefulWidget {
+  final LocationModel location;
+  final bool isSelected;
+  final bool bottomNavVisible;
+  final ValueChanged<LocationModel> onLocationSelected;
+  final void Function(LocationModel)? onSwipeUp;
+  final void Function(LocationModel)? onSwipeDown;
+
+  const _SwipeableCard({
+    required this.location,
+    required this.isSelected,
+    required this.bottomNavVisible,
+    required this.onLocationSelected,
+    this.onSwipeUp,
+    this.onSwipeDown,
+  });
+
+  @override
+  State<_SwipeableCard> createState() => _SwipeableCardState();
+}
+
+class _SwipeableCardState extends State<_SwipeableCard>
+    with SingleTickerProviderStateMixin {
+  double _dragY = 0;
+  static const _threshold = 60.0;
+
+  void _onVerticalDragUpdate(DragUpdateDetails d) {
+    setState(() => _dragY += d.delta.dy);
+  }
+
+  void _onVerticalDragEnd(DragEndDetails d) {
+    if (_dragY < -_threshold && widget.onSwipeUp != null) {
+      // Swiped up → shortlist
+      widget.onSwipeUp!(widget.location);
+    } else if (_dragY > _threshold && widget.onSwipeDown != null) {
+      // Swiped down → save
+      widget.onSwipeDown!(widget.location);
+    }
+    setState(() => _dragY = 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = (_dragY / 120).clamp(-1.0, 1.0);
+    final opacity = (1.0 - progress.abs() * 0.4).clamp(0.5, 1.0);
+
+    return GestureDetector(
+      onVerticalDragUpdate: _onVerticalDragUpdate,
+      onVerticalDragEnd: _onVerticalDragEnd,
+      child: AnimatedContainer(
+        duration: _dragY == 0
+            ? const Duration(milliseconds: 200)
+            : Duration.zero,
+        curve: Curves.easeOutCubic,
+        transform: Matrix4.translationValues(0, _dragY * 0.4, 0),
+        child: Opacity(
+          opacity: opacity,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              _CarouselCard(
+                location: widget.location,
+                isSelected: widget.isSelected,
+                bottomNavVisible: widget.bottomNavVisible,
+                onLocationSelected: widget.onLocationSelected,
+              ),
+              // Swipe hint labels
+              if (_dragY < -30)
+                Positioned(
+                  top: -24,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 100),
+                      opacity: (_dragY.abs() / _threshold).clamp(0.0, 1.0),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF6C5CE7),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Text(
+                          '↑ Shortlist',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              if (_dragY > 30)
+                Positioned(
+                  bottom: -24,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 100),
+                      opacity: (_dragY / _threshold).clamp(0.0, 1.0),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF00B894),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Text(
+                          '↓ Save',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 
 // ─────────────────────────────────────────────────────────────
 //  Individual card – image-dominant with overlaid info
