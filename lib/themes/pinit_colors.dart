@@ -53,43 +53,43 @@ class PinitColors extends ThemeExtension<PinitColors> {
 
   // ─── Dark scheme (PRIMARY experience) ──────────────────────────
   static const dark = PinitColors(
-  surfaceBg:        Color(0xFF12091F),   // richer, more wine-toned base
-  elevatedSurface:  Color(0xFF1E1233),   // subtle lift, keeps warmth
-  searchSurface:    Color(0xFF2A1847),   // clearer separation for input layers
+    surfaceBg:        Color(0xFF1A1D2E),   // cool deep navy — lighter, less heavy
+    elevatedSurface:  Color(0xFF232738),   // lifted card surface
+    searchSurface:    Color(0xFF2C3045),   // input layer
 
-  primaryPurple:    Color(0xFF8B5CF6),   // more balanced (less blue, more violet)
-  softPurple:       Color(0xFF2F1B4D),   // tighter + deeper harmony
-  glowAccent:       Color(0xFFC4B5FD),   // softer, premium glow (less neon)
+    primaryPurple:    Color(0xFFFF6B6B),   // warm coral accent — fun & inviting
+    softPurple:       Color(0xFF2E3347),   // muted chip/overlay tone
+    glowAccent:       Color(0xFFFFD93D),   // sunny yellow highlight — playful
 
-  textPrimary:      Color(0xFFF6F2FF),   // slight lavender tint
-  textSecondary:    Color(0xFFB8AECF),   // warmer + more readable
-  textMuted:        Color(0xFF7A728F),   // avoids dead grey
+    textPrimary:      Color(0xFFF5F5F7),
+    textSecondary:    Color(0xFFB8BCC8),
+    textMuted:        Color(0xFF7E8494),
 
-  textOnPurple:     Color(0xFFFFFFFF),
+    textOnPurple:     Color(0xFFFFFFFF),
 
-  chipInactive:     Color(0x14FFFFFF),   // slightly lighter than before (~8%)
-  chipActive:       Color(0xFF8B5CF6),
+    chipInactive:     Color(0x1FFFFFFF),
+    chipActive:       Color(0xFFFF6B6B),
 
-  scrimStart:       Color(0xE612091F),
-  scrimMid:         Color(0x8012091F),
-);
+    scrimStart:       Color(0xE6141625),
+    scrimMid:         Color(0x801A1D2E),
+  );
 
   // ─── Light scheme ──────────────────────────────────────────────
   static const light = PinitColors(
-    surfaceBg:        Color(0xFFF8F6FC),     // purple-tinted off-white
+    surfaceBg:        Color(0xFFF9FAFB),     // clean warm white
     elevatedSurface:  Color(0xFFFFFFFF),
-    searchSurface:    Color(0xFFEDE5F7),     // slightly deeper
-    primaryPurple:    Color(0xFF6B3FA0),     // richer, less corporate
-    softPurple:       Color(0xFFE8DDF5),
-    glowAccent:       Color(0xFF8B62C9),
-    textPrimary:      Color(0xFF1A1425),     // purple-black
-    textSecondary:    Color(0xFF5C5470),     // purple-grey
-    textMuted:        Color(0xFF9A91AB),
+    searchSurface:    Color(0xFFF0F1F5),     // soft grey input
+    primaryPurple:    Color(0xFFE85D5D),     // coral accent
+    softPurple:       Color(0xFFFFE8E8),     // soft coral tint
+    glowAccent:       Color(0xFFFF8C42),     // warm orange highlight
+    textPrimary:      Color(0xFF1A1D2E),     // navy-black
+    textSecondary:    Color(0xFF5A5E6B),     // cool grey
+    textMuted:        Color(0xFF9A9DAA),
     textOnPurple:     Color(0xFFFFFFFF),
-    chipInactive:     Color(0xFFEDE5F7),
-    chipActive:       Color(0xFF6B3FA0),
-    scrimStart:       Color(0xD9F8F6FC),
-    scrimMid:         Color(0x80F8F6FC),
+    chipInactive:     Color(0xFFF0F1F5),
+    chipActive:       Color(0xFFE85D5D),
+    scrimStart:       Color(0xD9F9FAFB),
+    scrimMid:         Color(0x80F9FAFB),
   );
 
   @override

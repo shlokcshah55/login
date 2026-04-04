@@ -431,54 +431,50 @@ class _TopPanel extends StatelessWidget {
     final c = Theme.of(context).extension<PinitColors>()!;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Container(
+    // Fade-to-transparent header — lets the map breathe through
+    final bgColor = isDark ? c.surfaceBg : c.elevatedSurface;
+    return DecoratedBox(
       decoration: BoxDecoration(
-        color: isDark ? c.surfaceBg : c.elevatedSurface,
-        borderRadius: isDark
-            ? null  // no radius in dark mode — attached to top
-            : const BorderRadius.only(
-                bottomLeft: Radius.circular(22),
-                bottomRight: Radius.circular(22),
-              ),
-        boxShadow: isDark
-            ? null  // rely on contrast in dark mode
-            : [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.06),
-                  blurRadius: 16,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          stops: const [0.0, 0.75, 1.0],
+          colors: [
+            bgColor,
+            bgColor.withValues(alpha: 0.92),
+            bgColor.withValues(alpha: 0.0),
+          ],
+        ),
       ),
       child: Padding(
         padding: EdgeInsets.only(
-          top: topPadding + 8,
+          top: topPadding + 4,
           left: 16,
           right: 16,
-          bottom: 14,
+          bottom: 18, // extra so the fade has room
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Logo (bigger per user request)
+            // Logo — compact
             Align(
               alignment: Alignment.centerLeft,
               child: Padding(
-                padding: const EdgeInsets.only(top: 4, left: 10),
+                padding: const EdgeInsets.only(left: 8),
                 child: Image.asset(
                   'lib/assets/logo-transparent.png',
-                  height: 40,
+                  height: 30,
                   fit: BoxFit.contain,
                 ),
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 6),
             // Search bar
             PinitSearchBar(
               controller: viewModel.searchController,
               onSubmit: viewModel.submitMagicSearch,
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 6),
             // Chip row
             HomeChipRow(
               currentMode: viewModel.homeMode,

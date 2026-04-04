@@ -11,7 +11,7 @@ class LocationService with ChangeNotifier {
   LocationService._internal();
 
   // DEBUG: Set to non-null to override GPS with a fixed location
-  static const LatLng? _debugOverrideLocation = LatLng(51.517045, -0.08631);
+  static const LatLng? _debugOverrideLocation = null;
 
   // State
   LatLng? _currentPosition;

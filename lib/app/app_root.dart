@@ -36,7 +36,7 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
-  static const platform = MethodChannel('com.example.srishlok.pinit/share');
+  static const platform = MethodChannel('com.srishlok.pinit/share');
   late StreamSubscription _intentSub;
   final _sharedFiles = <SharedMediaFile>[];
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();

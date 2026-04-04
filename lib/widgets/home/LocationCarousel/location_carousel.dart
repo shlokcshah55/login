@@ -1,4 +1,5 @@
 import 'dart:ui' as ui;
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:login/models/locations.dart';
@@ -40,7 +41,7 @@ const Map<String, _VibeTagStyle> _vibeStyles = {
   'grocery_store':    _VibeTagStyle('Grocery',        FeatherIcons.shoppingCart, Color(0xFF3CB371)),
   'brunch':           _VibeTagStyle('Brunch',         FeatherIcons.sun,       Color(0xFFFFA07A)),
   'outdoor_dining':   _VibeTagStyle('Outdoor',        FeatherIcons.wind,      Color(0xFF87CEEB)),
-  'wavy':             _VibeTagStyle('Wavy 🌊',        FeatherIcons.activity,  Color(0xFF6C5CE7)),
+  'wavy':             _VibeTagStyle('Wavy 🌊',        FeatherIcons.activity,  Color(0xFFFF6B6B)),
   'bossman':          _VibeTagStyle('Bossman',        FeatherIcons.shield,    Color(0xFF636E72)),
 };
 
@@ -139,6 +140,8 @@ class _SwipeableCard extends StatefulWidget {
 class _SwipeableCardState extends State<_SwipeableCard>
     with SingleTickerProviderStateMixin {
   double _dragY = 0;
+  bool _showShortlistConfirmed = false;
+  Timer? _shortlistFeedbackTimer;
   static const _threshold = 60.0;
 
   void _onVerticalDragUpdate(DragUpdateDetails d) {
@@ -148,6 +151,12 @@ class _SwipeableCardState extends State<_SwipeableCard>
   void _onVerticalDragEnd(DragEndDetails d) {
     if (_dragY < -_threshold && widget.onSwipeUp != null) {
       // Swiped up → shortlist
+      _shortlistFeedbackTimer?.cancel();
+      setState(() => _showShortlistConfirmed = true);
+      _shortlistFeedbackTimer = Timer(const Duration(milliseconds: 700), () {
+        if (!mounted) return;
+        setState(() => _showShortlistConfirmed = false);
+      });
       widget.onSwipeUp!(widget.location);
     } else if (_dragY > _threshold && widget.onSwipeDown != null) {
       // Swiped down → save
@@ -157,9 +166,25 @@ class _SwipeableCardState extends State<_SwipeableCard>
   }
 
   @override
+  void dispose() {
+    _shortlistFeedbackTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final progress = (_dragY / 120).clamp(-1.0, 1.0);
     final opacity = (1.0 - progress.abs() * 0.4).clamp(0.5, 1.0);
+    final shortlistDragProgress = (-_dragY / _threshold).clamp(0.0, 1.0);
+    final shortlistIndicatorOpacity = _showShortlistConfirmed
+        ? 1.0
+        : shortlistDragProgress;
+    final shortlistIndicatorScale = _showShortlistConfirmed
+      ? 1.18
+      : 0.90 + (shortlistDragProgress * 0.22);
+    final shortlistIndicatorSlideY = _showShortlistConfirmed
+      ? 0.0
+      : 0.20 - (shortlistDragProgress * 0.20);
 
     return GestureDetector(
       onVerticalDragUpdate: _onVerticalDragUpdate,
@@ -181,35 +206,74 @@ class _SwipeableCardState extends State<_SwipeableCard>
                 bottomNavVisible: widget.bottomNavVisible,
                 onLocationSelected: widget.onLocationSelected,
               ),
-              // Swipe hint labels
-              if (_dragY < -30)
-                Positioned(
-                  top: -24,
-                  left: 0,
-                  right: 0,
+              // Swipe up shortlist feedback (beneath card)
+              Positioned(
+                bottom: -34,
+                left: 0,
+                right: 0,
+                child: IgnorePointer(
                   child: Center(
                     child: AnimatedOpacity(
-                      duration: const Duration(milliseconds: 100),
-                      opacity: (_dragY.abs() / _threshold).clamp(0.0, 1.0),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF6C5CE7),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Text(
-                          '↑ Shortlist',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
+                      duration: const Duration(milliseconds: 140),
+                      opacity: shortlistIndicatorOpacity,
+                      child: AnimatedSlide(
+                        duration: const Duration(milliseconds: 180),
+                        curve: Curves.easeOutCubic,
+                        offset: Offset(0, shortlistIndicatorSlideY),
+                        child: AnimatedScale(
+                          duration: Duration(
+                            milliseconds:
+                                _showShortlistConfirmed ? 280 : 140,
+                          ),
+                          curve: _showShortlistConfirmed
+                              ? Curves.elasticOut
+                              : Curves.easeOutCubic,
+                          scale: shortlistIndicatorScale,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF16A34A),
+                              borderRadius: BorderRadius.circular(18),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF16A34A)
+                                      .withOpacity(0.42),
+                                  blurRadius: 20,
+                                  spreadRadius: 1,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.playlist_add_check_rounded,
+                                  size: 18,
+                                  color: Colors.white,
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Shortlisted',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.2,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
                 ),
+              ),
               if (_dragY > 30)
                 Positioned(
                   bottom: -24,
@@ -295,32 +359,32 @@ class _CarouselCard extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(22),
-          // Wavy locations get a vibrant gradient border
+          // Wavy locations get a warm coral-gold border
           border: _isWavy
               ? Border.all(
-                  color: const Color(0xFF6C5CE7).withOpacity(0.8), width: 2.5)
+                  color: const Color(0xFFFF6B6B).withValues(alpha: 0.7), width: 2)
               : isSelected
-                  ? Border.all(color: colorScheme.primary, width: 2.5)
+                  ? Border.all(color: colorScheme.primary, width: 2)
                   : null,
           boxShadow: [
             if (_isWavy) ...[
               BoxShadow(
-                color: const Color(0xFF6C5CE7).withOpacity(0.25),
-                blurRadius: 16,
-                spreadRadius: 1,
+                color: const Color(0xFFFF6B6B).withValues(alpha: 0.18),
+                blurRadius: 14,
+                spreadRadius: 0,
                 offset: const Offset(0, 4),
               ),
               BoxShadow(
-                color: const Color(0xFFA29BFE).withOpacity(0.15),
-                blurRadius: 24,
+                color: const Color(0xFFFFD93D).withValues(alpha: 0.10),
+                blurRadius: 20,
                 spreadRadius: -2,
-                offset: const Offset(0, 8),
+                offset: const Offset(0, 6),
               ),
             ] else ...[
               BoxShadow(
-                color: colorScheme.shadow.withOpacity(isSelected ? 0.25 : 0.12),
-                blurRadius: isSelected ? 16 : 10,
-                offset: const Offset(0, 4),
+                color: colorScheme.shadow.withValues(alpha: isSelected ? 0.20 : 0.10),
+                blurRadius: isSelected ? 14 : 8,
+                offset: const Offset(0, 3),
               ),
             ],
           ],
@@ -341,11 +405,11 @@ class _CarouselCard extends StatelessWidget {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        Colors.black.withOpacity(0.05),
-                        Colors.black.withOpacity(0.15),
-                        Colors.black.withOpacity(0.75),
+                        Colors.black.withValues(alpha: 0.0),
+                        Colors.black.withValues(alpha: 0.08),
+                        Colors.black.withValues(alpha: 0.65),
                       ],
-                      stops: const [0.0, 0.35, 1.0],
+                      stops: const [0.0, 0.4, 1.0],
                     ),
                   ),
                 ),
@@ -451,8 +515,8 @@ class _CarouselCard extends StatelessWidget {
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: [
-                            Colors.black.withOpacity(0.3),
-                            Colors.black.withOpacity(0.65),
+                            Colors.black.withValues(alpha: 0.2),
+                            Colors.black.withValues(alpha: 0.55),
                           ],
                         ),
                       ),
@@ -559,16 +623,16 @@ class _CarouselCard extends StatelessWidget {
                   top: 0,
                   left: 0,
                   right: 0,
-                  height: 3,
+                  height: 2.5,
                   child: Container(
                     decoration: const BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
-                          Color(0xFF6C5CE7),
-                          Color(0xFFA29BFE),
-                          Color(0xFF74B9FF),
-                          Color(0xFFA29BFE),
-                          Color(0xFF6C5CE7),
+                          Color(0xFFFF6B6B),
+                          Color(0xFFFFD93D),
+                          Color(0xFFFF8C42),
+                          Color(0xFFFFD93D),
+                          Color(0xFFFF6B6B),
                         ],
                       ),
                     ),
