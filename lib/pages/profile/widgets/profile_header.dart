@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:login/models/users.dart';
 import 'package:login/supabase/supabase_client.dart';
 import 'pinit_colors.dart';
@@ -71,7 +72,7 @@ class ProfileHeader extends StatelessWidget {
                                   : user.bio!,
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Colors.white.withOpacity(0.7),
+                                color: Colors.white.withValues(alpha: 0.7),
                                 height: 1.3,
                               ),
                               maxLines: 2,
@@ -123,52 +124,69 @@ class _ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.15),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withOpacity(0.2)),
-        ),
-        child: Stack(
-          children: [
-            Center(
-              child: Icon(
-                icon,
-                size: 20,
-                color: Colors.white,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: Ink(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.13),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.14),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
               ),
-            ),
-            if (badgeCount > 0)
-              Positioned(
-                right: 4,
-                top: 4,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(
-                    color: PinitColors.accent,
-                    shape: BoxShape.circle,
-                  ),
-                  constraints: const BoxConstraints(
-                    minWidth: 18,
-                    minHeight: 18,
-                  ),
-                  child: Center(
-                    child: Text(
-                      badgeCount > 9 ? '9+' : badgeCount.toString(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
+            ],
+          ),
+          child: Stack(
+            children: [
+              Center(
+                child: Icon(
+                  icon,
+                  size: 19,
+                  color: Colors.white,
+                ),
+              ),
+              if (badgeCount > 0)
+                Positioned(
+                  right: 5,
+                  top: 5,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 2,
+                    ),
+                    decoration: const BoxDecoration(
+                      color: PinitColors.accent,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 18,
+                      minHeight: 18,
+                    ),
+                    child: Center(
+                      child: Text(
+                        badgeCount > 9 ? '9+' : badgeCount.toString(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -190,25 +208,26 @@ class _ProfileAvatar extends StatelessWidget {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.all(
-            color: Colors.white.withOpacity(0.6),
+            color: Colors.white.withValues(alpha: 0.6),
             width: 3,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.3),
+              color: Colors.black.withValues(alpha: 0.3),
               blurRadius: 16,
               spreadRadius: 2,
             ),
           ],
         ),
         child: ClipOval(
-          child: user.profileImageUrl != null && user.profileImageUrl!.isNotEmpty
-              ? Image.network(
-                  user.profileImageUrl!,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _defaultAvatar(),
-                )
-              : _defaultAvatar(),
+          child:
+              user.profileImageUrl != null && user.profileImageUrl!.isNotEmpty
+                  ? Image.network(
+                      user.profileImageUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _defaultAvatar(),
+                    )
+                  : _defaultAvatar(),
         ),
       ),
     );
@@ -248,52 +267,46 @@ class _StatsRow extends StatelessWidget {
         width: 1,
         height: 22,
         margin: const EdgeInsets.symmetric(horizontal: 12),
-        color: Colors.white.withOpacity(0.25),
+        color: Colors.white.withValues(alpha: 0.25),
       );
 }
 
 class _StatItem extends StatelessWidget {
   final String value;
   final String label;
-  final VoidCallback? onTap;
 
   const _StatItem({
     required this.value,
     required this.label,
-    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
-              letterSpacing: -0.4,
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+            letterSpacing: -0.4,
           ),
-          const SizedBox(height: 1),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              color: Colors.white.withOpacity(0.65),
-              fontWeight: FontWeight.w500,
-            ),
+        ),
+        const SizedBox(height: 1),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: Colors.white.withValues(alpha: 0.65),
+            fontWeight: FontWeight.w500,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
-
 
 class _TasteChips extends StatefulWidget {
   @override
@@ -409,7 +422,8 @@ class _TasteChip extends StatelessWidget {
   final String emoji;
   final Color color;
 
-  const _TasteChip({required this.label, required this.emoji, required this.color});
+  const _TasteChip(
+      {required this.label, required this.emoji, required this.color});
 
   @override
   Widget build(BuildContext context) {

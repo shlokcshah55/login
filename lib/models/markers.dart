@@ -1,6 +1,5 @@
 import 'dart:collection';
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -71,11 +70,29 @@ class PinitMarkerPalette {
   }
 }
 
+class PinitMarkerBadgeType {
+  static const String sparkle = 'sparkle';
+  static const String liveMusic = 'live_music';
+  static const String cocktails = 'cocktails';
+  static const String outdoor = 'outdoor';
+  static const String trending = 'trending';
+  static const String late = 'late';
+
+  static const Set<String> values = {
+    sparkle,
+    liveMusic,
+    cocktails,
+    outdoor,
+    trending,
+    late,
+  };
+}
+
 // ─────────────────────────────────────────────────────────────
 //  Main entry‑point for all marker bitmap generation
 // ─────────────────────────────────────────────────────────────
 class PinitMarkers {
-  static final _BitmapCache _cache = _BitmapCache(maxEntries: 256);
+  static final _BitmapCache _cache = _BitmapCache(maxEntries: 512);
 
   static final Map<String, ui.Image> _imageAssetCache = {};
 
@@ -115,7 +132,8 @@ class PinitMarkers {
     return false;
   }
 
-  static String? getAssetForLocation(String? cuisine, String? types, String emoji) {
+  static String? getAssetForLocation(
+      String? cuisine, String? types, String emoji) {
     final normalizedEmoji = _normalizeLookupText(emoji);
     final normalizedCuisine = _normalizeLookupText(cuisine ?? '');
     final normalizedTypes = _normalizeLookupText(types ?? '');
@@ -127,10 +145,12 @@ class PinitMarkers {
     if (_containsAny(combined, ['🍛', 'curry', 'indian'])) {
       return 'lib/assets/pin_emojis/curryIcon.jpg';
     }
-    if (_containsAny(combined, ['🍩', 'donut', 'doughnut', 'bakery', 'pastry'])) {
+    if (_containsAny(
+        combined, ['🍩', 'donut', 'doughnut', 'bakery', 'pastry'])) {
       return 'lib/assets/pin_emojis/donutIcon.jpg';
     }
-    if (_containsAny(combined, ['🍜', 'pho', 'ramen', 'noodle', 'vietnamese'])) {
+    if (_containsAny(
+        combined, ['🍜', 'pho', 'ramen', 'noodle', 'vietnamese'])) {
       return 'lib/assets/pin_emojis/phoIcon.jpg';
     }
     if (_containsAny(combined, ['🍕', 'pizza'])) {
@@ -151,8 +171,8 @@ class PinitMarkers {
     return null;
   }
 
-  /// Logical bubble diameter — bumped up for better readability & presence.
-  static const double pinBubbleDiameter = 32.0;
+  static const double _basePinBubbleDiameter = 32.0;
+  static const double _popularPinBubbleDiameter = 36.0;
 
   // ── Brand colours ──
   static const Color _brandDark = Color(0xFF42143D);
@@ -170,7 +190,7 @@ class PinitMarkers {
   static const double _glowIntensityMin = 0.18;
 
   /// Maximum glow intensity (reached when savedCount >= _savedCountCap).
-  static const double _glowIntensityMax = 0.52;
+  static const double _glowIntensityMax = 0.70;
 
   /// savedCount at (or above) which glow is maxed out.
   static const int _savedCountCap = 20;
@@ -182,6 +202,17 @@ class PinitMarkers {
     // Ease-out curve so even a few saves make a visible difference.
     final double ease = 1.0 - math.pow(1.0 - t, 2.5);
     return _glowIntensityMin + (_glowIntensityMax - _glowIntensityMin) * ease;
+  }
+
+  static double _pinBubbleDiameterForSavedCount(int savedCount) {
+    return savedCount > 5 ? _popularPinBubbleDiameter : _basePinBubbleDiameter;
+  }
+
+  static Color _boostSaturation(Color color, [double amount = 0.15]) {
+    final hsl = HSLColor.fromColor(color);
+    return hsl
+        .withSaturation((hsl.saturation * (1.0 + amount)).clamp(0.0, 1.0))
+        .toColor();
   }
 
   // ==================================================================
@@ -215,17 +246,19 @@ class PinitMarkers {
     double bossmanScore = 0.0,
     int savedCount = 0,
     double matchScore = 0.0,
+    String? badgeType,
   }) async {
-    final color =
-        surfaceColor ?? PinitMarkerPalette.forCuisine(cuisine, types);
-    final avatarKey = avatarColors.map((c) => c.value).join(',');
+    final color = _boostSaturation(
+      surfaceColor ?? PinitMarkerPalette.forCuisine(cuisine, types),
+    );
+    final avatarKey = avatarColors.map((c) => c.toARGB32()).join(',');
     final assetPath = getAssetForLocation(cuisine, types, emoji);
-    
+
     final key = 'pin3|$emoji|$name|${devicePixelRatio.toStringAsFixed(2)}'
-        '|${color.value}|${textColor.value}|$selected|$showText|$avatarKey'
+        '|${color.toARGB32()}|${textColor.toARGB32()}|$selected|$showText|$avatarKey'
         '|${wavyScore.toStringAsFixed(2)}|${bossmanScore.toStringAsFixed(2)}'
-        '|$savedCount|${matchScore.toStringAsFixed(2)}|$assetPath';
-        
+        '|$savedCount|${matchScore.toStringAsFixed(2)}|${badgeType ?? 'none'}|$assetPath';
+
     final cached = _cache.get(key);
     if (cached != null) return cached;
 
@@ -248,6 +281,7 @@ class PinitMarkers {
       savedCount: savedCount,
       matchScore: matchScore,
       assetImage: assetImage,
+      badgeType: badgeType,
     );
     _cache.set(key, b);
     return b;
@@ -269,16 +303,17 @@ class PinitMarkers {
     double bossmanScore = 0.0,
     int savedCount = 0,
   }) async {
-    final color =
-        surfaceColor ?? PinitMarkerPalette.forCuisine(cuisine, types);
-    final avatarKey = avatarColors.map((c) => c.value).join(',');
+    final color = _boostSaturation(
+      surfaceColor ?? PinitMarkerPalette.forCuisine(cuisine, types),
+    );
+    final avatarKey = avatarColors.map((c) => c.toARGB32()).join(',');
     final assetPath = getAssetForLocation(cuisine, types, emoji);
-    
+
     final key = 'cfan4|$emoji|$remainingCount'
-        '|${devicePixelRatio.toStringAsFixed(2)}|${color.value}|$avatarKey'
+        '|${devicePixelRatio.toStringAsFixed(2)}|${color.toARGB32()}|$avatarKey'
         '|${wavyScore.toStringAsFixed(2)}|${bossmanScore.toStringAsFixed(2)}'
         '|$savedCount|$assetPath';
-        
+
     final cached = _cache.get(key);
     if (cached != null) return cached;
 
@@ -314,7 +349,7 @@ class PinitMarkers {
     bool selected = false,
   }) {
     final key = 'cnum|$count|${devicePixelRatio.toStringAsFixed(2)}'
-        '|${surfaceColor.value}|${textColor.value}|$selected';
+        '|${surfaceColor.toARGB32()}|${textColor.toARGB32()}|$selected';
     final cached = _cache.get(key);
     if (cached != null) return Future.value(cached);
 
@@ -353,9 +388,7 @@ class PinitMarkers {
     // Also nudge lightness slightly toward the middle for a "flat" feel.
     final flatLightness =
         muted.lightness + (0.55 - muted.lightness) * amount * 0.3;
-    return muted
-        .withLightness(flatLightness.clamp(0.0, 1.0))
-        .toColor();
+    return muted.withLightness(flatLightness.clamp(0.0, 1.0)).toColor();
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -375,18 +408,18 @@ class PinitMarkers {
     // Outer wide glow
     canvas.drawCircle(
       centre,
-      radius * 1.7,
+      radius * 2.2,
       Paint()
-        ..color = color.withOpacity(intensity * 0.45)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.9),
+        ..color = color.withValues(alpha: intensity * 0.45)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 1.17),
     );
     // Inner tighter glow
     canvas.drawCircle(
       centre,
-      radius * 1.15,
+      radius * 1.5,
       Paint()
-        ..color = color.withOpacity(intensity)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.45),
+        ..color = color.withValues(alpha: intensity)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.59),
     );
   }
 
@@ -410,7 +443,7 @@ class PinitMarkers {
       Offset(centre.dx - radius * 0.25, centre.dy),
       radius * 1.35,
       Paint()
-        ..color = const Color(0xFFE040FB).withOpacity(alpha)
+        ..color = const Color(0xFFE040FB).withValues(alpha: alpha)
         ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.7),
     );
 
@@ -419,7 +452,7 @@ class PinitMarkers {
       Offset(centre.dx + radius * 0.25, centre.dy),
       radius * 1.35,
       Paint()
-        ..color = const Color(0xFF18FFFF).withOpacity(alpha * 0.85)
+        ..color = const Color(0xFF18FFFF).withValues(alpha: alpha * 0.85)
         ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.7),
     );
   }
@@ -435,17 +468,17 @@ class PinitMarkers {
     required double wavyScore,
   }) {
     // Ring geometry — sits just outside the white border.
-    final double ringWidth = 2.2 * dpr;
+    final double ringWidth = 3.2 * dpr;
     final double ringRadius = innerRadius + ringWidth / 2 + 1.6 * dpr;
 
     // Opacity scales with wavyScore intensity.
     final double t =
         ((wavyScore - _wavyThreshold) / (1.0 - _wavyThreshold)).clamp(0.0, 1.0);
-    final double ringOpacity = 0.65 + 0.35 * t; // 0.65–1.0
+    final double ringOpacity = 0.85 + 0.15 * t; // 0.85–1.0
 
     // Build the sweep gradient stops from the wavy palette.
     final colors = PinitMarkerPalette.wavyGradient
-        .map((c) => c.withOpacity(ringOpacity))
+        .map((c) => c.withValues(alpha: ringOpacity))
         .toList();
     final stops = List<double>.generate(
       colors.length,
@@ -498,7 +531,7 @@ class PinitMarkers {
       centre,
       shimmerRadius + 1.5 * dpr,
       Paint()
-        ..color = baseColor.withOpacity(shimmerOpacity * 0.4)
+        ..color = baseColor.withValues(alpha: shimmerOpacity * 0.4)
         ..maskFilter = MaskFilter.blur(BlurStyle.normal, 2.5 * dpr),
     );
 
@@ -507,10 +540,112 @@ class PinitMarkers {
       centre,
       shimmerRadius,
       Paint()
-        ..color = baseColor.withOpacity(shimmerOpacity)
+        ..color = baseColor.withValues(alpha: shimmerOpacity)
         ..style = PaintingStyle.stroke
         ..strokeWidth = shimmerWidth
         ..strokeCap = StrokeCap.round,
+    );
+  }
+
+  static ({String glyph, Color color, double fontSize})? _badgeVisualForType(
+      String? badgeType) {
+    switch (badgeType) {
+      case PinitMarkerBadgeType.sparkle:
+        return (
+          glyph: '✦',
+          color: const Color(0xFFFFB800),
+          fontSize: 5.2,
+        );
+      case PinitMarkerBadgeType.liveMusic:
+        return (
+          glyph: '♫',
+          color: const Color(0xFFFF3B30),
+          fontSize: 5.1,
+        );
+      case PinitMarkerBadgeType.cocktails:
+        return (
+          glyph: '🍸',
+          color: const Color(0xFFBA68C8),
+          fontSize: 5.0,
+        );
+      case PinitMarkerBadgeType.outdoor:
+        return (
+          glyph: '☀',
+          color: const Color(0xFF34C759),
+          fontSize: 5.2,
+        );
+      case PinitMarkerBadgeType.trending:
+        return (
+          glyph: '🔥',
+          color: const Color(0xFFFF9500),
+          fontSize: 5.0,
+        );
+      case PinitMarkerBadgeType.late:
+        return (
+          glyph: '🌙',
+          color: const Color(0xFF5856D6),
+          fontSize: 5.0,
+        );
+      default:
+        return null;
+    }
+  }
+
+  static void _drawPersonalityBadge(
+    Canvas canvas, {
+    required Offset centre,
+    required double radius,
+    required double dpr,
+    String? badgeType,
+  }) {
+    final visual = _badgeVisualForType(badgeType);
+    if (visual == null) return;
+
+    final double badgeRadius = 6.2 * dpr;
+    final Offset badgeCenter = Offset(
+      centre.dx + radius * 0.62,
+      centre.dy - radius * 0.62,
+    );
+
+    canvas.drawCircle(
+      Offset(badgeCenter.dx, badgeCenter.dy + 0.9 * dpr),
+      badgeRadius,
+      Paint()
+        ..color = Colors.black.withValues(alpha: 0.14)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 2.2 * dpr),
+    );
+
+    canvas.drawCircle(
+      badgeCenter,
+      badgeRadius + 1.2 * dpr,
+      Paint()..color = Colors.white,
+    );
+
+    canvas.drawCircle(
+      badgeCenter,
+      badgeRadius,
+      Paint()..color = visual.color,
+    );
+
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: visual.glyph,
+        style: TextStyle(
+          fontSize: visual.fontSize * dpr,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+          height: 1,
+        ),
+      ),
+      textDirection: ui.TextDirection.ltr,
+    )..layout();
+
+    textPainter.paint(
+      canvas,
+      Offset(
+        badgeCenter.dx - textPainter.width / 2,
+        badgeCenter.dy - textPainter.height / 2 - 0.2 * dpr,
+      ),
     );
   }
 
@@ -575,8 +710,7 @@ class PinitMarkers {
     final double ringRadius = innerRadius + ringWidth / 2 + 1.2 * dpr;
     final double gapRadians = colors.length == 1 ? 0 : 0.08;
     final double totalGap = gapRadians * colors.length;
-    final double arcPerSegment =
-        (2 * math.pi - totalGap) / colors.length;
+    final double arcPerSegment = (2 * math.pi - totalGap) / colors.length;
 
     double startAngle = -math.pi / 2;
 
@@ -637,7 +771,7 @@ class PinitMarkers {
     canvas.drawCircle(
       centre,
       radius + 1.0 * dpr,
-      Paint()..color = Colors.white.withOpacity(0.92),
+      Paint()..color = Colors.white.withValues(alpha: 0.92),
     );
 
     // Radial gradient fill — light source top‑left
@@ -660,7 +794,8 @@ class PinitMarkers {
     if (assetImage != null) {
       final double imgRadius = radius - 1.2 * dpr;
       canvas.save();
-      canvas.clipPath(Path()..addOval(Rect.fromCircle(center: centre, radius: imgRadius)));
+      canvas.clipPath(
+          Path()..addOval(Rect.fromCircle(center: centre, radius: imgRadius)));
       paintImage(
         canvas: canvas,
         rect: Rect.fromCircle(center: centre, radius: imgRadius),
@@ -686,7 +821,7 @@ class PinitMarkers {
     canvas.drawCircle(
       Offset(centre.dx - radius * 0.22, centre.dy - radius * 0.28),
       radius * 0.18,
-      Paint()..color = Colors.white.withOpacity(0.35),
+      Paint()..color = Colors.white.withValues(alpha: 0.35),
     );
 
     return centre;
@@ -724,6 +859,7 @@ class PinitMarkers {
     required int savedCount,
     required double matchScore,
     ui.Image? assetImage,
+    String? badgeType,
   }) async {
     // ── Determine vibe mode ──
     final bool isWavy = _isWavy(wavyScore, bossmanScore);
@@ -737,11 +873,10 @@ class PinitMarkers {
     // ── Compute glow intensity from saved count ──
     final double glowIntensity = _glowForSavedCount(savedCount);
 
-    final double bubR = pinBubbleDiameter / 2 * dpr;
+    final double bubR = _pinBubbleDiameterForSavedCount(savedCount) / 2 * dpr;
     final double tailH = bubR * 0.55;
-    final double glowExtra = bubR * 0.9;
-    final double avatarRingExtra =
-        avatarColors.isNotEmpty ? 3.6 * dpr : 0;
+    final double glowExtra = bubR * 1.15;
+    final double avatarRingExtra = avatarColors.isNotEmpty ? 3.6 * dpr : 0;
     // Wavy ring sits outside the avatar ring, so reserve extra space.
     final double wavyRingExtra = isWavy ? 4.0 * dpr : 0;
     final double shadowExtra = 5.0 * dpr;
@@ -779,14 +914,12 @@ class PinitMarkers {
 
     final double ringSpace = avatarRingExtra + wavyRingExtra;
     final double selBorder = selected ? 1.6 * dpr : 0;
-    final double pad =
-        selBorder + glowExtra + ringSpace + shadowExtra + 4;
+    final double pad = selBorder + glowExtra + ringSpace + shadowExtra + 4;
 
     final double totalW = showText
         ? (bubR + ringSpace) * 2 + textGap + pillW
         : (bubR + ringSpace) * 2;
-    final double totalH =
-        math.max((bubR + ringSpace) * 2, pillH) + tailH;
+    final double totalH = math.max((bubR + ringSpace) * 2, pillH) + tailH;
 
     final int outW = (totalW + pad * 2).ceil();
     final int outH = (totalH + pad * 2 + shadowExtra).ceil();
@@ -810,10 +943,7 @@ class PinitMarkers {
     // 1b. Extra iridescent glow for wavy pins
     if (isWavy) {
       _drawWavyGlow(c,
-          centre: centre,
-          radius: bubR,
-          dpr: dpr,
-          wavyScore: wavyScore);
+          centre: centre, radius: bubR, dpr: dpr, wavyScore: wavyScore);
     }
 
     // 2. Pointer tail
@@ -844,10 +974,7 @@ class PinitMarkers {
     // 4. Avatar ring
     if (avatarColors.isNotEmpty) {
       _drawAvatarRing(c,
-          centre: centre,
-          innerRadius: bubR,
-          dpr: dpr,
-          colors: avatarColors);
+          centre: centre, innerRadius: bubR, dpr: dpr, colors: avatarColors);
     }
 
     // 5. Bubble
@@ -860,10 +987,17 @@ class PinitMarkers {
         emoji: emoji,
         assetImage: assetImage);
 
+    _drawPersonalityBadge(
+      c,
+      centre: centre,
+      radius: bubR,
+      dpr: dpr,
+      badgeType: badgeType,
+    );
+
     // 7. Pill label
     if (showText) {
-      final double px =
-          centre.dx + bubR + ringSpace + textGap;
+      final double px = centre.dx + bubR + ringSpace + textGap;
       final double py = centre.dy - pillH / 2;
 
       // Pill shadow
@@ -891,9 +1025,9 @@ class PinitMarkers {
             Offset(px, py),
             Offset(px + pillW, py + pillH),
             [
-              const Color(0xFFE040FB).withOpacity(0.35),
-              const Color(0xFF448AFF).withOpacity(0.35),
-              const Color(0xFF18FFFF).withOpacity(0.35),
+              const Color(0xFFE040FB).withValues(alpha: 0.35),
+              const Color(0xFF448AFF).withValues(alpha: 0.35),
+              const Color(0xFF18FFFF).withValues(alpha: 0.35),
             ],
           )
           ..style = PaintingStyle.stroke
@@ -945,12 +1079,11 @@ class PinitMarkers {
     final Color effectiveColor = isBossman ? _desaturate(color, 0.55) : color;
     final double glowIntensity = _glowForSavedCount(savedCount);
 
-    final double bubR = pinBubbleDiameter / 2 * dpr;
+    final double bubR = _pinBubbleDiameterForSavedCount(savedCount) / 2 * dpr;
     final double tailH = bubR * 0.55;
-    final double glowExtra = bubR * 0.9;
+    final double glowExtra = bubR * 1.15;
     final double shadowExtra = 5.0 * dpr;
-    final double avatarRingExtra =
-        avatarColors.isNotEmpty ? 3.6 * dpr : 0;
+    final double avatarRingExtra = avatarColors.isNotEmpty ? 3.6 * dpr : 0;
     final double wavyRingExtra = isWavy ? 4.0 * dpr : 0;
 
     final int ghosts = remainingCount.clamp(1, 3);
@@ -962,8 +1095,11 @@ class PinitMarkers {
     final double opacityStep = 0.10;
 
     final double extraForGhosts = fanDistance + bubR * 0.3;
-    final double pad = shadowExtra + glowExtra + extraForGhosts +
-        avatarRingExtra + wavyRingExtra;
+    final double pad = shadowExtra +
+        glowExtra +
+        extraForGhosts +
+        avatarRingExtra +
+        wavyRingExtra;
     final double canvasW = bubR * 2 + pad * 2;
     final double canvasH = bubR * 2 + pad * 2 + shadowExtra + tailH;
 
@@ -996,25 +1132,25 @@ class PinitMarkers {
           ..maskFilter = MaskFilter.blur(BlurStyle.normal, 2.0 * dpr),
       );
 
-      final ghostColor = Color.lerp(
-          effectiveColor, const Color(0xFFE8E4EC), 0.15 + 0.08 * i)!;
+      final ghostColor =
+          Color.lerp(effectiveColor, const Color(0xFFE8E4EC), 0.15 + 0.08 * i)!;
       c.drawCircle(
-          gc, gr, Paint()..color = ghostColor.withOpacity(gOpacity));
+          gc, gr, Paint()..color = ghostColor.withValues(alpha: gOpacity));
 
       c.drawCircle(
         gc,
         gr + 0.8 * dpr,
-        Paint()..color = Colors.white.withOpacity(0.80),
+        Paint()..color = Colors.white.withValues(alpha: 0.80),
       );
 
       c.drawCircle(
-          gc, gr, Paint()..color = ghostColor.withOpacity(gOpacity));
+          gc, gr, Paint()..color = ghostColor.withValues(alpha: gOpacity));
 
       c.drawCircle(
         gc,
         gr,
         Paint()
-          ..color = Colors.white.withOpacity(0.5)
+          ..color = Colors.white.withValues(alpha: 0.5)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 0.8 * dpr,
       );
@@ -1031,10 +1167,7 @@ class PinitMarkers {
     // 2b. Wavy iridescent glow
     if (isWavy) {
       _drawWavyGlow(c,
-          centre: mainCentre,
-          radius: bubR,
-          dpr: dpr,
-          wavyScore: wavyScore);
+          centre: mainCentre, radius: bubR, dpr: dpr, wavyScore: wavyScore);
     }
 
     // ─── 3. Pointer tail ─────────────────────────────────────

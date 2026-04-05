@@ -41,7 +41,7 @@ const Map<String, _VibeTagStyle> _vibeStyles = {
   'grocery_store':    _VibeTagStyle('Grocery',        FeatherIcons.shoppingCart, Color(0xFF3CB371)),
   'brunch':           _VibeTagStyle('Brunch',         FeatherIcons.sun,       Color(0xFFFFA07A)),
   'outdoor_dining':   _VibeTagStyle('Outdoor',        FeatherIcons.wind,      Color(0xFF87CEEB)),
-  'wavy':             _VibeTagStyle('Wavy 🌊',        FeatherIcons.activity,  Color(0xFFFF6B6B)),
+  'wavy':             _VibeTagStyle('Wavy 🌊',        FeatherIcons.activity,  Color(0xFFA970FF)),
   'bossman':          _VibeTagStyle('Bossman',        FeatherIcons.shield,    Color(0xFF636E72)),
 };
 
@@ -335,7 +335,6 @@ class _CarouselCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
 
     return GestureDetector(
       onTap: () {
@@ -358,39 +357,33 @@ class _CarouselCard extends StatelessWidget {
       },
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(22),
-          // Wavy locations get a warm coral-gold border
+          borderRadius: BorderRadius.circular(26),
+          // Wavy locations get a playful purple glow
           border: _isWavy
               ? Border.all(
-                  color: const Color(0xFFFF6B6B).withValues(alpha: 0.7), width: 2)
+                  color: const Color(0xFFA970FF).withValues(alpha: 0.5), width: 2.5)
               : isSelected
-                  ? Border.all(color: colorScheme.primary, width: 2)
+                  ? Border.all(color: colorScheme.primary.withValues(alpha: 0.6), width: 2)
                   : null,
           boxShadow: [
             if (_isWavy) ...[
               BoxShadow(
-                color: const Color(0xFFFF6B6B).withValues(alpha: 0.18),
-                blurRadius: 14,
-                spreadRadius: 0,
+                color: const Color(0xFFA970FF).withValues(alpha: 0.22),
+                blurRadius: 18,
+                spreadRadius: 2,
                 offset: const Offset(0, 4),
-              ),
-              BoxShadow(
-                color: const Color(0xFFFFD93D).withValues(alpha: 0.10),
-                blurRadius: 20,
-                spreadRadius: -2,
-                offset: const Offset(0, 6),
               ),
             ] else ...[
               BoxShadow(
-                color: colorScheme.shadow.withValues(alpha: isSelected ? 0.20 : 0.10),
-                blurRadius: isSelected ? 14 : 8,
-                offset: const Offset(0, 3),
+                color: colorScheme.shadow.withValues(alpha: isSelected ? 0.18 : 0.08),
+                blurRadius: isSelected ? 12 : 6,
+                offset: const Offset(0, 2),
               ),
             ],
           ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(24),
           child: Stack(
             fit: StackFit.expand,
             children: [
@@ -415,7 +408,7 @@ class _CarouselCard extends StatelessWidget {
                 ),
               ),
 
-              // ── 3. Top-left: Emoji avatar + preference badge ──
+              // ── 3. Top-left: Emoji + preference badge ──
               Positioned(
                 top: 10,
                 left: 10,
@@ -424,25 +417,16 @@ class _CarouselCard extends StatelessWidget {
                     // Emoji circle
                     if (location.emoji != null && location.emoji!.isNotEmpty)
                       Container(
-                        width: 36,
-                        height: 36,
+                        width: 38,
+                        height: 38,
                         decoration: BoxDecoration(
-                          color: isDark
-                              ? Colors.black.withOpacity(0.6)
-                              : Colors.white.withOpacity(0.9),
+                          color: Colors.white.withValues(alpha: 0.85),
                           shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.2),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
                         ),
                         alignment: Alignment.center,
                         child: Text(
                           location.emoji!,
-                          style: const TextStyle(fontSize: 18),
+                          style: const TextStyle(fontSize: 20),
                         ),
                       ),
                     const SizedBox(width: 6),
@@ -505,9 +489,9 @@ class _CarouselCard extends StatelessWidget {
                 bottom: 0,
                 child: ClipRRect(
                   borderRadius: const BorderRadius.vertical(
-                      bottom: Radius.circular(20)),
+                      bottom: Radius.circular(24)),
                   child: BackdropFilter(
-                    filter: ui.ImageFilter.blur(sigmaX: 2, sigmaY: 2),
+                    filter: ui.ImageFilter.blur(sigmaX: 6, sigmaY: 6),
                     child: Container(
                       padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
                       decoration: BoxDecoration(
@@ -515,8 +499,8 @@ class _CarouselCard extends StatelessWidget {
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: [
-                            Colors.black.withValues(alpha: 0.2),
-                            Colors.black.withValues(alpha: 0.55),
+                            Colors.white.withValues(alpha: 0.08),
+                            Colors.black.withValues(alpha: 0.35),
                           ],
                         ),
                       ),
@@ -532,9 +516,9 @@ class _CarouselCard extends StatelessWidget {
                                   location.name,
                                   style: const TextStyle(
                                     color: Colors.white,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 16,
-                                    letterSpacing: -0.3,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 17,
+                                    letterSpacing: -0.2,
                                     height: 1.2,
                                   ),
                                   maxLines: 1,
@@ -557,11 +541,10 @@ class _CarouselCard extends StatelessWidget {
                             Text(
                               _summaryText!,
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.85),
-                                fontSize: 11.5,
+                                color: Colors.white.withValues(alpha: 0.9),
+                                fontSize: 12,
                                 fontWeight: FontWeight.w400,
                                 height: 1.3,
-                                fontStyle: FontStyle.italic,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -628,11 +611,11 @@ class _CarouselCard extends StatelessWidget {
                     decoration: const BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
-                          Color(0xFFFF6B6B),
-                          Color(0xFFFFD93D),
-                          Color(0xFFFF8C42),
-                          Color(0xFFFFD93D),
-                          Color(0xFFFF6B6B),
+                          Color(0xFFA970FF),
+                          Color(0xFFE2C7FF),
+                          Color(0xFFD4A5FF),
+                          Color(0xFFE2C7FF),
+                          Color(0xFFA970FF),
                         ],
                       ),
                     ),
@@ -752,17 +735,10 @@ class _CarouselCard extends StatelessWidget {
     };
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: bg.withOpacity(0.4),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -868,11 +844,10 @@ class _RatingChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: Colors.amber.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.amber.withOpacity(0.3), width: 0.5),
+        color: Colors.amber.withValues(alpha: 0.25),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -923,17 +898,10 @@ class _StatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(color == Colors.white.withOpacity(0.85) ? 0.85 : 0.85),
-        borderRadius: BorderRadius.circular(10),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.15),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
+        color: color.withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -977,14 +945,10 @@ class _InfoPill extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(right: 5),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: textColor.withOpacity(0.15),
-          width: 0.5,
-        ),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

@@ -26,10 +26,16 @@ class AppProviders extends StatelessWidget {
       providers: [
         ChangeNotifierProvider.value(value: dependencies.supabaseService),
         ChangeNotifierProvider(create: (_) => UserDataProvider()),
-        ChangeNotifierProvider(
-          create: (_) => LocationListManager(dependencies.googlePlacesService),
-        ),
         ChangeNotifierProvider(create: (_) => MapStateProvider()),
+        ChangeNotifierProxyProvider<MapStateProvider, LocationListManager>(
+          create: (_) => LocationListManager(dependencies.googlePlacesService),
+          update: (_, mapStateProvider, locationListManager) {
+            final manager = locationListManager ??
+                LocationListManager(dependencies.googlePlacesService);
+            manager.attachMapStateProvider(mapStateProvider);
+            return manager;
+          },
+        ),
         ChangeNotifierProvider(create: (_) => BottomNavVisibilityProvider()),
         ChangeNotifierProvider(create: (_) => DynamicNavProvider()),
         ChangeNotifierProvider(create: (_) => NavigationProvider()),

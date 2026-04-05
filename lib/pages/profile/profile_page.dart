@@ -138,7 +138,7 @@ class _ProfilePageState extends State<ProfilePage>
                       user: user,
                       scrollOffset: _scrollOffset,
                       onNotificationsTap: () => _showNotifications(context),
-                      onSettingsTap: () => _showSettingsSheet(context),
+                      onSettingsTap: () => _showSettingsSheet(context, user),
                       unreadCount: FCMService().unreadCount,
                     ),
                   ),
@@ -150,49 +150,13 @@ class _ProfilePageState extends State<ProfilePage>
                     backgroundColor: PinitColors.background,
                     automaticallyImplyLeading: false,
                     toolbarHeight: 56,
-                    flexibleSpace: Container(
-                      alignment: Alignment.center,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: _tabs.asMap().entries.map((entry) {
-                          final isSelected = entry.key == _selectedTab;
-                          return GestureDetector(
-                            onTap: () =>
-                                setState(() => _selectedTab = entry.key),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 10),
-                              margin: const EdgeInsets.only(right: 8),
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? PinitColors.primary.withOpacity(0.12)
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Text(
-                                entry.value,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: isSelected
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
-                                  color: isSelected
-                                      ? PinitColors.primary
-                                      : PinitColors.textSecondary,
-                                  letterSpacing: -0.2,
-                                ),
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ),
+                    flexibleSpace: _buildPinnedTabs(),
                   ),
 
                   // Content based on selected tab - using single SliverToBoxAdapter to avoid tree changes
                   SliverToBoxAdapter(
-                    child: _buildTabContent(savedPins, popularLocations, hiddenGemLocations),
+                    child: _buildTabContent(
+                        savedPins, popularLocations, hiddenGemLocations),
                   ),
 
                   // Bottom padding
@@ -217,7 +181,10 @@ class _ProfilePageState extends State<ProfilePage>
     );
   }
 
-  Widget _buildTabContent(List<LocationModel> savedPins, List<LocationModel> popularLocations, List<LocationModel> hiddenGemLocations) {
+  Widget _buildTabContent(
+      List<LocationModel> savedPins,
+      List<LocationModel> popularLocations,
+      List<LocationModel> hiddenGemLocations) {
     switch (_selectedTab) {
       case 0:
         return Column(
@@ -262,7 +229,6 @@ class _ProfilePageState extends State<ProfilePage>
     );
   }
 
-
   Widget _buildCollapsedHeader(UserModel user) {
     return Container(
       padding: EdgeInsets.only(
@@ -290,7 +256,7 @@ class _ProfilePageState extends State<ProfilePage>
                 fit: BoxFit.cover,
               ),
               border: Border.all(
-                color: Colors.white.withOpacity(0.5),
+                color: Colors.white.withValues(alpha: 0.5),
                 width: 2,
               ),
             ),
@@ -309,81 +275,156 @@ class _ProfilePageState extends State<ProfilePage>
           ),
           _buildNotificationButton(),
           const SizedBox(width: 8),
-          _buildSettingsButton(),
+          _buildSettingsButton(user),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPinnedTabs() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 10),
+      child: Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.82),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.85)),
+          boxShadow: PinitColors.subtleShadow,
+        ),
+        child: Row(
+          children: _tabs.asMap().entries.map((entry) {
+            final isSelected = entry.key == _selectedTab;
+            final isLast = entry.key == _tabs.length - 1;
+
+            return Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(right: isLast ? 0 : 4),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () {
+                      if (_selectedTab == entry.key) return;
+                      HapticFeedback.selectionClick();
+                      setState(() => _selectedTab = entry.key);
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      decoration: BoxDecoration(
+                        color: isSelected ? Colors.white : Colors.transparent,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: isSelected ? PinitColors.subtleShadow : null,
+                      ),
+                      child: Text(
+                        entry.value,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight:
+                              isSelected ? FontWeight.w700 : FontWeight.w600,
+                          color: isSelected
+                              ? PinitColors.textPrimary
+                              : PinitColors.textSecondary,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
       ),
     );
   }
 
   Widget _buildNotificationButton() {
     final unreadCount = FCMService().unreadCount;
-    return GestureDetector(
+    return _buildHeaderActionButton(
+      icon: Icons.notifications_outlined,
+      badgeCount: unreadCount,
       onTap: () => _showNotifications(context),
-      child: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.15),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withOpacity(0.2)),
-        ),
-        child: Stack(
-          children: [
-            const Center(
-              child: Icon(
-                Icons.notifications_outlined,
-                size: 22,
-                color: Colors.white,
+    );
+  }
+
+  Widget _buildSettingsButton(UserModel user) {
+    return _buildHeaderActionButton(
+      icon: Icons.more_horiz_rounded,
+      onTap: () => _showSettingsSheet(context, user),
+    );
+  }
+
+  Widget _buildHeaderActionButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    int badgeCount = 0,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: Ink(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.13),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.14),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
               ),
-            ),
-            if (unreadCount > 0)
-              Positioned(
-                right: 6,
-                top: 6,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(
-                    color: PinitColors.accent,
-                    shape: BoxShape.circle,
-                  ),
-                  constraints: const BoxConstraints(
-                    minWidth: 18,
-                    minHeight: 18,
-                  ),
-                  child: Center(
-                    child: Text(
-                      unreadCount > 9 ? '9+' : unreadCount.toString(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
+            ],
+          ),
+          child: Stack(
+            children: [
+              Center(
+                child: Icon(
+                  icon,
+                  size: 20,
+                  color: Colors.white,
+                ),
+              ),
+              if (badgeCount > 0)
+                Positioned(
+                  right: 5,
+                  top: 5,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 2,
+                    ),
+                    decoration: const BoxDecoration(
+                      color: PinitColors.accent,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 18,
+                      minHeight: 18,
+                    ),
+                    child: Center(
+                      child: Text(
+                        badgeCount > 9 ? '9+' : badgeCount.toString(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSettingsButton() {
-    return GestureDetector(
-      onTap: () => _showSettingsSheet(context),
-      child: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.15),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withOpacity(0.2)),
-        ),
-        child: const Center(
-          child: Icon(
-            Icons.more_horiz,
-            size: 22,
-            color: Colors.white,
+            ],
           ),
         ),
       ),
@@ -508,99 +549,402 @@ class _ProfilePageState extends State<ProfilePage>
     );
   }
 
-  void _showSettingsSheet(BuildContext context) {
+  void _showSettingsSheet(BuildContext context, UserModel user) {
+    HapticFeedback.mediumImpact();
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: const BoxDecoration(
-          color: PinitColors.background,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      builder: (sheetContext) => _ProfileSettingsSheet(
+        user: user,
+        onEditProfile: () {
+          Navigator.pop(sheetContext);
+          // Navigate to edit profile
+        },
+        onPreferences: () {
+          Navigator.pop(sheetContext);
+          // Navigate to preferences
+        },
+        onShareProfile: () {
+          Navigator.pop(sheetContext);
+          // Share profile
+        },
+        onSignOut: () {
+          Navigator.pop(sheetContext);
+          _handleSignOut(context);
+        },
+      ),
+    );
+  }
+}
+
+class _ProfileSettingsSheet extends StatelessWidget {
+  final UserModel user;
+  final VoidCallback onEditProfile;
+  final VoidCallback onPreferences;
+  final VoidCallback onShareProfile;
+  final VoidCallback onSignOut;
+
+  const _ProfileSettingsSheet({
+    required this.user,
+    required this.onEditProfile,
+    required this.onPreferences,
+    required this.onShareProfile,
+    required this.onSignOut,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+          12, 0, 12, bottomPadding > 0 ? bottomPadding : 12),
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0xFFFFFCFB),
+                PinitColors.background,
+              ],
+            ),
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.10),
+                blurRadius: 32,
+                offset: const Offset(0, 18),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: PinitColors.textMuted.withValues(alpha: 0.22),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  _ProfileSettingsIntro(user: user),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _ProfileSettingsCard(
+                          icon: Icons.draw_rounded,
+                          title: 'Edit Profile',
+                          subtitle: 'Photo, bio, and top vibes',
+                          backgroundColor: const Color(0xFFFFF1EC),
+                          iconBackgroundColor: PinitColors.accentSoft,
+                          iconColor: PinitColors.primary,
+                          onTap: onEditProfile,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _ProfileSettingsCard(
+                          icon: Icons.tune_rounded,
+                          title: 'Preferences',
+                          subtitle: 'Taste, alerts, and privacy',
+                          backgroundColor: const Color(0xFFF5F1EC),
+                          iconBackgroundColor: const Color(0xFFE8E0D7),
+                          iconColor: PinitColors.textPrimary,
+                          onTap: onPreferences,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _ProfileSettingsRow(
+                    icon: Icons.ios_share_rounded,
+                    title: 'Share Profile',
+                    subtitle: 'Send your public profile in one tap',
+                    backgroundColor: Colors.white.withValues(alpha: 0.84),
+                    iconBackgroundColor: const Color(0xFFE9EDF5),
+                    iconColor: const Color(0xFF5D6B89),
+                    onTap: onShareProfile,
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 14),
+                    child: Divider(
+                      color: PinitColors.surfaceLight,
+                      height: 1,
+                    ),
+                  ),
+                  _ProfileSettingsRow(
+                    icon: Icons.logout_rounded,
+                    title: 'Sign Out',
+                    subtitle: 'Log out of this device',
+                    backgroundColor: const Color(0xFFFFF5F2),
+                    iconBackgroundColor: const Color(0xFFFFE5DF),
+                    iconColor: PinitColors.error,
+                    textColor: PinitColors.error,
+                    onTap: onSignOut,
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
-        child: SafeArea(
-          top: false,
+      ),
+    );
+  }
+}
+
+class _ProfileSettingsIntro extends StatelessWidget {
+  final UserModel user;
+
+  const _ProfileSettingsIntro({required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    final imageProvider = user.profileImageUrl != null &&
+            user.profileImageUrl!.isNotEmpty
+        ? NetworkImage(user.profileImageUrl!)
+        : const AssetImage('lib/assets/default_avatar.png') as ImageProvider;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.95)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              image: DecorationImage(
+                image: imageProvider,
+                fit: BoxFit.cover,
+              ),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.9),
+                width: 2,
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Your space',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: PinitColors.primary.withValues(alpha: 0.88),
+                    letterSpacing: 0.1,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  user.name ?? 'Your profile',
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: PinitColors.textPrimary,
+                    letterSpacing: -0.4,
+                    height: 1.05,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Small changes here shape how people discover you on Pinit.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: PinitColors.textSecondary,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileSettingsCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color backgroundColor;
+  final Color iconBackgroundColor;
+  final Color iconColor;
+  final VoidCallback onTap;
+
+  const _ProfileSettingsCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.backgroundColor,
+    required this.iconBackgroundColor,
+    required this.iconColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(24),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: Ink(
+          height: 146,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: PinitColors.cardShadow,
+          ),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 12),
               Container(
-                width: 40,
-                height: 4,
+                width: 42,
+                height: 42,
                 decoration: BoxDecoration(
-                  color: PinitColors.textMuted.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(2),
+                  color: iconBackgroundColor,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: iconColor, size: 20),
+              ),
+              const Spacer(),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: PinitColors.textPrimary,
+                  letterSpacing: -0.3,
                 ),
               ),
-              const SizedBox(height: 24),
-              _buildSettingsItem(
-                icon: Icons.edit_outlined,
-                label: 'Edit Profile',
-                onTap: () {
-                  Navigator.pop(context);
-                  // Navigate to edit profile
-                },
+              const SizedBox(height: 5),
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: PinitColors.textSecondary,
+                  height: 1.3,
+                ),
               ),
-              _buildSettingsItem(
-                icon: Icons.tune_outlined,
-                label: 'Preferences',
-                onTap: () {
-                  Navigator.pop(context);
-                  // Navigate to preferences
-                },
-              ),
-              _buildSettingsItem(
-                icon: Icons.share_outlined,
-                label: 'Share Profile',
-                onTap: () {
-                  Navigator.pop(context);
-                  // Share profile
-                },
-              ),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                child: Divider(color: PinitColors.surfaceLight, height: 1),
-              ),
-              _buildSettingsItem(
-                icon: Icons.logout_outlined,
-                label: 'Sign Out',
-                isDestructive: true,
-                onTap: () {
-                  Navigator.pop(context);
-                  _handleSignOut(context);
-                },
-              ),
-              const SizedBox(height: 16),
             ],
           ),
         ),
       ),
     );
   }
+}
 
-  Widget _buildSettingsItem({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    bool isDestructive = false,
-  }) {
-    final color = isDestructive ? PinitColors.accent : PinitColors.textPrimary;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        child: Row(
-          children: [
-            Icon(icon, size: 24, color: color),
-            const SizedBox(width: 16),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w500,
-                color: color,
+class _ProfileSettingsRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color backgroundColor;
+  final Color iconBackgroundColor;
+  final Color iconColor;
+  final Color? textColor;
+  final VoidCallback onTap;
+
+  const _ProfileSettingsRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.backgroundColor,
+    required this.iconBackgroundColor,
+    required this.iconColor,
+    required this.onTap,
+    this.textColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final titleColor = textColor ?? PinitColors.textPrimary;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: Ink(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: PinitColors.subtleShadow,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: iconBackgroundColor,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: iconColor, size: 20),
               ),
-            ),
-          ],
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: titleColor,
+                        letterSpacing: -0.25,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: PinitColors.textSecondary,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: titleColor.withValues(alpha: 0.55),
+              ),
+            ],
+          ),
         ),
       ),
     );

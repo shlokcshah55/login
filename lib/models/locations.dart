@@ -36,11 +36,31 @@ Map<String, dynamic>? _safeMap(dynamic v) {
 //  Vibe vector tag ordering (matches Python VIBE_TAG_ORDER)
 // ─────────────────────────────────────────────────────────────
 const Map<String, int> vibeTagOrder = {
-  'cafe': 0, 'casual': 1, 'cozy': 2, 'coffee_shop': 3, 'bar': 4,
-  'elegant': 5, 'fine_dining': 6, 'food_truck': 7, 'hole_in_the_wall': 8, 'late_night': 9,
-  'live_music': 10, 'michelin_starred': 11, 'modern': 12, 'fast_food': 13, 'quiet': 14,
-  'romantic': 15, 'sports_bar': 16, 'trendy': 17, 'takeout_friendly': 18, 'pub': 19,
-  'grocery_store': 20, 'brunch': 21, 'outdoor_dining': 22, 'wavy': 23, 'bossman': 24,
+  'cafe': 0,
+  'casual': 1,
+  'cozy': 2,
+  'coffee_shop': 3,
+  'bar': 4,
+  'elegant': 5,
+  'fine_dining': 6,
+  'food_truck': 7,
+  'hole_in_the_wall': 8,
+  'late_night': 9,
+  'live_music': 10,
+  'michelin_starred': 11,
+  'modern': 12,
+  'fast_food': 13,
+  'quiet': 14,
+  'romantic': 15,
+  'sports_bar': 16,
+  'trendy': 17,
+  'takeout_friendly': 18,
+  'pub': 19,
+  'grocery_store': 20,
+  'brunch': 21,
+  'outdoor_dining': 22,
+  'wavy': 23,
+  'bossman': 24,
 };
 
 final List<String> vibeTagsByIndex = (() {
@@ -59,13 +79,17 @@ class VibeVector {
     if (raw == null) return const VibeVector([]);
     if (raw is List) {
       return VibeVector(
-        raw.map((e) => e is num ? e.toDouble() : double.tryParse(e.toString()) ?? 0.0).toList(),
+        raw
+            .map((e) =>
+                e is num ? e.toDouble() : double.tryParse(e.toString()) ?? 0.0)
+            .toList(),
       );
     }
     // Postgres text form: {0.1,0.2,...}
     final s = raw.toString().replaceAll(RegExp(r'^\{|\}$'), '').trim();
     if (s.isEmpty) return const VibeVector([]);
-    return VibeVector(s.split(',').map((e) => double.tryParse(e.trim()) ?? 0.0).toList());
+    return VibeVector(
+        s.split(',').map((e) => double.tryParse(e.trim()) ?? 0.0).toList());
   }
 
   double scoreFor(String tag) {
@@ -144,8 +168,8 @@ class LocationModel {
   final bool? imageStored;
   final DateTime? updatedAt;
   final String? googleMapsUri;
-  final List<Map<String, dynamic>>? photos;   // jsonb[]
-  final List<Map<String, dynamic>>? reviews;  // jsonb[]
+  final List<Map<String, dynamic>>? photos; // jsonb[]
+  final List<Map<String, dynamic>>? reviews; // jsonb[]
   final String? reviewSummary;
   final bool? goodForChildren;
   final bool? goodForGroups;
@@ -167,7 +191,7 @@ class LocationModel {
   final String? recommendedDishes;
   final String? menuAnalysisConfidence;
   final List<double>? vibeVector;
-  final VibeVector? vibe;                     // convenience wrapper
+  final VibeVector? vibe; // convenience wrapper
   final bool? updatedVibe;
   final bool? isTakeaway;
   final List<int>? dietaryRequirementVector;
@@ -175,86 +199,85 @@ class LocationModel {
 
   /// Computed match score (0-1) based on dot product of user affinities.
   /// Null if not yet computed or user has no affinity data.
-  final double? matchScore; 
+  final double? matchScore;
 
   LocationPreference? preference;
 
-
-  LocationModel(
-      {required this.locationId,
-      required this.name,
-      this.vicinity,
-      this.lat,
-      this.lng,
-      required this.createdAt,
-      this.ingestedAt,
-      this.phoneNumber,
-      this.cuisine,
-      this.rating,
-      this.userRatingsTotal,
-      this.priceLevel,
-      this.photoReference,
-      this.imageUrl,
-      this.savedCount,
-      this.googlePlaceId,
-      this.businessStatus,
-      this.editorialSummary,
-      this.website,
-      this.internationalPhoneNumber,
-      this.types,
-      this.openingHoursText,
-      this.openNow,
-      this.cuisineDetected,
-      this.cuisineSource,
-      this.cuisinePrimary,
-      this.topReviewLanguage,
-      this.topLanguageShare,
-      this.reviewLanguageCountsJson,
-      this.isOpenLate,
-      this.isOpenEarly,
-      this.isSundayOpen,
-      this.priceBucket,
-      this.logReviews,
-      this.dataVersion = 'v1',
-      this.emoji,
-      this.preference,
-      // Extended schema fields
-      this.openingHoursPeriods,
-      this.photoReferenceValidUntil,
-      this.photoReferenceScore,
-      this.imageStored,
-      this.updatedAt,
-      this.googleMapsUri,
-      this.photos,
-      this.reviews,
-      this.reviewSummary,
-      this.goodForChildren,
-      this.goodForGroups,
-      this.goodForWatchingSports,
-      this.liveMusic,
-      this.outdoorSeating,
-      this.servesBeer,
-      this.servesBreakfast,
-      this.servesBrunch,
-      this.servesCocktails,
-      this.servesCoffee,
-      this.servesDessert,
-      this.servesDinner,
-      this.servesLunch,
-      this.servesVegetarianFood,
-      this.servesWine,
-      this.menu,
-      this.generatedSummary,
-      this.recommendedDishes,
-      this.menuAnalysisConfidence,
-      this.vibeVector,
-      this.vibe,
-      this.updatedVibe,
-      this.isTakeaway,
-      this.dietaryRequirementVector,
-      this.cuisineScoresJson,
-      this.matchScore,
-      });
+  LocationModel({
+    required this.locationId,
+    required this.name,
+    this.vicinity,
+    this.lat,
+    this.lng,
+    required this.createdAt,
+    this.ingestedAt,
+    this.phoneNumber,
+    this.cuisine,
+    this.rating,
+    this.userRatingsTotal,
+    this.priceLevel,
+    this.photoReference,
+    this.imageUrl,
+    this.savedCount,
+    this.googlePlaceId,
+    this.businessStatus,
+    this.editorialSummary,
+    this.website,
+    this.internationalPhoneNumber,
+    this.types,
+    this.openingHoursText,
+    this.openNow,
+    this.cuisineDetected,
+    this.cuisineSource,
+    this.cuisinePrimary,
+    this.topReviewLanguage,
+    this.topLanguageShare,
+    this.reviewLanguageCountsJson,
+    this.isOpenLate,
+    this.isOpenEarly,
+    this.isSundayOpen,
+    this.priceBucket,
+    this.logReviews,
+    this.dataVersion = 'v1',
+    this.emoji,
+    this.preference,
+    // Extended schema fields
+    this.openingHoursPeriods,
+    this.photoReferenceValidUntil,
+    this.photoReferenceScore,
+    this.imageStored,
+    this.updatedAt,
+    this.googleMapsUri,
+    this.photos,
+    this.reviews,
+    this.reviewSummary,
+    this.goodForChildren,
+    this.goodForGroups,
+    this.goodForWatchingSports,
+    this.liveMusic,
+    this.outdoorSeating,
+    this.servesBeer,
+    this.servesBreakfast,
+    this.servesBrunch,
+    this.servesCocktails,
+    this.servesCoffee,
+    this.servesDessert,
+    this.servesDinner,
+    this.servesLunch,
+    this.servesVegetarianFood,
+    this.servesWine,
+    this.menu,
+    this.generatedSummary,
+    this.recommendedDishes,
+    this.menuAnalysisConfidence,
+    this.vibeVector,
+    this.vibe,
+    this.updatedVibe,
+    this.isTakeaway,
+    this.dietaryRequirementVector,
+    this.cuisineScoresJson,
+    this.matchScore,
+  });
 
   factory LocationModel.fromJson(
       Map<String, dynamic> json, String? locationImage) {
@@ -317,16 +340,23 @@ class LocationModel {
       emoji: json[SupabaseConstants.columnEmoji],
 
       // ── Extended schema fields (all defensively parsed) ──
-      openingHoursPeriods: json[SupabaseConstants.columnOpeningHoursPeriods] is List
-          ? List<dynamic>.from(json[SupabaseConstants.columnOpeningHoursPeriods])
-          : null,
-      photoReferenceValidUntil: json[SupabaseConstants.columnPhotoReferenceValidUntil] != null
-          ? DateTime.tryParse(json[SupabaseConstants.columnPhotoReferenceValidUntil].toString())
-          : null,
-      photoReferenceScore: json[SupabaseConstants.columnPhotoReferenceScore]?.toString(),
+      openingHoursPeriods:
+          json[SupabaseConstants.columnOpeningHoursPeriods] is List
+              ? List<dynamic>.from(
+                  json[SupabaseConstants.columnOpeningHoursPeriods])
+              : null,
+      photoReferenceValidUntil:
+          json[SupabaseConstants.columnPhotoReferenceValidUntil] != null
+              ? DateTime.tryParse(
+                  json[SupabaseConstants.columnPhotoReferenceValidUntil]
+                      .toString())
+              : null,
+      photoReferenceScore:
+          json[SupabaseConstants.columnPhotoReferenceScore]?.toString(),
       imageStored: _safeBool(json[SupabaseConstants.columnImageStored]),
       updatedAt: json[SupabaseConstants.columnUpdatedAt] != null
-          ? DateTime.tryParse(json[SupabaseConstants.columnUpdatedAt].toString())
+          ? DateTime.tryParse(
+              json[SupabaseConstants.columnUpdatedAt].toString())
           : null,
       googleMapsUri: json[SupabaseConstants.columnGoogleMapsUri]?.toString(),
       photos: _safeList<Map<String, dynamic>>(
@@ -340,7 +370,8 @@ class LocationModel {
       reviewSummary: json[SupabaseConstants.columnReviewSummary]?.toString(),
       goodForChildren: _safeBool(json[SupabaseConstants.columnGoodForChildren]),
       goodForGroups: _safeBool(json[SupabaseConstants.columnGoodForGroups]),
-      goodForWatchingSports: _safeBool(json[SupabaseConstants.columnGoodForWatchingSports]),
+      goodForWatchingSports:
+          _safeBool(json[SupabaseConstants.columnGoodForWatchingSports]),
       liveMusic: _safeBool(json[SupabaseConstants.columnLiveMusic]),
       outdoorSeating: _safeBool(json[SupabaseConstants.columnOutdoorSeating]),
       servesBeer: _safeBool(json[SupabaseConstants.columnServesBeer]),
@@ -351,14 +382,19 @@ class LocationModel {
       servesDessert: _safeBool(json[SupabaseConstants.columnServesDessert]),
       servesDinner: _safeBool(json[SupabaseConstants.columnServesDinner]),
       servesLunch: _safeBool(json[SupabaseConstants.columnServesLunch]),
-      servesVegetarianFood: _safeBool(json[SupabaseConstants.columnServesVegetarianFood]),
+      servesVegetarianFood:
+          _safeBool(json[SupabaseConstants.columnServesVegetarianFood]),
       servesWine: _safeBool(json[SupabaseConstants.columnServesWine]),
       menu: json[SupabaseConstants.columnMenu]?.toString(),
-      generatedSummary: json[SupabaseConstants.columnGeneratedSummary]?.toString(),
-      recommendedDishes: json[SupabaseConstants.columnRecommendedDishes]?.toString(),
-      menuAnalysisConfidence: json[SupabaseConstants.columnMenuAnalysisConfidence]?.toString(),
+      generatedSummary:
+          json[SupabaseConstants.columnGeneratedSummary]?.toString(),
+      recommendedDishes:
+          json[SupabaseConstants.columnRecommendedDishes]?.toString(),
+      menuAnalysisConfidence:
+          json[SupabaseConstants.columnMenuAnalysisConfidence]?.toString(),
       vibeVector: json[SupabaseConstants.columnVibeVector] != null
-          ? VibeVector.fromDynamic(json[SupabaseConstants.columnVibeVector]).toList()
+          ? VibeVector.fromDynamic(json[SupabaseConstants.columnVibeVector])
+              .toList()
           : null,
       vibe: json[SupabaseConstants.columnVibeVector] != null
           ? VibeVector.fromDynamic(json[SupabaseConstants.columnVibeVector])
@@ -369,7 +405,8 @@ class LocationModel {
         json[SupabaseConstants.columnDietaryRequirementVector],
         (e) => (e as num).toInt(),
       ),
-      cuisineScoresJson: _safeMap(json[SupabaseConstants.columnCuisineScoresJson]),
+      cuisineScoresJson:
+          _safeMap(json[SupabaseConstants.columnCuisineScoresJson]),
       matchScore: null, // Set separately after fetching user affinity data
     );
   }
@@ -462,7 +499,8 @@ class LocationModel {
     if (openingHoursPeriods != null)
       data[SupabaseConstants.columnOpeningHoursPeriods] = openingHoursPeriods;
     if (photoReferenceValidUntil != null)
-      data[SupabaseConstants.columnPhotoReferenceValidUntil] = photoReferenceValidUntil!.toIso8601String();
+      data[SupabaseConstants.columnPhotoReferenceValidUntil] =
+          photoReferenceValidUntil!.toIso8601String();
     if (photoReferenceScore != null)
       data[SupabaseConstants.columnPhotoReferenceScore] = photoReferenceScore;
     if (imageStored != null)
@@ -480,11 +518,13 @@ class LocationModel {
     if (goodForGroups != null)
       data[SupabaseConstants.columnGoodForGroups] = goodForGroups;
     if (goodForWatchingSports != null)
-      data[SupabaseConstants.columnGoodForWatchingSports] = goodForWatchingSports;
+      data[SupabaseConstants.columnGoodForWatchingSports] =
+          goodForWatchingSports;
     if (liveMusic != null) data[SupabaseConstants.columnLiveMusic] = liveMusic;
     if (outdoorSeating != null)
       data[SupabaseConstants.columnOutdoorSeating] = outdoorSeating;
-    if (servesBeer != null) data[SupabaseConstants.columnServesBeer] = servesBeer;
+    if (servesBeer != null)
+      data[SupabaseConstants.columnServesBeer] = servesBeer;
     if (servesBreakfast != null)
       data[SupabaseConstants.columnServesBreakfast] = servesBreakfast;
     if (servesBrunch != null)
@@ -501,14 +541,16 @@ class LocationModel {
       data[SupabaseConstants.columnServesLunch] = servesLunch;
     if (servesVegetarianFood != null)
       data[SupabaseConstants.columnServesVegetarianFood] = servesVegetarianFood;
-    if (servesWine != null) data[SupabaseConstants.columnServesWine] = servesWine;
+    if (servesWine != null)
+      data[SupabaseConstants.columnServesWine] = servesWine;
     if (menu != null) data[SupabaseConstants.columnMenu] = menu;
     if (generatedSummary != null)
       data[SupabaseConstants.columnGeneratedSummary] = generatedSummary;
     if (recommendedDishes != null)
       data[SupabaseConstants.columnRecommendedDishes] = recommendedDishes;
     if (menuAnalysisConfidence != null)
-      data[SupabaseConstants.columnMenuAnalysisConfidence] = menuAnalysisConfidence;
+      data[SupabaseConstants.columnMenuAnalysisConfidence] =
+          menuAnalysisConfidence;
     if (vibeVector != null)
       data[SupabaseConstants.columnVibeVector] = vibeVector;
     if (updatedVibe != null)
@@ -516,7 +558,8 @@ class LocationModel {
     if (isTakeaway != null)
       data[SupabaseConstants.columnIsTakeaway] = isTakeaway;
     if (dietaryRequirementVector != null)
-      data[SupabaseConstants.columnDietaryRequirementVector] = dietaryRequirementVector;
+      data[SupabaseConstants.columnDietaryRequirementVector] =
+          dietaryRequirementVector;
     if (cuisineScoresJson != null)
       data[SupabaseConstants.columnCuisineScoresJson] = cuisineScoresJson;
 
@@ -641,7 +684,8 @@ class LocationModel {
       emoji: emoji ?? this.emoji,
       // Extended schema fields
       openingHoursPeriods: openingHoursPeriods ?? this.openingHoursPeriods,
-      photoReferenceValidUntil: photoReferenceValidUntil ?? this.photoReferenceValidUntil,
+      photoReferenceValidUntil:
+          photoReferenceValidUntil ?? this.photoReferenceValidUntil,
       photoReferenceScore: photoReferenceScore ?? this.photoReferenceScore,
       imageStored: imageStored ?? this.imageStored,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -651,7 +695,8 @@ class LocationModel {
       reviewSummary: reviewSummary ?? this.reviewSummary,
       goodForChildren: goodForChildren ?? this.goodForChildren,
       goodForGroups: goodForGroups ?? this.goodForGroups,
-      goodForWatchingSports: goodForWatchingSports ?? this.goodForWatchingSports,
+      goodForWatchingSports:
+          goodForWatchingSports ?? this.goodForWatchingSports,
       liveMusic: liveMusic ?? this.liveMusic,
       outdoorSeating: outdoorSeating ?? this.outdoorSeating,
       servesBeer: servesBeer ?? this.servesBeer,
@@ -667,12 +712,14 @@ class LocationModel {
       menu: menu ?? this.menu,
       generatedSummary: generatedSummary ?? this.generatedSummary,
       recommendedDishes: recommendedDishes ?? this.recommendedDishes,
-      menuAnalysisConfidence: menuAnalysisConfidence ?? this.menuAnalysisConfidence,
+      menuAnalysisConfidence:
+          menuAnalysisConfidence ?? this.menuAnalysisConfidence,
       vibeVector: vibeVector ?? this.vibeVector,
       vibe: vibe ?? this.vibe,
       updatedVibe: updatedVibe ?? this.updatedVibe,
       isTakeaway: isTakeaway ?? this.isTakeaway,
-      dietaryRequirementVector: dietaryRequirementVector ?? this.dietaryRequirementVector,
+      dietaryRequirementVector:
+          dietaryRequirementVector ?? this.dietaryRequirementVector,
       cuisineScoresJson: cuisineScoresJson ?? this.cuisineScoresJson,
       matchScore: matchScore ?? this.matchScore,
     );
@@ -732,7 +779,8 @@ class LocationModel {
         locationDietaryVector != null &&
         locationDietaryVector.isNotEmpty) {
       double dot = 0, magA = 0, magB = 0;
-      final len = math.min(userDietaryAffinity.length, locationDietaryVector.length);
+      final len =
+          math.min(userDietaryAffinity.length, locationDietaryVector.length);
       for (var i = 0; i < len; i++) {
         final a = userDietaryAffinity[i].toDouble();
         final b = locationDietaryVector[i].toDouble();
@@ -802,6 +850,59 @@ class LocationModel {
     return this;
   }
 
+  String? _formatTopVibeTag(String rawTag) {
+    switch (rawTag) {
+      case 'coffee_shop':
+        return 'coffee shop';
+      case 'fine_dining':
+        return 'fine dining';
+      case 'hole_in_the_wall':
+        return 'hidden spot';
+      case 'takeout_friendly':
+        return 'takeout';
+      case 'late_night':
+        return 'late night';
+      case 'live_music':
+        return 'live music';
+      case 'outdoor_dining':
+        return 'outdoor';
+      default:
+        return rawTag.replaceAll('_', ' ');
+    }
+  }
+
+  String? get topVibeTagLabel {
+    final tags = vibe?.topTags(5) ?? <MapEntry<String, double>>[];
+    for (final tag in tags) {
+      if (tag.value < 0.22) continue;
+      if (tag.key == 'wavy' || tag.key == 'bossman') continue;
+      return _formatTopVibeTag(tag.key);
+    }
+    return null;
+  }
+
+  String? get markerBadgeType {
+    if ((matchScore ?? 0.0) > 0.7) {
+      return PinitMarkerBadgeType.sparkle;
+    }
+    if (liveMusic == true) {
+      return PinitMarkerBadgeType.liveMusic;
+    }
+    if (servesCocktails == true) {
+      return PinitMarkerBadgeType.cocktails;
+    }
+    if (outdoorSeating == true) {
+      return PinitMarkerBadgeType.outdoor;
+    }
+    if ((savedCount ?? 0) > 10) {
+      return PinitMarkerBadgeType.trending;
+    }
+    if (isOpenLate == true) {
+      return PinitMarkerBadgeType.late;
+    }
+    return null;
+  }
+
   /// Creates map marker data from this location.
   /// Returns [MapMarkerData] containing the rendered PNG bytes for Mapbox annotation.
   ///
@@ -810,7 +911,8 @@ class LocationModel {
   ///  • Wavy places get an iridescent shimmer ring + colour-fringe glow
   ///  • Bossman places are visually de-saturated / muted
   ///  • High saved-count places glow more intensely
-  Future<MapMarkerData?> toMarker(double dpr, {bool shouldShowName = true}) async {
+  Future<MapMarkerData?> toMarker(double dpr,
+      {bool shouldShowName = true}) async {
     if (lat == null || lng == null) return null;
 
     String emojiToUse = emoji != null && emoji!.isNotEmpty ? emoji! : '📍';
@@ -830,6 +932,7 @@ class LocationModel {
       bossmanScore: bossmanScore,
       savedCount: savedCount ?? 0,
       matchScore: matchScore ?? 0.0,
+      badgeType: markerBadgeType,
     );
 
     return MapMarkerData(

@@ -155,11 +155,25 @@ class LocationService with ChangeNotifier {
 
     try {
       _log('Fetching current position...');
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 15),
-      );
-      
+      Position position;
+      try {
+        position = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            timeLimit: Duration(seconds: 15),
+          ),
+        );
+      } on TimeoutException {
+        // Retry with lower accuracy — faster GPS lock
+        _log('High-accuracy timed out, retrying with medium accuracy...');
+        position = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.medium,
+            timeLimit: Duration(seconds: 20),
+          ),
+        );
+      }
+
       _currentPosition = LatLng(position.latitude, position.longitude);
       _error = null;
       _log('Got position: $_currentPosition');
@@ -167,7 +181,7 @@ class LocationService with ChangeNotifier {
       return _currentPosition;
     } on TimeoutException {
       _error = 'Location request timed out. Please try again.';
-      _log('Location request timed out');
+      _log('Location request timed out after retry');
       notifyListeners();
       return null;
     } on LocationServiceDisabledException {
