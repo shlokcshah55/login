@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:login/themes/app_typography.dart';
 
 /// Single Decide CTA styled to match the mode toggle —
 /// dark Pinit brand pill with lighter text.
@@ -76,7 +76,7 @@ class _DecideButtonState extends State<DecideButton>
                   const SizedBox(width: 6),
                   Text(
                     'Decide',
-                    style: GoogleFonts.poppins(
+                    style: AppTypography.brand(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: _textColor,

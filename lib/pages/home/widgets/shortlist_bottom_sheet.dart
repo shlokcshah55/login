@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/providers/shortlist_provider.dart';
+import 'package:login/themes/app_typography.dart';
 import 'package:provider/provider.dart';
 
 /// Bottom sheet listing shortlisted places with remove actions.
@@ -39,7 +39,7 @@ class ShortlistBottomSheet extends StatelessWidget {
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.15),
+                color: Colors.black.withValues(alpha: 0.15),
                 blurRadius: 20,
                 offset: const Offset(0, -4),
               ),
@@ -73,7 +73,7 @@ class ShortlistBottomSheet extends StatelessWidget {
                     const SizedBox(width: 10),
                     Text(
                       'Shortlist (${shortlist.count})',
-                      style: GoogleFonts.poppins(
+                      style: AppTypography.brand(
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
                         color: isDark ? Colors.white : Colors.black87,
@@ -88,7 +88,7 @@ class ShortlistBottomSheet extends StatelessWidget {
                         },
                         child: Text(
                           'Clear all',
-                          style: GoogleFonts.poppins(
+                          style: AppTypography.brand(
                             fontSize: 12,
                             color: Colors.redAccent,
                             fontWeight: FontWeight.w500,
@@ -114,7 +114,7 @@ class ShortlistBottomSheet extends StatelessWidget {
                       const SizedBox(height: 12),
                       Text(
                         'No places shortlisted yet',
-                        style: GoogleFonts.poppins(
+                        style: AppTypography.sans(
                           fontSize: 14,
                           color: isDark ? Colors.white38 : Colors.black38,
                         ),
@@ -122,7 +122,7 @@ class ShortlistBottomSheet extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         'Add places you\'re actively considering',
-                        style: GoogleFonts.poppins(
+                        style: AppTypography.sans(
                           fontSize: 12,
                           color: isDark ? Colors.white24 : Colors.black26,
                         ),
@@ -210,7 +210,7 @@ class _ShortlistItem extends StatelessWidget {
               children: [
                 Text(
                   location.name,
-                  style: GoogleFonts.poppins(
+                  style: AppTypography.brand(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: isDark ? Colors.white : Colors.black87,
@@ -221,7 +221,7 @@ class _ShortlistItem extends StatelessWidget {
                 if (location.cuisine != null)
                   Text(
                     location.cuisine!,
-                    style: GoogleFonts.poppins(
+                    style: AppTypography.sans(
                       fontSize: 11,
                       color: isDark ? Colors.white38 : Colors.black38,
                     ),
@@ -237,7 +237,7 @@ class _ShortlistItem extends StatelessWidget {
             const SizedBox(width: 2),
             Text(
               location.rating!.toStringAsFixed(1),
-              style: GoogleFonts.poppins(
+              style: AppTypography.sans(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: isDark ? Colors.white60 : Colors.black54,

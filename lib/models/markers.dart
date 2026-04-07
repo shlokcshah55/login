@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:login/themes/app_typography.dart';
 
 // ─────────────────────────────────────────────────────────────
 //  Colour palette for cuisine / place types
@@ -1224,7 +1225,7 @@ class PinitMarkers {
     final tp = TextPainter(
       text: TextSpan(
         text: label,
-        style: GoogleFonts.poppins(
+        style: AppTypography.brand(
           color: Colors.white,
           fontSize: diameter * 0.45,
           fontWeight: FontWeight.w700,

@@ -1,6 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:login/themes/app_typography.dart';
 import 'package:login/themes/pinit_colors.dart';
 import 'package:login/themes/pinit_theme.dart';
 
@@ -61,7 +61,7 @@ class _ShortlistPillState extends State<ShortlistPill> {
               const SizedBox(width: 6),
               Text(
                 'Shortlist (${widget.count})',
-                style: GoogleFonts.poppins(
+                style: AppTypography.brand(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w600,
                   color: c.textPrimary,

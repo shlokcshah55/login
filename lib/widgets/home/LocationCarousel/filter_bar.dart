@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:login/providers/location_list_provider.dart';
-import 'package:google_fonts/google_fonts.dart'; // For font consistency
+import 'package:login/themes/app_typography.dart';
 
 class FilterBar extends StatelessWidget {
   final LocationListType currentListType;
@@ -29,7 +29,9 @@ class FilterBar extends StatelessWidget {
         avatar: Icon(
           icon,
           size: 18,
-          color: isSelected ? colorScheme.onPrimary : colorScheme.onSurfaceVariant, // Use onPrimary for selected icon
+          color: isSelected
+              ? colorScheme.onPrimary
+              : colorScheme.onSurfaceVariant, // Use onPrimary for selected icon
         ),
         selected: isSelected,
         onSelected: (selected) {
@@ -37,23 +39,34 @@ class FilterBar extends StatelessWidget {
             onListTypeChanged(listType);
           }
         },
-        backgroundColor: isSelected ? colorScheme.primary.withOpacity(0.15) : colorScheme.surface.withOpacity(0.8), // Subtle background
+        backgroundColor: isSelected
+            ? colorScheme.primary.withValues(alpha: 0.15)
+            : colorScheme.surface.withValues(alpha: 0.8), // Subtle background
         selectedColor: colorScheme.primary, // Solid primary color when selected
-        labelStyle: GoogleFonts.poppins( // Using Poppins for consistency
+        labelStyle: AppTypography.brand(
           fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-          color: isSelected ? colorScheme.onPrimary : colorScheme.onSurfaceVariant, // Use onPrimary for selected text
+          color: isSelected
+              ? colorScheme.onPrimary
+              : colorScheme.onSurfaceVariant, // Use onPrimary for selected text
           fontSize: 13,
         ),
-        shape: RoundedRectangleBorder( // Slightly less rounded, more modern
-            borderRadius: BorderRadius.circular(20.0),
+        shape: RoundedRectangleBorder(
+          // Slightly less rounded, more modern
+          borderRadius: BorderRadius.circular(20.0),
         ),
         side: isSelected
-            ? BorderSide(color: colorScheme.primary, width: 1.5) // Border for selected chip
-            : BorderSide(color: colorScheme.outline.withOpacity(0.3)), // Subtle border for unselected
-        padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 9.0), // Adjusted padding
+            ? BorderSide(
+                color: colorScheme.primary,
+                width: 1.5) // Border for selected chip
+            : BorderSide(
+                color: colorScheme.outline
+                    .withValues(alpha: 0.3)), // Subtle border for unselected
+        padding: const EdgeInsets.symmetric(
+            horizontal: 14.0, vertical: 9.0), // Adjusted padding
         elevation: isSelected ? 1.0 : 0, // Slight elevation for selected
         pressElevation: 0,
-        showCheckmark: false, // Usually not needed if visual distinction is clear
+        showCheckmark:
+            false, // Usually not needed if visual distinction is clear
       ),
     );
   }
@@ -64,7 +77,8 @@ class FilterBar extends StatelessWidget {
     // Its background is determined by the _buildFloatingHeaderControls container.
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 12.0), // Padding for scroll content
+      padding: const EdgeInsets.symmetric(
+          horizontal: 12.0), // Padding for scroll content
       child: Row(
         // No MainAxisAlignment.center needed if it's part of a full-width header that scrolls
         children: [
@@ -84,7 +98,8 @@ class FilterBar extends StatelessWidget {
             context: context,
             label: "Near Me", // Changed from "Search" as search is now global
             icon: Icons.near_me_rounded, // More appropriate icon
-            listType: LocationListType.search, // Assuming 'search' type means 'nearby' or 'current results'
+            listType: LocationListType
+                .search, // Assuming 'search' type means 'nearby' or 'current results'
           ),
           // You could add more filters here if needed
         ],

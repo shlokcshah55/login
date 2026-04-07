@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'dart:ui';
+import 'package:login/themes/app_typography.dart';
 
 class HomeActionPillButton extends StatefulWidget {
   final String label;
@@ -66,25 +65,32 @@ class _HomeActionPillButtonState extends State<HomeActionPillButton>
           return Transform.scale(
             scale: _scaleAnim.value,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(50),
                 gradient: LinearGradient(
-                  colors: widget.gradientColors.map((c) =>
-                    Color.lerp(c, c.withOpacity(0.85), _glowAnim.value)!
-                  ).toList(),
+                  colors: widget.gradientColors
+                      .map(
+                        (c) => Color.lerp(
+                          c,
+                          c.withValues(alpha: 0.85),
+                          _glowAnim.value,
+                        )!,
+                      )
+                      .toList(),
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 border: Border.all(
-                  color: widget.foregroundColor.withOpacity(0.15),
+                  color: widget.foregroundColor.withValues(alpha: 0.15),
                   width: 0.5,
                 ),
                 boxShadow: [
                   // Soft colored glow beneath
                   BoxShadow(
-                    color: widget.gradientColors.first.withOpacity(
-                      0.3 + (_glowAnim.value * 0.15),
+                    color: widget.gradientColors.first.withValues(
+                      alpha: 0.3 + (_glowAnim.value * 0.15),
                     ),
                     blurRadius: 12 + (_glowAnim.value * 4),
                     offset: const Offset(0, 4),
@@ -92,7 +98,7 @@ class _HomeActionPillButtonState extends State<HomeActionPillButton>
                   ),
                   // Subtle inner highlight
                   BoxShadow(
-                    color: Colors.white.withOpacity(0.08),
+                    color: Colors.white.withValues(alpha: 0.08),
                     blurRadius: 1,
                     offset: const Offset(0, -0.5),
                   ),
@@ -105,12 +111,12 @@ class _HomeActionPillButtonState extends State<HomeActionPillButton>
                   Icon(
                     widget.icon,
                     size: 13.0,
-                    color: widget.foregroundColor.withOpacity(0.9),
+                    color: widget.foregroundColor.withValues(alpha: 0.9),
                   ),
                   const SizedBox(height: 4.0),
                   Text(
                     widget.label,
-                    style: GoogleFonts.poppins(
+                    style: AppTypography.brand(
                       color: widget.foregroundColor,
                       fontSize: 11.0,
                       fontWeight: FontWeight.w600,

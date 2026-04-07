@@ -1,6 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:login/themes/app_typography.dart';
 import 'package:login/themes/pinit_colors.dart';
 import 'package:login/themes/pinit_theme.dart';
 
@@ -111,19 +111,15 @@ class _ChipState extends State<_Chip> {
               Icon(
                 widget.icon,
                 size: 14,
-                color: widget.isActive
-                    ? c.textOnPurple
-                    : c.textSecondary,
+                color: widget.isActive ? c.textOnPurple : c.textSecondary,
               ),
               const SizedBox(width: 6),
               Text(
                 widget.label,
-                style: GoogleFonts.poppins(
+                style: AppTypography.brand(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: widget.isActive
-                      ? c.textOnPurple
-                      : c.textPrimary,
+                  color: widget.isActive ? c.textOnPurple : c.textPrimary,
                   letterSpacing: 0.1,
                 ),
               ),

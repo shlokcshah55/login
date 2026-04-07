@@ -86,6 +86,14 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  fonts:
+    - family: Rova
+      fonts:
+        - asset: rova-font/RovaRegular-5yV0a.ttf
+    - family: Manrope
+      fonts:
+        - asset: assets/fonts/Manrope-VF.ttf
+
   # To add assets to your application, add an assets section, like this:
   assets:
     - lib/assets/map_style.json

@@ -139,6 +139,15 @@ class MapStateProvider with ChangeNotifier {
     _geoJsonLayerService!.markLocationAsRecentlySaved(locationId);
   }
 
+  void pulseLocation(int locationId) {
+    if (!_useGeoJsonLayers || _geoJsonLayerService == null) {
+      _pendingRecentSaveBounces.add(locationId);
+      return;
+    }
+
+    _geoJsonLayerService!.pulseLocation(locationId);
+  }
+
   /// Handle a tap on the map at the given screen coordinates.
   ///
   /// Delegates to GeoJSON layer service if using GeoJSON mode.

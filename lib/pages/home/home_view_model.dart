@@ -7,19 +7,29 @@ import 'package:login/controllers/home_controller.dart';
 import 'package:login/models/bubble.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/pages/home/widgets/mode_toggle.dart';
+import 'package:login/pages/home/search/header_search_coordinator.dart';
+import 'package:login/pages/home/search/header_search_types.dart';
+import 'package:login/pages/home/search/live_header_search_repository.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:login/providers/nav_bar/visibility_provider.dart';
 import 'package:login/providers/shortlist_provider.dart';
+import 'package:login/providers/user_data_provider.dart';
+import 'package:login/supabase/service.dart';
 
 class HomeViewModel extends ChangeNotifier {
   final LocationListManager locationListManager;
   final MapStateProvider mapStateProvider;
   final BottomNavVisibilityProvider bottomNavVisibilityProvider;
   final ShortlistProvider shortlistProvider;
+  final SupabaseService supabaseService;
+  final UserDataProvider userDataProvider;
   late final HomeController _homeController;
+  late final HeaderSearchCoordinator _headerSearchCoordinator;
 
-  final TextEditingController searchController = TextEditingController();
+  final TextEditingController magicSearchController = TextEditingController();
+  final TextEditingController headerSearchController = TextEditingController();
+  final FocusNode headerSearchFocusNode = FocusNode();
   final PageController pageController = PageController(viewportFraction: 0.80);
 
   // ── Overlay state ─────────────────────────────────────────────
@@ -40,17 +50,28 @@ class HomeViewModel extends ChangeNotifier {
   bool _isBubbleModeActive = false;
   Bubble? _activeBubble;
   bool _initialRecommendationsFetched = false;
+  String? _selectedMarkerBeforeHeaderPreview;
 
   HomeViewModel({
     required this.locationListManager,
     required this.mapStateProvider,
     required this.bottomNavVisibilityProvider,
     required this.shortlistProvider,
+    required this.supabaseService,
+    required this.userDataProvider,
   }) {
     _homeController = HomeController(
       locationListManager: locationListManager,
       mapStateProvider: mapStateProvider,
     );
+    _headerSearchCoordinator = HeaderSearchCoordinator(
+      repository: LiveHeaderSearchRepository(
+        locationListManager: locationListManager,
+        userDataProvider: userDataProvider,
+        supabaseService: supabaseService,
+      ),
+    );
+    _headerSearchCoordinator.addListener(_onHeaderSearchChanged);
   }
 
   // ── Getters ───────────────────────────────────────────────────
@@ -71,6 +92,9 @@ class HomeViewModel extends ChangeNotifier {
   bool get isLoadingRecommendations =>
       locationListManager.isLoadingRecommendations ||
       locationListManager.isSearchingArea;
+  HeaderSearchState get headerSearchState => _headerSearchCoordinator.state;
+  bool get isHeaderSearchActive => headerSearchState.isActive;
+  bool get isHeaderSearchPreviewing => headerSearchState.isPreviewingMap;
 
   // ── Mode toggle ───────────────────────────────────────────────
   HomeMode get homeMode => _homeMode;
@@ -183,6 +207,10 @@ class HomeViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _onHeaderSearchChanged() {
+    notifyListeners();
+  }
+
   // ── Map interactions ──────────────────────────────────────────
 
   void onMapTap() {
@@ -218,6 +246,84 @@ class HomeViewModel extends ChangeNotifier {
     locationListManager.setCurrentListType(type);
   }
 
+  // ── Header search surface ─────────────────────────────────────
+
+  Future<void> openHeaderSearch() async {
+    await _headerSearchCoordinator.open();
+  }
+
+  void closeHeaderSearch() {
+    headerSearchFocusNode.unfocus();
+    headerSearchController.clear();
+    _headerSearchCoordinator.close();
+  }
+
+  void updateHeaderSearchQuery(String query) {
+    _headerSearchCoordinator.updateQuery(query);
+  }
+
+  void applyHeaderSearchSuggestionQuery(String query) {
+    final trimmed = query.trim();
+    headerSearchController.value = headerSearchController.value.copyWith(
+      text: trimmed,
+      selection: TextSelection.collapsed(offset: trimmed.length),
+      composing: TextRange.empty,
+    );
+    _headerSearchCoordinator.updateQuery(trimmed, debounce: Duration.zero);
+  }
+
+  Future<void> rememberHeaderSearchQuery(String query) async {
+    await _headerSearchCoordinator.rememberQuery(query);
+  }
+
+  Future<void> selectHeaderSearchLocation(
+    LocationModel location, {
+    String? query,
+  }) async {
+    final valueToRemember = (query ?? headerSearchState.query).trim();
+    if (valueToRemember.isNotEmpty) {
+      await _headerSearchCoordinator.rememberQuery(valueToRemember);
+    }
+
+    await locationListManager.focusSingleLocation(location);
+    mapStateProvider.setSelectedMarkerId(location.locationId.toString());
+    if (location.position != null) {
+      await mapStateProvider.animateCamera(location.position!, zoom: 15.2);
+    }
+    closeHeaderSearch();
+  }
+
+  Future<void> startHeaderSearchPreview(LocationModel location) async {
+    _selectedMarkerBeforeHeaderPreview ??= mapStateProvider.selectedMarkerId;
+    _headerSearchCoordinator.beginPreview(location);
+    mapStateProvider.setSelectedMarkerId(location.locationId.toString());
+    mapStateProvider.pulseLocation(location.locationId);
+    if (location.position != null) {
+      await mapStateProvider.animateCamera(location.position!, zoom: 15.8);
+    }
+  }
+
+  Future<void> endHeaderSearchPreview() async {
+    final selectedMarkerId = _selectedMarkerBeforeHeaderPreview;
+    _selectedMarkerBeforeHeaderPreview = null;
+    _headerSearchCoordinator.endPreview();
+    if (selectedMarkerId == null) {
+      return;
+    }
+
+    mapStateProvider.setSelectedMarkerId(selectedMarkerId);
+    LocationModel? location;
+    for (final item in locations) {
+      if (item.locationId.toString() == selectedMarkerId) {
+        location = item;
+        break;
+      }
+    }
+    if (location?.position != null) {
+      await mapStateProvider.animateCamera(location!.position!);
+    }
+  }
+
   // ── Search overlay ────────────────────────────────────────────
 
   void toggleSearchOverlay(bool visible) {
@@ -232,7 +338,7 @@ class HomeViewModel extends ChangeNotifier {
 
     log("HomeViewModel: Triggering magic search for: $trimmed");
 
-    searchController.clear();
+    magicSearchController.clear();
     toggleSearchOverlay(false);
 
     await locationListManager.magicSearch(trimmed);
@@ -432,12 +538,16 @@ class HomeViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    _headerSearchCoordinator.removeListener(_onHeaderSearchChanged);
     mapStateProvider.removeListener(_onSelectedMarkerChanged);
     locationListManager.removeListener(_onExternalStateChanged);
     bottomNavVisibilityProvider.removeListener(_onExternalStateChanged);
     shortlistProvider.removeListener(_onExternalStateChanged);
     pageController.dispose();
-    searchController.dispose();
+    magicSearchController.dispose();
+    headerSearchController.dispose();
+    headerSearchFocusNode.dispose();
+    _headerSearchCoordinator.dispose();
     _debounce?.cancel();
     super.dispose();
   }

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:login/themes/app_typography.dart';
 
 class GavelOverlay extends StatelessWidget {
   final double selectedMinutes;
@@ -25,7 +25,7 @@ class GavelOverlay extends StatelessWidget {
           child: GestureDetector(
             onTap: onClose,
             child: Container(
-              color: Colors.black.withOpacity(0.5),
+              color: Colors.black.withValues(alpha: 0.5),
             ),
           ),
         ),
@@ -39,7 +39,7 @@ class GavelOverlay extends StatelessWidget {
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
+                  color: Colors.black.withValues(alpha: 0.3),
                   blurRadius: 20,
                   spreadRadius: 5,
                   offset: const Offset(0, 10),
@@ -60,7 +60,7 @@ class GavelOverlay extends StatelessWidget {
                     const SizedBox(width: 12),
                     Text(
                       "Just decide",
-                      style: GoogleFonts.poppins(
+                      style: AppTypography.brand(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
                         color: theme.textTheme.titleLarge?.color,
@@ -79,16 +79,18 @@ class GavelOverlay extends StatelessWidget {
                 const SizedBox(height: 12),
                 Text(
                   "Do you just want a place to go without the effort of making a decision, just decide how far you want to walk from where you are and we will give you 5 good options to go to!",
-                  style: GoogleFonts.poppins(
+                  style: AppTypography.sans(
                     fontSize: 14,
-                    color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                    color: theme.textTheme.bodyMedium?.color?.withValues(
+                      alpha: 0.7,
+                    ),
                     height: 1.4,
                   ),
                 ),
                 const SizedBox(height: 24),
                 Text(
                   "${selectedMinutes.round()} minutes walk",
-                  style: GoogleFonts.poppins(
+                  style: AppTypography.brand(
                     fontSize: 20,
                     fontWeight: FontWeight.w600,
                     color: theme.textTheme.bodyLarge?.color,
@@ -98,9 +100,11 @@ class GavelOverlay extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   "~${(selectedMinutes * 5 / 60).toStringAsFixed(1)} km",
-                  style: GoogleFonts.poppins(
+                  style: AppTypography.sans(
                     fontSize: 16,
-                    color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
+                    color: theme.textTheme.bodyMedium?.color?.withValues(
+                      alpha: 0.6,
+                    ),
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -108,10 +112,21 @@ class GavelOverlay extends StatelessWidget {
                 SliderTheme(
                   data: SliderTheme.of(context).copyWith(
                     activeTrackColor: const Color.fromARGB(255, 68, 95, 12),
-                    inactiveTrackColor: const Color.fromARGB(255, 68, 95, 12).withOpacity(0.3),
+                    inactiveTrackColor: const Color.fromARGB(
+                      255,
+                      68,
+                      95,
+                      12,
+                    ).withValues(alpha: 0.3),
                     thumbColor: const Color.fromARGB(255, 68, 95, 12),
-                    overlayColor: const Color.fromARGB(255, 68, 95, 12).withOpacity(0.2),
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 12.0),
+                    overlayColor: const Color.fromARGB(
+                      255,
+                      68,
+                      95,
+                      12,
+                    ).withValues(alpha: 0.2),
+                    thumbShape:
+                        const RoundSliderThumbShape(enabledThumbRadius: 12.0),
                     trackHeight: 4.0,
                   ),
                   child: Slider(
@@ -127,16 +142,20 @@ class GavelOverlay extends StatelessWidget {
                   children: [
                     Text(
                       "5 min",
-                      style: GoogleFonts.poppins(
+                      style: AppTypography.sans(
                         fontSize: 12,
-                        color: theme.textTheme.bodyMedium?.color?.withOpacity(0.5),
+                        color: theme.textTheme.bodyMedium?.color?.withValues(
+                          alpha: 0.5,
+                        ),
                       ),
                     ),
                     Text(
                       "30 min",
-                      style: GoogleFonts.poppins(
+                      style: AppTypography.sans(
                         fontSize: 12,
-                        color: theme.textTheme.bodyMedium?.color?.withOpacity(0.5),
+                        color: theme.textTheme.bodyMedium?.color?.withValues(
+                          alpha: 0.5,
+                        ),
                       ),
                     ),
                   ],
@@ -146,7 +165,8 @@ class GavelOverlay extends StatelessWidget {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () {
-                      print('🎲 JUST DECIDE BUTTON PRESSED with minutes: $selectedMinutes');
+                      print(
+                          '🎲 JUST DECIDE BUTTON PRESSED with minutes: $selectedMinutes');
                       onSubmit(selectedMinutes);
                     },
                     style: ElevatedButton.styleFrom(
@@ -159,7 +179,7 @@ class GavelOverlay extends StatelessWidget {
                     ),
                     child: Text(
                       "Let's decide!",
-                      style: GoogleFonts.poppins(
+                      style: AppTypography.brand(
                         fontSize: 16.0,
                         color: Colors.white,
                         fontWeight: FontWeight.w600,

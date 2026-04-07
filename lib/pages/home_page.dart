@@ -1,12 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:login/pages/home/home_view_model.dart';
+import 'package:login/pages/home/search/header_search_types.dart';
 import 'package:login/pages/home/widgets/home_carousel.dart';
+import 'package:login/pages/home/widgets/home_header_search_shell.dart';
 import 'package:login/pages/home/widgets/home_map_layer.dart';
 import 'package:login/pages/home/widgets/magic_search_overlay.dart';
 import 'package:login/pages/home/widgets/gavel_overlay.dart';
 import 'package:login/pages/home/widgets/sweet_treat_overlay.dart';
-import 'package:login/pages/home/widgets/pinit_search_bar.dart';
+import 'package:login/themes/app_typography.dart';
 import 'package:login/themes/pinit_colors.dart';
 import 'package:login/pages/home/widgets/mode_toggle.dart';
 import 'package:login/pages/home/widgets/decide_bottom_sheet.dart';
@@ -20,6 +23,8 @@ import 'package:login/providers/shortlist_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:login/providers/bubble_mode_provider.dart';
 import 'package:login/providers/navigation_provider.dart';
+import 'package:login/pages/profile/other_user_profile_page.dart';
+import 'package:login/supabase/service.dart';
 import 'package:login/widgets/home/bubble_mode_overlay.dart';
 import 'package:login/widgets/swipe_card_stack.dart';
 import 'package:login/widgets/wizard_completion_popover.dart';
@@ -44,6 +49,8 @@ class _HomePageState extends State<HomePage> {
   late final BottomNavVisibilityProvider _bottomNavVisibilityProvider;
   late final ShortlistProvider _shortlistProvider;
   late final BubbleModeProvider _bubbleModeProvider;
+  late final SupabaseService _supabaseService;
+  late final UserDataProvider _userDataProvider;
   bool _wizardPopoverScheduled = false;
   bool _wizardPopoverShown = false;
 
@@ -55,11 +62,15 @@ class _HomePageState extends State<HomePage> {
     _bottomNavVisibilityProvider = context.read<BottomNavVisibilityProvider>();
     _shortlistProvider = context.read<ShortlistProvider>();
     _bubbleModeProvider = context.read<BubbleModeProvider>();
+    _supabaseService = context.read<SupabaseService>();
+    _userDataProvider = context.read<UserDataProvider>();
     _viewModel = HomeViewModel(
       locationListManager: _locationListManager,
       mapStateProvider: _mapStateProvider,
       bottomNavVisibilityProvider: _bottomNavVisibilityProvider,
       shortlistProvider: _shortlistProvider,
+      supabaseService: _supabaseService,
+      userDataProvider: _userDataProvider,
     );
     _viewModel.init();
 
@@ -201,18 +212,20 @@ class _HomePageState extends State<HomePage> {
 
                 // ─── Layer 4a: Location FAB ────────────────────
                 //     Only visible floating button on the map
-                AnimatedPositioned(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeOutQuint,
-                  bottom: carouselBottom + 225,
-                  left: 16,
-                  child: MyLocationButton(
-                    onTap: () => _viewModel.locateUser(),
+                if (!viewModel.isHeaderSearchActive)
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeOutQuint,
+                    bottom: carouselBottom + 225,
+                    left: 16,
+                    child: MyLocationButton(
+                      onTap: () => _viewModel.locateUser(),
+                    ),
                   ),
-                ),
 
                 // ─── Layer 4b: Shortlist pill (conditional) ────
-                if (viewModel.shortlistIsNotEmpty)
+                if (viewModel.shortlistIsNotEmpty &&
+                    !viewModel.isHeaderSearchActive)
                   AnimatedPositioned(
                     duration: const Duration(milliseconds: 300),
                     curve: Curves.easeOutQuint,
@@ -232,29 +245,30 @@ class _HomePageState extends State<HomePage> {
                   ),
 
                 // ─── Layer 5: Carousel (untouched) ─────────────
-                AnimatedPositioned(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeOutQuint,
-                  bottom: carouselBottom,
-                  left: 0,
-                  right: 0,
-                  child: HomeCarousel(
-                    pageController: viewModel.pageController,
-                    locations: viewModel.locations,
-                    selectedMarkerId: viewModel.selectedMarkerId,
-                    bottomNavVisible: viewModel.bottomNavVisible,
-                    onPageChanged: viewModel.onCarouselPageChanged,
-                    onScrollStart: viewModel.onCarouselScrollStart,
-                    onLocationSelected: viewModel.onLocationSelected,
-                    onSwipeUp: viewModel.onCarouselSwipeUp,
-                    onSwipeDown: viewModel.onCarouselSwipeDown,
+                if (!viewModel.isHeaderSearchActive)
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeOutQuint,
+                    bottom: carouselBottom,
+                    left: 0,
+                    right: 0,
+                    child: HomeCarousel(
+                      pageController: viewModel.pageController,
+                      locations: viewModel.locations,
+                      selectedMarkerId: viewModel.selectedMarkerId,
+                      bottomNavVisible: viewModel.bottomNavVisible,
+                      onPageChanged: viewModel.onCarouselPageChanged,
+                      onScrollStart: viewModel.onCarouselScrollStart,
+                      onLocationSelected: viewModel.onLocationSelected,
+                      onSwipeUp: viewModel.onCarouselSwipeUp,
+                      onSwipeDown: viewModel.onCarouselSwipeDown,
+                    ),
                   ),
-                ),
 
                 // ─── Overlays (unchanged) ──────────────────────
                 if (viewModel.showSearchOverlay)
                   MagicSearchOverlay(
-                    controller: viewModel.searchController,
+                    controller: viewModel.magicSearchController,
                     onClose: () => viewModel.toggleSearchOverlay(false),
                     onSubmit: viewModel.submitMagicSearch,
                   ),
@@ -312,7 +326,7 @@ class _HomePageState extends State<HomePage> {
                                 const SizedBox(height: 16),
                                 Text(
                                   'Loading recommendations…',
-                                  style: GoogleFonts.poppins(
+                                  style: AppTypography.sans(
                                     fontSize: 15,
                                     color: pc.textSecondary,
                                   ),
@@ -340,13 +354,14 @@ class _HomePageState extends State<HomePage> {
                                 child: Row(
                                   children: [
                                     IconButton(
-                                      icon: Icon(Icons.close, color: pc.textPrimary),
+                                      icon: Icon(Icons.close,
+                                          color: pc.textPrimary),
                                       onPressed: viewModel.onJustDecideComplete,
                                     ),
                                     const SizedBox(width: 8),
                                     Text(
                                       'Just Decide',
-                                      style: GoogleFonts.poppins(
+                                      style: AppTypography.brand(
                                         fontSize: 24,
                                         fontWeight: FontWeight.bold,
                                         color: pc.textPrimary,
@@ -371,7 +386,7 @@ class _HomePageState extends State<HomePage> {
                                             const SizedBox(height: 16),
                                             Text(
                                               'Finding great places…',
-                                              style: GoogleFonts.poppins(
+                                              style: AppTypography.sans(
                                                 fontSize: 15,
                                                 color: pc.textSecondary,
                                               ),
@@ -391,7 +406,7 @@ class _HomePageState extends State<HomePage> {
                                 padding: const EdgeInsets.all(16.0),
                                 child: Text(
                                   'Swipe right to save, left to pass',
-                                  style: GoogleFonts.poppins(
+                                  style: AppTypography.sans(
                                     fontSize: 13,
                                     color: pc.textMuted,
                                   ),
@@ -469,24 +484,75 @@ class _TopPanel extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 6),
-            // Search bar
-            PinitSearchBar(
-              controller: viewModel.searchController,
-              onSubmit: viewModel.submitMagicSearch,
-            ),
-            const SizedBox(height: 6),
-            // Chip row
-            HomeChipRow(
-              currentMode: viewModel.homeMode,
-              onModeChanged: viewModel.setHomeMode,
-              onDecideTap: () {
-                DecideBottomSheet.show(
-                  context,
-                  onQuickPicks: () => viewModel.toggleJustDecideOverlay(true),
-                  onSweetTreat: () => viewModel.toggleSweetTreatOverlay(true),
-                  onSurpriseMe: viewModel.submitSurpriseMe,
-                );
+            HomeHeaderSearchShell(
+              state: viewModel.headerSearchState,
+              controller: viewModel.headerSearchController,
+              focusNode: viewModel.headerSearchFocusNode,
+              onEntryTap: () {
+                viewModel.openHeaderSearch();
               },
+              onMagicSearchTap: () {
+                viewModel.closeHeaderSearch();
+                viewModel.toggleSearchOverlay(true);
+              },
+              onDismiss: viewModel.closeHeaderSearch,
+              onQueryChanged: viewModel.updateHeaderSearchQuery,
+              onSuggestionSelected: (item) {
+                unawaited(() async {
+                  switch (item.kind) {
+                    case SearchSuggestionKind.recentQuery:
+                    case SearchSuggestionKind.personalPrompt:
+                      viewModel.applyHeaderSearchSuggestionQuery(
+                        item.queryValue ?? item.title,
+                      );
+                      break;
+                    case SearchSuggestionKind.place:
+                    case SearchSuggestionKind.naturalLanguage:
+                      if (item.location == null) return;
+                      await viewModel.selectHeaderSearchLocation(
+                        item.location!,
+                        query: viewModel.headerSearchState.query.isNotEmpty
+                            ? viewModel.headerSearchState.query
+                            : item.queryValue,
+                      );
+                      break;
+                    case SearchSuggestionKind.person:
+                      if (item.user == null) return;
+                      await viewModel.rememberHeaderSearchQuery(
+                        viewModel.headerSearchState.query.isNotEmpty
+                            ? viewModel.headerSearchState.query
+                            : (item.queryValue ?? item.title),
+                      );
+                      viewModel.closeHeaderSearch();
+                      if (!context.mounted) return;
+                      await Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) =>
+                              OtherUserProfilePage(user: item.user!),
+                        ),
+                      );
+                      break;
+                  }
+                }());
+              },
+              onPreviewStart: (location) {
+                viewModel.startHeaderSearchPreview(location);
+              },
+              onPreviewEnd: () {
+                viewModel.endHeaderSearchPreview();
+              },
+              footer: HomeChipRow(
+                currentMode: viewModel.homeMode,
+                onModeChanged: viewModel.setHomeMode,
+                onDecideTap: () {
+                  DecideBottomSheet.show(
+                    context,
+                    onQuickPicks: () => viewModel.toggleJustDecideOverlay(true),
+                    onSweetTreat: () => viewModel.toggleSweetTreatOverlay(true),
+                    onSurpriseMe: viewModel.submitSurpriseMe,
+                  );
+                },
+              ),
             ),
           ],
         ),

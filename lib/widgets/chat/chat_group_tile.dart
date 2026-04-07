@@ -2,135 +2,157 @@ import 'package:flutter/material.dart';
 import 'package:login/models/bubble.dart';
 
 class ChatGroupTile extends StatefulWidget {
+  const ChatGroupTile({
+    super.key,
+    required this.bubble,
+    required this.onTap,
+    this.onOpenChat,
+    this.onActivateBubble,
+  });
+
   final Bubble bubble;
   final VoidCallback onTap;
   final VoidCallback? onOpenChat;
   final VoidCallback? onActivateBubble;
 
-  const ChatGroupTile({
-    Key? key,
-    required this.bubble,
-    required this.onTap,
-    this.onOpenChat,
-    this.onActivateBubble,
-  }) : super(key: key);
-
   @override
-  _ChatGroupTileState createState() => _ChatGroupTileState();
+  State<ChatGroupTile> createState() => _ChatGroupTileState();
 }
 
-class _ChatGroupTileState extends State<ChatGroupTile>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _scaleAnimation;
+class _ChatGroupTileState extends State<ChatGroupTile> {
+  static const _borderColor = Color(0xFFF5DEE6);
+  static const _roseAccent = Color(0xFFD95D85);
+  static const _textPrimary = Color(0xFF563440);
+  static const _textSecondary = Color(0xFF8B7180);
+  static const _timeText = Color(0xFFB89AAA);
+  static const _pillBackground = Color(0xFFFFF3F5);
+  static const _pinPillBackground = Color(0xFFFFF3E4);
 
-  @override
-  void initState() {
-    super.initState();
-    _initializeAnimations();
-  }
-
-  void _initializeAnimations() {
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 150),
-      vsync: this,
-    );
-
-    _scaleAnimation = Tween<double>(
-      begin: 1.0,
-      end: 0.98,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeInOut,
-    ));
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
-  }
+  bool _isPressed = false;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return GestureDetector(
-      onTapDown: (_) => _animationController.forward(),
-      onTapUp: (_) => _animationController.reverse(),
-      onTapCancel: () => _animationController.reverse(),
+      onTapDown: (_) => setState(() => _isPressed = true),
+      onTapUp: (_) => setState(() => _isPressed = false),
+      onTapCancel: () => setState(() => _isPressed = false),
       onTap: widget.onTap,
-      child: AnimatedBuilder(
-        animation: _animationController,
-        builder: (context, child) {
-          return Transform.scale(
-            scale: _scaleAnimation.value,
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              decoration: BoxDecoration(
-                color: theme.cardColor,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.06),
-                    blurRadius: 16,
-                    spreadRadius: 0,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
+      child: AnimatedScale(
+        scale: _isPressed ? 0.985 : 1,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOutCubic,
+        child: Container(
+          key: Key('bubble_tile_surface_${widget.bubble.id}'),
+          margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: _borderColor),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x12000000),
+                blurRadius: 24,
+                offset: Offset(0, 12),
               ),
-              child: Column(
-                children: [
-                  // Main content area
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
+            ],
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildAvatar(theme),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        _buildGroupAvatar(theme),
-                        const SizedBox(width: 14),
                         Expanded(
-                          child: _buildChatInfo(theme),
+                          child: Text(
+                            widget.bubble.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              color: _textPrimary,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          widget.bubble.lastMessageTime,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: _timeText,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                  // Stats row
-                  _buildStatsRow(theme),
-                  // Action buttons
-                  _buildActionButtons(theme),
-                ],
+                    const SizedBox(height: 6),
+                    Text(
+                      widget.bubble.lastMessage.isEmpty
+                          ? 'No messages yet. Tap to peek inside.'
+                          : widget.bubble.lastMessage,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: widget.bubble.lastMessage.isEmpty
+                            ? _timeText
+                            : _textSecondary,
+                        height: 1.35,
+                        fontWeight: widget.bubble.unreadCount > 0
+                            ? FontWeight.w500
+                            : FontWeight.w400,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: _buildMemberPreview(theme)),
+                        const SizedBox(width: 10),
+                        Flexible(
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: _buildMetadataChips(theme),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          );
-        },
+              const SizedBox(width: 8),
+              _buildTrailingAccent(theme),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildGroupAvatar(ThemeData theme) {
+  Widget _buildAvatar(ThemeData theme) {
     return Stack(
+      clipBehavior: Clip.none,
       children: [
         Container(
+          key: Key('bubble_tile_avatar_shell_${widget.bubble.id}'),
           width: 56,
           height: 56,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            gradient: LinearGradient(
-              colors: [
-                theme.primaryColor,
-                theme.primaryColor.withOpacity(0.7),
-              ],
+            gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
+              colors: [
+                Color(0xFFFFD5E0),
+                Color(0xFFFFEDDB),
+              ],
             ),
-            boxShadow: [
-              BoxShadow(
-                color: theme.primaryColor.withOpacity(0.25),
-                blurRadius: 12,
-                spreadRadius: 0,
-                offset: const Offset(0, 4),
-              ),
-            ],
+            borderRadius: BorderRadius.circular(16),
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(16),
@@ -138,61 +160,30 @@ class _ChatGroupTileState extends State<ChatGroupTile>
                 ? Image.network(
                     widget.bubble.groupAvatar,
                     fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return const Icon(
-                        Icons.bubble_chart_rounded,
-                        color: Colors.white,
-                        size: 28,
-                      );
-                    },
+                    errorBuilder: (_, __, ___) => const Icon(
+                      Icons.bubble_chart_rounded,
+                      size: 30,
+                      color: _roseAccent,
+                    ),
                   )
                 : const Icon(
                     Icons.bubble_chart_rounded,
-                    color: Colors.white,
-                    size: 28,
+                    size: 30,
+                    color: _roseAccent,
                   ),
           ),
         ),
         if (widget.bubble.isOnline)
           Positioned(
-            bottom: 0,
-            right: 0,
+            bottom: -2,
+            right: -2,
             child: Container(
-              width: 16,
-              height: 16,
+              width: 18,
+              height: 18,
               decoration: BoxDecoration(
-                color: const Color(0xFF4CAF50),
+                color: const Color(0xFF5BC6A9),
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: theme.cardColor,
-                  width: 2.5,
-                ),
-              ),
-            ),
-          ),
-        if (widget.bubble.unreadCount > 0)
-          Positioned(
-            top: -4,
-            right: -4,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFF5252),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: theme.cardColor,
-                  width: 2,
-                ),
-              ),
-              child: Text(
-                widget.bubble.unreadCount > 99
-                    ? '99+'
-                    : widget.bubble.unreadCount.toString(),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                ),
+                border: Border.all(color: Colors.white, width: 3),
               ),
             ),
           ),
@@ -200,292 +191,160 @@ class _ChatGroupTileState extends State<ChatGroupTile>
     );
   }
 
-  Widget _buildChatInfo(ThemeData theme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildMemberPreview(ThemeData theme) {
+    final avatars = widget.bubble.memberAvatars.take(3).toList();
+    final overflowCount = widget.bubble.memberCount - avatars.length;
+
+    return Row(
+      mainAxisSize: MainAxisSize.max,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                widget.bubble.name,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.3,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              widget.bubble.lastMessageTime,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: Colors.grey[500],
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Text(
-          widget.bubble.lastMessage.isNotEmpty
-              ? widget.bubble.lastMessage
-              : 'No messages yet',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: widget.bubble.lastMessage.isNotEmpty
-                ? Colors.grey[600]
-                : Colors.grey[400],
-            fontWeight: widget.bubble.unreadCount > 0
-                ? FontWeight.w500
-                : FontWeight.normal,
-            fontStyle: widget.bubble.lastMessage.isEmpty
-                ? FontStyle.italic
-                : FontStyle.normal,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        const SizedBox(height: 8),
-        _buildMemberAvatars(theme),
-      ],
-    );
-  }
-
-  Widget _buildMemberAvatars(ThemeData theme) {
-    final visibleAvatars = widget.bubble.memberAvatars.take(4).toList();
-    final remainingCount = widget.bubble.memberCount - visibleAvatars.length;
-
-    return SizedBox(
-      height: 24,
-      child: Row(
-        children: [
-          // Stacked avatars
+        if (avatars.isNotEmpty)
           SizedBox(
-            width: visibleAvatars.length * 16.0 + 8,
+            width: avatars.length * 18.0 + 16,
+            height: 24,
             child: Stack(
               children: [
-                ...visibleAvatars.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final avatar = entry.value;
-
-                  return Positioned(
-                    left: index * 16.0,
+                for (var index = 0; index < avatars.length; index++)
+                  Positioned(
+                    left: index * 18.0,
                     child: Container(
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(color: theme.cardColor, width: 2),
+                        border: Border.all(color: Colors.white, width: 2),
                       ),
                       child: CircleAvatar(
-                        radius: 10,
-                        backgroundImage:
-                            avatar.isNotEmpty ? NetworkImage(avatar) : null,
-                        backgroundColor: theme.primaryColor.withOpacity(0.2),
-                        child: avatar.isEmpty
-                            ? Icon(Icons.person,
-                                color: theme.primaryColor, size: 10)
+                        radius: 11,
+                        backgroundImage: avatars[index].isNotEmpty
+                            ? NetworkImage(avatars[index])
+                            : null,
+                        backgroundColor: const Color(0xFFFFECF1),
+                        child: avatars[index].isEmpty
+                            ? const Icon(
+                                Icons.person_rounded,
+                                size: 12,
+                                color: _roseAccent,
+                              )
                             : null,
                       ),
                     ),
-                  );
-                }),
+                  ),
               ],
             ),
           ),
-          if (remainingCount > 0)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                '+$remainingCount more',
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+        if (avatars.isNotEmpty) const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            overflowCount > 0
+                ? '+$overflowCount more inside'
+                : '${widget.bubble.memberCount} members',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            softWrap: false,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: _textSecondary,
+              fontWeight: FontWeight.w600,
             ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatsRow(ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        border: Border(
-          top: BorderSide(color: Colors.grey[200]!, width: 1),
-        ),
-      ),
-      child: Row(
-        children: [
-          _buildStatItem(
-            theme,
-            Icons.people_outline_rounded,
-            '${widget.bubble.memberCount}',
-            'members',
-          ),
-          const SizedBox(width: 20),
-          _buildStatItem(
-            theme,
-            Icons.location_on_outlined,
-            '${widget.bubble.groupLocations.length}',
-            'pins',
-          ),
-          if (widget.bubble.unreadCount > 0) ...[
-            const SizedBox(width: 20),
-            _buildStatItem(
-              theme,
-              Icons.mark_chat_unread_outlined,
-              '${widget.bubble.unreadCount}',
-              'unread',
-              color: const Color(0xFFFF5252),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatItem(
-      ThemeData theme, IconData icon, String value, String label,
-      {Color? color}) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: color ?? Colors.grey[500]),
-        const SizedBox(width: 4),
-        Text(
-          value,
-          style: theme.textTheme.bodySmall?.copyWith(
-            fontWeight: FontWeight.w700,
-            color: color ?? Colors.grey[700],
-          ),
-        ),
-        const SizedBox(width: 2),
-        Text(
-          label,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: Colors.grey[500],
-            fontSize: 11,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildActionButtons(ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      child: Row(
-        children: [
-          // Open Chat Button
-          Expanded(
-            child: _ActionButton(
-              icon: Icons.chat_bubble_outline_rounded,
-              label: 'Open Chat',
-              onTap: widget.onOpenChat ?? widget.onTap,
-              isPrimary: false,
-              theme: theme,
-            ),
+  Widget _buildMetadataChips(ThemeData theme) {
+    return Wrap(
+      alignment: WrapAlignment.end,
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        _InfoChip(
+          containerKey:
+              Key('bubble_tile_metadata_chip_members_${widget.bubble.id}'),
+          icon: Icons.people_outline_rounded,
+          label: '${widget.bubble.memberCount}',
+          color: _roseAccent,
+          backgroundColor: _pillBackground,
+        ),
+        _InfoChip(
+          containerKey:
+              Key('bubble_tile_metadata_chip_locations_${widget.bubble.id}'),
+          icon: Icons.location_on_outlined,
+          label: '${widget.bubble.groupLocations.length}',
+          color: const Color(0xFFCA8A2D),
+          backgroundColor: _pinPillBackground,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTrailingAccent(ThemeData theme) {
+    if (widget.bubble.unreadCount > 0) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF0E2),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          widget.bubble.unreadCount > 99
+              ? '99+'
+              : widget.bubble.unreadCount.toString(),
+          style: theme.textTheme.labelMedium?.copyWith(
+            color: const Color(0xFFB77B2C),
+            fontWeight: FontWeight.w700,
           ),
-          const SizedBox(width: 10),
-          // Activate Bubble Button
-          Expanded(
-            child: _ActionButton(
-              icon: Icons.bubble_chart_rounded,
-              label: 'Activate',
-              onTap: widget.onActivateBubble ?? () {},
-              isPrimary: true,
-              theme: theme,
-            ),
-          ),
-        ],
+        ),
+      );
+    }
+
+    return const Padding(
+      padding: EdgeInsets.only(top: 4),
+      child: Icon(
+        Icons.chevron_right_rounded,
+        color: _timeText,
       ),
     );
   }
 }
 
-class _ActionButton extends StatefulWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  final bool isPrimary;
-  final ThemeData theme;
-
-  const _ActionButton({
+class _InfoChip extends StatelessWidget {
+  const _InfoChip({
+    this.containerKey,
     required this.icon,
     required this.label,
-    required this.onTap,
-    required this.isPrimary,
-    required this.theme,
+    required this.color,
+    required this.backgroundColor,
   });
 
-  @override
-  State<_ActionButton> createState() => _ActionButtonState();
-}
-
-class _ActionButtonState extends State<_ActionButton> {
-  bool _isPressed = false;
+  final Key? containerKey;
+  final IconData icon;
+  final String label;
+  final Color color;
+  final Color backgroundColor;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _isPressed = true),
-      onTapUp: (_) => setState(() => _isPressed = false),
-      onTapCancel: () => setState(() => _isPressed = false),
-      onTap: widget.onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 100),
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-        decoration: BoxDecoration(
-          gradient: widget.isPrimary
-              ? LinearGradient(
-                  colors: [
-                    widget.theme.primaryColor,
-                    widget.theme.primaryColor.withOpacity(0.8),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                )
-              : null,
-          color: widget.isPrimary ? null : Colors.grey[100],
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: widget.isPrimary && !_isPressed
-              ? [
-                  BoxShadow(
-                    color: widget.theme.primaryColor.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  ),
-                ]
-              : null,
-        ),
-        transform: _isPressed
-            ? Matrix4.translationValues(0, 1, 0)
-            : Matrix4.identity(),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              widget.icon,
-              size: 18,
-              color: widget.isPrimary ? Colors.white : Colors.grey[700],
+    final theme = Theme.of(context);
+
+    return Container(
+      key: containerKey,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
             ),
-            const SizedBox(width: 8),
-            Text(
-              widget.label,
-              style: TextStyle(
-                color: widget.isPrimary ? Colors.white : Colors.grey[700],
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

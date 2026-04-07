@@ -1,6 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:login/themes/app_typography.dart';
 
 /// Compact quick-action bar that sits top-right below the header tabs.
 /// Contains Magic Search, Gavel (Just Decide), and Sweet Treat buttons
@@ -31,13 +31,13 @@ class QuickActionsBar extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
             decoration: BoxDecoration(
               color: isDark
-                  ? Colors.white.withOpacity(0.08)
-                  : Colors.black.withOpacity(0.04),
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : Colors.black.withValues(alpha: 0.04),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: isDark
-                    ? Colors.white.withOpacity(0.1)
-                    : Colors.black.withOpacity(0.06),
+                    ? Colors.white.withValues(alpha: 0.1)
+                    : Colors.black.withValues(alpha: 0.06),
                 width: 0.5,
               ),
             ),
@@ -131,20 +131,19 @@ class _QuickActionChipState extends State<_QuickActionChip>
           return Transform.scale(
             scale: _scale.value,
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
                 color: isDark
-                    ? Colors.white.withOpacity(0.1)
-                    : Colors.white.withOpacity(0.85),
+                    ? Colors.white.withValues(alpha: 0.1)
+                    : Colors.white.withValues(alpha: 0.85),
                 border: Border.all(
-                  color: widget.color.withOpacity(0.25),
+                  color: widget.color.withValues(alpha: 0.25),
                   width: 1,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.06),
+                    color: Colors.black.withValues(alpha: 0.06),
                     blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),
@@ -157,7 +156,7 @@ class _QuickActionChipState extends State<_QuickActionChip>
                   const SizedBox(width: 4),
                   Text(
                     widget.label,
-                    style: GoogleFonts.poppins(
+                    style: AppTypography.brand(
                       color: isDark ? Colors.white : Colors.black87,
                       fontSize: 11,
                       fontWeight: FontWeight.w600,

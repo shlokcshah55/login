@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/bubble.dart';
+import 'package:login/themes/app_typography.dart';
 
 /// A Siri-like glow overlay that appears around the screen edges
 /// when bubble mode is activated
@@ -82,7 +82,7 @@ class _BubbleModeOverlayState extends State<BubbleModeOverlay>
   @override
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
-    
+
     return Stack(
       children: [
         // Animated glow border - fills entire screen
@@ -165,8 +165,8 @@ class _BubbleIndicator extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              const Color(0xFF9C27B0).withOpacity(0.95),
-              const Color(0xFF7B1FA2).withOpacity(0.95),
+              const Color(0xFF9C27B0).withValues(alpha: 0.95),
+              const Color(0xFF7B1FA2).withValues(alpha: 0.95),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -174,12 +174,12 @@ class _BubbleIndicator extends StatelessWidget {
           borderRadius: BorderRadius.circular(isExpanded ? 16 : 24),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF9C27B0).withOpacity(0.4),
+              color: const Color(0xFF9C27B0).withValues(alpha: 0.4),
               blurRadius: 12,
               spreadRadius: 2,
             ),
             BoxShadow(
-              color: const Color(0xFFE040FB).withOpacity(0.2),
+              color: const Color(0xFFE040FB).withValues(alpha: 0.2),
               blurRadius: 20,
               spreadRadius: 4,
             ),
@@ -206,7 +206,7 @@ class _BubbleIndicator extends StatelessWidget {
                           )
                         : null,
                     color: bubble.groupAvatar.isEmpty
-                        ? Colors.white.withOpacity(0.3)
+                        ? Colors.white.withValues(alpha: 0.3)
                         : null,
                   ),
                   child: bubble.groupAvatar.isEmpty
@@ -221,7 +221,7 @@ class _BubbleIndicator extends StatelessWidget {
                 // Bubble name
                 Text(
                   bubble.name,
-                  style: GoogleFonts.poppins(
+                  style: AppTypography.brand(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: Colors.white,
@@ -259,28 +259,28 @@ class _BubbleIndicator extends StatelessWidget {
                         Icon(
                           Icons.people_outline,
                           size: 16,
-                          color: Colors.white.withOpacity(0.8),
+                          color: Colors.white.withValues(alpha: 0.8),
                         ),
                         const SizedBox(width: 6),
                         Text(
                           '${bubble.memberCount} members',
-                          style: GoogleFonts.poppins(
+                          style: AppTypography.sans(
                             fontSize: 12,
-                            color: Colors.white.withOpacity(0.8),
+                            color: Colors.white.withValues(alpha: 0.8),
                           ),
                         ),
                         const SizedBox(width: 12),
                         Icon(
                           Icons.location_on_outlined,
                           size: 16,
-                          color: Colors.white.withOpacity(0.8),
+                          color: Colors.white.withValues(alpha: 0.8),
                         ),
                         const SizedBox(width: 4),
                         Text(
                           '${bubble.groupLocations.length} pins',
-                          style: GoogleFonts.poppins(
+                          style: AppTypography.sans(
                             fontSize: 12,
-                            color: Colors.white.withOpacity(0.8),
+                            color: Colors.white.withValues(alpha: 0.8),
                           ),
                         ),
                       ],
@@ -295,10 +295,10 @@ class _BubbleIndicator extends StatelessWidget {
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
+                          color: Colors.white.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: Colors.white.withOpacity(0.3),
+                            color: Colors.white.withValues(alpha: 0.3),
                           ),
                         ),
                         child: Row(
@@ -312,7 +312,7 @@ class _BubbleIndicator extends StatelessWidget {
                             const SizedBox(width: 6),
                             Text(
                               'Exit Bubble Mode',
-                              style: GoogleFonts.poppins(
+                              style: AppTypography.brand(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w500,
                                 color: Colors.white,
@@ -373,7 +373,7 @@ class _SiriGlowPainter extends CustomPainter {
         ..maskFilter = MaskFilter.blur(BlurStyle.normal, currentBlur);
 
       // Apply opacity
-      paint.color = paint.color.withOpacity(currentOpacity);
+      paint.color = paint.color.withValues(alpha: currentOpacity);
 
       final rrect = RRect.fromRectAndRadius(
         Rect.fromLTWH(

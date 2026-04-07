@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:login/themes/app_colors.dart';
+import 'package:login/themes/app_typography.dart';
 
 class MagicSearchOverlay extends StatelessWidget {
   final TextEditingController controller;
@@ -24,7 +24,7 @@ class MagicSearchOverlay extends StatelessWidget {
           child: GestureDetector(
             onTap: onClose,
             child: Container(
-              color: Colors.black.withOpacity(0.5),
+              color: Colors.black.withValues(alpha: 0.5),
             ),
           ),
         ),
@@ -38,7 +38,7 @@ class MagicSearchOverlay extends StatelessWidget {
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
+                  color: Colors.black.withValues(alpha: 0.3),
                   blurRadius: 20,
                   spreadRadius: 5,
                   offset: const Offset(0, 10),
@@ -59,7 +59,7 @@ class MagicSearchOverlay extends StatelessWidget {
                     const SizedBox(width: 12),
                     Text(
                       "Magic Search",
-                      style: GoogleFonts.poppins(
+                      style: AppTypography.brand(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
                         color: theme.textTheme.titleLarge?.color,
@@ -78,9 +78,11 @@ class MagicSearchOverlay extends StatelessWidget {
                 const SizedBox(height: 12),
                 Text(
                   "Search in natural language like 'cozy Italian place with outdoor seating' or 'best ramen near me'",
-                  style: GoogleFonts.poppins(
+                  style: AppTypography.sans(
                     fontSize: 14,
-                    color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                    color: theme.textTheme.bodyMedium?.color?.withValues(
+                      alpha: 0.7,
+                    ),
                     height: 1.4,
                   ),
                 ),
@@ -92,7 +94,7 @@ class MagicSearchOverlay extends StatelessWidget {
                     color: theme.colorScheme.surface,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: theme.colorScheme.outline.withOpacity(0.2),
+                      color: theme.colorScheme.outline.withValues(alpha: 0.2),
                     ),
                   ),
                   child: TextField(
@@ -101,9 +103,10 @@ class MagicSearchOverlay extends StatelessWidget {
                     onSubmitted: onSubmit,
                     decoration: InputDecoration(
                       hintText: "Your next adventure...",
-                      hintStyle: GoogleFonts.poppins(
-                        color:
-                            theme.textTheme.bodyMedium?.color?.withOpacity(0.5),
+                      hintStyle: AppTypography.sans(
+                        color: theme.textTheme.bodyMedium?.color?.withValues(
+                          alpha: 0.5,
+                        ),
                         fontSize: 16,
                       ),
                       border: InputBorder.none,
@@ -112,7 +115,7 @@ class MagicSearchOverlay extends StatelessWidget {
                         color: theme.colorScheme.primary,
                       ),
                     ),
-                    style: GoogleFonts.poppins(
+                    style: AppTypography.sans(
                       color: theme.textTheme.bodyMedium?.color,
                       fontSize: 16,
                     ),
@@ -123,7 +126,8 @@ class MagicSearchOverlay extends StatelessWidget {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () {
-                      print('🔍 SEARCH BUTTON PRESSED with query: "${controller.text}"');
+                      print(
+                          '🔍 SEARCH BUTTON PRESSED with query: "${controller.text}"');
                       onSubmit(controller.text);
                     },
                     style: ElevatedButton.styleFrom(
@@ -136,7 +140,7 @@ class MagicSearchOverlay extends StatelessWidget {
                     ),
                     child: Text(
                       "Search",
-                      style: GoogleFonts.poppins(
+                      style: AppTypography.brand(
                         fontSize: 16.0,
                         color: Colors.white,
                         fontWeight: FontWeight.w600,

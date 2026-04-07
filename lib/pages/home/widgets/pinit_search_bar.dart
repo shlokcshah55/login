@@ -1,6 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:login/themes/app_typography.dart';
 import 'package:login/themes/pinit_colors.dart';
 import 'package:login/themes/pinit_theme.dart';
 
@@ -85,14 +85,14 @@ class _PinitSearchBarState extends State<PinitSearchBar> {
                 widget.onSubmit(value);
                 _focusNode.unfocus();
               },
-              style: GoogleFonts.poppins(
+              style: AppTypography.sans(
                 fontSize: 14,
                 color: c.textPrimary,
                 fontWeight: FontWeight.w400,
               ),
               decoration: InputDecoration(
                 hintText: 'Search places, vibes, or friends…',
-                hintStyle: GoogleFonts.poppins(
+                hintStyle: AppTypography.sans(
                   fontSize: 13.5,
                   color: c.textMuted,
                   fontWeight: FontWeight.w400,

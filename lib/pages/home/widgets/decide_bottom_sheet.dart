@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:login/themes/app_typography.dart';
 
 /// Polished bottom sheet with decision shortcuts.
 ///
@@ -49,7 +49,7 @@ class DecideBottomSheet extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.15),
+            color: Colors.black.withValues(alpha: 0.15),
             blurRadius: 20,
             offset: const Offset(0, -4),
           ),
@@ -83,7 +83,7 @@ class DecideBottomSheet extends StatelessWidget {
                 const SizedBox(width: 10),
                 Text(
                   'Decide',
-                  style: GoogleFonts.poppins(
+                  style: AppTypography.brand(
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
                     color: isDark ? Colors.white : Colors.black87,
@@ -97,7 +97,7 @@ class DecideBottomSheet extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Text(
               'Let us help you decide where to go',
-              style: GoogleFonts.poppins(
+              style: AppTypography.sans(
                 fontSize: 13,
                 color: isDark ? Colors.white38 : Colors.black38,
               ),
@@ -174,7 +174,7 @@ class _DecideOption extends StatelessWidget {
                   children: [
                     Text(
                       label,
-                      style: GoogleFonts.poppins(
+                      style: AppTypography.brand(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
                         color: isDark ? Colors.white : Colors.black87,
@@ -182,7 +182,7 @@ class _DecideOption extends StatelessWidget {
                     ),
                     Text(
                       subtitle,
-                      style: GoogleFonts.poppins(
+                      style: AppTypography.sans(
                         fontSize: 12,
                         color: isDark ? Colors.white38 : Colors.black38,
                       ),

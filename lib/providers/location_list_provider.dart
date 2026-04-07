@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:developer';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -9,12 +8,12 @@ import 'package:login/models/locations.dart';
 import 'package:login/services/recommendations_api.dart';
 import 'package:login/services/google_place_service.dart';
 import 'package:login/services/location_service.dart';
+import 'package:login/services/natural_language_search_service.dart';
 import 'package:login/supabase/constants.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:login/utils/marker_clustering.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:http/http.dart' as http;
 
 // Enum to represent the different types of location lists
 enum LocationListType { saved, recommended, search }
@@ -23,8 +22,8 @@ class LocationListManager with ChangeNotifier {
   final GooglePlacesService _googlePlacesService;
   final SupabaseService _supabaseService = SupabaseService();
   final LocationService _locationService = LocationService();
-  static const String _magicSearchEndpoint =
-      'https://pinit-recommendations-api-1070859807237.europe-west2.run.app/locations/magic-search';
+  final NaturalLanguageSearchService _naturalLanguageSearchService =
+      NaturalLanguageSearchService();
 
   String? _userId;
   MapStateProvider? _mapStateProvider;
@@ -1308,52 +1307,15 @@ class LocationListManager with ChangeNotifier {
     );
 
     try {
-      final response = await http.post(
-        Uri.parse(_magicSearchEndpoint),
-        headers: const {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'user_id': _userId,
-          'latitude': currentLocation.latitude,
-          'longitude': currentLocation.longitude,
-          'prompt': trimmedQuery,
-          'radius_km': radiusKm,
-          'max_results': maxResults,
-          'include_taste_breakdown': includeTasteBreakdown,
-        }),
+      final locations = await _naturalLanguageSearchService.search(
+        userId: _userId!,
+        query: trimmedQuery,
+        currentLocation: currentLocation,
+        radiusKm: radiusKm,
+        maxResults: maxResults,
+        includeTasteBreakdown: includeTasteBreakdown,
       );
-
-      log(
-        "LocationListManager: Magic search response status ${response.statusCode}",
-      );
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        log(
-          "LocationListManager: Magic search failed (${response.statusCode}): ${response.body}",
-        );
-        _error = "Search failed: Server returned error ${response.statusCode}";
-        _searchLocations = {};
-        await setCurrentListType(LocationListType.search);
-        return;
-      }
-
-      // Clear any previous errors on successful response
       _error = null;
-
-      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
-      final recommendations =
-          decoded['recommendations'] as List<dynamic>? ?? [];
-      log(
-        "LocationListManager: Magic search returned ${recommendations.length} recommendations",
-      );
-      final locationIds = recommendations
-          .map((item) => (item as Map<String, dynamic>)['location_id'])
-          .where((id) => id != null)
-          .map((id) => (id as num).toInt())
-          .toList();
-
-      log(
-        "LocationListManager: Magic search location IDs count ${locationIds.length}",
-      );
-      final locations = await _fetchLocationsByIdsInOrder(locationIds);
       log(
         "LocationListManager: Loaded ${locations.length} locations from Supabase for magic search",
       );

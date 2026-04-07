@@ -263,6 +263,10 @@ class GeoJsonMapLayerService {
     );
   }
 
+  void pulseLocation(int locationId) {
+    markLocationAsRecentlySaved(locationId);
+  }
+
   /// Clean up resources when the service is no longer needed.
   Future<void> dispose() async {
     if (!_isInitialized) return;

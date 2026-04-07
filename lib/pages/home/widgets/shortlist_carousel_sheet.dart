@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/pages/home/widgets/mode_toggle.dart';
 import 'package:login/providers/shortlist_provider.dart';
+import 'package:login/themes/app_typography.dart';
 import 'package:provider/provider.dart';
 
 /// Swipeable shortlist carousel with a final "Keep exploring" exit card.
@@ -75,7 +75,8 @@ class _ShortlistCarouselSheetState extends State<ShortlistCarouselSheet> {
   void _handlePageChanged(int index) {
     if (index == widget.items.length) {
       // Small delay keeps the transition feeling intentional before dismissing.
-      unawaited(Future<void>.delayed(const Duration(milliseconds: 240), _exitToMode));
+      unawaited(
+          Future<void>.delayed(const Duration(milliseconds: 240), _exitToMode));
     }
   }
 
@@ -115,11 +116,12 @@ class _ShortlistCarouselSheetState extends State<ShortlistCarouselSheet> {
             padding: const EdgeInsets.symmetric(horizontal: 18),
             child: Row(
               children: [
-                Icon(Icons.playlist_add_check_rounded, color: colorScheme.primary),
+                Icon(Icons.playlist_add_check_rounded,
+                    color: colorScheme.primary),
                 const SizedBox(width: 10),
                 Text(
                   'Shortlist',
-                  style: GoogleFonts.poppins(
+                  style: AppTypography.brand(
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
                     color: isDark ? Colors.white : Colors.black87,
@@ -234,7 +236,7 @@ class _ShortlistCarouselCard extends StatelessWidget {
                     location.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.poppins(
+                    style: AppTypography.brand(
                       color: Colors.white,
                       fontSize: 17,
                       fontWeight: FontWeight.w700,
@@ -242,10 +244,12 @@ class _ShortlistCarouselCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    location.cuisine ?? location.vicinity ?? 'In your shortlist',
+                    location.cuisine ??
+                        location.vicinity ??
+                        'In your shortlist',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.poppins(
+                    style: AppTypography.sans(
                       color: Colors.white.withValues(alpha: 0.86),
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
@@ -301,7 +305,7 @@ class _KeepExploringCard extends StatelessWidget {
                 const SizedBox(height: 10),
                 Text(
                   'Keep exploring',
-                  style: GoogleFonts.poppins(
+                  style: AppTypography.brand(
                     color: Colors.white,
                     fontSize: 21,
                     fontWeight: FontWeight.w700,
@@ -310,7 +314,7 @@ class _KeepExploringCard extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   'Back to $modeLabel mode',
-                  style: GoogleFonts.poppins(
+                  style: AppTypography.sans(
                     color: Colors.white.withValues(alpha: 0.82),
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
@@ -344,7 +348,7 @@ class _EmptyState extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             'No places shortlisted yet',
-            style: GoogleFonts.poppins(
+            style: AppTypography.sans(
               fontSize: 14,
               color: isDark ? Colors.white54 : Colors.black54,
             ),

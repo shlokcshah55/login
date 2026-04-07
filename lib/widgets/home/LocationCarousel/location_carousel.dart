@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:login/models/locations.dart';
+import 'package:login/themes/app_typography.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:developer';
@@ -18,31 +19,42 @@ class _VibeTagStyle {
 }
 
 const Map<String, _VibeTagStyle> _vibeStyles = {
-  'cafe':             _VibeTagStyle('Café',          FeatherIcons.coffee,    Color(0xFFA0522D)),
-  'casual':           _VibeTagStyle('Casual',         FeatherIcons.smile,     Color(0xFF5B9BD5)),
-  'cozy':             _VibeTagStyle('Cozy',           FeatherIcons.home,      Color(0xFFE8915A)),
-  'coffee_shop':      _VibeTagStyle('Coffee',         FeatherIcons.coffee,    Color(0xFF6F4E37)),
-  'bar':              _VibeTagStyle('Bar',            FeatherIcons.moon,      Color(0xFF7B68EE)),
-  'elegant':          _VibeTagStyle('Elegant',        FeatherIcons.feather,   Color(0xFFB8860B)),
-  'fine_dining':      _VibeTagStyle('Fine Dining',    FeatherIcons.award,     Color(0xFFC9A96E)),
-  'food_truck':       _VibeTagStyle('Food Truck',     FeatherIcons.truck,     Color(0xFFFF6347)),
-  'hole_in_the_wall': _VibeTagStyle('Hidden Gem',     FeatherIcons.key,       Color(0xFFCD853F)),
-  'late_night':       _VibeTagStyle('Late Night',     FeatherIcons.moon,      Color(0xFF483D8B)),
-  'live_music':       _VibeTagStyle('Live Music',     FeatherIcons.music,     Color(0xFFDC143C)),
-  'michelin_starred':  _VibeTagStyle('Michelin',       FeatherIcons.star,      Color(0xFFFFD700)),
-  'modern':           _VibeTagStyle('Modern',         FeatherIcons.zap,       Color(0xFF00CED1)),
-  'fast_food':        _VibeTagStyle('Fast Food',      FeatherIcons.fastForward, Color(0xFFFF4500)),
-  'quiet':            _VibeTagStyle('Quiet',          FeatherIcons.volumeX,   Color(0xFF8FBC8F)),
-  'romantic':         _VibeTagStyle('Romantic',        FeatherIcons.heart,     Color(0xFFFF69B4)),
-  'sports_bar':       _VibeTagStyle('Sports Bar',     FeatherIcons.tv,        Color(0xFF228B22)),
-  'trendy':           _VibeTagStyle('Trendy',         FeatherIcons.trendingUp, Color(0xFFFF1493)),
-  'takeout_friendly': _VibeTagStyle('Takeaway',       FeatherIcons.package,   Color(0xFF20B2AA)),
-  'pub':              _VibeTagStyle('Pub',            FeatherIcons.home,      Color(0xFF8B4513)),
-  'grocery_store':    _VibeTagStyle('Grocery',        FeatherIcons.shoppingCart, Color(0xFF3CB371)),
-  'brunch':           _VibeTagStyle('Brunch',         FeatherIcons.sun,       Color(0xFFFFA07A)),
-  'outdoor_dining':   _VibeTagStyle('Outdoor',        FeatherIcons.wind,      Color(0xFF87CEEB)),
-  'wavy':             _VibeTagStyle('Wavy 🌊',        FeatherIcons.activity,  Color(0xFFA970FF)),
-  'bossman':          _VibeTagStyle('Bossman',        FeatherIcons.shield,    Color(0xFF636E72)),
+  'cafe': _VibeTagStyle('Café', FeatherIcons.coffee, Color(0xFFA0522D)),
+  'casual': _VibeTagStyle('Casual', FeatherIcons.smile, Color(0xFF5B9BD5)),
+  'cozy': _VibeTagStyle('Cozy', FeatherIcons.home, Color(0xFFE8915A)),
+  'coffee_shop':
+      _VibeTagStyle('Coffee', FeatherIcons.coffee, Color(0xFF6F4E37)),
+  'bar': _VibeTagStyle('Bar', FeatherIcons.moon, Color(0xFF7B68EE)),
+  'elegant': _VibeTagStyle('Elegant', FeatherIcons.feather, Color(0xFFB8860B)),
+  'fine_dining':
+      _VibeTagStyle('Fine Dining', FeatherIcons.award, Color(0xFFC9A96E)),
+  'food_truck':
+      _VibeTagStyle('Food Truck', FeatherIcons.truck, Color(0xFFFF6347)),
+  'hole_in_the_wall':
+      _VibeTagStyle('Hidden Gem', FeatherIcons.key, Color(0xFFCD853F)),
+  'late_night':
+      _VibeTagStyle('Late Night', FeatherIcons.moon, Color(0xFF483D8B)),
+  'live_music':
+      _VibeTagStyle('Live Music', FeatherIcons.music, Color(0xFFDC143C)),
+  'michelin_starred':
+      _VibeTagStyle('Michelin', FeatherIcons.star, Color(0xFFFFD700)),
+  'modern': _VibeTagStyle('Modern', FeatherIcons.zap, Color(0xFF00CED1)),
+  'fast_food':
+      _VibeTagStyle('Fast Food', FeatherIcons.fastForward, Color(0xFFFF4500)),
+  'quiet': _VibeTagStyle('Quiet', FeatherIcons.volumeX, Color(0xFF8FBC8F)),
+  'romantic': _VibeTagStyle('Romantic', FeatherIcons.heart, Color(0xFFFF69B4)),
+  'sports_bar': _VibeTagStyle('Sports Bar', FeatherIcons.tv, Color(0xFF228B22)),
+  'trendy': _VibeTagStyle('Trendy', FeatherIcons.trendingUp, Color(0xFFFF1493)),
+  'takeout_friendly':
+      _VibeTagStyle('Takeaway', FeatherIcons.package, Color(0xFF20B2AA)),
+  'pub': _VibeTagStyle('Pub', FeatherIcons.home, Color(0xFF8B4513)),
+  'grocery_store':
+      _VibeTagStyle('Grocery', FeatherIcons.shoppingCart, Color(0xFF3CB371)),
+  'brunch': _VibeTagStyle('Brunch', FeatherIcons.sun, Color(0xFFFFA07A)),
+  'outdoor_dining':
+      _VibeTagStyle('Outdoor', FeatherIcons.wind, Color(0xFF87CEEB)),
+  'wavy': _VibeTagStyle('Wavy 🌊', FeatherIcons.activity, Color(0xFFA970FF)),
+  'bossman': _VibeTagStyle('Bossman', FeatherIcons.shield, Color(0xFF636E72)),
 };
 
 class LocationCarousel extends StatelessWidget {
@@ -84,8 +96,7 @@ class LocationCarousel extends StatelessWidget {
         ),
         itemBuilder: (context, index) {
           final location = locations[index];
-          final isSelected =
-              selectedMarkerId == location.locationId.toString();
+          final isSelected = selectedMarkerId == location.locationId.toString();
           return AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeOutQuint,
@@ -95,7 +106,7 @@ class LocationCarousel extends StatelessWidget {
             ),
             transform: isSelected
                 ? Matrix4.identity()
-                : (Matrix4.identity()..scale(0.96)),
+                : Matrix4.diagonal3Values(0.96, 0.96, 1.0),
             transformAlignment: Alignment.center,
             child: _SwipeableCard(
               location: location,
@@ -176,23 +187,19 @@ class _SwipeableCardState extends State<_SwipeableCard>
     final progress = (_dragY / 120).clamp(-1.0, 1.0);
     final opacity = (1.0 - progress.abs() * 0.4).clamp(0.5, 1.0);
     final shortlistDragProgress = (-_dragY / _threshold).clamp(0.0, 1.0);
-    final shortlistIndicatorOpacity = _showShortlistConfirmed
-        ? 1.0
-        : shortlistDragProgress;
-    final shortlistIndicatorScale = _showShortlistConfirmed
-      ? 1.18
-      : 0.90 + (shortlistDragProgress * 0.22);
-    final shortlistIndicatorSlideY = _showShortlistConfirmed
-      ? 0.0
-      : 0.20 - (shortlistDragProgress * 0.20);
+    final shortlistIndicatorOpacity =
+        _showShortlistConfirmed ? 1.0 : shortlistDragProgress;
+    final shortlistIndicatorScale =
+        _showShortlistConfirmed ? 1.18 : 0.90 + (shortlistDragProgress * 0.22);
+    final shortlistIndicatorSlideY =
+        _showShortlistConfirmed ? 0.0 : 0.20 - (shortlistDragProgress * 0.20);
 
     return GestureDetector(
       onVerticalDragUpdate: _onVerticalDragUpdate,
       onVerticalDragEnd: _onVerticalDragEnd,
       child: AnimatedContainer(
-        duration: _dragY == 0
-            ? const Duration(milliseconds: 200)
-            : Duration.zero,
+        duration:
+            _dragY == 0 ? const Duration(milliseconds: 200) : Duration.zero,
         curve: Curves.easeOutCubic,
         transform: Matrix4.translationValues(0, _dragY * 0.4, 0),
         child: Opacity(
@@ -222,8 +229,7 @@ class _SwipeableCardState extends State<_SwipeableCard>
                         offset: Offset(0, shortlistIndicatorSlideY),
                         child: AnimatedScale(
                           duration: Duration(
-                            milliseconds:
-                                _showShortlistConfirmed ? 280 : 140,
+                            milliseconds: _showShortlistConfirmed ? 280 : 140,
                           ),
                           curve: _showShortlistConfirmed
                               ? Curves.elasticOut
@@ -239,8 +245,9 @@ class _SwipeableCardState extends State<_SwipeableCard>
                               borderRadius: BorderRadius.circular(18),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFF16A34A)
-                                      .withOpacity(0.42),
+                                  color: const Color(
+                                    0xFF16A34A,
+                                  ).withValues(alpha: 0.42),
                                   blurRadius: 20,
                                   spreadRadius: 1,
                                   offset: const Offset(0, 6),
@@ -310,7 +317,6 @@ class _SwipeableCardState extends State<_SwipeableCard>
   }
 }
 
-
 // ─────────────────────────────────────────────────────────────
 //  Individual card – image-dominant with overlaid info
 // ─────────────────────────────────────────────────────────────
@@ -329,8 +335,6 @@ class _CarouselCard extends StatelessWidget {
 
   // ── Whether this location is "wavy" enough to get the shimmer border ──
   bool get _isWavy => (location.vibe?.wavyScore ?? 0) > 0.45;
-  bool get _isBossman => (location.vibe?.bossmanScore ?? 0) > 0.5;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -361,9 +365,12 @@ class _CarouselCard extends StatelessWidget {
           // Wavy locations get a playful purple glow
           border: _isWavy
               ? Border.all(
-                  color: const Color(0xFFA970FF).withValues(alpha: 0.5), width: 2.5)
+                  color: const Color(0xFFA970FF).withValues(alpha: 0.5),
+                  width: 2.5)
               : isSelected
-                  ? Border.all(color: colorScheme.primary.withValues(alpha: 0.6), width: 2)
+                  ? Border.all(
+                      color: colorScheme.primary.withValues(alpha: 0.6),
+                      width: 2)
                   : null,
           boxShadow: [
             if (_isWavy) ...[
@@ -375,7 +382,8 @@ class _CarouselCard extends StatelessWidget {
               ),
             ] else ...[
               BoxShadow(
-                color: colorScheme.shadow.withValues(alpha: isSelected ? 0.18 : 0.08),
+                color: colorScheme.shadow
+                    .withValues(alpha: isSelected ? 0.18 : 0.08),
                 blurRadius: isSelected ? 12 : 6,
                 offset: const Offset(0, 2),
               ),
@@ -469,11 +477,10 @@ class _CarouselCard extends StatelessWidget {
                       const SizedBox(height: 4),
 
                     // Saved count
-                    if (location.savedCount != null &&
-                        location.savedCount! > 0)
+                    if (location.savedCount != null && location.savedCount! > 0)
                       _StatusPill(
                         text: '${location.savedCount} saves',
-                        color: Colors.white.withOpacity(0.85),
+                        color: Colors.white.withValues(alpha: 0.85),
                         textColor: Colors.black87,
                         icon: FeatherIcons.bookmark,
                         iconColor: colorScheme.primary,
@@ -488,12 +495,12 @@ class _CarouselCard extends StatelessWidget {
                 right: 0,
                 bottom: 0,
                 child: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(
-                      bottom: Radius.circular(24)),
+                  borderRadius:
+                      const BorderRadius.vertical(bottom: Radius.circular(24)),
                   child: BackdropFilter(
                     filter: ui.ImageFilter.blur(sigmaX: 6, sigmaY: 6),
                     child: Container(
-                      padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
@@ -514,12 +521,12 @@ class _CarouselCard extends StatelessWidget {
                               Expanded(
                                 child: Text(
                                   location.name,
-                                  style: const TextStyle(
+                                  style: AppTypography.brand(
                                     color: Colors.white,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 17,
-                                    letterSpacing: -0.2,
-                                    height: 1.2,
+                                    fontWeight: FontWeight.w400,
+                                    fontSize: 17.5,
+                                    letterSpacing: 0.36,
+                                    height: 1.1,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -534,7 +541,7 @@ class _CarouselCard extends StatelessWidget {
                             ],
                           ),
 
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 8),
 
                           // ── One-liner summary or vicinity ──
                           if (_summaryText != null)
@@ -549,11 +556,11 @@ class _CarouselCard extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                          if (_summaryText != null) const SizedBox(height: 7),
+                          if (_summaryText != null) const SizedBox(height: 9),
 
                           // ── Tags row: price + cuisine + vibe pills ──
                           SizedBox(
-                            height: 24,
+                            height: 28,
                             child: ListView(
                               scrollDirection: Axis.horizontal,
                               physics: const BouncingScrollPhysics(),
@@ -563,8 +570,8 @@ class _CarouselCard extends StatelessWidget {
                                     location.priceLevel! > 0)
                                   _InfoPill(
                                     text: '£' * location.priceLevel!,
-                                    bgColor:
-                                        const Color(0xFF00B894).withOpacity(0.25),
+                                    bgColor: const Color(0xFF00B894)
+                                        .withValues(alpha: 0.25),
                                     textColor: const Color(0xFF55EFC4),
                                     fontWeight: FontWeight.w800,
                                   ),
@@ -573,19 +580,24 @@ class _CarouselCard extends StatelessWidget {
                                     location.cuisine!.isNotEmpty)
                                   _InfoPill(
                                     text: location.cuisine!,
-                                    bgColor: Colors.white.withOpacity(0.15),
+                                    bgColor: Colors.white.withValues(
+                                      alpha: 0.15,
+                                    ),
                                     textColor: Colors.white,
                                   ),
                                 // Top 2 vibe tags
                                 ..._topVibeTags.map((entry) {
                                   final style = _vibeStyles[entry.key];
-                                  if (style == null) return const SizedBox.shrink();
+                                  if (style == null)
+                                    return const SizedBox.shrink();
                                   return _InfoPill(
                                     text: style.label,
                                     icon: style.icon,
-                                    bgColor: style.color.withOpacity(0.25),
-                                    textColor:
-                                        Color.lerp(style.color, Colors.white, 0.5)!,
+                                    bgColor: style.color.withValues(
+                                      alpha: 0.25,
+                                    ),
+                                    textColor: Color.lerp(
+                                        style.color, Colors.white, 0.5)!,
                                   );
                                 }),
                                 // Feature micro-icons
@@ -682,7 +694,7 @@ class _CarouselCard extends StatelessWidget {
               margin: const EdgeInsets.only(left: 4),
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.12),
+                color: Colors.white.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(icon, size: 13, color: color),
@@ -729,7 +741,7 @@ class _CarouselCard extends StatelessWidget {
       LocationPreference.search => (
           FeatherIcons.search,
           'Match',
-          Colors.white.withOpacity(0.9),
+          Colors.white.withValues(alpha: 0.9),
           Colors.black87,
         ),
     };
@@ -796,13 +808,13 @@ class _CarouselCard extends StatelessWidget {
           gradient: LinearGradient(
             colors: [
               cs.surfaceContainerHighest,
-              cs.surfaceContainerHighest.withOpacity(0.7),
+              cs.surfaceContainerHighest.withValues(alpha: 0.7),
             ],
           ),
         ),
         child: Center(
           child: Icon(FeatherIcons.image,
-              size: 36, color: cs.onSurfaceVariant.withOpacity(0.4)),
+              size: 36, color: cs.onSurfaceVariant.withValues(alpha: 0.4)),
         ),
       );
 
@@ -810,7 +822,7 @@ class _CarouselCard extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              cs.primaryContainer.withOpacity(0.3),
+              cs.primaryContainer.withValues(alpha: 0.3),
               cs.surfaceContainerHighest,
             ],
             begin: Alignment.topLeft,
@@ -867,7 +879,7 @@ class _RatingChip extends StatelessWidget {
             Text(
               '(${_formatCount(reviewCount!)})',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.6),
+                color: Colors.white.withValues(alpha: 0.6),
                 fontSize: 10,
                 fontWeight: FontWeight.w500,
               ),

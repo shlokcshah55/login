@@ -18,16 +18,16 @@ ThemeData buildThemeData() {
       onPrimaryContainer: AppColors.primarySwatch[900]!,
       secondary: const Color(0xFF42143D),
       onSecondary: AppColors.onSecondary,
-      secondaryContainer: AppColors.secondary.withOpacity(0.2),
-      onSecondaryContainer: AppColors.secondary.withOpacity(0.9),
+      secondaryContainer: AppColors.secondary.withValues(alpha: 0.2),
+      onSecondaryContainer: AppColors.secondary.withValues(alpha: 0.9),
       tertiary: AppColors.info,
       onTertiary: Colors.white,
-      tertiaryContainer: AppColors.info.withOpacity(0.2),
-      onTertiaryContainer: AppColors.info.withOpacity(0.9),
+      tertiaryContainer: AppColors.info.withValues(alpha: 0.2),
+      onTertiaryContainer: AppColors.info.withValues(alpha: 0.9),
       error: AppColors.error,
       onError: AppColors.onError,
-      errorContainer: AppColors.error.withOpacity(0.2),
-      onErrorContainer: AppColors.error.withOpacity(0.9),
+      errorContainer: AppColors.error.withValues(alpha: 0.2),
+      onErrorContainer: AppColors.error.withValues(alpha: 0.9),
       surface: AppColors.surface,
       onSurface: const Color(0xFF42143D),
       onSurfaceVariant: AppColors.textSecondary,
@@ -55,12 +55,13 @@ ThemeData buildThemeData() {
   );
 }
 
-
 // Helper function to create a MaterialColor from a single color
 MaterialColor createMaterialColor(Color color) {
   List strengths = <double>[.05];
   Map<int, Color> swatch = {};
-  final int r = color.red, g = color.green, b = color.blue;
+  final int r = (color.r * 255.0).round().clamp(0, 255);
+  final int g = (color.g * 255.0).round().clamp(0, 255);
+  final int b = (color.b * 255.0).round().clamp(0, 255);
 
   for (int i = 1; i < 10; i++) {
     strengths.add(0.1 * i);
@@ -74,5 +75,5 @@ MaterialColor createMaterialColor(Color color) {
       1,
     );
   });
-  return MaterialColor(color.value, swatch);
+  return MaterialColor(color.toARGB32(), swatch);
 }

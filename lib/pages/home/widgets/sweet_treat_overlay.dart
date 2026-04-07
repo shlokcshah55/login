@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:login/themes/app_typography.dart';
 
 class SweetTreatOverlay extends StatelessWidget {
   final VoidCallback onClose;
@@ -21,7 +21,7 @@ class SweetTreatOverlay extends StatelessWidget {
           child: GestureDetector(
             onTap: onClose,
             child: Container(
-              color: Colors.black.withOpacity(0.5),
+              color: Colors.black.withValues(alpha: 0.5),
             ),
           ),
         ),
@@ -35,7 +35,7 @@ class SweetTreatOverlay extends StatelessWidget {
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
+                  color: Colors.black.withValues(alpha: 0.3),
                   blurRadius: 20,
                   spreadRadius: 5,
                   offset: const Offset(0, 10),
@@ -57,7 +57,7 @@ class SweetTreatOverlay extends StatelessWidget {
                     Expanded(
                       child: Text(
                         "Fancy a sweet treat?",
-                        style: GoogleFonts.poppins(
+                        style: AppTypography.brand(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
                           color: theme.textTheme.titleLarge?.color,
@@ -76,9 +76,11 @@ class SweetTreatOverlay extends StatelessWidget {
                 const SizedBox(height: 12),
                 Text(
                   "Hit go and we will show you all the sweet treats around here",
-                  style: GoogleFonts.poppins(
+                  style: AppTypography.sans(
                     fontSize: 14,
-                    color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                    color: theme.textTheme.bodyMedium?.color?.withValues(
+                      alpha: 0.7,
+                    ),
                     height: 1.4,
                   ),
                 ),
@@ -88,7 +90,8 @@ class SweetTreatOverlay extends StatelessWidget {
                   child: ElevatedButton(
                     onPressed: () {
                       print('🧁 SWEET TREAT SEARCH BUTTON PRESSED');
-                      onSubmit("Places with desserts or sweets that are currently open");
+                      onSubmit(
+                          "Places with desserts or sweets that are currently open");
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.pink.shade400,
@@ -100,7 +103,7 @@ class SweetTreatOverlay extends StatelessWidget {
                     ),
                     child: Text(
                       "Go",
-                      style: GoogleFonts.poppins(
+                      style: AppTypography.brand(
                         fontSize: 16.0,
                         color: Colors.white,
                         fontWeight: FontWeight.w600,

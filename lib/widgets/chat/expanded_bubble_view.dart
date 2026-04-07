@@ -25,6 +25,14 @@ class ExpandedChatView extends StatefulWidget {
 
 class _ExpandedChatViewState extends State<ExpandedChatView>
     with TickerProviderStateMixin {
+  static const _sheetBackground = Color(0xFFFFFBF8);
+  static const _sheetBorder = Color(0xFFF4DDE4);
+  static const _roseAccent = Color(0xFFD95D85);
+  static const _softRose = Color(0xFFFFEFF3);
+  static const _softAmber = Color(0xFFFFF3E2);
+  static const _titleColor = Color(0xFF563440);
+  static const _bodyColor = Color(0xFF8B7180);
+
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
   late Animation<double> _fadeAnimation;
@@ -50,7 +58,8 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
 
   Future<void> _loadMessageCount() async {
     try {
-      final count = await SupabaseService().messaging.getUnreadCount(widget.bubble.id);
+      final count =
+          await SupabaseService().messaging.getUnreadCount(widget.bubble.id);
       if (mounted) {
         setState(() {
           _messageCount = count;
@@ -68,9 +77,8 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
 
   Future<void> _loadBubbleActivity() async {
     try {
-      final activities = await SupabaseService()
-          .bubbles
-          .getBubbleActivity(widget.bubble.id);
+      final activities =
+          await SupabaseService().bubbles.getBubbleActivity(widget.bubble.id);
 
       if (mounted) {
         setState(() {
@@ -89,9 +97,8 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
 
   Future<void> _reloadBubbleData() async {
     try {
-      final updatedBubble = await SupabaseService()
-          .bubbles
-          .getBubbleById(widget.bubble.id);
+      final updatedBubble =
+          await SupabaseService().bubbles.getBubbleById(widget.bubble.id);
 
       if (updatedBubble != null && mounted) {
         setState(() {
@@ -157,66 +164,72 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final screenSize = MediaQuery.of(context).size;
 
     return Scaffold(
-      backgroundColor: Colors.black.withValues(red: 0, green: 0, blue: 0, alpha: 0.5),
+      backgroundColor: const Color(0x52000000),
       body: GestureDetector(
         onTap: _handleClose,
-        child: Container(
-          width: double.infinity,
-          height: double.infinity,
-          child: Center(
-            child: GestureDetector(
-              onTap: () {}, // Prevent closing when tapping on the card
-              child: FadeTransition(
-                opacity: _fadeAnimation,
-                child: ScaleTransition(
-                  scale: _scaleAnimation,
-                  child: SlideTransition(
-                    position: _slideAnimation,
-                    child: Container(
-                      width: screenSize.width * 0.9,
-                      height: screenSize.height * 0.8,
-                      decoration: BoxDecoration(
-                        color: theme.scaffoldBackgroundColor,
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(red: 0, green: 0, blue: 0, alpha: 0.5),
-                            blurRadius: 20,
-                            spreadRadius: 5,
-                          ),
+        child: Center(
+          child: GestureDetector(
+            onTap: () {},
+            child: FadeTransition(
+              opacity: _fadeAnimation,
+              child: ScaleTransition(
+                scale: _scaleAnimation,
+                child: SlideTransition(
+                  position: _slideAnimation,
+                  child: Container(
+                    width: screenSize.width * 0.9,
+                    height: screenSize.height * 0.8,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Color(0xFFFFFDFB),
+                          _sheetBackground,
                         ],
                       ),
-                      child: Column(
-                        children: [
-                          _buildHeader(theme),
-                          _buildGroupInfo(theme),
-                          Expanded(
-                            child: SingleChildScrollView(
-                              child: Column(
-                                children: [
-                                  _buildTopRecommendationsPodium(theme),
-                                  const SizedBox(height: 16),
-                                  _buildGroupChatCard(theme),
-                                  const SizedBox(height: 16),
-                                  _buildRecentActivity(theme),
-                                  const SizedBox(height: 16),
-                                  _buildStatsRow(theme),
-                                  const SizedBox(height: 16),
-                                ],
-                              ),
+                      borderRadius: BorderRadius.circular(32),
+                      border: Border.all(color: _sheetBorder),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x29000000),
+                          blurRadius: 34,
+                          offset: Offset(0, 18),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        _buildHeader(Theme.of(context)),
+                        _buildGroupInfo(Theme.of(context)),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            child: Column(
+                              children: [
+                                _buildTopRecommendationsPodium(
+                                    Theme.of(context)),
+                                const SizedBox(height: 16),
+                                _buildGroupChatCard(Theme.of(context)),
+                                const SizedBox(height: 16),
+                                _buildRecentActivity(Theme.of(context)),
+                                const SizedBox(height: 16),
+                                _buildStatsRow(Theme.of(context)),
+                                const SizedBox(height: 16),
+                              ],
                             ),
                           ),
-                          AnimatedSize(
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOutCubic,
-                            child: _showMembersList ? _buildMembersList(theme) : const SizedBox.shrink(),
-                          ),
-                        ],
-                      ),
+                        ),
+                        AnimatedSize(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOutCubic,
+                          child: _showMembersList
+                              ? _buildMembersList(Theme.of(context))
+                              : const SizedBox.shrink(),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -230,12 +243,19 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
 
   Widget _buildHeader(ThemeData theme) {
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.1),
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(24),
-          topRight: Radius.circular(24),
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFFFFE3E9),
+            Color(0xFFFFF0DD),
+          ],
+        ),
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(32),
+          topRight: Radius.circular(32),
         ),
       ),
       child: Row(
@@ -245,9 +265,9 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
             backgroundImage: currentBubble.groupAvatar.isNotEmpty
                 ? NetworkImage(currentBubble.groupAvatar)
                 : null,
-            backgroundColor: theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.2),
+            backgroundColor: Colors.white,
             child: currentBubble.groupAvatar.isEmpty
-                ? Icon(Icons.group, color: theme.primaryColor)
+                ? const Icon(Icons.group, color: _roseAccent)
                 : null,
           ),
           const SizedBox(width: 12),
@@ -259,39 +279,32 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
                   currentBubble.name,
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
+                    color: _titleColor,
                   ),
                 ),
                 Text(
                   '${currentBubble.memberCount} members • ${currentBubble.groupLocations.length} locations',
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: Colors.grey[600],
+                    color: _bodyColor,
                   ),
                 ),
               ],
             ),
           ),
-          IconButton(
+          _buildHeaderIconButton(
+            icon: Icons.person_add,
             onPressed: _showAddMembersDialog,
-            icon: Icon(Icons.person_add, color: theme.primaryColor),
-            style: IconButton.styleFrom(
-              backgroundColor: theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.1),
-            ),
             tooltip: 'Add Members',
           ),
-          IconButton(
+          _buildHeaderIconButton(
+            icon: Icons.open_in_full,
             onPressed: _navigateToBubbleProfile,
-            icon: Icon(Icons.open_in_full, color: theme.primaryColor),
-            style: IconButton.styleFrom(
-              backgroundColor: theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.1),
-            ),
             tooltip: 'Expand to full view',
           ),
-          IconButton(
+          _buildHeaderIconButton(
+            icon: Icons.close,
             onPressed: _handleClose,
-            icon: Icon(Icons.close, color: theme.primaryColor),
-            style: IconButton.styleFrom(
-              backgroundColor: theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.1),
-            ),
+            tooltip: 'Close',
           ),
         ],
       ),
@@ -303,10 +316,19 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: _sheetBorder),
+      ),
       child: Text(
         currentBubble.description,
-        style: theme.textTheme.bodyMedium,
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: _bodyColor,
+          height: 1.35,
+        ),
         textAlign: TextAlign.center,
       ),
     );
@@ -359,12 +381,21 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
     );
   }
 
-  Widget _buildStatCard(ThemeData theme, IconData icon, String value, String label, Color color) {
+  Widget _buildStatCard(
+      ThemeData theme, IconData icon, String value, String label, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _sheetBorder),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x12000000),
+            blurRadius: 16,
+            offset: Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -381,7 +412,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
           Text(
             label,
             style: theme.textTheme.bodySmall?.copyWith(
-              color: Colors.grey[600],
+              color: _bodyColor,
               fontSize: 10,
               fontWeight: FontWeight.w500,
             ),
@@ -398,15 +429,16 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
         margin: const EdgeInsets.symmetric(horizontal: 16),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 8,
-              spreadRadius: 1,
-            ),
-          ],
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFFFFEEF3),
+              Color(0xFFFFFBF4),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: _sheetBorder),
         ),
         child: Row(
           children: [
@@ -414,12 +446,12 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: theme.primaryColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
+                color: Colors.white.withValues(alpha: 0.88),
+                borderRadius: BorderRadius.circular(16),
               ),
-              child: Icon(
+              child: const Icon(
                 Icons.chat_bubble_outline,
-                color: theme.primaryColor,
+                color: _roseAccent,
                 size: 24,
               ),
             ),
@@ -432,6 +464,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
                     'Group Chat',
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
+                      color: _titleColor,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -439,7 +472,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
                       ? Text(
                           'Loading...',
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: Colors.grey[600],
+                            color: _bodyColor,
                             fontWeight: FontWeight.w500,
                           ),
                         )
@@ -450,7 +483,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
                                 vertical: 4,
                               ),
                               decoration: BoxDecoration(
-                                color: theme.primaryColor,
+                                color: _roseAccent,
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
@@ -464,7 +497,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
                           : Text(
                               'No unread messages',
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: Colors.grey[600],
+                                color: _bodyColor,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -501,7 +534,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
                   backgroundImage: avatars[index].isNotEmpty
                       ? NetworkImage(avatars[index])
                       : null,
-                  backgroundColor: theme.primaryColor.withOpacity(0.2),
+                  backgroundColor: theme.primaryColor.withValues(alpha: 0.2),
                   child: avatars[index].isEmpty
                       ? Icon(Icons.person, color: theme.primaryColor, size: 14)
                       : null,
@@ -552,13 +585,14 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: _sheetBorder),
+        boxShadow: const [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            spreadRadius: 1,
+            color: Color(0x12000000),
+            blurRadius: 18,
+            offset: Offset(0, 10),
           ),
         ],
       ),
@@ -592,7 +626,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
                         child: Text(
                           'No recent activity',
                           style: theme.textTheme.bodyMedium?.copyWith(
-                            color: Colors.grey[600],
+                            color: _bodyColor,
                           ),
                         ),
                       ),
@@ -619,32 +653,8 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
     );
   }
 
-  Widget _buildActivityItem(ThemeData theme, IconData icon, String text) {
-    return Row(
-      children: [
-        Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: theme.primaryColor.withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, color: theme.primaryColor, size: 16),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            text,
-            style: theme.textTheme.bodyMedium,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildActivityItemFromData(ThemeData theme, UserLocationActionModel activity) {
+  Widget _buildActivityItemFromData(
+      ThemeData theme, UserLocationActionModel activity) {
     // Determine icon and action text based on action type
     IconData icon;
     String actionText;
@@ -664,31 +674,29 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
     }
 
     // Get time ago text
-    final timeAgo = activity.createdAt != null
-        ? _getTimeAgo(activity.createdAt!)
-        : '';
+    final timeAgo =
+        activity.createdAt != null ? _getTimeAgo(activity.createdAt!) : '';
 
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: theme.primaryColor.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: theme.primaryColor.withOpacity(0.1),
-          width: 1,
-        ),
+        color: _softRose,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _sheetBorder),
       ),
       child: Row(
         children: [
           // User profile photo
           CircleAvatar(
             radius: 20,
-            backgroundImage: activity.user_avatar_url != null && activity.user_avatar_url!.isNotEmpty
+            backgroundImage: activity.user_avatar_url != null &&
+                    activity.user_avatar_url!.isNotEmpty
                 ? NetworkImage(activity.user_avatar_url!)
                 : null,
-            backgroundColor: theme.primaryColor.withOpacity(0.2),
-            child: activity.user_avatar_url == null || activity.user_avatar_url!.isEmpty
-                ? Icon(Icons.person, color: theme.primaryColor, size: 20)
+            backgroundColor: Colors.white,
+            child: activity.user_avatar_url == null ||
+                    activity.user_avatar_url!.isEmpty
+                ? const Icon(Icons.person, color: _roseAccent, size: 20)
                 : null,
           ),
           const SizedBox(width: 12),
@@ -727,7 +735,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
                       child: Text(
                         activity.locationName,
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.primaryColor,
+                          color: _roseAccent,
                           fontWeight: FontWeight.w500,
                         ),
                         maxLines: 1,
@@ -741,7 +749,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
                   Text(
                     timeAgo,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: Colors.grey[600],
+                      color: _bodyColor,
                       fontSize: 11,
                     ),
                   ),
@@ -763,7 +771,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
             child: Text(
               'See more',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.primaryColor,
+                color: _roseAccent,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -804,8 +812,9 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
         margin: const EdgeInsets.symmetric(horizontal: 16),
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(16),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: _sheetBorder),
         ),
         child: Column(
           children: [
@@ -814,13 +823,13 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
             Text(
               'No recommendations yet',
               style: theme.textTheme.titleMedium?.copyWith(
-                color: Colors.grey[600],
+                color: _bodyColor,
               ),
             ),
             Text(
               'Start adding pins to see top picks!',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: Colors.grey[500],
+                color: _bodyColor,
               ),
             ),
           ],
@@ -832,27 +841,29 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.1),
-            theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.05),
+            Color(0xFFFFEEF3),
+            Color(0xFFFFF7E8),
           ],
         ),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: _sheetBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.emoji_events, color: theme.primaryColor, size: 28),
+              const Icon(Icons.emoji_events, color: _roseAccent, size: 28),
               const SizedBox(width: 8),
               Text(
                 'Top Recommendations',
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
+                  color: _titleColor,
                 ),
               ),
             ],
@@ -878,7 +889,8 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
     );
   }
 
-  Widget _buildPodiumPlace(ThemeData theme, dynamic location, int place, double height, Color medalColor) {
+  Widget _buildPodiumPlace(ThemeData theme, dynamic location, int place,
+      double height, Color medalColor) {
     return Column(
       children: [
         Container(
@@ -933,65 +945,6 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
     );
   }
 
-  Widget _buildGroupActivity(ThemeData theme) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(red: 0, green: 0, blue: 0, alpha: 0.05),
-            blurRadius: 8,
-            spreadRadius: 1,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.timeline, color: theme.primaryColor, size: 24),
-              const SizedBox(width: 8),
-              Text(
-                'Group Activity',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _buildActivityItem(
-            theme,
-            Icons.add_location,
-            'New pin added'          ),
-          const Divider(height: 24),
-          _buildActivityItem(
-            theme,
-            Icons.favorite,
-            'Pin Saved'
-            ),
-          const Divider(height: 24),
-          _buildActivityItem(
-            theme,
-            Icons.comment,
-            'New comment'
-          ),
-          const SizedBox(height: 12),
-          Center(
-            child: TextButton(
-              onPressed: _navigateToBubbleProfile,
-              child: Text('View All Activity'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   // Widget _buildActivityItem(ThemeData theme, IconData icon, String title, String description, String time) {
   //   return Row(
   //     children: [
@@ -1035,133 +988,6 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
   //   );
   // }
 
-  Widget _buildStatisticsStickers(ThemeData theme) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 12),
-            child: Row(
-              children: [
-                Icon(Icons.stars, color: theme.primaryColor, size: 24),
-                const SizedBox(width: 8),
-                Text(
-                  'Group Stats',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              _buildStatSticker(
-                theme,
-                '🔥',
-                'Most Active',
-                'Sarah',
-                Colors.orange,
-              ),
-              _buildStatSticker(
-                theme,
-                '📍',
-                'Most Saves',
-                'Mike',
-                Colors.blue,
-              ),
-              _buildStatSticker(
-                theme,
-                '⭐',
-                'Top Reviewer',
-                'Emma',
-                Colors.amber,
-              ),
-              _buildStatSticker(
-                theme,
-                '🎯',
-                'Explorer',
-                'Alex',
-                Colors.green,
-              ),
-              _buildStatSticker(
-                theme,
-                '💬',
-                'Chattiest',
-                'Lisa',
-                Colors.purple,
-              ),
-              _buildStatSticker(
-                theme,
-                '🏆',
-                'Trendsetter',
-                'Tom',
-                Colors.red,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatSticker(ThemeData theme, String emoji, String title, String userName, Color color) {
-    return Container(
-      width: (MediaQuery.of(context).size.width - 56) / 2,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            color.withValues(red: 0, green: 0, blue: 0, alpha: 0.2),
-            color.withValues(red: 0, green: 0, blue: 0, alpha: 0.05),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: color.withValues(red: 0, green: 0, blue: 0, alpha: 0.3),
-          width: 1.5,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(emoji, style: const TextStyle(fontSize: 24)),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  title,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            userName,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
-    );
-  }
-
   void _navigateToBubbleProfile() {
     print('Navigating to bubble profile for bubble: ${currentBubble.name}');
     final bubbleModeProvider = context.read<BubbleModeProvider>();
@@ -1189,11 +1015,12 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: theme.cardColor,
+        color: Colors.white,
         borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(24),
-          bottomRight: Radius.circular(24),
+          bottomLeft: Radius.circular(32),
+          bottomRight: Radius.circular(32),
         ),
+        border: Border(top: BorderSide(color: _sheetBorder)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1206,6 +1033,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
                 'Group Members',
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
+                  color: _titleColor,
                 ),
               ),
             ],
@@ -1224,25 +1052,25 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
 
                   return Container(
                     decoration: BoxDecoration(
-                      color: theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.1),
+                      color: _softRose,
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.2),
-                        width: 1,
-                      ),
+                      border: Border.all(color: _sheetBorder),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         CircleAvatar(
                           radius: 12,
-                          backgroundImage: currentBubble.memberAvatars[index].isNotEmpty
+                          backgroundImage: currentBubble
+                                  .memberAvatars[index].isNotEmpty
                               ? NetworkImage(currentBubble.memberAvatars[index])
                               : null,
-                          backgroundColor: theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.3),
+                          backgroundColor: Colors.white,
                           child: currentBubble.memberAvatars[index].isEmpty
-                              ? Icon(Icons.person, color: theme.primaryColor, size: 14)
+                              ? const Icon(Icons.person,
+                                  color: _roseAccent, size: 14)
                               : null,
                         ),
                         const SizedBox(width: 8),
@@ -1262,21 +1090,21 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
                 onTap: _showAddMembersDialog,
                 child: Container(
                   decoration: BoxDecoration(
-                    color: theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.1),
+                    color: _softAmber,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: theme.primaryColor.withValues(red: 0, green: 0, blue: 0, alpha: 0.3),
+                      color: _sheetBorder,
                       width: 1.5,
-                      style: BorderStyle.solid,
                     ),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
                         Icons.person_add,
-                        color: theme.primaryColor,
+                        color: _roseAccent,
                         size: 16,
                       ),
                       const SizedBox(width: 6),
@@ -1284,7 +1112,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
                         'Add Members',
                         style: theme.textTheme.bodySmall?.copyWith(
                           fontWeight: FontWeight.w600,
-                          color: theme.primaryColor,
+                          color: _roseAccent,
                         ),
                       ),
                     ],
@@ -1302,5 +1130,23 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
     _animationController.reverse().then((_) {
       widget.onClose();
     });
+  }
+
+  Widget _buildHeaderIconButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+    required String tooltip,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 6),
+      child: IconButton(
+        onPressed: onPressed,
+        tooltip: tooltip,
+        icon: Icon(icon, color: _roseAccent),
+        style: IconButton.styleFrom(
+          backgroundColor: Colors.white.withValues(alpha: 0.82),
+        ),
+      ),
+    );
   }
 }
