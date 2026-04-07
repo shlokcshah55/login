@@ -97,8 +97,7 @@ class LocationHelper {
     try {
       await getLocationImage(locationId, googlePlaceId, photoReference);
     } catch (e) {
-      if (kDebugMode)
-        print('Background image upload failed for $locationId: $e');
+      // silent — background task, don't surface errors to UI
     }
   }
 
@@ -678,7 +677,6 @@ class LocationHelper {
     try {
       final apiKey = dotenv.env["GOOGLE_PLACE_API_KEY"];
       if (apiKey == null || apiKey.isEmpty) {
-        if (kDebugMode) print('GOOGLE_PLACE_API_KEY not found');
         return null;
       }
 
@@ -698,11 +696,8 @@ class LocationHelper {
         }
       }
 
-      if (kDebugMode)
-        print('⚠️  Places API returned non-200 status: ${response.statusCode}');
       return null;
     } catch (e) {
-      if (kDebugMode) print('❌ Error in Places API call: $e');
       return null;
     }
   }
@@ -710,8 +705,9 @@ class LocationHelper {
   // Method that performs the actual download (called only once per location)
   Future<String?> _performImageDownload(
       int locationId, String? photoReference, String placeId) async {
-    // Try the stored photo reference first if we have one
+    // Step 3: Try the stored photo reference first if we have one
     if (photoReference != null && photoReference.isNotEmpty) {
+      if (kDebugMode) print('[Image] [$locationId] Step 3: Trying stored photo_reference...');
       final permanentUrl = await _downloadAndUploadImage(photoReference, locationId);
       if (permanentUrl != null) {
         try {
@@ -720,28 +716,34 @@ class LocationHelper {
             'p_image_url': permanentUrl,
           });
         } catch (e) {
-          if (kDebugMode) print('⚠️  Failed to mark image_stored for $locationId: $e');
+          // best-effort DB update
         }
+        if (kDebugMode) print('[Image] [$locationId] Step 3: Stored photo_reference succeeded.');
         return permanentUrl;
       }
-      if (kDebugMode) print('⚠️  Stored photo reference failed for $locationId, fetching fresh...');
+      if (kDebugMode) print('[Image] [$locationId] Step 3: Stored photo_reference failed — falling back to google_place_id.');
+    } else {
+      if (kDebugMode) print('[Image] [$locationId] Step 3: No stored photo_reference — will use google_place_id.');
     }
 
-    // Stored reference was empty or failed — fetch fresh using place ID
+    // Step 4: Fetch fresh photo references from Google Places API using place ID
     if (placeId.isEmpty) {
-      if (kDebugMode) print('⚠️  No photo reference or place ID available for $locationId');
+      if (kDebugMode) print('[Image] [$locationId] Step 4: No google_place_id available — cannot fetch image.');
       return null;
     }
 
+    if (kDebugMode) print('[Image] [$locationId] Step 4: Fetching photo references from Google Places API for place $placeId...');
     final freshPhotos = await _fetchPlacePhotos(placeId);
     if (freshPhotos == null || freshPhotos.isEmpty) {
-      if (kDebugMode) print('⚠️  Could not fetch fresh photos for $locationId');
+      if (kDebugMode) print('[Image] [$locationId] Step 4: Google Places API returned no photos.');
       return null;
     }
 
     final freshReference = freshPhotos[0]['name'] as String;
+    if (kDebugMode) print('[Image] [$locationId] Step 4: Got ${freshPhotos.length} photo reference(s). Using first: $freshReference');
 
-    // Save references back to DB — best effort, don't block the download
+    // Step 5: Save fresh references back to DB for future use
+    if (kDebugMode) print('[Image] [$locationId] Step 5: Saving fresh photo reference and photos array to DB...');
     try {
       await _client.rpc('update_location_photo_reference', params: {
         'p_location_id': locationId,
@@ -751,8 +753,9 @@ class LocationHelper {
         'p_location_id': locationId,
         'p_photos': jsonEncode(freshPhotos),
       });
+      if (kDebugMode) print('[Image] [$locationId] Step 5: DB updated successfully.');
     } catch (e) {
-      if (kDebugMode) print('⚠️  Failed to save fresh photo reference for $locationId: $e');
+      if (kDebugMode) print('[Image] [$locationId] Step 5: Failed to save to DB (non-fatal): $e');
     }
 
     final permanentUrl = await _downloadAndUploadImage(freshReference, locationId);
@@ -763,7 +766,7 @@ class LocationHelper {
           'p_image_url': permanentUrl,
         });
       } catch (e) {
-        if (kDebugMode) print('⚠️  Failed to mark image_stored for $locationId: $e');
+        // best-effort DB update
       }
     }
     return permanentUrl;
@@ -773,11 +776,6 @@ class LocationHelper {
   Future<String?> _downloadAndUploadImage(
       String photoReference, int locationId) async {
     try {
-      if (kDebugMode) {
-        print('');
-        print('🔄 Starting image download and upload process...');
-      }
-
       // Use location_id as the filename for easy identification and deduplication
       final filename = '$locationId.jpg';
 
@@ -804,7 +802,6 @@ class LocationHelper {
           .getPublicUrl(filename);
       return permanentUrl; // This URL will work forever
     } catch (e) {
-      if (kDebugMode) print('❌ Error downloading and uploading image: $e');
       return null;
     }
   }
@@ -814,22 +811,11 @@ class LocationHelper {
     try {
       final apiKey = dotenv.env["GOOGLE_PLACE_API_KEY"];
       if (apiKey == null || apiKey.isEmpty) {
-        if (kDebugMode) print('GOOGLE_PLACE_API_KEY not found');
         return null;
       }
 
       final url =
           'https://places.googleapis.com/v1/$photoReference/media?maxHeightPx=400&maxWidthPx=400&key=$apiKey';
-
-      // ===== 💰 BILLABLE API CALL =====
-      if (kDebugMode) {
-        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        print('💰 GOOGLE API CALL #1: Places Photo Media API');
-        print('   Endpoint: Media API v1');
-        print('   Purpose: Get photo URL from reference');
-        print('   Cost: ~\$0.007 per call');
-        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      }
 
       // Create a client to manually handle redirects
       final client = http.Client();
@@ -845,27 +831,20 @@ class LocationHelper {
             streamedResponse.statusCode == 307) {
           final redirectUrl = streamedResponse.headers['location'];
           if (redirectUrl != null) {
-            if (kDebugMode)
-              print('✅ Media API call successful - Got redirect URL');
             return redirectUrl;
           }
         }
 
         // If it's a direct 200, the URL itself might be usable
         if (streamedResponse.statusCode == 200) {
-          if (kDebugMode) print('✅ Media API call successful - Status 200');
           return url;
         }
 
-        if (kDebugMode)
-          print(
-              '⚠️  Media API returned status: ${streamedResponse.statusCode}');
         return null;
       } finally {
         client.close();
       }
     } catch (e) {
-      if (kDebugMode) print('❌ Error in Media API call: $e');
       return null;
     }
   }

@@ -23,6 +23,9 @@ class UserModel {
   /// User’s dietary-requirement affinity vector (integer[]).
   final List<int>? dietaryRequirementTagAffinity;
 
+  /// Whether the user has already generated AI collections at least once.
+  final bool generatedCollections;
+
   UserModel({
     this.supabaseId,
     this.name,
@@ -38,6 +41,7 @@ class UserModel {
     this.username,
     this.vibeTagAffinity,
     this.dietaryRequirementTagAffinity,
+    this.generatedCollections = false,
   });
 
   // ─────────────── Match-scoring helpers ───────────────
@@ -114,6 +118,8 @@ class UserModel {
                   (json[SupabaseConstants.columnDietaryRequirementTagAffinity] as List)
                       .map((e) => (e as num).toInt()))
               : null,
+      generatedCollections:
+          json[SupabaseConstants.columnGeneratedCollections] != null,
     );
   }
 
@@ -153,6 +159,7 @@ class UserModel {
     String? username,
     List<int>? vibeTagAffinity,
     List<int>? dietaryRequirementTagAffinity,
+    bool? generatedCollections,
   }) {
     return UserModel(
       supabaseId: supabaseId ?? this.supabaseId,
@@ -170,6 +177,7 @@ class UserModel {
       vibeTagAffinity: vibeTagAffinity ?? this.vibeTagAffinity,
       dietaryRequirementTagAffinity:
           dietaryRequirementTagAffinity ?? this.dietaryRequirementTagAffinity,
+      generatedCollections: generatedCollections ?? this.generatedCollections,
     );
   }
 }

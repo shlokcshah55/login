@@ -156,7 +156,7 @@ class _ProfilePageState extends State<ProfilePage>
                   // Content based on selected tab - using single SliverToBoxAdapter to avoid tree changes
                   SliverToBoxAdapter(
                     child: _buildTabContent(
-                        savedPins, popularLocations, hiddenGemLocations),
+                        user, savedPins, popularLocations, hiddenGemLocations),
                   ),
 
                   // Bottom padding
@@ -182,6 +182,7 @@ class _ProfilePageState extends State<ProfilePage>
   }
 
   Widget _buildTabContent(
+      UserModel user,
       List<LocationModel> savedPins,
       List<LocationModel> popularLocations,
       List<LocationModel> hiddenGemLocations) {
@@ -203,7 +204,9 @@ class _ProfilePageState extends State<ProfilePage>
           ],
         );
       case 1:
-        return const CollectionsGrid();
+        return CollectionsGrid(
+          generatedCollections: user.generatedCollections,
+        );
       case 2:
         return _buildDiscoverSection();
       default:

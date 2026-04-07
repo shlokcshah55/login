@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:login/models/locations.dart';
-import 'location_detail_sheet.dart';
+import 'package:login/widgets/home/expanded_location_card.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'pinit_colors.dart';
 
 /// Places currently trending that this user has saved
-/// Feels like "you're early, but not alone"
 class TrendingNowSection extends StatelessWidget {
   final List<LocationModel> locations;
 
@@ -15,29 +16,27 @@ class TrendingNowSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final trendingPins = locations;
-
-    if (trendingPins.isEmpty) {
-      return const SizedBox.shrink();
-    }
+    if (locations.isEmpty) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Section Header
+        // ── Section header ──
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 14),
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                width: 38,
+                height: 38,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF0ED),
-                  borderRadius: BorderRadius.circular(10),
+                  color: PinitColors.surfaceLight,
+                  borderRadius: BorderRadius.circular(11),
                 ),
-                child: const Text(
-                  '🔥',
-                  style: TextStyle(fontSize: 16),
+                child: const Icon(
+                  FeatherIcons.trendingUp,
+                  size: 17,
+                  color: PinitColors.textSecondary,
                 ),
               ),
               const SizedBox(width: 12),
@@ -56,7 +55,7 @@ class TrendingNowSection extends StatelessWidget {
                     ),
                     SizedBox(height: 2),
                     Text(
-                      'Trending places they\'ve saved',
+                      'Trending places you\'ve saved',
                       style: TextStyle(
                         fontSize: 13,
                         color: PinitColors.textSecondary,
@@ -69,13 +68,13 @@ class TrendingNowSection extends StatelessWidget {
           ),
         ),
 
-        // Trending cards (vertical list)
+        // ── Cards ──
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
-            children: trendingPins.map((location) {
-              return _TrendingCard(location: location);
-            }).toList(),
+            children: locations
+                .map((location) => _TrendingCard(location: location))
+                .toList(),
           ),
         ),
       ],
@@ -85,112 +84,267 @@ class TrendingNowSection extends StatelessWidget {
 
 class _TrendingCard extends StatelessWidget {
   final LocationModel location;
-
   const _TrendingCard({required this.location});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => showModalBottomSheet(
+      onTap: () => showGeneralDialog(
         context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (_) => LocationDetailSheet(location: location),
+        barrierDismissible: true,
+        barrierLabel:
+            MaterialLocalizations.of(context).modalBarrierDismissLabel,
+        barrierColor: Colors.transparent,
+        transitionDuration: const Duration(milliseconds: 300),
+        pageBuilder: (ctx, anim, _) => ExpandedLocationCard(
+          location: location,
+          onClose: () => Navigator.of(ctx).pop(),
+        ),
+        transitionBuilder: (ctx, anim, _, child) =>
+            FadeTransition(opacity: anim, child: child),
       ),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
+        margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: PinitColors.surfaceCard,
           borderRadius: BorderRadius.circular(16),
           boxShadow: PinitColors.cardShadow,
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              // Place image placeholder
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: PinitColors.surfaceLight,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Center(
-                  child: Icon(
-                    Icons.restaurant,
-                    size: 24,
-                    color: PinitColors.textMuted,
-                  ),
+        child: Row(
+          children: [
+            // ── Image corner ──
+            ClipRRect(
+              borderRadius: const BorderRadius.horizontal(
+                  left: Radius.circular(16)),
+              child: SizedBox(
+                width: 80,
+                height: 80,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _buildImage(context),
+                    // Subtle dark scrim — carousel language on a thumbnail
+                    Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withValues(alpha: 0.45),
+                            ],
+                            stops: const [0.4, 1.0],
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Open/closed dot in bottom-left of thumbnail
+                    if (location.openNow != null)
+                      Positioned(
+                        bottom: 6,
+                        left: 6,
+                        child: Container(
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            color: location.openNow!
+                                ? const Color(0xFF00B894)
+                                : const Color(0xFFE17055),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.3),
+                                blurRadius: 3,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
+            ),
 
-              const SizedBox(width: 14),
-
-              // Place info
-              Expanded(
+            // ── Info ──
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Name
                     Text(
                       location.name,
                       style: const TextStyle(
-                        fontSize: 16,
+                        fontSize: 15,
                         fontWeight: FontWeight.w700,
                         color: PinitColors.textPrimary,
                         letterSpacing: -0.2,
+                        height: 1.2,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      location.cuisine ?? 'Restaurant',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: PinitColors.textSecondary,
-                      ),
-                    ),
-                    if (location.rating != null) ...[
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          Icon(Icons.star_rounded,
-                              size: 14, color: const Color(0xFFF59E0B)),
-                          const SizedBox(width: 3),
-                          Text(
-                            location.rating!.toStringAsFixed(1),
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: PinitColors.textSecondary,
-                            ),
-                          ),
-                          if (location.userRatingsTotal != null) ...[
-                            const SizedBox(width: 4),
-                            Text(
-                              '(${location.userRatingsTotal})',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: PinitColors.textMuted,
-                              ),
-                            ),
-                          ],
-                        ],
+
+                    // Summary / vicinity
+                    if (_summaryText != null) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        _summaryText!,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: PinitColors.textSecondary,
+                          height: 1.3,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
+
+                    const SizedBox(height: 8),
+
+                    // Pills row — carousel style
+                    Row(
+                      children: [
+                        if (location.priceLevel != null &&
+                            location.priceLevel! > 0) ...[
+                          _Pill(
+                            text: '£' * location.priceLevel!,
+                            bgColor:
+                                const Color(0xFF00B894).withValues(alpha: 0.12),
+                            textColor: const Color(0xFF00B894),
+                            fontWeight: FontWeight.w800,
+                          ),
+                          const SizedBox(width: 5),
+                        ],
+                        if (location.cuisine != null &&
+                            location.cuisine!.isNotEmpty)
+                          _Pill(
+                            text: location.cuisine!,
+                            bgColor: PinitColors.surfaceLight,
+                            textColor: PinitColors.textSecondary,
+                          ),
+                        const Spacer(),
+                        if (location.rating != null)
+                          _RatingChip(rating: location.rating!),
+                      ],
+                    ),
                   ],
                 ),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: PinitColors.textMuted,
-                size: 20,
-              ),
-            ],
+  String? get _summaryText {
+    if (location.generatedSummary != null &&
+        location.generatedSummary!.isNotEmpty) return location.generatedSummary;
+    if (location.editorialSummary != null &&
+        location.editorialSummary!.isNotEmpty) return location.editorialSummary;
+    if (location.vicinity != null && location.vicinity!.isNotEmpty) {
+      return location.vicinity;
+    }
+    return null;
+  }
+
+  Widget _buildImage(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final url = location.imageUrl ?? location.photoReference;
+
+    if (url != null) {
+      return CachedNetworkImage(
+        imageUrl: url,
+        fit: BoxFit.cover,
+        placeholder: (_, __) => Container(color: cs.surfaceContainerHighest),
+        errorWidget: (_, __, ___) => _imageFallback(cs),
+      );
+    }
+    return _imageFallback(cs);
+  }
+
+  Widget _imageFallback(ColorScheme cs) => Container(
+        color: cs.surfaceContainerHighest,
+        child: Center(
+          child: Text(
+            location.emoji ?? '📍',
+            style: const TextStyle(fontSize: 28),
           ),
         ),
+      );
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Micro-widgets
+// ─────────────────────────────────────────────────────────────
+
+class _RatingChip extends StatelessWidget {
+  final double rating;
+  const _RatingChip({required this.rating});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.amber.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+            color: Colors.amber.withValues(alpha: 0.25), width: 0.5),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            rating.toStringAsFixed(1),
+            style: const TextStyle(
+              color: Color(0xFFF59E0B),
+              fontWeight: FontWeight.w800,
+              fontSize: 11,
+            ),
+          ),
+          const SizedBox(width: 2),
+          const Icon(FeatherIcons.star, size: 9, color: Color(0xFFF59E0B)),
+        ],
+      ),
+    );
+  }
+}
+
+class _Pill extends StatelessWidget {
+  final String text;
+  final Color bgColor;
+  final Color textColor;
+  final FontWeight fontWeight;
+
+  const _Pill({
+    required this.text,
+    required this.bgColor,
+    required this.textColor,
+    this.fontWeight = FontWeight.w600,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(7),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: textColor,
+          fontWeight: fontWeight,
+          fontSize: 10.5,
+          letterSpacing: 0.1,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }

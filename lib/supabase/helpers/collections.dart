@@ -1,0 +1,142 @@
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../supabase_client.dart';
+import '../../models/locations.dart';
+import 'location.dart';
+
+class CollectionItem {
+  final String collectionId;
+  final String name;
+  final String? emoji;
+  final String? coverColor;
+  final String? photo;
+  final int placeCount;
+
+  const CollectionItem({
+    required this.collectionId,
+    required this.name,
+    this.emoji,
+    this.coverColor,
+    this.photo,
+    required this.placeCount,
+  });
+
+  factory CollectionItem.fromJson(Map<String, dynamic> json) => CollectionItem(
+        collectionId: json['collection_id'] as String,
+        name: json['name'] as String,
+        emoji: json['emoji'] as String?,
+        coverColor: json['cover_color'] as String?,
+        photo: json['photo'] as String?,
+        placeCount: (json['place_count'] as num).toInt(),
+      );
+}
+
+class GenerateCollectionsResult {
+  final bool success;
+  final int collectionsCreated;
+
+  const GenerateCollectionsResult({
+    required this.success,
+    required this.collectionsCreated,
+  });
+
+  factory GenerateCollectionsResult.fromJson(Map<String, dynamic> json) =>
+      GenerateCollectionsResult(
+        success: json['success'] as bool,
+        collectionsCreated: (json['collections_created'] as num).toInt(),
+      );
+}
+
+class CollectionsGenerationException implements Exception {
+  final String message;
+  const CollectionsGenerationException(this.message);
+  @override
+  String toString() => message;
+}
+
+class CollectionsHelper {
+  static const String _serviceUrl =
+      'https://collections-generator-240311094810.europe-west1.run.app';
+
+  final SupabaseClient _client = SupabaseClientManager().client;
+  final http.Client _http;
+
+  CollectionsHelper({http.Client? httpClient})
+      : _http = httpClient ?? http.Client();
+
+  /// Load collections for [userId] via the get_user_collections RPC.
+  /// Throws on failure so the caller can show an appropriate error state.
+  Future<List<CollectionItem>> getUserCollections(String userId) async {
+    debugPrint('[CollectionsHelper] getUserCollections — calling RPC for $userId');
+    final response = await _client.rpc(
+      'get_user_collections',
+      params: {'p_user_id': userId},
+    );
+    debugPrint('[CollectionsHelper] raw response type: ${response.runtimeType}');
+    debugPrint('[CollectionsHelper] raw response: $response');
+    final items = (response as List)
+        .map((row) => CollectionItem.fromJson(row as Map<String, dynamic>))
+        .toList();
+    debugPrint('[CollectionsHelper] parsed ${items.length} collections');
+    return items;
+  }
+
+  /// Fetch full [LocationModel] objects for all locations in [collectionId].
+  /// The RPC now returns all location columns directly, so no second query needed.
+  Future<List<LocationModel>> getLocationsForCollection(String collectionId) async {
+    debugPrint('[CollectionsHelper] getLocationsForCollection $collectionId');
+
+    final rows = await _client.rpc(
+      'get_locations_in_collection',
+      params: {'p_collection_id': collectionId},
+    ) as List;
+
+    debugPrint('[CollectionsHelper] got ${rows.length} location rows');
+
+    if (rows.isEmpty) return [];
+
+    return LocationHelper().processLocationsWithImages(rows);
+  }
+
+  Future<GenerateCollectionsResult> _callGenerationEndpoint(
+      String endpoint, String userId) async {
+    final uri = Uri.parse('$_serviceUrl/$endpoint');
+    final session = _client.auth.currentSession;
+    if (session == null) throw CollectionsGenerationException('Not logged in');
+
+    final response = await _http
+        .post(
+          uri,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ${session.accessToken}',
+          },
+          body: jsonEncode({'user_id': userId}),
+        )
+        .timeout(const Duration(seconds: 90));
+
+    final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      throw CollectionsGenerationException(
+          'Authentication failed. Please log in again.');
+    }
+    if (response.statusCode == 422) {
+      throw CollectionsGenerationException(
+          decoded['error'] as String? ?? 'Not enough saved locations');
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw CollectionsGenerationException(
+          decoded['error'] as String? ?? 'Generation failed');
+    }
+    return GenerateCollectionsResult.fromJson(decoded);
+  }
+
+  Future<GenerateCollectionsResult> generateCollections(String userId) =>
+      _callGenerationEndpoint('generate-collections', userId);
+
+  Future<GenerateCollectionsResult> autoUpdateCollections(String userId) =>
+      _callGenerationEndpoint('auto-update-collections', userId);
+}
