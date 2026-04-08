@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/users.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/supabase/service.dart';
@@ -34,7 +35,7 @@ class _ProfilePageState extends State<ProfilePage>
   double _scrollOffset = 0.0;
   int _selectedTab = 0;
 
-  final List<String> _tabs = ['Pins', 'Collections', 'Discover'];
+  final List<String> _tabs = ['Hot', 'Collections', 'People'];
 
   @override
   void initState() {
@@ -86,8 +87,8 @@ class _ProfilePageState extends State<ProfilePage>
           SnackBar(
             content: Text('Error signing out: $e'),
             behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
           ),
         );
       }
@@ -114,25 +115,19 @@ class _ProfilePageState extends State<ProfilePage>
     final collapsedHeader = _scrollOffset > 120;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: collapsedHeader
-          ? SystemUiOverlayStyle.dark
-          : SystemUiOverlayStyle.light,
+      value: SystemUiOverlayStyle.dark,
       child: Scaffold(
-        backgroundColor: PinitColors.background,
+        backgroundColor: PinitColors.cream,
         body: Stack(
           children: [
             NotificationListener<ScrollNotification>(
-              onNotification: (notification) {
-                // Don't interfere with scroll
-                return false;
-              },
+              onNotification: (notification) => false,
               child: CustomScrollView(
                 controller: _scrollController,
                 physics: const BouncingScrollPhysics(
                   parent: AlwaysScrollableScrollPhysics(),
                 ),
                 slivers: [
-                  // Collapsing Header
                   SliverToBoxAdapter(
                     child: ProfileHeader(
                       user: user,
@@ -142,32 +137,28 @@ class _ProfilePageState extends State<ProfilePage>
                       unreadCount: FCMService().unreadCount,
                     ),
                   ),
-
-                  // Tab Bar - Using SliverAppBar for better stability
+                  const SliverToBoxAdapter(
+                    child: SizedBox(height: 20),
+                  ),
                   SliverAppBar(
                     pinned: true,
-                    elevation: 0,
-                    backgroundColor: PinitColors.background,
+                    elevation: 4,
+                    shadowColor: PinitColors.aubergine.withValues(alpha: 0.06),
+                    backgroundColor: PinitColors.cream,
                     automaticallyImplyLeading: false,
-                    toolbarHeight: 56,
+                    toolbarHeight: 40,
                     flexibleSpace: _buildPinnedTabs(),
                   ),
-
-                  // Content based on selected tab - using single SliverToBoxAdapter to avoid tree changes
                   SliverToBoxAdapter(
                     child: _buildTabContent(
-                        savedPins, popularLocations, hiddenGemLocations),
+                        user, savedPins, popularLocations, hiddenGemLocations),
                   ),
-
-                  // Bottom padding
                   const SliverToBoxAdapter(
                     child: SizedBox(height: 100),
                   ),
                 ],
               ),
             ),
-
-            // Collapsed header overlay
             if (collapsedHeader)
               Positioned(
                 top: 0,
@@ -182,6 +173,7 @@ class _ProfilePageState extends State<ProfilePage>
   }
 
   Widget _buildTabContent(
+      UserModel user,
       List<LocationModel> savedPins,
       List<LocationModel> popularLocations,
       List<LocationModel> hiddenGemLocations) {
@@ -189,21 +181,15 @@ class _ProfilePageState extends State<ProfilePage>
       case 0:
         return Column(
           children: [
-            // Taste Match Section
-            // Hidden Gems
-            HiddenGemsSection(
-              locations: hiddenGemLocations,
-            ),
-            // Trending Now
-            TrendingNowSection(
-              locations: popularLocations,
-            ),
-            // Recent Activity
+            HiddenGemsSection(locations: hiddenGemLocations),
+            TrendingNowSection(locations: popularLocations),
             const RecentActivitySection(),
           ],
         );
       case 1:
-        return const CollectionsGrid();
+        return CollectionsGrid(
+          generatedCollections: user.generatedCollections,
+        );
       case 2:
         return _buildDiscoverSection();
       default:
@@ -212,20 +198,15 @@ class _ProfilePageState extends State<ProfilePage>
   }
 
   Widget _buildDiscoverSection() {
-    return Column(
-      children: [
-        const SizedBox(height: 8),
-        FindFriendsSection(
-          theme: Theme.of(context),
-          onUserTap: (user) {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (context) => OtherUserProfilePage(user: user),
-              ),
-            );
-          },
-        ),
-      ],
+    return FindFriendsSection(
+      theme: Theme.of(context),
+      onUserTap: (user) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => OtherUserProfilePage(user: user),
+          ),
+        );
+      },
     );
   }
 
@@ -233,12 +214,12 @@ class _ProfilePageState extends State<ProfilePage>
     return Container(
       padding: EdgeInsets.only(
         top: MediaQuery.of(context).padding.top,
-        left: 20,
-        right: 20,
+        left: 24,
+        right: 24,
         bottom: 12,
       ),
       decoration: const BoxDecoration(
-        color: Color(0xFF41133D),
+        color: PinitColors.aubergine,
       ),
       child: Row(
         children: [
@@ -256,7 +237,7 @@ class _ProfilePageState extends State<ProfilePage>
                 fit: BoxFit.cover,
               ),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.5),
+                color: PinitColors.creamDeep.withValues(alpha: 0.5),
                 width: 2,
               ),
             ),
@@ -266,10 +247,11 @@ class _ProfilePageState extends State<ProfilePage>
             child: Text(
               user.name ?? 'Profile',
               style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-                letterSpacing: -0.3,
+                fontFamily: 'Rova',
+                fontSize: 20,
+                fontWeight: FontWeight.w100,
+                color: PinitColors.cream,
+                letterSpacing: 1.9,
               ),
             ),
           ),
@@ -283,61 +265,43 @@ class _ProfilePageState extends State<ProfilePage>
 
   Widget _buildPinnedTabs() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 10),
-      child: Container(
-        padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.82),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.85)),
-          boxShadow: PinitColors.subtleShadow,
-        ),
-        child: Row(
-          children: _tabs.asMap().entries.map((entry) {
-            final isSelected = entry.key == _selectedTab;
-            final isLast = entry.key == _tabs.length - 1;
+      padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: _tabs.asMap().entries.map((entry) {
+          final isSelected = entry.key == _selectedTab;
+          final isLast = entry.key == _tabs.length - 1;
 
-            return Expanded(
-              child: Padding(
-                padding: EdgeInsets.only(right: isLast ? 0 : 4),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(16),
-                    onTap: () {
-                      if (_selectedTab == entry.key) return;
-                      HapticFeedback.selectionClick();
-                      setState(() => _selectedTab = entry.key);
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 220),
-                      curve: Curves.easeOutCubic,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      decoration: BoxDecoration(
-                        color: isSelected ? Colors.white : Colors.transparent,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: isSelected ? PinitColors.subtleShadow : null,
-                      ),
-                      child: Text(
-                        entry.value,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight:
-                              isSelected ? FontWeight.w700 : FontWeight.w600,
-                          color: isSelected
-                              ? PinitColors.textPrimary
-                              : PinitColors.textSecondary,
-                          letterSpacing: -0.2,
-                        ),
-                      ),
-                    ),
+          return Padding(
+            padding: EdgeInsets.only(right: isLast ? 0 : 8),
+            child: GestureDetector(
+              onTap: () {
+                if (_selectedTab == entry.key) return;
+                HapticFeedback.selectionClick();
+                setState(() => _selectedTab = entry.key);
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isSelected ? PinitColors.aubergine : Colors.transparent,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  entry.value,
+                  style: TextStyle(
+                    fontFamily: 'Rova',
+                    fontSize: 20,
+                    fontWeight: FontWeight.w100,
+                    color: isSelected ? PinitColors.cream : PinitColors.mute,
+                    letterSpacing: 0.4,
                   ),
                 ),
               ),
-            );
-          }).toList(),
-        ),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
@@ -348,6 +312,7 @@ class _ProfilePageState extends State<ProfilePage>
       icon: Icons.notifications_outlined,
       badgeCount: unreadCount,
       onTap: () => _showNotifications(context),
+      onDark: true,
     );
   }
 
@@ -355,6 +320,7 @@ class _ProfilePageState extends State<ProfilePage>
     return _buildHeaderActionButton(
       icon: Icons.more_horiz_rounded,
       onTap: () => _showSettingsSheet(context, user),
+      onDark: true,
     );
   }
 
@@ -362,11 +328,20 @@ class _ProfilePageState extends State<ProfilePage>
     required IconData icon,
     required VoidCallback onTap,
     int badgeCount = 0,
+    bool onDark = false,
   }) {
+    final bg = onDark
+        ? PinitColors.cream.withValues(alpha: 0.12)
+        : PinitColors.creamSunk;
+    final borderColor = onDark
+        ? PinitColors.cream.withValues(alpha: 0.2)
+        : PinitColors.creamDeep;
+    final iconColor = onDark ? PinitColors.cream : PinitColors.aubergine;
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(999),
         onTap: () {
           HapticFeedback.selectionClick();
           onTap();
@@ -375,25 +350,15 @@ class _ProfilePageState extends State<ProfilePage>
           width: 42,
           height: 42,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.13),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.14),
-                blurRadius: 18,
-                offset: const Offset(0, 8),
-              ),
-            ],
+            color: bg,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: borderColor, width: 1.5),
+            boxShadow: onDark ? null : PinitColors.subtleShadow,
           ),
           child: Stack(
             children: [
               Center(
-                child: Icon(
-                  icon,
-                  size: 20,
-                  color: Colors.white,
-                ),
+                child: Icon(icon, size: 20, color: iconColor),
               ),
               if (badgeCount > 0)
                 Positioned(
@@ -401,22 +366,18 @@ class _ProfilePageState extends State<ProfilePage>
                   top: 5,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 2,
-                    ),
+                        horizontal: 4, vertical: 2),
                     decoration: const BoxDecoration(
                       color: PinitColors.accent,
                       shape: BoxShape.circle,
                     ),
                     constraints: const BoxConstraints(
-                      minWidth: 18,
-                      minHeight: 18,
-                    ),
+                        minWidth: 18, minHeight: 18),
                     child: Center(
                       child: Text(
                         badgeCount > 9 ? '9+' : badgeCount.toString(),
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: GoogleFonts.dmSans(
+                          color: PinitColors.cream,
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
                         ),
@@ -433,7 +394,7 @@ class _ProfilePageState extends State<ProfilePage>
 
   Widget _buildLoadingState() {
     return Scaffold(
-      backgroundColor: PinitColors.background,
+      backgroundColor: PinitColors.cream,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -442,8 +403,8 @@ class _ProfilePageState extends State<ProfilePage>
               width: 60,
               height: 60,
               decoration: BoxDecoration(
-                gradient: PinitColors.primaryGradient,
-                borderRadius: BorderRadius.circular(16),
+                color: PinitColors.aubergine,
+                borderRadius: BorderRadius.circular(999),
               ),
               child: const Center(
                 child: SizedBox(
@@ -451,7 +412,8 @@ class _ProfilePageState extends State<ProfilePage>
                   height: 28,
                   child: CircularProgressIndicator(
                     strokeWidth: 3,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(PinitColors.cream),
                   ),
                 ),
               ),
@@ -459,9 +421,9 @@ class _ProfilePageState extends State<ProfilePage>
             const SizedBox(height: 20),
             Text(
               'Loading your taste...',
-              style: TextStyle(
+              style: GoogleFonts.dmSans(
                 fontSize: 16,
-                color: PinitColors.textSecondary,
+                color: PinitColors.aubergineSoft,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -473,7 +435,7 @@ class _ProfilePageState extends State<ProfilePage>
 
   Widget _buildErrorState(UserDataProvider userDataProvider) {
     return Scaffold(
-      backgroundColor: PinitColors.background,
+      backgroundColor: PinitColors.cream,
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
@@ -484,32 +446,33 @@ class _ProfilePageState extends State<ProfilePage>
                 width: 80,
                 height: 80,
                 decoration: BoxDecoration(
-                  color: PinitColors.surfaceLight,
+                  color: PinitColors.creamSunk,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: const Icon(
                   Icons.person_off_outlined,
                   size: 40,
-                  color: PinitColors.textMuted,
+                  color: PinitColors.mute,
                 ),
               ),
               const SizedBox(height: 24),
-              const Text(
+              Text(
                 'Something went wrong',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  color: PinitColors.textPrimary,
-                  letterSpacing: -0.5,
+                style: const TextStyle(
+                  fontFamily: 'Rova',
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: PinitColors.aubergine,
+                  letterSpacing: 1.8,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 userDataProvider.error ?? 'Unable to load your profile',
-                style: const TextStyle(
+                style: GoogleFonts.dmSans(
                   fontSize: 15,
-                  color: PinitColors.textSecondary,
-                  height: 1.4,
+                  color: PinitColors.aubergineSoft,
+                  height: 1.45,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -517,16 +480,16 @@ class _ProfilePageState extends State<ProfilePage>
               GestureDetector(
                 onTap: () => _handleSignOut(context),
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 32, vertical: 16),
                   decoration: BoxDecoration(
-                    color: PinitColors.textPrimary,
-                    borderRadius: BorderRadius.circular(14),
+                    color: PinitColors.aubergine,
+                    borderRadius: BorderRadius.circular(999),
                   ),
-                  child: const Text(
+                  child: Text(
                     'Sign Out',
-                    style: TextStyle(
-                      color: Colors.white,
+                    style: GoogleFonts.dmSans(
+                      color: PinitColors.cream,
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),
@@ -557,18 +520,9 @@ class _ProfilePageState extends State<ProfilePage>
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => _ProfileSettingsSheet(
         user: user,
-        onEditProfile: () {
-          Navigator.pop(sheetContext);
-          // Navigate to edit profile
-        },
-        onPreferences: () {
-          Navigator.pop(sheetContext);
-          // Navigate to preferences
-        },
-        onShareProfile: () {
-          Navigator.pop(sheetContext);
-          // Share profile
-        },
+        onEditProfile: () => Navigator.pop(sheetContext),
+        onPreferences: () => Navigator.pop(sheetContext),
+        onShareProfile: () => Navigator.pop(sheetContext),
         onSignOut: () {
           Navigator.pop(sheetContext);
           _handleSignOut(context);
@@ -577,6 +531,10 @@ class _ProfilePageState extends State<ProfilePage>
     );
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Settings Sheet
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _ProfileSettingsSheet extends StatelessWidget {
   final UserModel user;
@@ -604,23 +562,10 @@ class _ProfileSettingsSheet extends StatelessWidget {
         color: Colors.transparent,
         child: Container(
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Color(0xFFFFFCFB),
-                PinitColors.background,
-              ],
-            ),
-            borderRadius: BorderRadius.circular(30),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.10),
-                blurRadius: 32,
-                offset: const Offset(0, 18),
-              ),
-            ],
+            color: PinitColors.cream,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: PinitColors.creamDeep, width: 1.5),
+            boxShadow: PinitColors.elevatedShadow,
           ),
           child: SafeArea(
             top: false,
@@ -630,12 +575,13 @@ class _ProfileSettingsSheet extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Drag handle
                   Center(
                     child: Container(
-                      width: 44,
-                      height: 5,
+                      width: 36,
+                      height: 4,
                       decoration: BoxDecoration(
-                        color: PinitColors.textMuted.withValues(alpha: 0.22),
+                        color: PinitColors.creamDeep,
                         borderRadius: BorderRadius.circular(999),
                       ),
                     ),
@@ -650,9 +596,6 @@ class _ProfileSettingsSheet extends StatelessWidget {
                           icon: Icons.draw_rounded,
                           title: 'Edit Profile',
                           subtitle: 'Photo, bio, and top vibes',
-                          backgroundColor: const Color(0xFFFFF1EC),
-                          iconBackgroundColor: PinitColors.accentSoft,
-                          iconColor: PinitColors.primary,
                           onTap: onEditProfile,
                         ),
                       ),
@@ -662,9 +605,6 @@ class _ProfileSettingsSheet extends StatelessWidget {
                           icon: Icons.tune_rounded,
                           title: 'Preferences',
                           subtitle: 'Taste, alerts, and privacy',
-                          backgroundColor: const Color(0xFFF5F1EC),
-                          iconBackgroundColor: const Color(0xFFE8E0D7),
-                          iconColor: PinitColors.textPrimary,
                           onTap: onPreferences,
                         ),
                       ),
@@ -675,15 +615,12 @@ class _ProfileSettingsSheet extends StatelessWidget {
                     icon: Icons.ios_share_rounded,
                     title: 'Share Profile',
                     subtitle: 'Send your public profile in one tap',
-                    backgroundColor: Colors.white.withValues(alpha: 0.84),
-                    iconBackgroundColor: const Color(0xFFE9EDF5),
-                    iconColor: const Color(0xFF5D6B89),
                     onTap: onShareProfile,
                   ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 14),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     child: Divider(
-                      color: PinitColors.surfaceLight,
+                      color: PinitColors.creamDeep,
                       height: 1,
                     ),
                   ),
@@ -691,10 +628,7 @@ class _ProfileSettingsSheet extends StatelessWidget {
                     icon: Icons.logout_rounded,
                     title: 'Sign Out',
                     subtitle: 'Log out of this device',
-                    backgroundColor: const Color(0xFFFFF5F2),
-                    iconBackgroundColor: const Color(0xFFFFE5DF),
-                    iconColor: PinitColors.error,
-                    textColor: PinitColors.error,
+                    isDestructive: true,
                     onTap: onSignOut,
                   ),
                 ],
@@ -722,9 +656,9 @@ class _ProfileSettingsIntro extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.95)),
+        color: PinitColors.creamSunk,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: PinitColors.creamDeep, width: 1.5),
       ),
       child: Row(
         children: [
@@ -738,7 +672,7 @@ class _ProfileSettingsIntro extends StatelessWidget {
                 fit: BoxFit.cover,
               ),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.9),
+                color: PinitColors.creamDeep,
                 width: 2,
               ),
             ),
@@ -749,31 +683,32 @@ class _ProfileSettingsIntro extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Your space',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: PinitColors.primary.withValues(alpha: 0.88),
-                    letterSpacing: 0.1,
+                  'YOUR SPACE',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: PinitColors.aubergineSoft,
+                    letterSpacing: 0.12 * 11,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   user.name ?? 'Your profile',
                   style: const TextStyle(
-                    fontSize: 22,
+                    fontFamily: 'Rova',
+                    fontSize: 28,
                     fontWeight: FontWeight.w800,
-                    color: PinitColors.textPrimary,
-                    letterSpacing: -0.4,
+                    color: PinitColors.aubergine,
+                    letterSpacing: 1.8,
                     height: 1.05,
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Text(
+                Text(
                   'Small changes here shape how people discover you on Pinit.',
-                  style: TextStyle(
+                  style: GoogleFonts.dmSans(
                     fontSize: 13,
-                    color: PinitColors.textSecondary,
+                    color: PinitColors.aubergineSoft,
                     height: 1.35,
                   ),
                 ),
@@ -790,18 +725,12 @@ class _ProfileSettingsCard extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
-  final Color backgroundColor;
-  final Color iconBackgroundColor;
-  final Color iconColor;
   final VoidCallback onTap;
 
   const _ProfileSettingsCard({
     required this.icon,
     required this.title,
     required this.subtitle,
-    required this.backgroundColor,
-    required this.iconBackgroundColor,
-    required this.iconColor,
     required this.onTap,
   });
 
@@ -810,18 +739,18 @@ class _ProfileSettingsCard extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(20),
         onTap: () {
           HapticFeedback.selectionClick();
           onTap();
         },
         child: Ink(
           height: 146,
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: backgroundColor,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: PinitColors.cardShadow,
+            color: PinitColors.creamSunk,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: PinitColors.creamDeep, width: 1.5),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -830,27 +759,27 @@ class _ProfileSettingsCard extends StatelessWidget {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: iconBackgroundColor,
-                  borderRadius: BorderRadius.circular(14),
+                  color: PinitColors.creamDeep,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, color: iconColor, size: 20),
+                child: Icon(icon, color: PinitColors.aubergine, size: 20),
               ),
               const Spacer(),
               Text(
                 title,
-                style: const TextStyle(
+                style: GoogleFonts.dmSans(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: PinitColors.textPrimary,
+                  color: PinitColors.aubergine,
                   letterSpacing: -0.3,
                 ),
               ),
               const SizedBox(height: 5),
               Text(
                 subtitle,
-                style: const TextStyle(
+                style: GoogleFonts.dmSans(
                   fontSize: 13,
-                  color: PinitColors.textSecondary,
+                  color: PinitColors.aubergineSoft,
                   height: 1.3,
                 ),
               ),
@@ -866,31 +795,26 @@ class _ProfileSettingsRow extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
-  final Color backgroundColor;
-  final Color iconBackgroundColor;
-  final Color iconColor;
-  final Color? textColor;
+  final bool isDestructive;
   final VoidCallback onTap;
 
   const _ProfileSettingsRow({
     required this.icon,
     required this.title,
     required this.subtitle,
-    required this.backgroundColor,
-    required this.iconBackgroundColor,
-    required this.iconColor,
     required this.onTap,
-    this.textColor,
+    this.isDestructive = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final titleColor = textColor ?? PinitColors.textPrimary;
+    final titleColor =
+        isDestructive ? PinitColors.accent : PinitColors.aubergine;
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(20),
         onTap: () {
           HapticFeedback.selectionClick();
           onTap();
@@ -898,9 +822,11 @@ class _ProfileSettingsRow extends StatelessWidget {
         child: Ink(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: backgroundColor,
-            borderRadius: BorderRadius.circular(22),
-            boxShadow: PinitColors.subtleShadow,
+            color: isDestructive
+                ? const Color(0xFFFFF5F2)
+                : PinitColors.creamSunk,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: PinitColors.creamDeep, width: 1.5),
           ),
           child: Row(
             children: [
@@ -908,10 +834,10 @@ class _ProfileSettingsRow extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: iconBackgroundColor,
-                  borderRadius: BorderRadius.circular(14),
+                  color: PinitColors.creamDeep,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, color: iconColor, size: 20),
+                child: Icon(icon, color: titleColor, size: 20),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -920,7 +846,7 @@ class _ProfileSettingsRow extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: TextStyle(
+                      style: GoogleFonts.dmSans(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
                         color: titleColor,
@@ -930,9 +856,9 @@ class _ProfileSettingsRow extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       subtitle,
-                      style: const TextStyle(
+                      style: GoogleFonts.dmSans(
                         fontSize: 13,
-                        color: PinitColors.textSecondary,
+                        color: PinitColors.aubergineSoft,
                         height: 1.35,
                       ),
                     ),

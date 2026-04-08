@@ -1,0 +1,2 @@
+-- Superseded by 20260406000002_fix_get_locations_in_collection_full_data.sql
+-- Original slim version kept here for reference only.

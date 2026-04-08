@@ -13,6 +13,8 @@ class Bubble {
   final List<LocationModel> groupLocations;
   final String description;
   final List<String> memberIds;
+  final List<String> memberNames;
+  final int? compatibilityScore;
 
   Bubble({
     required this.id,
@@ -27,10 +29,11 @@ class Bubble {
     this.groupLocations = const [],
     this.description = '',
     this.memberIds = const [],
+    this.memberNames = const [],
+    this.compatibilityScore,
   });
 
   factory Bubble.fromJson(Map<String, dynamic> json) {
-
     return Bubble(
       id: json['id'] ?? '',
       name: json['name'] ?? '',
@@ -42,10 +45,13 @@ class Bubble {
       isOnline: json['is_online'] ?? false,
       unreadCount: json['unread_count'] ?? 0,
       groupLocations: (json['group_locations'] as List<dynamic>?)
-          ?.map((loc) => LocationModel.fromJson(loc, ""))
-          .toList() ?? [],
+              ?.map((loc) => LocationModel.fromJson(loc, ''))
+              .toList() ??
+          [],
       description: json['description'] ?? '',
       memberIds: List<String>.from(json['member_ids'] ?? []),
+      memberNames: List<String>.from(json['member_names'] ?? []),
+      compatibilityScore: json['compatibility_score'] as int?,
     );
   }
 
@@ -63,6 +69,8 @@ class Bubble {
       'group_locations': groupLocations.map((loc) => loc.toJson()).toList(),
       'description': description,
       'member_ids': memberIds,
+      'member_names': memberNames,
+      if (compatibilityScore != null) 'compatibility_score': compatibilityScore,
     };
   }
 
@@ -79,6 +87,8 @@ class Bubble {
     List<LocationModel>? groupLocations,
     String? description,
     List<String>? memberIds,
+    List<String>? memberNames,
+    int? compatibilityScore,
   }) {
     return Bubble(
       id: id ?? this.id,
@@ -93,6 +103,8 @@ class Bubble {
       groupLocations: groupLocations ?? this.groupLocations,
       description: description ?? this.description,
       memberIds: memberIds ?? this.memberIds,
+      memberNames: memberNames ?? this.memberNames,
+      compatibilityScore: compatibilityScore ?? this.compatibilityScore,
     );
   }
 }

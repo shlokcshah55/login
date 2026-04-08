@@ -1,350 +1,377 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/bubble.dart';
+import 'package:login/pages/profile/widgets/pinit_colors.dart';
 
-class ChatGroupTile extends StatefulWidget {
-  const ChatGroupTile({
-    super.key,
-    required this.bubble,
-    required this.onTap,
-    this.onOpenChat,
-    this.onActivateBubble,
-  });
-
+class ChatGroupTile extends StatelessWidget {
   final Bubble bubble;
   final VoidCallback onTap;
   final VoidCallback? onOpenChat;
   final VoidCallback? onActivateBubble;
 
-  @override
-  State<ChatGroupTile> createState() => _ChatGroupTileState();
-}
+  const ChatGroupTile({
+    Key? key,
+    required this.bubble,
+    required this.onTap,
+    this.onOpenChat,
+    this.onActivateBubble,
+  }) : super(key: key);
 
-class _ChatGroupTileState extends State<ChatGroupTile> {
-  static const _borderColor = Color(0xFFF5DEE6);
-  static const _roseAccent = Color(0xFFD95D85);
-  static const _textPrimary = Color(0xFF563440);
-  static const _textSecondary = Color(0xFF8B7180);
-  static const _timeText = Color(0xFFB89AAA);
-  static const _pillBackground = Color(0xFFFFF3F5);
-  static const _pinPillBackground = Color(0xFFFFF3E4);
+  static const List<Color> _avatarColors = [
+    Color(0xFFB39DDB),
+    Color(0xFF80CBC4),
+    Color(0xFFFFCC80),
+    Color(0xFFF48FB1),
+    Color(0xFF90CAF9),
+    Color(0xFFA5D6A7),
+  ];
 
-  bool _isPressed = false;
+  String _membersSubtitle() {
+    if (bubble.memberNames.isEmpty) {
+      return '${bubble.memberCount} member${bubble.memberCount == 1 ? '' : 's'}';
+    }
+    const maxShown = 2;
+    final shown = bubble.memberNames.take(maxShown).join(', ');
+    final extra = bubble.memberNames.length - maxShown;
+    return extra > 0 ? '$shown +$extra' : shown;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _isPressed = true),
-      onTapUp: (_) => setState(() => _isPressed = false),
-      onTapCancel: () => setState(() => _isPressed = false),
-      onTap: widget.onTap,
-      child: AnimatedScale(
-        scale: _isPressed ? 0.985 : 1,
-        duration: const Duration(milliseconds: 120),
-        curve: Curves.easeOutCubic,
-        child: Container(
-          key: Key('bubble_tile_surface_${widget.bubble.id}'),
-          margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: _borderColor),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x12000000),
-                blurRadius: 24,
-                offset: Offset(0, 12),
-              ),
-            ],
+    return Container(
+      decoration: const BoxDecoration(
+        color: PinitColors.cream,
+        border: Border.fromBorderSide(
+          BorderSide(color: PinitColors.aubergine, width: 1.5),
+        ),
+        borderRadius: BorderRadius.all(Radius.circular(10)),
+        boxShadow: [
+          BoxShadow(
+            color: PinitColors.aubergine,
+            blurRadius: 0,
+            offset: Offset(4, 4),
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildAvatar(theme),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            widget.bubble.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              color: _textPrimary,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: -0.3,
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8.5),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── Last message strip ──
+            GestureDetector(
+              onTap: onTap,
+              behavior: HitTestBehavior.opaque,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (bubble.lastMessageTime.isNotEmpty)
+                    Container(
+                      color: PinitColors.creamSunk,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.access_time_rounded,
+                            size: 11,
+                            color: PinitColors.mute,
+                          ),
+                          const SizedBox(width: 5),
+                          if (bubble.lastMessage.isNotEmpty && bubble.lastMessage != 'Tap to view locations') ...[
+                            Expanded(
+                              child: Text(
+                                bubble.lastMessage,
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 11,
+                                  color: PinitColors.mute,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                          ] else
+                            const Spacer(),
+                          Text(
+                            bubble.lastMessageTime,
+                            style: GoogleFonts.dmSans(
+                              fontSize: 11,
+                              color: PinitColors.mute,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          widget.bubble.lastMessageTime,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: _timeText,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      widget.bubble.lastMessage.isEmpty
-                          ? 'No messages yet. Tap to peek inside.'
-                          : widget.bubble.lastMessage,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: widget.bubble.lastMessage.isEmpty
-                            ? _timeText
-                            : _textSecondary,
-                        height: 1.35,
-                        fontWeight: widget.bubble.unreadCount > 0
-                            ? FontWeight.w500
-                            : FontWeight.w400,
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: _buildMemberPreview(theme)),
-                        const SizedBox(width: 10),
-                        Flexible(
-                          child: Align(
-                            alignment: Alignment.centerRight,
-                            child: _buildMetadataChips(theme),
-                          ),
-                        ),
-                      ],
+                  // ── Body ──
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+                    child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Avatar stack
+                    _AvatarStack(
+                      avatars: bubble.memberAvatars,
+                      names: bubble.memberNames,
+                      colors: _avatarColors,
                     ),
+                    const SizedBox(width: 14),
+                    // Name + members
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  bubble.name,
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                    color: PinitColors.aubergine,
+                                    height: 1.15,
+                                    letterSpacing: -0.3,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (bubble.compatibilityScore != null) ...[
+                                const SizedBox(width: 8),
+                                _ScoreBadge(score: bubble.compatibilityScore!),
+                              ],
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _membersSubtitle(),
+                            style: GoogleFonts.dmSans(
+                              fontSize: 12,
+                              color: PinitColors.mute,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    // Chat button
+                    _ChatButton(onTap: onOpenChat ?? onTap),
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              _buildTrailingAccent(theme),
             ],
           ),
+        ),
+
+            // ── Activate button ──
+            _ActivateButton(onTap: onActivateBubble ?? () {}),
+          ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildAvatar(ThemeData theme) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Container(
-          key: Key('bubble_tile_avatar_shell_${widget.bubble.id}'),
-          width: 56,
-          height: 56,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFFFFD5E0),
-                Color(0xFFFFEDDB),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: widget.bubble.groupAvatar.isNotEmpty
-                ? Image.network(
-                    widget.bubble.groupAvatar,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const Icon(
-                      Icons.bubble_chart_rounded,
-                      size: 30,
-                      color: _roseAccent,
-                    ),
-                  )
-                : const Icon(
-                    Icons.bubble_chart_rounded,
-                    size: 30,
-                    color: _roseAccent,
-                  ),
-          ),
-        ),
-        if (widget.bubble.isOnline)
-          Positioned(
-            bottom: -2,
-            right: -2,
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _AvatarStack extends StatelessWidget {
+  final List<String> avatars;
+  final List<String> names;
+  final List<Color> colors;
+
+  const _AvatarStack({
+    required this.avatars,
+    required this.names,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final items = avatars.take(4).toList();
+    if (items.isEmpty) return const SizedBox(width: 40, height: 40);
+
+    const double size = 40.0;
+    const double overlap = 14.0;
+    final double stackWidth = size + (items.length - 1) * (size - overlap);
+
+    return SizedBox(
+      width: stackWidth,
+      height: size,
+      child: Stack(
+        children: List.generate(items.length, (i) {
+          final url = items[i];
+          final initial = i < names.length && names[i].isNotEmpty
+              ? names[i][0].toUpperCase()
+              : null;
+          return Positioned(
+            left: i * (size - overlap),
             child: Container(
-              width: 18,
-              height: 18,
+              width: size,
+              height: size,
               decoration: BoxDecoration(
-                color: const Color(0xFF5BC6A9),
                 shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 3),
+                border: Border.all(color: PinitColors.cream, width: 2),
+                color: colors[i % colors.length],
+              ),
+              child: ClipOval(
+                child: url.isNotEmpty
+                    ? Image.network(
+                        url,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) =>
+                            _Initial(initial: initial),
+                      )
+                    : _Initial(initial: initial),
               ),
             ),
-          ),
-      ],
+          );
+        }),
+      ),
     );
   }
+}
 
-  Widget _buildMemberPreview(ThemeData theme) {
-    final avatars = widget.bubble.memberAvatars.take(3).toList();
-    final overflowCount = widget.bubble.memberCount - avatars.length;
+class _Initial extends StatelessWidget {
+  final String? initial;
+  const _Initial({this.initial});
 
-    return Row(
-      mainAxisSize: MainAxisSize.max,
-      children: [
-        if (avatars.isNotEmpty)
-          SizedBox(
-            width: avatars.length * 18.0 + 16,
-            height: 24,
-            child: Stack(
-              children: [
-                for (var index = 0; index < avatars.length; index++)
-                  Positioned(
-                    left: index * 18.0,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                      ),
-                      child: CircleAvatar(
-                        radius: 11,
-                        backgroundImage: avatars[index].isNotEmpty
-                            ? NetworkImage(avatars[index])
-                            : null,
-                        backgroundColor: const Color(0xFFFFECF1),
-                        child: avatars[index].isEmpty
-                            ? const Icon(
-                                Icons.person_rounded,
-                                size: 12,
-                                color: _roseAccent,
-                              )
-                            : null,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        if (avatars.isNotEmpty) const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            overflowCount > 0
-                ? '+$overflowCount more inside'
-                : '${widget.bubble.memberCount} members',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            softWrap: false,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: _textSecondary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMetadataChips(ThemeData theme) {
-    return Wrap(
-      alignment: WrapAlignment.end,
-      spacing: 6,
-      runSpacing: 6,
-      children: [
-        _InfoChip(
-          containerKey:
-              Key('bubble_tile_metadata_chip_members_${widget.bubble.id}'),
-          icon: Icons.people_outline_rounded,
-          label: '${widget.bubble.memberCount}',
-          color: _roseAccent,
-          backgroundColor: _pillBackground,
-        ),
-        _InfoChip(
-          containerKey:
-              Key('bubble_tile_metadata_chip_locations_${widget.bubble.id}'),
-          icon: Icons.location_on_outlined,
-          label: '${widget.bubble.groupLocations.length}',
-          color: const Color(0xFFCA8A2D),
-          backgroundColor: _pinPillBackground,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTrailingAccent(ThemeData theme) {
-    if (widget.bubble.unreadCount > 0) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFFF0E2),
-          borderRadius: BorderRadius.circular(16),
-        ),
+  @override
+  Widget build(BuildContext context) {
+    if (initial != null) {
+      return Center(
         child: Text(
-          widget.bubble.unreadCount > 99
-              ? '99+'
-              : widget.bubble.unreadCount.toString(),
-          style: theme.textTheme.labelMedium?.copyWith(
-            color: const Color(0xFFB77B2C),
-            fontWeight: FontWeight.w700,
+          initial!,
+          style: GoogleFonts.dmSans(
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
           ),
         ),
       );
     }
+    return const Icon(Icons.person, size: 18, color: Colors.white);
+  }
+}
 
-    return const Padding(
-      padding: EdgeInsets.only(top: 4),
-      child: Icon(
-        Icons.chevron_right_rounded,
-        color: _timeText,
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ScoreBadge extends StatelessWidget {
+  final int score;
+  const _ScoreBadge({required this.score});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = PinitColors.matchIndicator(score);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.25), width: 1),
+      ),
+      child: Text(
+        '$score%',
+        style: GoogleFonts.dmSans(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: color,
+          letterSpacing: 0.2,
+        ),
       ),
     );
   }
 }
 
-class _InfoChip extends StatelessWidget {
-  const _InfoChip({
-    this.containerKey,
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.backgroundColor,
-  });
+// ─────────────────────────────────────────────────────────────────────────────
 
-  final Key? containerKey;
-  final IconData icon;
-  final String label;
-  final Color color;
-  final Color backgroundColor;
+class _ChatButton extends StatefulWidget {
+  final VoidCallback onTap;
+  const _ChatButton({required this.onTap});
+
+  @override
+  State<_ChatButton> createState() => _ChatButtonState();
+}
+
+class _ChatButtonState extends State<_ChatButton> {
+  bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      key: containerKey,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(16),
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) {
+        setState(() => _pressed = false);
+        widget.onTap();
+      },
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 80),
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: _pressed ? PinitColors.creamDeep : PinitColors.creamSunk,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: PinitColors.creamDeep, width: 1),
+        ),
+        child: const Icon(
+          Icons.chat_bubble_outline_rounded,
+          size: 18,
+          color: PinitColors.aubergine,
+        ),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w700,
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ActivateButton extends StatefulWidget {
+  final VoidCallback onTap;
+  const _ActivateButton({required this.onTap});
+
+  @override
+  State<_ActivateButton> createState() => _ActivateButtonState();
+}
+
+class _ActivateButtonState extends State<_ActivateButton> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) {
+        setState(() => _pressed = false);
+        widget.onTap();
+      },
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 80),
+        color:
+            _pressed ? PinitColors.aubergineSoft : PinitColors.aubergine,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'Activate',
+              style: GoogleFonts.dmSans(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: PinitColors.cream,
+                letterSpacing: 0.8,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

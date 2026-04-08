@@ -158,7 +158,7 @@ class ShareViewController: UIViewController {
         }
 
         // Create backend URL
-        let backendURLString = "https://tiktok-processor-1070859807237.us-central1.run.app/process-share"
+        let backendURLString = "https://tiktok-processor-jnj4ne6sqq-ew.a.run.app/process-share"
         print("🔗 Share Extension: Backend URL: \(backendURLString)")
 
         guard let backendURL = URL(string: backendURLString) else {

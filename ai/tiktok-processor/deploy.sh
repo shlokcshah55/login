@@ -8,10 +8,10 @@ set -e  # Exit on error
 # ===== Configuration =====
 # You can modify these or pass them as environment variables
 
-PROJECT_ID="${GCP_PROJECT_ID:-pinit-a97eb}"
-REGION="${GCP_REGION:-us-central1}"
+PROJECT_ID="${GCP_PROJECT_ID:-pinit-492215}"
+REGION="${GCP_REGION:-europe-west1}"
 SERVICE_NAME="${SERVICE_NAME:-tiktok-processor}"
-IMAGE_NAME="gcr.io/${PROJECT_ID}/${SERVICE_NAME}"
+IMAGE_NAME="${REGION}-docker.pkg.dev/${PROJECT_ID}/${SERVICE_NAME}/${SERVICE_NAME}"
 
 echo "======================================"
 echo "TikTok Processor - Cloud Run Deployment"
@@ -51,14 +51,34 @@ gcloud config set project $PROJECT_ID
 # Enable required APIs (if not already enabled)
 echo ""
 echo "Enabling required GCP APIs..."
-gcloud services enable cloudbuild.googleapis.com
 gcloud services enable run.googleapis.com
-gcloud services enable containerregistry.googleapis.com
+gcloud services enable artifactregistry.googleapis.com
 
-# Build the Docker image using Cloud Build
+# Ensure Artifact Registry repository exists
 echo ""
-echo "Building Docker image with Cloud Build..."
-gcloud builds submit --tag $IMAGE_NAME
+echo "Ensuring Artifact Registry repository exists..."
+gcloud artifacts repositories describe $SERVICE_NAME \
+  --location=$REGION \
+  --project=$PROJECT_ID &> /dev/null || \
+gcloud artifacts repositories create $SERVICE_NAME \
+  --repository-format=docker \
+  --location=$REGION \
+  --project=$PROJECT_ID
+
+# Configure Docker auth for Artifact Registry
+echo ""
+echo "Configuring Docker auth for Artifact Registry..."
+gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet
+
+# Build the Docker image locally
+echo ""
+echo "Building Docker image locally..."
+docker build --platform linux/amd64 -t $IMAGE_NAME .
+
+# Push to Artifact Registry
+echo ""
+echo "Pushing image to Artifact Registry..."
+docker push $IMAGE_NAME
 
 # Deploy to Cloud Run
 echo ""

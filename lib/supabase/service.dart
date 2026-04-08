@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:login/models/users.dart';
 import 'package:login/supabase/helpers/auth.dart';
+import 'package:login/supabase/helpers/collections.dart';
 import 'package:login/supabase/helpers/location.dart';
 import 'package:login/supabase/helpers/location_reviews.dart';
 import 'package:login/supabase/helpers/tags.dart';
@@ -27,6 +28,7 @@ class SupabaseService extends ChangeNotifier {
   late final LocationReviewsHelper _reviewsService;
   late final NotificationsHelper _notificationsService;
   late final MessagingHelper _messagingService;
+  late final CollectionsHelper _collectionsService;
 
   bool _isLoading = false;
   bool _isInitializing = true;
@@ -50,6 +52,7 @@ class SupabaseService extends ChangeNotifier {
   LocationReviewsHelper get reviews => _reviewsService;
   NotificationsHelper get notifications => _notificationsService;
   MessagingHelper get messaging => _messagingService;
+  CollectionsHelper get collections => _collectionsService;
 
   // Status getters
   bool get isLoading => _isLoading || _isInitializing;
@@ -83,6 +86,7 @@ class SupabaseService extends ChangeNotifier {
       _tagsService = TagsHelper();
       _notificationsService = NotificationsHelper();
       _messagingService = MessagingHelper();
+      _collectionsService = CollectionsHelper();
 
       // Initialize completer before setting up listener
       _authStateCompleter = Completer<void>();

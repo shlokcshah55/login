@@ -30,6 +30,7 @@ class SupabaseConstants {
   static const String columnBio = 'bio';
   static const String columnProfileImageUrl = 'profile_image_url';
   static const String columnWizardCompleted = 'wizard_completed';
+  static const String columnGeneratedCollections = 'generated_collections';
   static const String columnUsername = 'username';
   static const String columnSpiceTolerance = 'spice_tolerance';
   static const String columnFcmToken = 'fcm_token';

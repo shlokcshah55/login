@@ -1,328 +1,860 @@
+import 'dart:async';
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
-import 'package:login/models/bubble.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/users.dart';
-import 'package:login/pages/bubbles/bubbles_page_view.dart';
-import 'package:login/providers/bubbles_provider.dart';
+import 'package:login/pages/profile/widgets/pinit_colors.dart';
+import 'package:provider/provider.dart';
+import 'package:login/models/bubble.dart';
+import 'package:login/widgets/chat/chat_group_tile.dart';
+import 'package:login/widgets/chat/expanded_bubble_view.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/supabase/supabase_client.dart';
-import 'package:login/widgets/chat/expanded_bubble_view.dart';
+import 'package:login/providers/bubbles_provider.dart';
+import 'package:login/providers/bubble_mode_provider.dart';
+import 'package:login/providers/navigation_provider.dart';
+import 'package:login/pages/bubble_messaging_page.dart';
 import 'package:login/widgets/profile/user_profile_dialog.dart';
-import 'package:provider/provider.dart';
+import 'package:login/widgets/chat/bubble_discover_view.dart';
 
 class BubblesPage extends StatefulWidget {
-  const BubblesPage({super.key});
+  const BubblesPage({Key? key}) : super(key: key);
 
   @override
-  State<BubblesPage> createState() => _BubblesPageState();
+  _BubblesPageState createState() => _BubblesPageState();
 }
 
-class _BubblesPageState extends State<BubblesPage> {
-  static const _roseAccent = Color(0xFFD95D85);
+class _BubblesPageState extends State<BubblesPage>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<Offset> _slideAnimation;
+  late Animation<double> _fadeAnimation;
+  late BubblesProvider _bubblesProvider;
 
-  BubblesProvider? _bubblesProvider;
+  // Search related state
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+  List<UserModel> _searchResults = [];
+  bool _isSearching = false;
+  Timer? _debounceTimer;
 
   @override
   void initState() {
     super.initState();
-    final currentUser = SupabaseClientManager().client.auth.currentUser;
-    if (currentUser == null) {
-      return;
-    }
+    _initializeAnimations();
+    _searchController.addListener(_onSearchChanged);
+    _searchFocusNode.addListener(_onFocusChanged);
 
-    final supabaseService = context.read<SupabaseService>();
-    _bubblesProvider = BubblesProvider(
-      userId: currentUser.id,
-      bubbleHelper: supabaseService.bubbles,
+    // Initialize BubblesProvider
+    final currentUser = SupabaseClientManager().client.auth.currentUser;
+    if (currentUser != null) {
+      final supabaseProvider =
+          Provider.of<SupabaseService>(context, listen: false);
+      _bubblesProvider = BubblesProvider(
+        userId: currentUser.id,
+        bubbleHelper: supabaseProvider.bubbles,
+      );
+      _bubblesProvider.initialize();
+    }
+  }
+
+  void _initializeAnimations() {
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
     );
-    _bubblesProvider!.initialize();
+
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.3),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeOutCubic,
+    ));
+
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    ));
+
+    _animationController.forward();
   }
 
   @override
   void dispose() {
-    _bubblesProvider?.dispose();
+    _animationController.dispose();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    _debounceTimer?.cancel();
+    _bubblesProvider.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final bubblesProvider = _bubblesProvider;
-    if (bubblesProvider == null) {
-      return _buildSignedOutState(context);
-    }
+    final theme = Theme.of(context);
+    final bool showingSearch =
+        _searchFocusNode.hasFocus || _searchController.text.isNotEmpty;
 
     return ChangeNotifierProvider.value(
-      value: bubblesProvider,
+      value: _bubblesProvider,
       child: Consumer<BubblesProvider>(
-        builder: (context, provider, _) {
-          return BubblesPageView(
-            bubbles: provider.bubbles,
-            isLoading: provider.isLoading,
-            errorText: provider.error,
-            onRefresh: provider.loadBubbles,
-            onCreateBubble: _showCreateBubbleDialog,
-            onSearchPeople: _searchPeople,
-            onBubbleTap: _openExpandedChatView,
-            onPersonTap: _showUserProfileDialog,
+        builder: (context, bubblesProvider, child) {
+          return Scaffold(
+            backgroundColor: PinitColors.cream,
+            body: SafeArea(
+              child: Column(
+                children: [
+                  if (!showingSearch) _buildModernHeader(theme),
+                  _buildSearchField(theme),
+                  Expanded(
+                    child: showingSearch
+                        ? _buildSearchResults(theme, bubblesProvider.bubbles)
+                        : bubblesProvider.isLoading
+                            ? _buildLoadingState(theme)
+                            : _buildBubblesList(theme, bubblesProvider.bubbles),
+                  ),
+                ],
+              ),
+            ),
           );
         },
       ),
     );
   }
 
-  Widget _buildSignedOutState(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFFFFBF8),
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 28),
+  Widget _buildModernHeader(ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 16, 16, 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Animated bubble icon
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: PinitColors.aubergine,
+              borderRadius: BorderRadius.circular(999),
+              boxShadow: PinitColors.cardShadow,
+            ),
+            child: const Icon(
+              Icons.bubble_chart_rounded,
+              color: PinitColors.cream,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 88,
-                  height: 88,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Color(0xFFFFE1E8),
-                        Color(0xFFFFF0DB),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  child: const Icon(
-                    Icons.bubble_chart_rounded,
-                    size: 42,
-                    color: _roseAccent,
+                const Text(
+                  'Bubbles',
+                  style: TextStyle(
+                    fontFamily: 'Rova',
+                    fontSize: 28,
+                    fontWeight: FontWeight.w100,
+                    color: PinitColors.aubergine,
+                    letterSpacing: 1.7,
+                    height: 1.05,
                   ),
                 ),
-                const SizedBox(height: 18),
                 Text(
-                  'Sign in to view your bubbles',
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF5E3340),
+                  'Your shared spaces',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 13,
+                    color: PinitColors.mute,
+                    fontWeight: FontWeight.w400,
                   ),
-                  textAlign: TextAlign.center,
                 ),
               ],
             ),
           ),
-        ),
+          // Create bubble button
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _showCreateBubbleDialog,
+              borderRadius: BorderRadius.circular(999),
+              child: Ink(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: PinitColors.aubergine.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: PinitColors.creamDeep, width: 1.5),
+                ),
+                child: const Icon(
+                  Icons.add_rounded,
+                  color: PinitColors.aubergine,
+                  size: 22,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
-    );
-  }
-
-  Future<List<UserModel>> _searchPeople(String query) {
-    return context.read<SupabaseService>().searchUsers(query);
-  }
-
-  void _openExpandedChatView(Bubble bubble) {
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => ExpandedChatView(
-        bubble: bubble,
-        onClose: () => Navigator.of(dialogContext).pop(),
-      ),
-    );
-  }
-
-  void _showUserProfileDialog(UserModel user) {
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => UserProfileDialog(user: user),
     );
   }
 
   void _showCreateBubbleDialog() {
-    final nameController = TextEditingController();
+    final TextEditingController nameController = TextEditingController();
+    final TextEditingController descController = TextEditingController();
 
-    showModalBottomSheet<void>(
+    showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        final theme = Theme.of(sheetContext);
-        return Padding(
+      builder: (context) {
+        return Container(
           padding: EdgeInsets.only(
-            bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+            bottom: MediaQuery.of(context).viewInsets.bottom,
           ),
-          child: Container(
-            decoration: const BoxDecoration(
-              color: Color(0xFFFFFBF8),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-            ),
-            padding: const EdgeInsets.fromLTRB(24, 18, 24, 28),
+          decoration: const BoxDecoration(
+            color: PinitColors.cream,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Handle bar
                 Center(
                   child: Container(
-                    width: 48,
-                    height: 5,
+                    width: 40,
+                    height: 4,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFD5DD),
-                      borderRadius: BorderRadius.circular(999),
+                      color: PinitColors.creamDeep,
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
                 ),
-                const SizedBox(height: 22),
-                Text(
-                  'Create a bubble',
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF5C3340),
+                const SizedBox(height: 20),
+                const Text(
+                  'Create New Bubble',
+                  style: TextStyle(
+                    fontFamily: 'Rova',
+                    fontSize: 22,
+                    fontWeight: FontWeight.w100,
+                    color: PinitColors.aubergine,
+                    letterSpacing: 1.2,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Start a playful shared space for plans, chats, and saved pins.',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: const Color(0xFF8C6C79),
-                    height: 1.35,
+                  'Create a shared space for your group',
+                  style: GoogleFonts.dmSans(fontSize: 14, color: PinitColors.mute),
+                ),
+                const SizedBox(height: 24),
+                // Name field
+                TextField(
+                  controller: nameController,
+                  style: GoogleFonts.dmSans(color: PinitColors.aubergine),
+                  decoration: InputDecoration(
+                    hintText: 'Bubble name',
+                    labelText: 'Name',
+                    prefixIcon: const Icon(Icons.bubble_chart_rounded,
+                        color: PinitColors.aubergineSoft),
+                    filled: true,
+                    fillColor: PinitColors.creamSunk,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: const BorderSide(color: PinitColors.creamDeep, width: 1),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: const BorderSide(color: PinitColors.creamDeep, width: 1),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: const BorderSide(color: PinitColors.aubergine, width: 1.5),
+                    ),
+                  ),
+                  autofocus: true,
+                ),
+                const SizedBox(height: 16),
+                // Description field
+                TextField(
+                  controller: descController,
+                  maxLines: 2,
+                  style: GoogleFonts.dmSans(color: PinitColors.aubergine),
+                  decoration: InputDecoration(
+                    hintText: 'What\'s this bubble about?',
+                    labelText: 'Description (optional)',
+                    prefixIcon: const Padding(
+                      padding: EdgeInsets.only(bottom: 24),
+                      child: Icon(Icons.description_outlined,
+                          color: PinitColors.aubergineSoft),
+                    ),
+                    filled: true,
+                    fillColor: PinitColors.creamSunk,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: const BorderSide(color: PinitColors.creamDeep, width: 1),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: const BorderSide(color: PinitColors.creamDeep, width: 1),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: const BorderSide(color: PinitColors.aubergine, width: 1.5),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 24),
-                TextField(
-                  controller: nameController,
-                  autofocus: true,
-                  decoration: _inputDecoration(
-                    label: 'Bubble name',
-                    hint: 'Weekend brunch crew',
-                    icon: Icons.bubble_chart_rounded,
-                  ),
-                ),
-                const SizedBox(height: 22),
+                // Buttons
                 Row(
                   children: [
                     Expanded(
                       child: OutlinedButton(
-                        onPressed: () => Navigator.of(sheetContext).pop(),
+                        onPressed: () => Navigator.of(context).pop(),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF8C6C79),
-                          side: const BorderSide(color: Color(0xFFF3D7E0)),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          side: const BorderSide(color: PinitColors.creamDeep),
                         ),
-                        child: const Text('Cancel'),
+                        child: Text(
+                          'Cancel',
+                          style: GoogleFonts.dmSans(
+                            color: PinitColors.mute,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 16),
                     Expanded(
                       flex: 2,
-                      child: FilledButton(
-                        onPressed: () => _handleCreateBubble(
-                          context: sheetContext,
-                          name: nameController.text.trim(),
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          if (nameController.text.trim().isEmpty) return;
+
+                          final supabaseProvider = Provider.of<SupabaseService>(
+                              context,
+                              listen: false);
+                          final currentUser =
+                              SupabaseClientManager().client.auth.currentUser;
+
+                          if (currentUser == null) return;
+
+                          final bubbleId =
+                              await supabaseProvider.bubbles.createBubble(
+                            name: nameController.text.trim(),
+                            createdBy: currentUser.id,
+                          );
+
+                          Navigator.of(context).pop();
+
+                          if (bubbleId != null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: const Row(
+                                  children: [
+                                    Icon(Icons.check_circle,
+                                        color: PinitColors.cream),
+                                    SizedBox(width: 12),
+                                    Text('Bubble created successfully!'),
+                                  ],
+                                ),
+                                backgroundColor: PinitColors.aubergine,
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(999)),
+                              ),
+                            );
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: const Text('Failed to create bubble'),
+                                backgroundColor: PinitColors.accent,
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(999)),
+                              ),
+                            );
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: PinitColors.aubergine,
+                          foregroundColor: PinitColors.cream,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          elevation: 0,
                         ),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: _roseAccent,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.add_rounded, size: 18, color: PinitColors.cream),
+                            const SizedBox(width: 8),
+                            Text('Create Bubble',
+                                style: GoogleFonts.dmSans(fontWeight: FontWeight.w600, color: PinitColors.cream)),
+                          ],
                         ),
-                        child: const Text('Create Bubble'),
                       ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 8),
               ],
             ),
           ),
         );
       },
-    ).whenComplete(() {
-      nameController.dispose();
+    );
+  }
+
+  Widget _buildLoadingState(ThemeData theme) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: const BoxDecoration(
+              color: PinitColors.creamSunk,
+              shape: BoxShape.circle,
+            ),
+            child: const CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(PinitColors.aubergine),
+              strokeWidth: 3,
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Loading your bubbles...',
+            style: GoogleFonts.dmSans(
+              color: PinitColors.mute,
+              fontWeight: FontWeight.w500,
+              fontSize: 15,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBubblesList(ThemeData theme, List<Bubble> bubbles) {
+    if (bubbles.isEmpty) {
+      return _buildEmptyState(theme);
+    }
+
+    return SlideTransition(
+      position: _slideAnimation,
+      child: FadeTransition(
+        opacity: _fadeAnimation,
+        child: RefreshIndicator(
+          onRefresh: () async {
+            final provider =
+                Provider.of<BubblesProvider>(context, listen: false);
+            await provider.loadBubbles();
+          },
+          color: PinitColors.aubergine,
+          child: ListView.builder(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+            physics: const AlwaysScrollableScrollPhysics(),
+            itemCount: bubbles.length,
+            itemBuilder: (context, index) {
+              final bubble = bubbles[index];
+              return TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.0, end: 1.0),
+                duration: Duration(milliseconds: 300 + (index * 80)),
+                curve: Curves.easeOutCubic,
+                builder: (context, value, child) {
+                  return Transform.translate(
+                    offset: Offset(0, 16 * (1 - value)),
+                    child: Opacity(opacity: value, child: child),
+                  );
+                },
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: ChatGroupTile(
+                    bubble: bubble,
+                    onTap: () => _openExpandedChatView(bubble),
+                    onOpenChat: () => _openGroupChat(bubble),
+                    onActivateBubble: () => _activateBubble(bubble),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(ThemeData theme) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Animated illustration
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: PinitColors.creamSunk,
+                shape: BoxShape.circle,
+                border: Border.all(color: PinitColors.creamDeep, width: 1.5),
+              ),
+              child: const Icon(
+                Icons.bubble_chart_rounded,
+                size: 56,
+                color: PinitColors.aubergineSoft,
+              ),
+            ),
+            const SizedBox(height: 32),
+            const Text(
+              'No Bubbles Yet',
+              style: TextStyle(
+                fontFamily: 'Rova',
+                fontSize: 22,
+                fontWeight: FontWeight.w100,
+                color: PinitColors.aubergine,
+                letterSpacing: 1.2,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Create your first bubble to start sharing\nplaces with your friends!',
+              style: GoogleFonts.dmSans(
+                color: PinitColors.mute,
+                fontSize: 14,
+                height: 1.5,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton(
+              onPressed: _showCreateBubbleDialog,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: PinitColors.aubergine,
+                foregroundColor: PinitColors.cream,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                elevation: 0,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.add_rounded, size: 18, color: PinitColors.cream),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Create Your First Bubble',
+                    style: GoogleFonts.dmSans(
+                      fontWeight: FontWeight.w600,
+                      color: PinitColors.cream,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openExpandedChatView(Bubble bubble) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => ExpandedChatView(
+        bubble: bubble,
+        onClose: () => Navigator.of(context).pop(),
+      ),
+    );
+  }
+
+  void _openGroupChat(Bubble bubble) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => BubbleMessagingPage(bubble: bubble),
+      ),
+    );
+  }
+
+  void _activateBubble(Bubble bubble) {
+    final bubbleModeProvider =
+        Provider.of<BubbleModeProvider>(context, listen: false);
+    final navigationProvider =
+        Provider.of<NavigationProvider>(context, listen: false);
+
+    bubbleModeProvider.requestBubbleMode(bubble);
+    navigationProvider.navigateToTab(0);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.bubble_chart_rounded, color: PinitColors.cream),
+            const SizedBox(width: 12),
+            Text('Activating ${bubble.name}...'),
+          ],
+        ),
+        backgroundColor: PinitColors.aubergine,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+      ),
+    );
+  }
+
+  ThemeData get theme => Theme.of(context);
+
+  Widget _buildSearchField(ThemeData theme) {
+    final bool isSearching =
+        _searchFocusNode.hasFocus || _searchController.text.isNotEmpty;
+    return Container(
+      padding: EdgeInsets.fromLTRB(isSearching ? 8 : 20, 8, 20, 8),
+      child: Row(
+        children: [
+          if (isSearching) ...[
+            GestureDetector(
+              onTap: () {
+                _searchController.clear();
+                _searchFocusNode.unfocus();
+              },
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                child: Icon(Icons.arrow_back_rounded,
+                    color: PinitColors.aubergine, size: 22),
+              ),
+            ),
+          ],
+          Expanded(
+            child: TextField(
+        controller: _searchController,
+        focusNode: _searchFocusNode,
+        style: GoogleFonts.dmSans(color: PinitColors.aubergine),
+        decoration: InputDecoration(
+          hintText: 'Search users to add...',
+          hintStyle: GoogleFonts.dmSans(color: PinitColors.mute),
+          prefixIcon: Container(
+            padding: const EdgeInsets.all(12),
+            child: const Icon(Icons.search_rounded, color: PinitColors.mute, size: 22),
+          ),
+          suffixIcon: _searchController.text.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.close_rounded, color: PinitColors.mute),
+                  onPressed: () {
+                    _searchController.clear();
+                    _searchFocusNode.unfocus();
+                  },
+                )
+              : null,
+          filled: true,
+          fillColor: PinitColors.creamSunk,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(20),
+            borderSide: const BorderSide(color: PinitColors.creamDeep, width: 1),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(20),
+            borderSide: const BorderSide(color: PinitColors.creamDeep, width: 1),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(20),
+            borderSide: const BorderSide(color: PinitColors.aubergine, width: 1.5),
+          ),
+        ),
+      ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchResults(ThemeData theme, List<Bubble> bubbles) {
+    if (_searchController.text.isEmpty) {
+      return BubbleDiscoverView(
+        bubbles: bubbles,
+        onBubbleTap: _openExpandedChatView,
+        onUserTap: _showUserProfileDialog,
+      );
+    }
+
+    if (_isSearching) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(PinitColors.aubergine),
+              strokeWidth: 3,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Searching...',
+              style: GoogleFonts.dmSans(color: PinitColors.mute),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_searchResults.isEmpty && _searchController.text.isNotEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: const BoxDecoration(
+                color: PinitColors.creamSunk,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.person_search_rounded,
+                  size: 48, color: PinitColors.mute),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'No users found',
+              style: GoogleFonts.dmSans(
+                color: PinitColors.aubergine,
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Try a different search term',
+              style: GoogleFonts.dmSans(color: PinitColors.mute),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      itemCount: _searchResults.length,
+      itemBuilder: (context, index) {
+        final user = _searchResults[index];
+        return Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          decoration: BoxDecoration(
+            color: PinitColors.creamSunk,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: PinitColors.creamDeep, width: 1),
+            boxShadow: PinitColors.subtleShadow,
+          ),
+          child: ListTile(
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            leading: Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: PinitColors.aubergine,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Center(
+                child: Text(
+                  user.username![0].toUpperCase(),
+                  style: GoogleFonts.dmSans(
+                    color: PinitColors.cream,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+            title: Text(
+              user.username!,
+              style: GoogleFonts.dmSans(
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+                color: PinitColors.aubergine,
+              ),
+            ),
+            subtitle: Text(
+              user.email,
+              style: GoogleFonts.dmSans(
+                fontSize: 12,
+                color: PinitColors.mute,
+              ),
+            ),
+            trailing: const Icon(
+              Icons.chevron_right_rounded,
+              color: PinitColors.mute,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            onTap: () {
+              _searchFocusNode.unfocus();
+              _showUserProfileDialog(user);
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  void _onSearchChanged() {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+      if (_searchController.text.trim().isNotEmpty) {
+        _performSearch(_searchController.text.trim());
+      } else {
+        setState(() {
+          _searchResults = [];
+          _isSearching = false;
+        });
+      }
     });
   }
 
-  InputDecoration _inputDecoration({
-    required String label,
-    required String hint,
-    required IconData icon,
-  }) {
-    return InputDecoration(
-      labelText: label,
-      hintText: hint,
-      prefixIcon: Icon(icon, color: _roseAccent),
-      filled: true,
-      fillColor: Colors.white,
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 18,
-        vertical: 18,
-      ),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(22),
-        borderSide: const BorderSide(color: Color(0xFFF2D9E2)),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(22),
-        borderSide: const BorderSide(color: Color(0xFFF2D9E2)),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(22),
-        borderSide: const BorderSide(color: _roseAccent, width: 1.5),
-      ),
-    );
+  void _onFocusChanged() {
+    setState(() {});
   }
 
-  Future<void> _handleCreateBubble({
-    required BuildContext context,
-    required String name,
-  }) async {
-    if (name.isEmpty) {
-      return;
-    }
+  Future<void> _performSearch(String query) async {
+    setState(() {
+      _isSearching = true;
+    });
 
-    final supabaseService = this.context.read<SupabaseService>();
-    final currentUser = SupabaseClientManager().client.auth.currentUser;
-    if (currentUser == null) {
-      return;
-    }
+    try {
+      final supabaseProvider =
+          Provider.of<SupabaseService>(context, listen: false);
+      final results = await supabaseProvider.searchUsers(query);
 
-    final bubbleId = await supabaseService.bubbles.createBubble(
-      name: name,
-      createdBy: currentUser.id,
+      setState(() {
+        _searchResults = results;
+        _isSearching = false;
+      });
+    } catch (e) {
+      setState(() {
+        _searchResults = [];
+        _isSearching = false;
+      });
+      print('Error searching users: $e');
+    }
+  }
+
+  void _showUserProfileDialog(UserModel user) {
+    showDialog(
+      context: context,
+      builder: (context) => UserProfileDialog(user: user),
     );
-
-    if (!mounted) {
-      return;
-    }
-
-    Navigator.of(context).pop();
-
-    final messenger = ScaffoldMessenger.of(this.context);
-    if (bubbleId != null) {
-      final provider = _bubblesProvider;
-      if (provider != null) {
-        await provider.loadBubbles();
-      }
-      messenger.showSnackBar(
-        SnackBar(
-          content: const Text('Bubble created successfully'),
-          backgroundColor: _roseAccent,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-        ),
-      );
-    } else {
-      messenger.showSnackBar(
-        SnackBar(
-          content: const Text('Couldn\'t create that bubble'),
-          backgroundColor: Colors.redAccent,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-        ),
-      );
-    }
   }
 }

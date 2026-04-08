@@ -228,6 +228,9 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   // Similar places
   List<_SimilarPlace> _similarPlaces = [];
 
+  // Collection
+  bool _isAddingToCollection = false;
+
   @override
   void initState() {
     super.initState();
@@ -344,6 +347,20 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
 
   void _handleClose() {
     _sheetController.reverse().then((_) => widget.onClose());
+  }
+
+  Future<void> _showAddToCollectionSheet() async {
+    if (_isAddingToCollection) return;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _AddToCollectionSheet(
+        locationId: widget.location.locationId,
+        locationName: widget.location.name,
+      ),
+    );
   }
 
   /// Find similar places by computing cosine similarity between this
@@ -1094,36 +1111,50 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   // ══════════════════════════════════════════════════════════════
 
   Widget _buildActions() {
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          flex: 3,
-          child: _actionButton(
-            label: 'Add to Bubble',
-            icon: Icons.group_add_rounded,
-            filled: true,
-            onTap: () {},
-          ),
+        Row(
+          children: [
+            Expanded(
+              flex: 3,
+              child: _actionButton(
+                label: 'Add to Bubble',
+                icon: Icons.group_add_rounded,
+                filled: true,
+                onTap: () {},
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 2,
+              child: _actionButton(
+                label: _isSaved ? 'Saved' : 'Save',
+                icon: _isSaved
+                    ? Icons.bookmark_rounded
+                    : Icons.bookmark_border_rounded,
+                filled: false,
+                isLoading: _isSaving,
+                onTap: _isSaving ? null : _toggleSave,
+              ),
+            ),
+            const SizedBox(width: 10),
+            _iconAction(
+              Icons.thumb_down_off_alt_rounded,
+              onTap: _isDisliking ? null : _dislikeLocation,
+              isLoading: _isDisliking,
+            ),
+            const SizedBox(width: 8),
+            _iconAction(Icons.share_rounded, onTap: () {}),
+          ],
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          flex: 2,
-          child: _actionButton(
-            label: _isSaved ? 'Saved' : 'Save',
-            icon: _isSaved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
-            filled: false,
-            isLoading: _isSaving,
-            onTap: _isSaving ? null : _toggleSave,
-          ),
+        const SizedBox(height: 10),
+        _actionButton(
+          label: 'Add to Collection',
+          icon: Icons.collections_bookmark_rounded,
+          filled: false,
+          onTap: _showAddToCollectionSheet,
+          fullWidth: true,
         ),
-        const SizedBox(width: 10),
-        _iconAction(
-          Icons.thumb_down_off_alt_rounded,
-          onTap: _isDisliking ? null : _dislikeLocation,
-          isLoading: _isDisliking,
-        ),
-        const SizedBox(width: 8),
-        _iconAction(Icons.share_rounded, onTap: () {}),
       ],
     );
   }
@@ -1134,11 +1165,13 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     required bool filled,
     VoidCallback? onTap,
     bool isLoading = false,
+    bool fullWidth = false,
   }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
         height: 50,
+        width: fullWidth ? double.infinity : null,
         decoration: BoxDecoration(
           color: filled ? _accentColor : Colors.white,
           borderRadius: BorderRadius.circular(14),
@@ -2296,6 +2329,299 @@ class _MatchRingPainter extends CustomPainter {
   @override
   bool shouldRepaint(_MatchRingPainter old) =>
       old.progress != progress || old.color != color;
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Add to Collection sheet
+// ─────────────────────────────────────────────────────────────
+
+class _CollectionItem {
+  final String id;
+  final String name;
+  final String? emoji;
+  final int placeCount;
+  const _CollectionItem({
+    required this.id,
+    required this.name,
+    this.emoji,
+    required this.placeCount,
+  });
+}
+
+class _AddToCollectionSheet extends StatefulWidget {
+  final int locationId;
+  final String locationName;
+
+  const _AddToCollectionSheet({
+    required this.locationId,
+    required this.locationName,
+  });
+
+  @override
+  State<_AddToCollectionSheet> createState() => _AddToCollectionSheetState();
+}
+
+class _AddToCollectionSheetState extends State<_AddToCollectionSheet> {
+  List<_CollectionItem> _collections = [];
+  bool _loading = true;
+  String? _addingId; // id of collection currently being added to
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchCollections();
+  }
+
+  Future<void> _fetchCollections() async {
+    try {
+      final response = await SupabaseClientManager().client
+          .rpc('get_user_collections');
+      final items = (response as List).map((row) => _CollectionItem(
+            id: row['collection_id'] as String,
+            name: row['name'] as String,
+            emoji: row['emoji'] as String?,
+            placeCount: (row['place_count'] as num).toInt(),
+          )).toList();
+      if (mounted) setState(() { _collections = items; _loading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _addToCollection(String collectionId) async {
+    if (_addingId != null) return;
+    setState(() => _addingId = collectionId);
+    try {
+      final result = await SupabaseClientManager().client.rpc(
+        'add_location_to_collection',
+        params: {
+          'p_collection_id': collectionId,
+          'p_location_id': widget.locationId,
+        },
+      );
+      final success = (result as Map)['success'] == true;
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              success
+                  ? 'Added to collection'
+                  : (result['message'] ?? 'Already in collection'),
+            ),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _addingId = null);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to add to collection')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFFFAF9F7),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).padding.bottom + 16,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Handle
+          Center(
+            child: Container(
+              margin: const EdgeInsets.only(top: 12, bottom: 20),
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFFD1D5DB),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+
+          // Title
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Add to Collection',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF111827),
+                    letterSpacing: -0.4,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  widget.locationName,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF9CA3AF),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // Collections list
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 32),
+              child: Center(
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Color(0xFFE85D4C),
+                ),
+              ),
+            )
+          else if (_collections.isEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF3F1EE),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Column(
+                  children: [
+                    Icon(Icons.collections_bookmark_rounded,
+                        size: 36, color: Color(0xFFA3A3A3)),
+                    SizedBox(height: 12),
+                    Text(
+                      'No collections yet',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF6B6B6B),
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Create a collection from your profile',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFFA3A3A3),
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.45,
+              ),
+              child: ListView.separated(
+                shrinkWrap: true,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                itemCount: _collections.length,
+                separatorBuilder: (_, __) => const Divider(
+                  height: 1,
+                  color: Color(0xFFF3F1EE),
+                ),
+                itemBuilder: (context, i) {
+                  final c = _collections[i];
+                  final isAdding = _addingId == c.id;
+                  return GestureDetector(
+                    onTap: isAdding ? null : () => _addToCollection(c.id),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      child: Row(
+                        children: [
+                          // Icon/emoji
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF3F1EE),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Center(
+                              child: c.emoji != null && c.emoji!.isNotEmpty
+                                  ? Text(c.emoji!,
+                                      style: const TextStyle(fontSize: 20))
+                                  : const Icon(
+                                      Icons.collections_bookmark_rounded,
+                                      size: 20,
+                                      color: Color(0xFFA3A3A3),
+                                    ),
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  c.name,
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF111827),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${c.placeCount} ${c.placeCount == 1 ? 'place' : 'places'}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF9CA3AF),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (isAdding)
+                            const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Color(0xFFE85D4C),
+                              ),
+                            )
+                          else
+                            const Icon(
+                              Icons.add_circle_outline_rounded,
+                              size: 22,
+                              color: Color(0xFFD1D5DB),
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
