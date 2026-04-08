@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/users.dart';
 import 'package:login/supabase/supabase_client.dart';
 import 'pinit_colors.dart';
@@ -20,28 +21,19 @@ class ProfileHeader extends StatelessWidget {
     required this.unreadCount,
   }) : super(key: key);
 
-  static const Color _plum = Color(0xFF41133D);
-  static const Color _plumLight = Color(0xFF6B2465);
-
   @override
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
     final opacity = (1 - (scrollOffset / 120)).clamp(0.0, 1.0);
 
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [_plum, _plumLight],
-        ),
-      ),
+      color: PinitColors.aubergine,
       child: Padding(
         padding: EdgeInsets.only(top: topPadding),
         child: Opacity(
           opacity: opacity,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 26),
+            padding: const EdgeInsets.fromLTRB(24, 18, 24, 26),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -57,28 +49,31 @@ class ProfileHeader extends StatelessWidget {
                           Text(
                             user.name ?? 'No Name',
                             style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                              letterSpacing: -0.4,
-                              height: 1.1,
+                                fontFamily: 'Rova',
+                                fontSize: 28,
+                                fontWeight: FontWeight.w100,
+                                color: PinitColors.cream,
+                                letterSpacing: 1.7,
+                                height: 1.05,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                           if (user.bio != null && user.bio!.isNotEmpty) ...[
-                            const SizedBox(height: 3),
+                            const SizedBox(height: 4),
                             Text(
                               user.bio!.length > 60
                                   ? '${user.bio!.substring(0, 57)}...'
                                   : user.bio!,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.white.withValues(alpha: 0.7),
-                                height: 1.3,
+                              style: GoogleFonts.dmSans(
+                                fontSize: 15,
+                                color: PinitColors.cream.withValues(alpha: 0.7),
+                                height: 1.45,
                               ),
                               maxLines: 2,
                             ),
                           ],
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 10),
                           _StatsRow(user: user),
                         ],
                       ),
@@ -100,8 +95,6 @@ class ProfileHeader extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 14),
-                _TasteChips(),
               ],
             ),
           ),
@@ -127,7 +120,7 @@ class _ActionButton extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(999),
         onTap: () {
           HapticFeedback.selectionClick();
           onTap();
@@ -136,16 +129,9 @@ class _ActionButton extends StatelessWidget {
           width: 42,
           height: 42,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.13),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.14),
-                blurRadius: 18,
-                offset: const Offset(0, 8),
-              ),
-            ],
+            color: PinitColors.cream.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: PinitColors.cream.withValues(alpha: 0.2), width: 1.5),
           ),
           child: Stack(
             children: [
@@ -153,7 +139,7 @@ class _ActionButton extends StatelessWidget {
                 child: Icon(
                   icon,
                   size: 19,
-                  color: Colors.white,
+                  color: PinitColors.cream,
                 ),
               ),
               if (badgeCount > 0)
@@ -176,8 +162,8 @@ class _ActionButton extends StatelessWidget {
                     child: Center(
                       child: Text(
                         badgeCount > 9 ? '9+' : badgeCount.toString(),
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: GoogleFonts.dmSans(
+                          color: PinitColors.cream,
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
                         ),
@@ -208,16 +194,10 @@ class _ProfileAvatar extends StatelessWidget {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.all(
-            color: Colors.white.withValues(alpha: 0.6),
-            width: 3,
+            color: PinitColors.cream.withValues(alpha: 0.3),
+            width: 2.5,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.3),
-              blurRadius: 16,
-              spreadRadius: 2,
-            ),
-          ],
+          boxShadow: PinitColors.cardShadow,
         ),
         child: ClipOval(
           child:
@@ -235,11 +215,11 @@ class _ProfileAvatar extends StatelessWidget {
 
   Widget _defaultAvatar() {
     return Container(
-      color: PinitColors.surfaceLight,
+      color: PinitColors.creamSunk,
       child: const Icon(
         Icons.person,
         size: 40,
-        color: PinitColors.textMuted,
+        color: PinitColors.mute,
       ),
     );
   }
@@ -252,22 +232,26 @@ class _StatsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        _StatItem(value: '0', label: 'Pins'),
-        _buildDivider(),
-        _StatItem(value: user.followersCount.toString(), label: 'Followers'),
-        _buildDivider(),
-        _StatItem(value: user.followingCount.toString(), label: 'Following'),
-      ],
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: Row(
+        children: [
+          _StatItem(value: '0', label: 'Pins'),
+          _buildDivider(),
+          _StatItem(value: user.followersCount.toString(), label: 'Followers'),
+          _buildDivider(),
+          _StatItem(value: user.followingCount.toString(), label: 'Following'),
+        ],
+      ),
     );
   }
 
   Widget _buildDivider() => Container(
         width: 1,
-        height: 22,
+        height: 20,
         margin: const EdgeInsets.symmetric(horizontal: 12),
-        color: Colors.white.withValues(alpha: 0.25),
+        color: PinitColors.cream.withValues(alpha: 0.25),
       );
 }
 
@@ -287,20 +271,22 @@ class _StatItem extends StatelessWidget {
       children: [
         Text(
           value,
-          style: const TextStyle(
+          style: GoogleFonts.dmSans(
             fontSize: 16,
             fontWeight: FontWeight.w800,
-            color: Colors.white,
+            color: PinitColors.cream,
             letterSpacing: -0.4,
+            fontFeatures: const [FontFeature.tabularFigures()],
           ),
         ),
         const SizedBox(height: 1),
         Text(
-          label,
-          style: TextStyle(
+          label.toUpperCase(),
+          style: GoogleFonts.dmSans(
             fontSize: 11,
-            color: Colors.white.withValues(alpha: 0.65),
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
+            color: PinitColors.cream.withValues(alpha: 0.55),
+            letterSpacing: 0.12 * 11,
           ),
         ),
       ],
@@ -315,14 +301,12 @@ class _TasteChips extends StatefulWidget {
 
 class _TasteChipsState extends State<_TasteChips> {
   static const Map<String, String> _emojiMap = {
-    // Dietary
     'halal': '☪️',
     'vegan': '🌱',
     'gluten-free': '🌾',
     'vegetarian': '🥗',
     'dairy-free': '🥛',
     'nut-free': '🥜',
-    // Vibes
     'cafe': '☕',
     'casual': '😊',
     'cozy': '🧸',
@@ -360,58 +344,34 @@ class _TasteChipsState extends State<_TasteChips> {
 
   Future<void> _fetchTopVibes() async {
     final userId = SupabaseClientManager().currentUser?.id;
-    print('[TasteChips] userId: $userId');
-    if (userId == null) {
-      print('[TasteChips] No user, aborting');
-      return;
-    }
+    if (userId == null) return;
 
     try {
-      print('[TasteChips] Calling get_user_top_vibes(p_user_id: $userId)');
       final response = await SupabaseClientManager().client.rpc(
         'get_user_top_vibes',
         params: {'p_user_id': userId},
       );
-
-      print('[TasteChips] Raw response: $response');
 
       final tags = (response as List)
           .map((e) => (e['tag'] ?? '').toString())
           .where((t) => t.isNotEmpty)
           .toList();
 
-      print('[TasteChips] Parsed tags: $tags');
-
       if (mounted) setState(() => _tags = tags);
-    } catch (e, stack) {
-      print('[TasteChips] Error: $e');
-      print('[TasteChips] Stack: $stack');
-    }
+    } catch (_) {}
   }
 
   @override
   Widget build(BuildContext context) {
     if (_tags.isEmpty) return const SizedBox.shrink();
 
-    const colors = [
-      PinitColors.chipRamen,
-      PinitColors.chipVeg,
-      PinitColors.chipWine,
-      PinitColors.chipDateNight,
-      PinitColors.chipCheapEats,
-      PinitColors.chipLateNight,
-    ];
-
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: _tags.asMap().entries.map((entry) {
-        final emoji = _emojiMap[entry.value.toLowerCase()] ?? '🍴';
-        return _TasteChip(
-          label: entry.value,
-          emoji: emoji,
-          color: colors[entry.key % colors.length],
-        );
+      children: _tags.map((tag) {
+        final emoji = _emojiMap[tag.toLowerCase()] ?? '🍴';
+        final isWavy = tag.toLowerCase() == 'wavy';
+        return _TasteChip(label: tag, emoji: emoji, isWavy: isWavy);
       }).toList(),
     );
   }
@@ -420,30 +380,37 @@ class _TasteChipsState extends State<_TasteChips> {
 class _TasteChip extends StatelessWidget {
   final String label;
   final String emoji;
-  final Color color;
+  final bool isWavy;
 
-  const _TasteChip(
-      {required this.label, required this.emoji, required this.color});
+  const _TasteChip({
+    required this.label,
+    required this.emoji,
+    this.isWavy = false,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final bg = isWavy ? PinitColors.accent : PinitColors.aubergine;
+    final textColor = PinitColors.cream;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(20),
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(emoji, style: const TextStyle(fontSize: 14)),
+          Text(emoji, style: const TextStyle(fontSize: 12)),
           const SizedBox(width: 6),
           Text(
-            label,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: PinitColors.textPrimary,
+            label.toUpperCase(),
+            style: GoogleFonts.dmSans(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: textColor,
+              letterSpacing: 0.12 * 10,
             ),
           ),
         ],

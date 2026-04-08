@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:login/utils/geo_types.dart';
@@ -684,7 +685,10 @@ class LocationListManager with ChangeNotifier {
   Future<void> fetchHiddenGems() async {
     if (_isLoadingHiddenGems) return;
     final position = currentPosition ?? await getCurrentLocation();
-    if (position == null) return;
+    if (position == null) {
+      if (kDebugMode) print('[HiddenGems] Aborting — no location available');
+      return;
+    }
     _isLoadingHiddenGems = true;
     notifyListeners();
     try {

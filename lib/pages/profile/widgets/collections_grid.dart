@@ -1,6 +1,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/supabase/helpers/collections.dart';
 import 'package:login/supabase/supabase_client.dart';
@@ -25,6 +27,8 @@ class CollectionModel {
   final String? emoji;
   final String? coverColor;
   final String? photo;
+  final String? ownerName;
+  final String? ownerAvatarUrl;
 
   CollectionModel({
     required this.id,
@@ -33,6 +37,8 @@ class CollectionModel {
     this.emoji,
     this.coverColor,
     this.photo,
+    this.ownerName,
+    this.ownerAvatarUrl,
   });
 
   factory CollectionModel.fromItem(CollectionItem item) => CollectionModel(
@@ -42,6 +48,8 @@ class CollectionModel {
         emoji: item.emoji,
         coverColor: item.coverColor,
         photo: item.photo,
+        ownerName: item.ownerName,
+        ownerAvatarUrl: item.ownerAvatarUrl,
       );
 }
 
@@ -55,8 +63,10 @@ class CollectionsGrid extends StatefulWidget {
   State<CollectionsGrid> createState() => _CollectionsGridState();
 }
 
-class _CollectionsGridState extends State<CollectionsGrid> {
+class _CollectionsGridState extends State<CollectionsGrid>
+    with SingleTickerProviderStateMixin {
   final List<CollectionModel> _collections = [];
+  final List<CollectionModel> _friendCollections = [];
   final CollectionsHelper _helper = CollectionsHelper();
 
   bool _isLoading = false;
@@ -64,12 +74,30 @@ class _CollectionsGridState extends State<CollectionsGrid> {
   String? _loadError;
   late bool _hasGenerated;
 
+  late AnimationController _fillController;
+  late Animation<double> _fillAnimation;
+
   @override
   void initState() {
     super.initState();
     _hasGenerated = widget.generatedCollections;
     debugPrint('[CollectionsGrid] initState called, hasGenerated=$_hasGenerated');
+
+    _fillController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 20),
+    );
+    _fillAnimation = Tween<double>(begin: 0.0, end: 0.85).animate(
+      CurvedAnimation(parent: _fillController, curve: Curves.easeInOut),
+    );
+
     _loadCollections();
+  }
+
+  @override
+  void dispose() {
+    _fillController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadCollections() async {
@@ -81,11 +109,16 @@ class _CollectionsGridState extends State<CollectionsGrid> {
     }
     setState(() { _isLoading = true; _loadError = null; });
     try {
-      final items = await _helper.getUserCollections(userId);
+      final results = await Future.wait([
+        _helper.getUserCollections(userId),
+        _helper.getFriendsCollections(userId),
+      ]);
       if (mounted) {
         setState(() {
           _collections.clear();
-          _collections.addAll(items.map(CollectionModel.fromItem));
+          _collections.addAll(results[0].map(CollectionModel.fromItem));
+          _friendCollections.clear();
+          _friendCollections.addAll(results[1].map(CollectionModel.fromItem));
         });
       }
     } catch (e) {
@@ -114,24 +147,23 @@ class _CollectionsGridState extends State<CollectionsGrid> {
     if (authUser == null) return;
 
     setState(() => _isGenerating = true);
+    _fillController.forward(from: 0.0);
+
     try {
-      final result = _hasGenerated
-          ? await _helper.autoUpdateCollections(authUser.id)
-          : await _helper.generateCollections(authUser.id);
+      await (_hasGenerated
+          ? _helper.autoUpdateCollections(authUser.id)
+          : _helper.generateCollections(authUser.id));
 
       if (!_hasGenerated && mounted) setState(() => _hasGenerated = true);
 
+      // Snap to 100% on success
+      _fillController.animateTo(1.0, duration: const Duration(milliseconds: 300));
+      await Future.delayed(const Duration(milliseconds: 350));
+
       await _loadCollections();
-      if (mounted) {
-        final count = result.collectionsCreated;
-        final label = _hasGenerated ? 'Updated' : 'Generated';
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('$label $count collection${count == 1 ? "" : "s"}!'),
-          backgroundColor: PinitColors.primary,
-        ));
-      }
     } on CollectionsGenerationException catch (e) {
       if (mounted) {
+        _fillController.stop();
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(e.message),
           backgroundColor: Colors.orange,
@@ -140,13 +172,38 @@ class _CollectionsGridState extends State<CollectionsGrid> {
     } catch (e) {
       debugPrint('[CollectionsGrid] generate error: $e');
       if (mounted) {
+        _fillController.stop();
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Something went wrong. Please try again.'),
         ));
       }
     } finally {
-      if (mounted) setState(() => _isGenerating = false);
+      if (mounted) {
+        setState(() => _isGenerating = false);
+        _fillController.reset();
+      }
     }
+  }
+
+  Widget _buildGrid(List<CollectionModel> collections, {bool showOwner = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 0.78,
+        ),
+        itemCount: collections.length,
+        itemBuilder: (context, index) => _CollectionCard(
+          collection: collections[index],
+          showOwner: showOwner,
+        ),
+      ),
+    );
   }
 
   @override
@@ -156,91 +213,126 @@ class _CollectionsGridState extends State<CollectionsGrid> {
       children: [
         // Section Header
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
-          child: Row(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Expanded(
-                child: Text(
-                  'Collections',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: PinitColors.textPrimary,
-                    letterSpacing: -0.3,
-                  ),
-                ),
-              ),
-              // Generate from Saved button
-              GestureDetector(
-                onTap: _isGenerating ? null : _onGenerateButtonTap,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: PinitColors.surfaceLight,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: PinitColors.primary.withValues(alpha: _isGenerating ? 0.1 : 0.25),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Your Lists',
+                      style: TextStyle(
+                        fontFamily: 'Rova',
+                        fontSize: 24,
+                        fontWeight: FontWeight.w100,
+                        color: PinitColors.aubergine,
+                        letterSpacing: 1.2,
+                        height: 1.05,
+                      ),
                     ),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (_isGenerating)
-                        SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: PinitColors.primary,
+                  const SizedBox(width: 12),
+                  Row(
+                        children: [
+                          // Generate button
+                          GestureDetector(
+                            onTap: _isGenerating ? null : _onGenerateButtonTap,
+                            child: AnimatedBuilder(
+                              animation: _fillAnimation,
+                              builder: (context, child) {
+                                final label = _isGenerating
+                                    ? (_hasGenerated ? 'Updating...' : 'Generating...')
+                                    : (_hasGenerated ? 'Update' : 'Generate');
+
+                                Widget buildLabel(Color iconColor, Color textColor) => Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(FeatherIcons.zap, size: 13, color: iconColor),
+                                      const SizedBox(width: 5),
+                                      Text(
+                                        label,
+                                        style: GoogleFonts.dmSans(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: textColor,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+
+                                return ClipRRect(
+                                  borderRadius: BorderRadius.circular(999),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: PinitColors.creamSunk,
+                                      borderRadius: BorderRadius.circular(999),
+                                      border: Border.all(
+                                        color: _isGenerating ? PinitColors.aubergine : PinitColors.creamDeep,
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                    child: Stack(
+                                      children: [
+                                        // Base label (aubergine on cream)
+                                        buildLabel(PinitColors.aubergine, PinitColors.aubergine),
+
+                                        // Fill + clipped cream label on top
+                                        if (_isGenerating)
+                                          ClipRect(
+                                            clipper: _FillClipper(_fillAnimation.value),
+                                            child: Stack(
+                                              children: [
+                                                // Aubergine fill background
+                                                Positioned.fill(
+                                                  child: Container(color: PinitColors.aubergine),
+                                                ),
+                                                // Cream label clipped to same width
+                                                buildLabel(PinitColors.cream, PinitColors.cream),
+                                              ],
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
                           ),
-                        )
-                      else
-                        const Icon(
-                          FeatherIcons.zap,
-                          size: 14,
-                          color: PinitColors.primary,
-                        ),
-                      const SizedBox(width: 5),
-                      Text(
-                        _isGenerating
-                            ? (_hasGenerated ? 'Updating...' : 'Generating...')
-                            : (_hasGenerated ? 'Auto-update lists' : 'Generate'),
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: PinitColors.primary,
-                        ),
+                          const SizedBox(width: 8),
+                          // New button
+                          GestureDetector(
+                            onTap: _openCreateCollectionSheet,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: PinitColors.aubergine,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(FeatherIcons.plus, size: 13, color: PinitColors.cream),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'New',
+                                    style: GoogleFonts.dmSans(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: PinitColors.cream,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              // New collection button
-              GestureDetector(
-                onTap: _openCreateCollectionSheet,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: PinitColors.primary,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(FeatherIcons.plus, size: 14, color: Colors.white),
-                      SizedBox(width: 4),
-                      Text(
-                        'New',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                ],
               ),
             ],
           ),
@@ -291,24 +383,43 @@ class _CollectionsGridState extends State<CollectionsGrid> {
         else if (_collections.isEmpty)
           _EmptyCollections(onCreateTap: _openCreateCollectionSheet)
         else
+          _buildGrid(_collections),
+
+        // ── Explore ──
+        if (!_isLoading && _friendCollections.isNotEmpty) ...[
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 0.9,
-              ),
-              itemCount: _collections.length,
-              itemBuilder: (context, index) {
-                final collection = _collections[index];
-                return _CollectionCard(collection: collection);
-              },
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Collections',
+                  style: TextStyle(
+                    fontFamily: 'Rova',
+                    fontSize: 24,
+                    fontWeight: FontWeight.w100,
+                    color: PinitColors.aubergine,
+                    letterSpacing: 1.2,
+                    height: 1.05,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Explore',
+                  style: TextStyle(
+                    fontFamily: 'Rova',
+                    fontSize: 24,
+                    fontWeight: FontWeight.w100,
+                    color: PinitColors.aubergine,
+                    letterSpacing: 1.2,
+                    height: 1.05,
+                  ),
+                ),
+              ],
             ),
           ),
+          _buildGrid(_friendCollections, showOwner: true),
+        ],
       ],
     );
   }
@@ -388,10 +499,12 @@ class _CreateCollectionSheetState extends State<_CreateCollectionSheet> {
             const Text(
               'New Collection',
               style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: PinitColors.textPrimary,
-                letterSpacing: -0.4,
+                fontFamily: 'Rova',
+                fontSize: 28,
+                fontWeight: FontWeight.w200,
+                color: PinitColors.aubergine,
+                letterSpacing: 1.5,
+                height: 1.05,
               ),
             ),
             const SizedBox(height: 24),
@@ -495,9 +608,8 @@ class _CreateCollectionSheetState extends State<_CreateCollectionSheet> {
                   duration: const Duration(milliseconds: 150),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   decoration: BoxDecoration(
-                    gradient: _canCreate ? PinitColors.primaryGradient : null,
-                    color: _canCreate ? null : PinitColors.textMuted.withValues(alpha:0.15),
-                    borderRadius: BorderRadius.circular(14),
+                    color: _canCreate ? PinitColors.aubergine : PinitColors.creamDeep,
+                    borderRadius: BorderRadius.circular(999),
                   ),
                   child: Center(
                     child: _isSaving
@@ -506,15 +618,15 @@ class _CreateCollectionSheetState extends State<_CreateCollectionSheet> {
                             height: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: Colors.white,
+                              color: PinitColors.cream,
                             ),
                           )
                         : Text(
                             'Create Collection',
-                            style: TextStyle(
+                            style: GoogleFonts.dmSans(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
-                              color: _canCreate ? Colors.white : PinitColors.textMuted,
+                              color: _canCreate ? PinitColors.cream : PinitColors.mute,
                             ),
                           ),
                   ),
@@ -530,8 +642,9 @@ class _CreateCollectionSheetState extends State<_CreateCollectionSheet> {
 
 class _CollectionCard extends StatelessWidget {
   final CollectionModel collection;
+  final bool showOwner;
 
-  const _CollectionCard({required this.collection});
+  const _CollectionCard({required this.collection, this.showOwner = false});
 
   @override
   Widget build(BuildContext context) {
@@ -545,66 +658,97 @@ class _CollectionCard extends StatelessWidget {
         backgroundColor: Colors.transparent,
         builder: (_) => _CollectionDetailSheet(collection: collection),
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Stack(
-          fit: StackFit.expand,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: PinitColors.aubergine, width: 1.5),
+          boxShadow: const [
+            BoxShadow(
+              color: PinitColors.aubergine,
+              blurRadius: 0,
+              offset: Offset(4, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14.5),
+          child: Container(
+          color: PinitColors.creamSunk,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Background photo
-            if (assetPath != null)
-              Image.asset(assetPath, fit: BoxFit.cover)
-            else if (networkPhoto != null)
-              CachedNetworkImage(imageUrl: networkPhoto, fit: BoxFit.cover)
-            else
-              Container(
-                decoration: BoxDecoration(
-                  gradient: PinitColors.primaryGradient,
-                ),
-              ),
-
-            // Dark gradient overlay for text readability
-            DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.black.withValues(alpha: 0.65),
-                  ],
-                  stops: const [0.4, 1.0],
-                ),
-              ),
+            // ── Image (top ~65%) ──
+            Expanded(
+              child: _buildImage(assetPath, networkPhoto),
             ),
 
-            // Text at bottom
-            Positioned(
-              left: 14,
-              right: 14,
-              bottom: 14,
+            // ── Solid label area (bottom) ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Owner name — shown prominently at top for friend collections
+                  if (showOwner && collection.ownerName != null) ...[
+                    Row(
+                      children: [
+                        if (collection.ownerAvatarUrl != null)
+                          ClipOval(
+                            child: CachedNetworkImage(
+                              imageUrl: collection.ownerAvatarUrl!,
+                              width: 18,
+                              height: 18,
+                              fit: BoxFit.cover,
+                            ),
+                          )
+                        else
+                          Container(
+                            width: 18,
+                            height: 18,
+                            decoration: const BoxDecoration(
+                              color: PinitColors.creamDeep,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.person, size: 11, color: PinitColors.mute),
+                          ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            collection.ownerName!,
+                            style: const TextStyle(
+                              fontFamily: 'Rova',
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: PinitColors.aubergine,
+                              letterSpacing: 0.4,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                  ],
                   Text(
                     collection.name,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                      letterSpacing: -0.2,
-                      height: 1.2,
+                    style: GoogleFonts.dmSans(
+                      fontSize: showOwner ? 12 : 15,
+                      fontWeight: showOwner ? FontWeight.w500 : FontWeight.w700,
+                      color: showOwner ? PinitColors.aubergineSoft : PinitColors.aubergine,
+                      letterSpacing: showOwner ? 0 : 0.3,
+                      height: 1.15,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 3),
                   Text(
                     '${collection.placeCount} place${collection.placeCount == 1 ? "" : "s"}',
-                    style: TextStyle(
-                      fontSize: 12,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 11,
                       fontWeight: FontWeight.w500,
-                      color: Colors.white.withValues(alpha: 0.75),
+                      color: PinitColors.mute,
                     ),
                   ),
                 ],
@@ -612,6 +756,28 @@ class _CollectionCard extends StatelessWidget {
             ),
           ],
         ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImage(String? assetPath, String? networkPhoto) {
+    if (assetPath != null) {
+      return Image.asset(assetPath, fit: BoxFit.cover, width: double.infinity);
+    }
+    if (networkPhoto != null) {
+      return CachedNetworkImage(
+        imageUrl: networkPhoto,
+        fit: BoxFit.cover,
+        width: double.infinity,
+      );
+    }
+    // Fallback: aubergine-tinted placeholder
+    return Container(
+      color: PinitColors.creamDeep,
+      child: const Center(
+        child: Icon(FeatherIcons.bookmark, size: 28, color: PinitColors.mute),
       ),
     );
   }
@@ -624,64 +790,52 @@ class _EmptyCollections extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.all(20),
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: PinitColors.cardShadow,
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
       child: Column(
         children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: PinitColors.surfaceLight,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Center(
-              child: Icon(
-                FeatherIcons.bookmark,
-                size: 28,
-                color: PinitColors.textMuted,
-              ),
-            ),
+          SvgPicture.asset(
+            'lib/assets/illustrations/Beep Beep - Large Vehicle.svg',
+            height: 180,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           const Text(
-            'No collections yet',
+            'Waiting for your first collection...',
             style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-              color: PinitColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Organise your pins into themed collections',
-            style: TextStyle(
-              fontSize: 14,
-              color: PinitColors.textSecondary,
+              fontFamily: 'Rova',
+              fontSize: 28,
+              fontWeight: FontWeight.w800,
+              color: PinitColors.aubergine,
+              letterSpacing: 1.0,
+              height: 1.05,
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 10),
+          Text(
+            'We know you have great taste - Create a collection to organise your saved places and share them with your friends!',
+            style: GoogleFonts.dmSans(
+              fontSize: 14,
+              color: PinitColors.aubergineSoft,
+              height: 1.5,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
           GestureDetector(
             onTap: onCreateTap,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
               decoration: BoxDecoration(
-                gradient: PinitColors.primaryGradient,
-                borderRadius: BorderRadius.circular(14),
+                color: PinitColors.aubergine,
+                borderRadius: BorderRadius.circular(999),
               ),
-              child: const Text(
-                'Create your first collection',
-                style: TextStyle(
+              child: Text(
+                'Create a collection',
+                style: GoogleFonts.dmSans(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
-                  color: Colors.white,
+                  color: PinitColors.cream,
                 ),
               ),
             ),
@@ -770,18 +924,19 @@ class _CollectionDetailSheetState extends State<_CollectionDetailSheet> {
                           children: [
                             Text(
                               widget.collection.name,
-                              style: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w800,
-                                color: PinitColors.textPrimary,
-                                letterSpacing: -0.4,
+                              style: GoogleFonts.dmSans(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: PinitColors.aubergine,
+                                letterSpacing: -0.3,
+                                height: 1.2,
                               ),
                             ),
                             Text(
                               '${widget.collection.placeCount} place${widget.collection.placeCount == 1 ? "" : "s"}',
-                              style: const TextStyle(
+                              style: GoogleFonts.dmSans(
                                 fontSize: 13,
-                                color: PinitColors.textSecondary,
+                                color: PinitColors.aubergineSoft,
                               ),
                             ),
                           ],
@@ -925,10 +1080,11 @@ class _LocationRow extends StatelessWidget {
                     Text(
                       location.name,
                       style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: PinitColors.textPrimary,
-                        letterSpacing: -0.2,
+                        fontFamily: 'Rova',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: PinitColors.aubergine,
+                        letterSpacing: 0.5,
                         height: 1.2,
                       ),
                       maxLines: 1,
@@ -938,9 +1094,9 @@ class _LocationRow extends StatelessWidget {
                       const SizedBox(height: 3),
                       Text(
                         _summary!,
-                        style: const TextStyle(
+                        style: GoogleFonts.dmSans(
                           fontSize: 12,
-                          color: PinitColors.textSecondary,
+                          color: PinitColors.aubergineSoft,
                           height: 1.3,
                         ),
                         maxLines: 1,
@@ -1075,4 +1231,15 @@ class _Pill extends StatelessWidget {
       ),
     );
   }
+}
+
+class _FillClipper extends CustomClipper<Rect> {
+  final double progress;
+  _FillClipper(this.progress);
+
+  @override
+  Rect getClip(Size size) => Rect.fromLTWH(0, 0, size.width * progress, size.height);
+
+  @override
+  bool shouldReclip(_FillClipper old) => old.progress != progress;
 }

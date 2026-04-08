@@ -1,11 +1,13 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'pinit_colors.dart';
 
-/// Places currently trending that this user has saved
+/// Places currently trending — displayed as an Instagram Explore-style mosaic.
 class TrendingNowSection extends StatelessWidget {
   final List<LocationModel> locations;
 
@@ -23,68 +25,143 @@ class TrendingNowSection extends StatelessWidget {
       children: [
         // ── Section header ──
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 24, 20, 14),
-          child: Row(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: PinitColors.surfaceLight,
-                  borderRadius: BorderRadius.circular(11),
-                ),
-                child: const Icon(
-                  FeatherIcons.trendingUp,
-                  size: 17,
-                  color: PinitColors.textSecondary,
+              const SizedBox(height: 6),
+              const Text(
+                'Popping Right Now',
+                style: TextStyle(
+                  fontFamily: 'Rova',
+                  fontSize: 28,
+                  fontWeight: FontWeight.w100,
+                  color: PinitColors.aubergine,
+                  letterSpacing: 1.9,
+                  height: 1.05,
                 ),
               ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Popping Right Now',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: PinitColors.textPrimary,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      'Trending places you\'ve saved',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: PinitColors.textSecondary,
-                      ),
-                    ),
-                  ],
+              const SizedBox(height: 4),
+              Text(
+                'Hot places people have saved',
+                style: GoogleFonts.dmSans(
+                  fontSize: 13,
+                  color: PinitColors.aubergineSoft,
                 ),
               ),
             ],
           ),
         ),
 
-        // ── Cards ──
+        // ── Mosaic grid ──
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column(
-            children: locations
-                .map((location) => _TrendingCard(location: location))
-                .toList(),
-          ),
+          child: _MosaicGrid(locations: locations),
         ),
       ],
     );
   }
 }
 
-class _TrendingCard extends StatelessWidget {
+// ─────────────────────────────────────────────────────────────────────────────
+//  Mosaic grid — groups of 3 with alternating large-tile side
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _MosaicGrid extends StatelessWidget {
+  final List<LocationModel> locations;
+  const _MosaicGrid({required this.locations});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const gap = 6.0;
+        final totalWidth = constraints.maxWidth;
+
+        // Tile dimensions derived from available width
+        final smallWidth = (totalWidth - gap) / 3;
+        final bigWidth = (totalWidth - gap) * 2 / 3;
+        const infoBarHeight = 52.0;
+        final smallHeight = smallWidth * 1.3 + infoBarHeight;
+        final bigHeight = smallHeight * 2 + gap;
+
+        // Split into groups of 3
+        final rows = <Widget>[];
+        for (var i = 0; i < locations.length; i += 3) {
+          final chunk = locations.sublist(i, min(i + 3, locations.length));
+          final rowIndex = i ~/ 3;
+
+          if (rows.isNotEmpty) rows.add(const SizedBox(height: gap));
+
+          if (chunk.length == 1) {
+            rows.add(SizedBox(
+              height: smallHeight,
+              child: _MosaicTile(location: chunk[0]),
+            ));
+          } else if (chunk.length == 2) {
+            rows.add(SizedBox(
+              height: smallHeight,
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: smallWidth,
+                    child: _MosaicTile(location: chunk[0]),
+                  ),
+                  const SizedBox(width: gap),
+                  Expanded(child: _MosaicTile(location: chunk[1])),
+                ],
+              ),
+            ));
+          } else {
+            // 3 tiles: big + two smalls, alternating sides
+            final bigTile = SizedBox(
+              width: bigWidth,
+              height: bigHeight,
+              child: _MosaicTile(location: chunk[0]),
+            );
+            final smallStack = SizedBox(
+              width: smallWidth,
+              height: bigHeight,
+              child: Column(
+                children: [
+                  SizedBox(
+                    height: smallHeight,
+                    child: _MosaicTile(location: chunk[1]),
+                  ),
+                  const SizedBox(height: gap),
+                  Expanded(child: _MosaicTile(location: chunk[2])),
+                ],
+              ),
+            );
+
+            rows.add(SizedBox(
+              height: bigHeight,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: rowIndex.isEven
+                    ? [bigTile, const SizedBox(width: gap), smallStack]
+                    : [smallStack, const SizedBox(width: gap), bigTile],
+              ),
+            ));
+          }
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: rows,
+        );
+      },
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Individual mosaic tile
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _MosaicTile extends StatelessWidget {
   final LocationModel location;
-  const _TrendingCard({required this.location});
+  const _MosaicTile({required this.location});
 
   @override
   Widget build(BuildContext context) {
@@ -104,27 +181,38 @@ class _TrendingCard extends StatelessWidget {
             FadeTransition(opacity: anim, child: child),
       ),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
-          color: PinitColors.surfaceCard,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: PinitColors.cardShadow,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: PinitColors.aubergine, width: 1.5),
+          boxShadow: const [
+            BoxShadow(
+              color: PinitColors.aubergine,
+              blurRadius: 0,
+              offset: Offset(4, 4),
+            ),
+          ],
         ),
-        child: Row(
-          children: [
-            // ── Image corner ──
-            ClipRRect(
-              borderRadius: const BorderRadius.horizontal(
-                  left: Radius.circular(16)),
-              child: SizedBox(
-                width: 80,
-                height: 80,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8.5),
+          child: Container(
+            decoration: const BoxDecoration(
+              color: PinitColors.creamSunk,
+            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ── Image ──
+              Expanded(
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
                     _buildImage(context),
-                    // Subtle dark scrim — carousel language on a thumbnail
-                    Positioned.fill(
+                    // Subtle bottom scrim so info bar edge feels clean
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      height: 28,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
@@ -132,18 +220,17 @@ class _TrendingCard extends StatelessWidget {
                             end: Alignment.bottomCenter,
                             colors: [
                               Colors.transparent,
-                              Colors.black.withValues(alpha: 0.45),
+                              Colors.black.withValues(alpha: 0.18),
                             ],
-                            stops: const [0.4, 1.0],
                           ),
                         ),
                       ),
                     ),
-                    // Open/closed dot in bottom-left of thumbnail
+                    // Open/closed dot
                     if (location.openNow != null)
                       Positioned(
-                        bottom: 6,
-                        left: 6,
+                        top: 8,
+                        left: 8,
                         child: Container(
                           width: 7,
                           height: 7,
@@ -164,91 +251,43 @@ class _TrendingCard extends StatelessWidget {
                   ],
                 ),
               ),
-            ),
 
-            // ── Info ──
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              // ── Info bar ──
+              Container(
+                height: 52,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                color: PinitColors.cream,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    // Name
-                    Text(
-                      location.name,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: PinitColors.textPrimary,
-                        letterSpacing: -0.2,
-                        height: 1.2,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-
-                    // Summary / vicinity
-                    if (_summaryText != null) ...[
-                      const SizedBox(height: 3),
-                      Text(
-                        _summaryText!,
-                        style: const TextStyle(
+                    Expanded(
+                      child: Text(
+                        location.name,
+                        style: GoogleFonts.dmSans(
                           fontSize: 12,
-                          color: PinitColors.textSecondary,
-                          height: 1.3,
+                          fontWeight: FontWeight.w700,
+                          color: PinitColors.aubergine,
+                          letterSpacing: -0.2,
+                          height: 1.2,
                         ),
-                        maxLines: 1,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                    ],
-
-                    const SizedBox(height: 8),
-
-                    // Pills row — carousel style
-                    Row(
-                      children: [
-                        if (location.priceLevel != null &&
-                            location.priceLevel! > 0) ...[
-                          _Pill(
-                            text: '£' * location.priceLevel!,
-                            bgColor:
-                                const Color(0xFF00B894).withValues(alpha: 0.12),
-                            textColor: const Color(0xFF00B894),
-                            fontWeight: FontWeight.w800,
-                          ),
-                          const SizedBox(width: 5),
-                        ],
-                        if (location.cuisine != null &&
-                            location.cuisine!.isNotEmpty)
-                          _Pill(
-                            text: location.cuisine!,
-                            bgColor: PinitColors.surfaceLight,
-                            textColor: PinitColors.textSecondary,
-                          ),
-                        const Spacer(),
-                        if (location.rating != null)
-                          _RatingChip(rating: location.rating!),
-                      ],
                     ),
+                    if (location.rating != null) ...[
+                      const SizedBox(width: 6),
+                      _RatingChip(rating: location.rating!),
+                    ],
                   ],
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
+        ),
         ),
       ),
     );
-  }
-
-  String? get _summaryText {
-    if (location.generatedSummary != null &&
-        location.generatedSummary!.isNotEmpty) return location.generatedSummary;
-    if (location.editorialSummary != null &&
-        location.editorialSummary!.isNotEmpty) return location.editorialSummary;
-    if (location.vicinity != null && location.vicinity!.isNotEmpty) {
-      return location.vicinity;
-    }
-    return null;
   }
 
   Widget _buildImage(BuildContext context) {
@@ -277,9 +316,9 @@ class _TrendingCard extends StatelessWidget {
       );
 }
 
-// ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 //  Micro-widgets
-// ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _RatingChip extends StatelessWidget {
   final double rating;
@@ -288,10 +327,10 @@ class _RatingChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
         color: Colors.amber.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(7),
         border: Border.all(
             color: Colors.amber.withValues(alpha: 0.25), width: 0.5),
       ),
@@ -303,48 +342,12 @@ class _RatingChip extends StatelessWidget {
             style: const TextStyle(
               color: Color(0xFFF59E0B),
               fontWeight: FontWeight.w800,
-              fontSize: 11,
+              fontSize: 10,
             ),
           ),
           const SizedBox(width: 2),
-          const Icon(FeatherIcons.star, size: 9, color: Color(0xFFF59E0B)),
+          const Icon(FeatherIcons.star, size: 8, color: Color(0xFFF59E0B)),
         ],
-      ),
-    );
-  }
-}
-
-class _Pill extends StatelessWidget {
-  final String text;
-  final Color bgColor;
-  final Color textColor;
-  final FontWeight fontWeight;
-
-  const _Pill({
-    required this.text,
-    required this.bgColor,
-    required this.textColor,
-    this.fontWeight = FontWeight.w600,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(7),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: textColor,
-          fontWeight: fontWeight,
-          fontSize: 10.5,
-          letterSpacing: 0.1,
-        ),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
       ),
     );
   }

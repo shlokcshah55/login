@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_feather_icons/flutter_feather_icons.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/users.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/supabase/service.dart';
@@ -49,45 +51,51 @@ class _FindFriendsSectionState extends State<FindFriendsSection> {
       children: [
         // ── Section header ──
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: PinitColors.surfaceLight,
-                  borderRadius: BorderRadius.circular(11),
-                ),
-                child: const Icon(
-                  FeatherIcons.users,
-                  size: 17,
-                  color: PinitColors.textSecondary,
+              const Expanded(
+                child: Text(
+                  'People',
+                  style: TextStyle(
+                    fontFamily: 'Rova',
+                    fontSize: 28,
+                    fontWeight: FontWeight.w100,
+                    color: PinitColors.aubergine,
+                    letterSpacing: 1.4,
+                    height: 1.05,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Find Friends',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: PinitColors.textPrimary,
-                        letterSpacing: -0.3,
+              GestureDetector(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  _fetchSuggestedUsers();
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: PinitColors.creamSunk,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: PinitColors.creamDeep, width: 1.5),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.refresh_rounded, size: 13, color: PinitColors.aubergine),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Refresh',
+                        style: GoogleFonts.dmSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: PinitColors.aubergine,
+                        ),
                       ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      'People with similar taste',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: PinitColors.textSecondary,
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -96,7 +104,7 @@ class _FindFriendsSectionState extends State<FindFriendsSection> {
 
         // ── Content ──
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.only(left: 24, right: 20),
           child: _buildContent(),
         ),
       ],
@@ -105,46 +113,46 @@ class _FindFriendsSectionState extends State<FindFriendsSection> {
 
   Widget _buildContent() {
     if (_isLoading) {
-      return Container(
-        height: 160,
-        alignment: Alignment.center,
-        child: const CircularProgressIndicator(
-          strokeWidth: 2,
-          color: PinitColors.primary,
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 40),
+        child: Center(
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: PinitColors.aubergine,
+          ),
         ),
       );
     }
 
     if (_suggestedUsers.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.symmetric(vertical: 40),
-        decoration: BoxDecoration(
-          color: PinitColors.surfaceCard,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: PinitColors.cardShadow,
-        ),
-        child: const Column(
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Column(
           children: [
-            Icon(
-              FeatherIcons.users,
-              size: 40,
-              color: PinitColors.textMuted,
+            SvgPicture.asset(
+              'lib/assets/illustrations/Beep Beep - Food Van.svg',
+              height: 160,
             ),
-            SizedBox(height: 14),
-            Text(
-              'No suggestions yet',
+            const SizedBox(height: 20),
+            const Text(
+              'No one around yet...',
               style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: PinitColors.textPrimary,
+                fontFamily: 'Rova',
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                color: PinitColors.aubergine,
+                letterSpacing: 1.0,
+                height: 1.05,
               ),
+              textAlign: TextAlign.center,
             ),
-            SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text(
-              'Check back later for recommendations',
-              style: TextStyle(
-                fontSize: 13,
-                color: PinitColors.textSecondary,
+              'Check back later for people with similar taste to you.',
+              style: GoogleFonts.dmSans(
+                fontSize: 14,
+                color: PinitColors.aubergineSoft,
+                height: 1.5,
               ),
               textAlign: TextAlign.center,
             ),
@@ -153,23 +161,14 @@ class _FindFriendsSectionState extends State<FindFriendsSection> {
       );
     }
 
-    final cardWidth =
-        (MediaQuery.of(context).size.width - 20 * 2 - 12) / 2;
-
-    return SizedBox(
-      height: cardWidth / 0.7,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: _suggestedUsers.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemBuilder: (context, index) => SizedBox(
-          width: cardWidth,
-          child: UserCard(
-            user: _suggestedUsers[index],
-            onTap: widget.onUserTap,
-          ),
+    return Column(
+      children: _suggestedUsers.map((user) => Padding(
+        padding: const EdgeInsets.only(bottom: 16, right: 4),
+        child: UserCard(
+          user: user,
+          onTap: widget.onUserTap,
         ),
-      ),
+      )).toList(),
     );
   }
 }

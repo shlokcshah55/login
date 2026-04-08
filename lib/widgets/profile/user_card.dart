@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/users.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/supabase/service.dart';
@@ -35,8 +37,7 @@ class _UserCardState extends State<UserCard> {
     try {
       if (widget.user.supabaseId == null) return;
       final service = Provider.of<SupabaseService>(context, listen: false);
-      final status =
-          await service.users.getFollowStatus(widget.user.supabaseId!);
+      final status = await service.users.getFollowStatus(widget.user.supabaseId!);
       if (mounted) {
         setState(() {
           _followStatus = switch (status) {
@@ -54,6 +55,7 @@ class _UserCardState extends State<UserCard> {
 
   Future<void> _handleFollowAction() async {
     if (_isLoading || widget.user.supabaseId == null) return;
+    HapticFeedback.selectionClick();
     setState(() => _isLoading = true);
     try {
       final service = Provider.of<SupabaseService>(context, listen: false);
@@ -70,8 +72,7 @@ class _UserCardState extends State<UserCard> {
           SnackBar(
             content: Text('Error: $e'),
             behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
       }
@@ -86,24 +87,29 @@ class _UserCardState extends State<UserCard> {
       onTap: widget.onTap != null ? () => widget.onTap!(widget.user) : null,
       child: Container(
         decoration: BoxDecoration(
-          color: PinitColors.surfaceCard,
+          color: PinitColors.creamSunk,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: PinitColors.cardShadow,
+          border: Border.all(color: PinitColors.aubergine, width: 1.5),
+          boxShadow: const [
+            BoxShadow(
+              color: PinitColors.aubergine,
+              blurRadius: 0,
+              offset: Offset(4, 4),
+            ),
+          ],
         ),
         padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             // ── Avatar ──
             Container(
-              width: 64,
-              height: 64,
+              width: 56,
+              height: 56,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: PinitColors.surfaceLight,
-                  width: 2,
-                ),
+                border: Border.all(color: PinitColors.creamDeep, width: 2),
+                boxShadow: PinitColors.subtleShadow,
               ),
               child: ClipOval(
                 child: widget.user.profileImageUrl != null &&
@@ -116,57 +122,63 @@ class _UserCardState extends State<UserCard> {
                     : _defaultAvatar(),
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(width: 14),
 
-            // ── Name ──
-            Text(
-              widget.user.name ?? 'Explorer',
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: PinitColors.textPrimary,
-                letterSpacing: -0.2,
+            // ── Name + stats ──
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.user.name ?? 'Explorer',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: PinitColors.aubergine,
+                      letterSpacing: 0.2,
+                      height: 1.1,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '@${widget.user.email.split('@').first}',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 11,
+                      color: PinitColors.mute,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 6),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      children: [
+                        _StatItem(
+                          value: _formatCount(widget.user.followersCount),
+                          label: 'Followers',
+                        ),
+                        Container(
+                          width: 1,
+                          height: 14,
+                          margin: const EdgeInsets.symmetric(horizontal: 8),
+                          color: PinitColors.creamDeep,
+                        ),
+                        _StatItem(
+                          value: _formatCount(widget.user.followingCount),
+                          label: 'Following',
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
             ),
-
-            // ── Username ──
-            const SizedBox(height: 2),
-            Text(
-              '@${widget.user.email.split('@').first}',
-              style: const TextStyle(
-                fontSize: 11,
-                color: PinitColors.textMuted,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-            ),
-
-            const SizedBox(height: 10),
-
-            // ── Stats ──
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _StatItem(
-                    value: _formatCount(widget.user.followersCount),
-                    label: 'followers'),
-                Container(
-                  width: 1,
-                  height: 16,
-                  margin: const EdgeInsets.symmetric(horizontal: 10),
-                  color: PinitColors.surfaceLight,
-                ),
-                _StatItem(
-                    value: _formatCount(widget.user.followingCount),
-                    label: 'following'),
-              ],
-            ),
-
-            const SizedBox(height: 12),
+            const SizedBox(width: 12),
 
             // ── Follow button ──
             _FollowButton(
@@ -181,8 +193,8 @@ class _UserCardState extends State<UserCard> {
   }
 
   Widget _defaultAvatar() => Container(
-        color: PinitColors.surfaceLight,
-        child: const Icon(Icons.person, color: PinitColors.textMuted, size: 32),
+        color: PinitColors.creamSunk,
+        child: const Icon(Icons.person, color: PinitColors.mute, size: 32),
       );
 
   String _formatCount(int n) {
@@ -202,20 +214,21 @@ class _StatItem extends StatelessWidget {
       children: [
         Text(
           value,
-          style: const TextStyle(
+          style: GoogleFonts.dmSans(
             fontSize: 13,
             fontWeight: FontWeight.w800,
-            color: PinitColors.textPrimary,
+            color: PinitColors.aubergine,
             letterSpacing: -0.3,
           ),
         ),
         const SizedBox(height: 1),
         Text(
-          label,
-          style: const TextStyle(
-            fontSize: 10,
-            color: PinitColors.textMuted,
-            fontWeight: FontWeight.w500,
+          label.toUpperCase(),
+          style: GoogleFonts.dmSans(
+            fontSize: 9,
+            fontWeight: FontWeight.w600,
+            color: PinitColors.mute,
+            letterSpacing: 0.12 * 9,
           ),
         ),
       ],
@@ -236,40 +249,23 @@ class _FollowButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (String label, Color bg, Color fg) = switch (status) {
-      _FollowStatus.idle => ('Follow', PinitColors.primary, Colors.white),
-      _FollowStatus.requested => (
-          'Requested',
-          PinitColors.surfaceLight,
-          PinitColors.textSecondary
-        ),
-      _FollowStatus.following => (
-          'Following',
-          PinitColors.surfaceLight,
-          PinitColors.primary
-        ),
+    final (Color bg, Color fg, String label) = switch (status) {
+      _FollowStatus.idle => (PinitColors.aubergine, PinitColors.cream, 'Follow'),
+      _FollowStatus.requested => (PinitColors.creamDeep, PinitColors.aubergineSoft, 'Requested'),
+      _FollowStatus.following => (PinitColors.creamDeep, PinitColors.aubergine, 'Following'),
     };
 
     return GestureDetector(
       onTap: isLoading ? null : onTap,
       child: Container(
-        width: double.infinity,
+        width: 90,
         padding: const EdgeInsets.symmetric(vertical: 9),
         decoration: BoxDecoration(
           color: bg,
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: status == _FollowStatus.idle
-              ? [
-                  BoxShadow(
-                    color: PinitColors.primary.withValues(alpha: 0.25),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  )
-                ]
-              : null,
+          borderRadius: BorderRadius.circular(999),
         ),
         child: Center(
-          child: isLoading && status == _FollowStatus.idle
+          child: isLoading
               ? SizedBox(
                   width: 14,
                   height: 14,
@@ -278,13 +274,16 @@ class _FollowButton extends StatelessWidget {
                     valueColor: AlwaysStoppedAnimation(fg),
                   ),
                 )
-              : Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: fg,
-                    letterSpacing: 0.1,
+              : FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: fg,
+                      letterSpacing: 0.1,
+                    ),
                   ),
                 ),
         ),
