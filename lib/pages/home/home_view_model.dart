@@ -276,6 +276,15 @@ class HomeViewModel extends ChangeNotifier {
     await _headerSearchCoordinator.rememberQuery(query);
   }
 
+  /// Resolves a Mapbox suggestion stub (no coordinates) to a full
+  /// [LocationModel] by calling Mapbox `/retrieve`. Returns null if the
+  /// item isn't a Mapbox stub or the call fails.
+  Future<LocationModel?> resolveMapboxHeaderSelection(
+    SearchSuggestionItem item,
+  ) {
+    return _headerSearchCoordinator.resolveMapboxSelection(item);
+  }
+
   Future<void> selectHeaderSearchLocation(
     LocationModel location, {
     String? query,

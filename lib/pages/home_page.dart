@@ -508,9 +508,14 @@ class _TopPanel extends StatelessWidget {
                       break;
                     case SearchSuggestionKind.place:
                     case SearchSuggestionKind.naturalLanguage:
-                      if (item.location == null) return;
+                      var resolved = item.location;
+                      if (resolved == null && item.mapboxId != null) {
+                        resolved =
+                            await viewModel.resolveMapboxHeaderSelection(item);
+                      }
+                      if (resolved == null) return;
                       await viewModel.selectHeaderSearchLocation(
-                        item.location!,
+                        resolved,
                         query: viewModel.headerSearchState.query.isNotEmpty
                             ? viewModel.headerSearchState.query
                             : item.queryValue,

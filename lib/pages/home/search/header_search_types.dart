@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/models/users.dart';
+import 'package:login/services/mapbox_search_box_service.dart';
 
 enum SearchIntentType {
   place,
@@ -20,7 +21,7 @@ enum WaterfallStage {
   personalSuggestions,
   databaseMatches,
   fullResults,
-  mapboxFallback,
+  mapboxLiveResults,
 }
 
 enum SearchSuggestionKind {
@@ -41,7 +42,8 @@ class SearchSuggestionItem {
   final LocationModel? location;
   final UserModel? user;
   final bool isPersonalized;
-  final bool isMapboxFallback;
+  final bool isMapboxResult;
+  final String? mapboxId;
 
   const SearchSuggestionItem({
     required this.id,
@@ -52,7 +54,8 @@ class SearchSuggestionItem {
     this.location,
     this.user,
     this.isPersonalized = false,
-    this.isMapboxFallback = false,
+    this.isMapboxResult = false,
+    this.mapboxId,
   });
 
   factory SearchSuggestionItem.recentQuery(String query) {
@@ -76,7 +79,7 @@ class SearchSuggestionItem {
 
   factory SearchSuggestionItem.place(
     LocationModel location, {
-    bool isMapboxFallback = false,
+    bool isMapboxResult = false,
   }) {
     return SearchSuggestionItem(
       id: 'place:${location.locationId}',
@@ -85,7 +88,21 @@ class SearchSuggestionItem {
       subtitle: location.vicinity ?? location.cuisine,
       queryValue: location.name,
       location: location,
-      isMapboxFallback: isMapboxFallback,
+      isMapboxResult: isMapboxResult,
+    );
+  }
+
+  /// Stub created from a Mapbox `/suggest` response. [location] is null until
+  /// the user taps the result and `/retrieve` is called to resolve coordinates.
+  factory SearchSuggestionItem.mapboxSuggestion(MapboxSuggestion suggestion) {
+    return SearchSuggestionItem(
+      id: 'mapbox:${suggestion.mapboxId}',
+      kind: SearchSuggestionKind.place,
+      title: suggestion.name,
+      subtitle: suggestion.placeFormatted ?? suggestion.address,
+      queryValue: suggestion.name,
+      isMapboxResult: true,
+      mapboxId: suggestion.mapboxId,
     );
   }
 

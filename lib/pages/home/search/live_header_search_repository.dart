@@ -6,7 +6,7 @@ import 'package:login/pages/home/search/header_search_repository.dart';
 import 'package:login/pages/home/search/header_search_types.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
-import 'package:login/services/mapbox_place_search_service.dart';
+import 'package:login/services/mapbox_search_box_service.dart';
 import 'package:login/services/natural_language_search_service.dart';
 import 'package:login/supabase/constants.dart';
 import 'package:login/supabase/service.dart';
@@ -19,7 +19,11 @@ class LiveHeaderSearchRepository implements HeaderSearchRepository {
   final SupabaseService _supabaseService;
   final HeaderSearchRecentStore _recentStore;
   final NaturalLanguageSearchService _naturalLanguageSearchService;
-  final MapboxPlaceSearchService _mapboxPlaceSearchService;
+  // Nullable + lazy getter so a new field added during hot reload doesn't
+  // null-deref on instances created before the reload.
+  MapboxSearchBoxService? _mapboxSearchBoxServiceField;
+  MapboxSearchBoxService get _mapboxSearchBoxService =>
+      _mapboxSearchBoxServiceField ??= MapboxSearchBoxService();
 
   List<UserModel>? _suggestedUsersCache;
   Map<String, int?>? _friendInfluenceCache;
@@ -30,15 +34,14 @@ class LiveHeaderSearchRepository implements HeaderSearchRepository {
     required SupabaseService supabaseService,
     HeaderSearchRecentStore? recentStore,
     NaturalLanguageSearchService? naturalLanguageSearchService,
-    MapboxPlaceSearchService? mapboxPlaceSearchService,
+    MapboxSearchBoxService? mapboxSearchBoxService,
   })  : _locationListManager = locationListManager,
         _userDataProvider = userDataProvider,
         _supabaseService = supabaseService,
         _recentStore = recentStore ?? HeaderSearchRecentStore(),
         _naturalLanguageSearchService =
             naturalLanguageSearchService ?? NaturalLanguageSearchService(),
-        _mapboxPlaceSearchService =
-            mapboxPlaceSearchService ?? MapboxPlaceSearchService();
+        _mapboxSearchBoxServiceField = mapboxSearchBoxService;
 
   @override
   Future<List<String>> loadRecentQueries() {
@@ -217,29 +220,37 @@ class LiveHeaderSearchRepository implements HeaderSearchRepository {
   }
 
   @override
-  Future<List<SearchSuggestionItem>> loadMapboxFallback({
+  Future<List<SearchSuggestionItem>> loadMapboxLiveSuggestions({
     required String query,
-    required SearchIntentType intent,
+    required String sessionToken,
+    LatLng? proximity,
   }) async {
     if (query.trim().isEmpty) {
       return const [];
     }
 
-    final currentLocation = await _currentLocation();
-    final fallbackLocations = await _mapboxPlaceSearchService.searchPlaces(
+    final suggestions = await _mapboxSearchBoxService.suggest(
       query: query,
-      proximity: currentLocation,
-      limit: 5,
+      sessionToken: sessionToken,
+      proximity: proximity,
+      limit: 6,
     );
 
-    return fallbackLocations
-        .map(
-          (location) => SearchSuggestionItem.place(
-            location,
-            isMapboxFallback: true,
-          ),
-        )
-        .toList();
+    return suggestions.map(SearchSuggestionItem.mapboxSuggestion).toList();
+  }
+
+  @override
+  Future<LatLng?> currentProximity() => _currentLocation();
+
+  @override
+  Future<LocationModel?> resolveMapboxSuggestion({
+    required String mapboxId,
+    required String sessionToken,
+  }) {
+    return _mapboxSearchBoxService.retrieve(
+      mapboxId: mapboxId,
+      sessionToken: sessionToken,
+    );
   }
 
   Future<List<LocationModel>> _searchPlacesFromDatabase({
@@ -255,50 +266,65 @@ class LiveHeaderSearchRepository implements HeaderSearchRepository {
     }
 
     final searchTerm = _escapeForIlike(trimmed);
-    final response = await Supabase.instance.client
-        .from(SupabaseConstants.tableLocations)
-        .select()
-        .or(
-          'name.ilike.%$searchTerm%,'
-          'vicinity.ilike.%$searchTerm%,'
-          'cuisine.ilike.%$searchTerm%,'
-          'editorial_summary.ilike.%$searchTerm%',
-        )
-        .limit(limit);
+    try {
+      // Search only the short, indexable columns. `editorial_summary` is
+      // long-form text and including it in an OR with ilike causes the
+      // Postgres planner to fall back to a sequential scan, which trips
+      // the statement timeout (57014) on the locations table.
+      final response = await Supabase.instance.client
+          .from(SupabaseConstants.tableLocations)
+          .select()
+          .or(
+            'name.ilike.%$searchTerm%,'
+            'vicinity.ilike.%$searchTerm%,'
+            'cuisine.ilike.%$searchTerm%',
+          )
+          .limit(limit);
 
-    final processed = await _supabaseService.locations.processLocationsWithImages(
-      response as List,
-      userVibeAffinity: _userDataProvider.vibeTagAffinity,
-      userDietaryAffinity: _userDataProvider.dietaryRequirementTagAffinity,
-    );
-    return processed;
+      final processed =
+          await _supabaseService.locations.processLocationsWithImages(
+        response as List,
+        userVibeAffinity: _userDataProvider.vibeTagAffinity,
+        userDietaryAffinity: _userDataProvider.dietaryRequirementTagAffinity,
+      );
+      return processed;
+    } catch (error) {
+      // Statement timeout, network blip, schema issue — degrade to empty
+      // so the Mapbox stage can still populate the Places row.
+      return const [];
+    }
   }
 
   Future<List<UserModel>> _searchPeople({
     required String query,
     required int limit,
   }) async {
-    final currentUserId = _supabaseService.users.currentUser?.id;
-    final rawResults = query.trim().isEmpty
-        ? await _loadSuggestedUsers()
-        : await _supabaseService.users.searchUsers(query.trim());
-    final users = rawResults
-        .where((user) => user.supabaseId != null && user.supabaseId != currentUserId)
-        .toList();
+    try {
+      final currentUserId = _supabaseService.users.currentUser?.id;
+      final rawResults = query.trim().isEmpty
+          ? await _loadSuggestedUsers()
+          : await _supabaseService.users.searchUsers(query.trim());
+      final users = rawResults
+          .where((user) =>
+              user.supabaseId != null && user.supabaseId != currentUserId)
+          .toList();
 
-    final influence = await _loadFriendInfluence();
-    final suggestedIds = (await _loadSuggestedUsers())
-        .map((user) => user.supabaseId)
-        .whereType<String>()
-        .toSet();
+      final influence = await _loadFriendInfluence();
+      final suggestedIds = (await _loadSuggestedUsers())
+          .map((user) => user.supabaseId)
+          .whereType<String>()
+          .toSet();
 
-    final ranked = HeaderSearchCoordinator.rankPeopleResults(
-      query: query,
-      users: users,
-      followInfluenceByUserId: influence,
-      suggestedUserIds: suggestedIds,
-    );
-    return ranked.take(limit).toList();
+      final ranked = HeaderSearchCoordinator.rankPeopleResults(
+        query: query,
+        users: users,
+        followInfluenceByUserId: influence,
+        suggestedUserIds: suggestedIds,
+      );
+      return ranked.take(limit).toList();
+    } catch (_) {
+      return const [];
+    }
   }
 
   Future<List<LocationModel>> _searchNaturalLanguage({

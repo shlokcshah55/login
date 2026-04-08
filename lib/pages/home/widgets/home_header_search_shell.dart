@@ -923,7 +923,7 @@ class _SearchResultCard extends StatelessWidget {
           ),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: item.isMapboxFallback
+            color: item.isMapboxResult
                 ? _HeaderSearchPalette.roseAccent.withValues(alpha: 0.28)
                 : _HeaderSearchPalette.panelBorder,
           ),
@@ -990,7 +990,7 @@ class _SearchResultCard extends StatelessWidget {
       case SearchSuggestionKind.personalPrompt:
         return 'Prompt';
       case SearchSuggestionKind.place:
-        return item.isMapboxFallback ? 'Mapbox' : 'Place';
+        return item.isMapboxResult ? 'Mapbox' : 'Place';
       case SearchSuggestionKind.naturalLanguage:
         return 'Recommended';
       case SearchSuggestionKind.person:

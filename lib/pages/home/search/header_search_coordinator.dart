@@ -5,6 +5,7 @@ import 'package:login/models/locations.dart';
 import 'package:login/models/users.dart';
 import 'package:login/pages/home/search/header_search_repository.dart';
 import 'package:login/pages/home/search/header_search_types.dart';
+import 'package:login/services/mapbox_search_box_service.dart';
 
 class HeaderSearchCoordinator extends ChangeNotifier {
   final HeaderSearchRepository _repository;
@@ -13,6 +14,7 @@ class HeaderSearchCoordinator extends ChangeNotifier {
   HeaderSearchState _state = HeaderSearchState.initial();
   Timer? _debounce;
   int _requestVersion = 0;
+  String? _mapboxSessionToken;
 
   HeaderSearchCoordinator({
     HeaderSearchRepository? repository,
@@ -121,7 +123,7 @@ class HeaderSearchCoordinator extends ChangeNotifier {
 
   static List<LocationModel> mergePlaceResults({
     required List<LocationModel> databaseResults,
-    required List<LocationModel> mapboxFallbackResults,
+    required List<LocationModel> mapboxResults,
   }) {
     final seenKeys = <String>{};
     final merged = <LocationModel>[];
@@ -136,7 +138,7 @@ class HeaderSearchCoordinator extends ChangeNotifier {
     }
 
     appendAll(databaseResults);
-    appendAll(mapboxFallbackResults);
+    appendAll(mapboxResults);
     return merged;
   }
 
@@ -171,6 +173,7 @@ class HeaderSearchCoordinator extends ChangeNotifier {
       _state = _state.copyWith(isActive: true);
       notifyListeners();
     }
+    _mapboxSessionToken ??= MapboxSearchBoxService.newSessionToken();
 
     final requestVersion = ++_requestVersion;
     final recentQueries = await _repository.loadRecentQueries();
@@ -191,6 +194,7 @@ class HeaderSearchCoordinator extends ChangeNotifier {
   void close() {
     _debounce?.cancel();
     _requestVersion++;
+    _mapboxSessionToken = null;
     _state = _state.copyWith(
       isActive: false,
       isPreviewingMap: false,
@@ -298,6 +302,13 @@ class HeaderSearchCoordinator extends ChangeNotifier {
         intent: intent,
       ),
     );
+    unawaited(
+      _runMapboxLiveStage(
+        query: query,
+        requestVersion: requestVersion,
+        intent: intent,
+      ),
+    );
   }
 
   Future<void> _runQuickSuggestionsStage({
@@ -305,11 +316,16 @@ class HeaderSearchCoordinator extends ChangeNotifier {
     required int requestVersion,
     required List<String> personalPrompts,
   }) async {
-    final suggestions = await _repository.loadQuickSuggestions(
-      query: query,
-      recentQueries: _state.recentQueries,
-      personalPrompts: personalPrompts,
-    );
+    List<SearchSuggestionItem> suggestions;
+    try {
+      suggestions = await _repository.loadQuickSuggestions(
+        query: query,
+        recentQueries: _state.recentQueries,
+        personalPrompts: personalPrompts,
+      );
+    } catch (_) {
+      suggestions = const [];
+    }
     if (!_isLatestRequest(requestVersion)) {
       return;
     }
@@ -331,10 +347,15 @@ class HeaderSearchCoordinator extends ChangeNotifier {
     required int requestVersion,
     required SearchIntentType intent,
   }) async {
-    final matches = await _repository.loadDatabaseMatches(
-      query: query,
-      intent: intent,
-    );
+    List<SearchSuggestionItem> matches;
+    try {
+      matches = await _repository.loadDatabaseMatches(
+        query: query,
+        intent: intent,
+      );
+    } catch (_) {
+      matches = const [];
+    }
     if (!_isLatestRequest(requestVersion)) {
       return;
     }
@@ -381,20 +402,20 @@ class HeaderSearchCoordinator extends ChangeNotifier {
         ),
       );
       notifyListeners();
-
-      if (_shouldLoadMapboxFallback(intent: intent, sections: sections)) {
-        await _runMapboxFallbackStage(
-          query: query,
-          requestVersion: requestVersion,
-          intent: intent,
-        );
-      }
     } catch (_) {
       if (!_isLatestRequest(requestVersion)) {
         return;
       }
+      // Drop the loading state on every section so any results that
+      // arrive afterwards (e.g. from the parallel Mapbox live stage)
+      // render through the carousel instead of being hidden by the
+      // shimmer placeholder.
+      final clearedSections = _state.result.sections
+          .map((section) => section.copyWith(isLoading: false))
+          .toList();
       _state = _state.copyWith(
         result: _state.result.copyWith(
+          sections: clearedSections,
           isSearching: false,
           errorMessage: 'Search is temporarily unavailable.',
         ),
@@ -403,28 +424,45 @@ class HeaderSearchCoordinator extends ChangeNotifier {
     }
   }
 
-  Future<void> _runMapboxFallbackStage({
+  Future<void> _runMapboxLiveStage({
     required String query,
     required int requestVersion,
     required SearchIntentType intent,
   }) async {
-    final fallbackItems = await _repository.loadMapboxFallback(
-      query: query,
-      intent: intent,
-    );
-    if (!_isLatestRequest(requestVersion) || fallbackItems.isEmpty) {
+    if (query.trim().isEmpty) return;
+    if (intent == SearchIntentType.people) return;
+
+    final sessionToken =
+        _mapboxSessionToken ??= MapboxSearchBoxService.newSessionToken();
+
+    List<SearchSuggestionItem> liveItems;
+    try {
+      final proximity = await _repository.currentProximity();
+      if (!_isLatestRequest(requestVersion)) return;
+      liveItems = await _repository.loadMapboxLiveSuggestions(
+        query: query,
+        sessionToken: sessionToken,
+        proximity: proximity,
+      );
+    } catch (_) {
+      liveItems = const [];
+    }
+    if (!_isLatestRequest(requestVersion) || liveItems.isEmpty) {
       return;
     }
 
+    // Clear isLoading on the Places section when merging — the section
+    // stage may still be in flight (or may have failed), and the UI hides
+    // items behind a shimmer while isLoading is true.
     final sections = _state.result.sections.map((section) {
       if (section.type != SearchSectionType.places) {
         return section;
       }
       final merged = _mergeSuggestionLists(
         primary: section.items,
-        secondary: fallbackItems,
+        secondary: liveItems,
       );
-      return section.copyWith(items: merged);
+      return section.copyWith(items: merged, isLoading: false);
     }).toList();
 
     _state = _state.copyWith(
@@ -432,11 +470,33 @@ class HeaderSearchCoordinator extends ChangeNotifier {
         sections: sections,
         completedStages: {
           ..._state.result.completedStages,
-          WaterfallStage.mapboxFallback,
+          WaterfallStage.mapboxLiveResults,
         },
       ),
     );
     notifyListeners();
+  }
+
+  /// Resolves a tapped Mapbox suggestion stub to a [LocationModel] with
+  /// coordinates by calling Mapbox's `/retrieve` endpoint. Rotates the
+  /// session token afterwards because Mapbox sessions end on retrieve.
+  Future<LocationModel?> resolveMapboxSelection(
+    SearchSuggestionItem item,
+  ) async {
+    final mapboxId = item.mapboxId;
+    if (mapboxId == null) return null;
+    final sessionToken =
+        _mapboxSessionToken ??= MapboxSearchBoxService.newSessionToken();
+
+    final resolved = await _repository.resolveMapboxSuggestion(
+      mapboxId: mapboxId,
+      sessionToken: sessionToken,
+    );
+
+    // Mapbox sessions end after a /retrieve call — rotate so the next
+    // /suggest starts a fresh session.
+    _mapboxSessionToken = MapboxSearchBoxService.newSessionToken();
+    return resolved;
   }
 
   bool _isLatestRequest(int requestVersion) => requestVersion == _requestVersion;
@@ -479,24 +539,6 @@ class HeaderSearchCoordinator extends ChangeNotifier {
     }
   }
 
-  static bool _shouldLoadMapboxFallback({
-    required SearchIntentType intent,
-    required List<HeaderSearchSectionModel> sections,
-  }) {
-    if (intent != SearchIntentType.place && intent != SearchIntentType.mixed) {
-      return false;
-    }
-
-    final placesSection = sections.firstWhere(
-      (section) => section.type == SearchSectionType.places,
-      orElse: () => const HeaderSearchSectionModel(
-        type: SearchSectionType.places,
-        title: 'Places',
-      ),
-    );
-    return placesSection.items.length < 3;
-  }
-
   static List<SearchSuggestionItem> _mergeSuggestionLists({
     required List<SearchSuggestionItem> primary,
     required List<SearchSuggestionItem> secondary,
@@ -507,7 +549,7 @@ class HeaderSearchCoordinator extends ChangeNotifier {
     for (final item in [...primary, ...secondary]) {
       final key = item.location != null
           ? _locationDeduplicationKey(item.location!)
-          : item.id;
+          : (item.mapboxId != null ? 'mapbox:${item.mapboxId}' : item.id);
       if (seen.add(key)) {
         merged.add(item);
       }

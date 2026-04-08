@@ -1,4 +1,6 @@
+import 'package:login/models/locations.dart';
 import 'package:login/pages/home/search/header_search_types.dart';
+import 'package:login/utils/geo_types.dart';
 
 abstract class HeaderSearchRepository {
   Future<List<String>> loadRecentQueries();
@@ -29,9 +31,17 @@ abstract class HeaderSearchRepository {
     required SearchIntentType intent,
   });
 
-  Future<List<SearchSuggestionItem>> loadMapboxFallback({
+  Future<List<SearchSuggestionItem>> loadMapboxLiveSuggestions({
     required String query,
-    required SearchIntentType intent,
+    required String sessionToken,
+    LatLng? proximity,
+  });
+
+  Future<LatLng?> currentProximity();
+
+  Future<LocationModel?> resolveMapboxSuggestion({
+    required String mapboxId,
+    required String sessionToken,
   });
 }
 
@@ -79,11 +89,23 @@ class NoopHeaderSearchRepository implements HeaderSearchRepository {
   }
 
   @override
-  Future<List<SearchSuggestionItem>> loadMapboxFallback({
+  Future<List<SearchSuggestionItem>> loadMapboxLiveSuggestions({
     required String query,
-    required SearchIntentType intent,
+    required String sessionToken,
+    LatLng? proximity,
   }) async {
     return const [];
+  }
+
+  @override
+  Future<LatLng?> currentProximity() async => null;
+
+  @override
+  Future<LocationModel?> resolveMapboxSuggestion({
+    required String mapboxId,
+    required String sessionToken,
+  }) async {
+    return null;
   }
 
   @override
