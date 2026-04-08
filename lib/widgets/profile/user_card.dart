@@ -89,8 +89,14 @@ class _UserCardState extends State<UserCard> {
         decoration: BoxDecoration(
           color: PinitColors.creamSunk,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: PinitColors.creamDeep, width: 1.5),
-          boxShadow: PinitColors.subtleShadow,
+          border: Border.all(color: PinitColors.aubergine, width: 1.5),
+          boxShadow: const [
+            BoxShadow(
+              color: PinitColors.aubergine,
+              blurRadius: 0,
+              offset: Offset(4, 4),
+            ),
+          ],
         ),
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -125,12 +131,11 @@ class _UserCardState extends State<UserCard> {
                 children: [
                   Text(
                     widget.user.name ?? 'Explorer',
-                    style: const TextStyle(
-                      fontFamily: 'Rova',
+                    style: GoogleFonts.dmSans(
                       fontSize: 16,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                       color: PinitColors.aubergine,
-                      letterSpacing: 0.5,
+                      letterSpacing: 0.2,
                       height: 1.1,
                     ),
                     maxLines: 1,

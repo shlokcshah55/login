@@ -39,14 +39,18 @@ class BubbleHelper {
       for (var item in response as List) {
         final bubble = item[SupabaseConstants.tableBubbles];
         final bubbleId = bubble[SupabaseConstants.columnBubbleId];
-        
-        // Get member count and avatars
-        final members = await _getBubbleMembers(bubbleId);
-        
-        // Get locations for this bubble
-        final locations = await _getBubbleLocations(bubbleId);
-        
-        // Create ChatGroupModel
+
+        // Fetch members, locations, and compatibility score in parallel
+        final results = await Future.wait([
+          _getBubbleMembers(bubbleId),
+          _getBubbleLocations(bubbleId),
+          _getCompatibilityScore(bubbleId),
+        ]);
+
+        final members = results[0] as List<Map<String, dynamic>>;
+        final locations = results[1] as List<LocationModel>;
+        final score = results[2] as int?;
+
         bubbles.add(Bubble(
           id: bubbleId,
           name: bubble[SupabaseConstants.columnName] ?? 'Unnamed Bubble',
@@ -60,6 +64,8 @@ class BubbleHelper {
           groupLocations: locations,
           description: 'Created ${_getTimeAgo(DateTime.parse(bubble[SupabaseConstants.columnCreatedAt]))}',
           memberIds: members.map((m) => m[SupabaseConstants.columnSupabaseId].toString()).toList(),
+          memberNames: members.map((m) => (m[SupabaseConstants.name] ?? '').toString()).where((n) => n.isNotEmpty).toList(),
+          compatibilityScore: score,
         ));
       }
 
@@ -73,6 +79,22 @@ class BubbleHelper {
   }
 
   
+
+  /// Get compatibility score for a bubble via RPC
+  Future<int?> _getCompatibilityScore(String bubbleId) async {
+    try {
+      final result = await _client.rpc(
+        'bubble_compatibility_score',
+        params: {'p_bubble_id': bubbleId},
+      );
+      return result as int?;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error fetching compatibility score for bubble $bubbleId: $e');
+      }
+      return null;
+    }
+  }
 
   /// Get all members of a bubble
   Future<List<Map<String, dynamic>>> _getBubbleMembers(String bubbleId) async {
@@ -194,13 +216,16 @@ class BubbleHelper {
           .eq(SupabaseConstants.columnBubbleId, bubbleId)
           .single();
 
-      // Get member count and avatars
-      final members = await _getBubbleMembers(bubbleId);
-      
-      // Get locations for this bubble
-      final locations = await _getBubbleLocations(bubbleId);
-      
-      // Create ChatGroupModel
+      final results = await Future.wait([
+        _getBubbleMembers(bubbleId),
+        _getBubbleLocations(bubbleId),
+        _getCompatibilityScore(bubbleId),
+      ]);
+
+      final members = results[0] as List<Map<String, dynamic>>;
+      final locations = results[1] as List<LocationModel>;
+      final score = results[2] as int?;
+
       return Bubble(
         id: bubbleId,
         name: bubbleResponse[SupabaseConstants.columnName] ?? 'Unnamed Bubble',
@@ -214,6 +239,8 @@ class BubbleHelper {
         groupLocations: locations,
         description: 'Created ${_getTimeAgo(DateTime.parse(bubbleResponse[SupabaseConstants.columnCreatedAt]))}',
         memberIds: members.map((m) => m[SupabaseConstants.columnSupabaseId].toString()).toList(),
+        memberNames: members.map((m) => (m[SupabaseConstants.name] ?? '').toString()).where((n) => n.isNotEmpty).toList(),
+        compatibilityScore: score,
       );
     } catch (e) {
       if (kDebugMode) {
@@ -250,6 +277,7 @@ class BubbleHelper {
             if (kDebugMode) {
               print('BubbleHelper: Error sending user added notification: $error');
             }
+            return false;
           });
         }
       }

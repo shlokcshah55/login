@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_feather_icons/flutter_feather_icons.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:login/supabase/supabase_client.dart';
 import 'pinit_colors.dart';
 
@@ -72,30 +72,27 @@ class _RecentActivitySectionState extends State<RecentActivitySection> {
       children: [
         // ── Section header ──
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 24, 20, 14),
-          child: Row(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: PinitColors.surfaceLight,
-                  borderRadius: BorderRadius.circular(11),
-                ),
-                child: const Icon(
-                  FeatherIcons.clock,
-                  size: 17,
-                  color: PinitColors.textSecondary,
-                ),
-              ),
-              const SizedBox(width: 12),
               const Text(
                 'Recent',
                 style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: PinitColors.textPrimary,
-                  letterSpacing: -0.3,
+                  fontFamily: 'Rova',
+                  fontSize: 28,
+                  fontWeight: FontWeight.w100,
+                  color: PinitColors.aubergine,
+                  letterSpacing: 1.9,
+                  height: 1.05,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Your latest activity',
+                style: GoogleFonts.dmSans(
+                  fontSize: 13,
+                  color: PinitColors.aubergineSoft,
                 ),
               ),
             ],
@@ -133,41 +130,17 @@ class _ActivityItem extends StatelessWidget {
   _ActionMeta _meta(String actionType) {
     switch (actionType) {
       case 'save':
-        return const _ActionMeta(
-          icon: FeatherIcons.bookmark,
-          iconColor: PinitColors.primary,
-          bgColor: PinitColors.primary,
-        );
+        return const _ActionMeta(label: 'SAVED', accentColor: PinitColors.primary);
       case 'like':
-        return const _ActionMeta(
-          icon: FeatherIcons.heart,
-          iconColor: Color(0xFFE85D4C),
-          bgColor: Color(0xFFE85D4C),
-        );
+        return const _ActionMeta(label: 'LIKED', accentColor: Color(0xFFE85D4C));
       case 'dislike':
-        return const _ActionMeta(
-          icon: FeatherIcons.thumbsDown,
-          iconColor: PinitColors.textSecondary,
-          bgColor: PinitColors.textMuted,
-        );
+        return const _ActionMeta(label: 'PASSED', accentColor: PinitColors.textMuted);
       case 'visit':
-        return const _ActionMeta(
-          icon: FeatherIcons.mapPin,
-          iconColor: Color(0xFF34A853),
-          bgColor: Color(0xFF34A853),
-        );
+        return const _ActionMeta(label: 'VISITED', accentColor: Color(0xFF34A853));
       case 'bubble_save':
-        return const _ActionMeta(
-          icon: FeatherIcons.users,
-          iconColor: Color(0xFF5B4DC7),
-          bgColor: Color(0xFF5B4DC7),
-        );
+        return const _ActionMeta(label: 'PINNED TO BUBBLE', accentColor: Color(0xFF5B4DC7));
       default:
-        return const _ActionMeta(
-          icon: FeatherIcons.mapPin,
-          iconColor: PinitColors.primary,
-          bgColor: PinitColors.primary,
-        );
+        return const _ActionMeta(label: 'PINNED', accentColor: PinitColors.primary);
     }
   }
 
@@ -183,90 +156,100 @@ class _ActivityItem extends StatelessWidget {
     final meta = _meta(actionType);
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14),
+      margin: const EdgeInsets.only(bottom: 10),
       decoration: const BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: PinitColors.surfaceLight, width: 1),
+        color: PinitColors.cream,
+        border: Border.fromBorderSide(
+          BorderSide(color: PinitColors.aubergine, width: 1.5),
         ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: meta.bgColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Center(
-              child: Icon(meta.icon, size: 16, color: meta.iconColor),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-              child: _buildActivityText(actionType, placeName, bubbleName)),
-          Text(
-            timeAgo,
-            style: const TextStyle(
-                fontSize: 12, color: PinitColors.textMuted),
+        borderRadius: BorderRadius.all(Radius.circular(10)),
+        boxShadow: [
+          BoxShadow(
+            color: PinitColors.aubergine,
+            blurRadius: 0,
+            offset: Offset(4, 4),
           ),
         ],
       ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8.5),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Left accent bar
+              Container(width: 3, color: meta.accentColor),
+            // Content
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            meta.label,
+                            style: GoogleFonts.dmSans(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.4,
+                              color: meta.accentColor,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            placeName,
+                            style: GoogleFonts.dmSans(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: PinitColors.aubergine,
+                              height: 1.2,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (bubbleName.isNotEmpty && actionType == 'bubble_save')
+                            Text(
+                              bubbleName,
+                              style: GoogleFonts.dmSans(
+                                fontSize: 11,
+                                color: PinitColors.aubergineSoft,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      timeAgo,
+                      style: GoogleFonts.dmSans(
+                        fontSize: 11,
+                        color: PinitColors.mute,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        ),
+      ),
     );
-  }
-
-  Widget _buildActivityText(
-      String actionType, String placeName, String bubbleName) {
-    final nameSpan = TextSpan(
-      text: placeName,
-      style: const TextStyle(
-          fontWeight: FontWeight.w600, color: PinitColors.textPrimary),
-    );
-    final bubbleSpan = TextSpan(
-      text: ' "$bubbleName"',
-      style: const TextStyle(
-          fontWeight: FontWeight.w600, color: PinitColors.textPrimary),
-    );
-    const base = TextStyle(
-        fontSize: 14, color: PinitColors.textSecondary, height: 1.3);
-
-    final List<InlineSpan> children;
-    switch (actionType) {
-      case 'save':
-        children = [const TextSpan(text: 'You saved '), nameSpan];
-        break;
-      case 'like':
-        children = [const TextSpan(text: 'You liked '), nameSpan];
-        break;
-      case 'dislike':
-        children = [const TextSpan(text: 'You passed on '), nameSpan];
-        break;
-      case 'visit':
-        children = [const TextSpan(text: 'You visited '), nameSpan];
-        break;
-      case 'bubble_save':
-        children = [
-          const TextSpan(text: 'Added '),
-          nameSpan,
-          const TextSpan(text: ' to bubble'),
-          bubbleSpan,
-        ];
-        break;
-      default:
-        children = [const TextSpan(text: 'Pinned '), nameSpan];
-    }
-
-    return RichText(text: TextSpan(style: base, children: children));
   }
 }
 
 class _ActionMeta {
-  final IconData icon;
-  final Color iconColor;
-  final Color bgColor;
+  final String label;
+  final Color accentColor;
   const _ActionMeta({
-    required this.icon,
-    required this.iconColor,
-    required this.bgColor,
+    required this.label,
+    required this.accentColor,
   });
 }

@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/users.dart';
+import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:provider/provider.dart';
 import 'package:login/models/bubble.dart';
 import 'package:login/widgets/chat/chat_group_tile.dart';
@@ -14,6 +16,7 @@ import 'package:login/providers/bubble_mode_provider.dart';
 import 'package:login/providers/navigation_provider.dart';
 import 'package:login/pages/bubble_messaging_page.dart';
 import 'package:login/widgets/profile/user_profile_dialog.dart';
+import 'package:login/widgets/chat/bubble_discover_view.dart';
 
 class BubblesPage extends StatefulWidget {
   const BubblesPage({Key? key}) : super(key: key);
@@ -102,7 +105,7 @@ class _BubblesPageState extends State<BubblesPage>
       child: Consumer<BubblesProvider>(
         builder: (context, bubblesProvider, child) {
           return Scaffold(
-            backgroundColor: theme.scaffoldBackgroundColor,
+            backgroundColor: PinitColors.cream,
             body: SafeArea(
               child: Column(
                 children: [
@@ -110,7 +113,7 @@ class _BubblesPageState extends State<BubblesPage>
                   _buildSearchField(theme),
                   Expanded(
                     child: showingSearch
-                        ? _buildSearchResults(theme)
+                        ? _buildSearchResults(theme, bubblesProvider.bubbles)
                         : bubblesProvider.isLoading
                             ? _buildLoadingState(theme)
                             : _buildBubblesList(theme, bubblesProvider.bubbles),
@@ -135,27 +138,14 @@ class _BubblesPageState extends State<BubblesPage>
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  theme.primaryColor,
-                  theme.primaryColor.withOpacity(0.7),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                BoxShadow(
-                  color: theme.primaryColor.withOpacity(0.3),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+              color: PinitColors.aubergine,
+              borderRadius: BorderRadius.circular(999),
+              boxShadow: PinitColors.cardShadow,
             ),
             child: const Icon(
               Icons.bubble_chart_rounded,
-              color: Colors.white,
-              size: 24,
+              color: PinitColors.cream,
+              size: 22,
             ),
           ),
           const SizedBox(width: 14),
@@ -163,18 +153,23 @@ class _BubblesPageState extends State<BubblesPage>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Bubbles',
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.5,
+                  style: TextStyle(
+                    fontFamily: 'Rova',
+                    fontSize: 28,
+                    fontWeight: FontWeight.w100,
+                    color: PinitColors.aubergine,
+                    letterSpacing: 1.7,
+                    height: 1.05,
                   ),
                 ),
                 Text(
                   'Your shared spaces',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: Colors.grey[500],
-                    fontWeight: FontWeight.w500,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 13,
+                    color: PinitColors.mute,
+                    fontWeight: FontWeight.w400,
                   ),
                 ),
               ],
@@ -185,17 +180,19 @@ class _BubblesPageState extends State<BubblesPage>
             color: Colors.transparent,
             child: InkWell(
               onTap: _showCreateBubbleDialog,
-              borderRadius: BorderRadius.circular(14),
-              child: Container(
-                padding: const EdgeInsets.all(10),
+              borderRadius: BorderRadius.circular(999),
+              child: Ink(
+                width: 42,
+                height: 42,
                 decoration: BoxDecoration(
-                  color: theme.primaryColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(14),
+                  color: PinitColors.aubergine.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: PinitColors.creamDeep, width: 1.5),
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.add_rounded,
-                  color: theme.primaryColor,
-                  size: 24,
+                  color: PinitColors.aubergine,
+                  size: 22,
                 ),
               ),
             ),
@@ -214,14 +211,13 @@ class _BubblesPageState extends State<BubblesPage>
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        final theme = Theme.of(context);
         return Container(
           padding: EdgeInsets.only(
             bottom: MediaQuery.of(context).viewInsets.bottom,
           ),
-          decoration: BoxDecoration(
-            color: theme.scaffoldBackgroundColor,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          decoration: const BoxDecoration(
+            color: PinitColors.cream,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -235,44 +231,50 @@ class _BubblesPageState extends State<BubblesPage>
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.grey[300],
+                      color: PinitColors.creamDeep,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
                 ),
                 const SizedBox(height: 20),
-                Text(
+                const Text(
                   'Create New Bubble',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
+                  style: TextStyle(
+                    fontFamily: 'Rova',
+                    fontSize: 22,
+                    fontWeight: FontWeight.w100,
+                    color: PinitColors.aubergine,
+                    letterSpacing: 1.2,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Create a shared space for your group',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: Colors.grey[600],
-                  ),
+                  style: GoogleFonts.dmSans(fontSize: 14, color: PinitColors.mute),
                 ),
                 const SizedBox(height: 24),
                 // Name field
                 TextField(
                   controller: nameController,
+                  style: GoogleFonts.dmSans(color: PinitColors.aubergine),
                   decoration: InputDecoration(
                     hintText: 'Bubble name',
                     labelText: 'Name',
-                    prefixIcon: Icon(Icons.bubble_chart_rounded,
-                        color: theme.primaryColor),
+                    prefixIcon: const Icon(Icons.bubble_chart_rounded,
+                        color: PinitColors.aubergineSoft),
                     filled: true,
-                    fillColor: Colors.grey[100],
+                    fillColor: PinitColors.creamSunk,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: const BorderSide(color: PinitColors.creamDeep, width: 1),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: const BorderSide(color: PinitColors.creamDeep, width: 1),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide:
-                          BorderSide(color: theme.primaryColor, width: 2),
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: const BorderSide(color: PinitColors.aubergine, width: 1.5),
                     ),
                   ),
                   autofocus: true,
@@ -282,24 +284,28 @@ class _BubblesPageState extends State<BubblesPage>
                 TextField(
                   controller: descController,
                   maxLines: 2,
+                  style: GoogleFonts.dmSans(color: PinitColors.aubergine),
                   decoration: InputDecoration(
                     hintText: 'What\'s this bubble about?',
                     labelText: 'Description (optional)',
-                    prefixIcon: Padding(
-                      padding: const EdgeInsets.only(bottom: 24),
+                    prefixIcon: const Padding(
+                      padding: EdgeInsets.only(bottom: 24),
                       child: Icon(Icons.description_outlined,
-                          color: theme.primaryColor),
+                          color: PinitColors.aubergineSoft),
                     ),
                     filled: true,
-                    fillColor: Colors.grey[100],
+                    fillColor: PinitColors.creamSunk,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: const BorderSide(color: PinitColors.creamDeep, width: 1),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: const BorderSide(color: PinitColors.creamDeep, width: 1),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide:
-                          BorderSide(color: theme.primaryColor, width: 2),
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: const BorderSide(color: PinitColors.aubergine, width: 1.5),
                     ),
                   ),
                 ),
@@ -313,13 +319,16 @@ class _BubblesPageState extends State<BubblesPage>
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(999),
                           ),
-                          side: BorderSide(color: Colors.grey[300]!),
+                          side: const BorderSide(color: PinitColors.creamDeep),
                         ),
                         child: Text(
                           'Cancel',
-                          style: TextStyle(color: Colors.grey[600]),
+                          style: GoogleFonts.dmSans(
+                            color: PinitColors.mute,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                     ),
@@ -349,48 +358,48 @@ class _BubblesPageState extends State<BubblesPage>
                           if (bubbleId != null) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Row(
+                                content: const Row(
                                   children: [
-                                    const Icon(Icons.check_circle,
-                                        color: Colors.white),
-                                    const SizedBox(width: 12),
-                                    const Text('Bubble created successfully!'),
+                                    Icon(Icons.check_circle,
+                                        color: PinitColors.cream),
+                                    SizedBox(width: 12),
+                                    Text('Bubble created successfully!'),
                                   ],
                                 ),
-                                backgroundColor: Colors.green,
+                                backgroundColor: PinitColors.aubergine,
                                 behavior: SnackBarBehavior.floating,
                                 shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12)),
+                                    borderRadius: BorderRadius.circular(999)),
                               ),
                             );
                           } else {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: const Text('Failed to create bubble'),
-                                backgroundColor: Colors.red,
+                                backgroundColor: PinitColors.accent,
                                 behavior: SnackBarBehavior.floating,
                                 shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12)),
+                                    borderRadius: BorderRadius.circular(999)),
                               ),
                             );
                           }
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: theme.primaryColor,
-                          foregroundColor: Colors.white,
+                          backgroundColor: PinitColors.aubergine,
+                          foregroundColor: PinitColors.cream,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(999),
                           ),
                           elevation: 0,
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.add_rounded, size: 20),
-                            SizedBox(width: 8),
+                            const Icon(Icons.add_rounded, size: 18, color: PinitColors.cream),
+                            const SizedBox(width: 8),
                             Text('Create Bubble',
-                                style: TextStyle(fontWeight: FontWeight.w600)),
+                                style: GoogleFonts.dmSans(fontWeight: FontWeight.w600, color: PinitColors.cream)),
                           ],
                         ),
                       ),
@@ -413,21 +422,22 @@ class _BubblesPageState extends State<BubblesPage>
         children: [
           Container(
             padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: theme.primaryColor.withOpacity(0.1),
+            decoration: const BoxDecoration(
+              color: PinitColors.creamSunk,
               shape: BoxShape.circle,
             ),
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(theme.primaryColor),
+            child: const CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(PinitColors.aubergine),
               strokeWidth: 3,
             ),
           ),
           const SizedBox(height: 24),
           Text(
             'Loading your bubbles...',
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: Colors.grey[600],
+            style: GoogleFonts.dmSans(
+              color: PinitColors.mute,
               fontWeight: FontWeight.w500,
+              fontSize: 15,
             ),
           ),
         ],
@@ -450,31 +460,31 @@ class _BubblesPageState extends State<BubblesPage>
                 Provider.of<BubblesProvider>(context, listen: false);
             await provider.loadBubbles();
           },
-          color: theme.primaryColor,
+          color: PinitColors.aubergine,
           child: ListView.builder(
-            padding: const EdgeInsets.only(top: 8, bottom: 24),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
             physics: const AlwaysScrollableScrollPhysics(),
             itemCount: bubbles.length,
             itemBuilder: (context, index) {
               final bubble = bubbles[index];
               return TweenAnimationBuilder<double>(
                 tween: Tween(begin: 0.0, end: 1.0),
-                duration: Duration(milliseconds: 400 + (index * 100)),
+                duration: Duration(milliseconds: 300 + (index * 80)),
                 curve: Curves.easeOutCubic,
                 builder: (context, value, child) {
                   return Transform.translate(
-                    offset: Offset(0, 20 * (1 - value)),
-                    child: Opacity(
-                      opacity: value,
-                      child: child,
-                    ),
+                    offset: Offset(0, 16 * (1 - value)),
+                    child: Opacity(opacity: value, child: child),
                   );
                 },
-                child: ChatGroupTile(
-                  bubble: bubble,
-                  onTap: () => _openExpandedChatView(bubble),
-                  onOpenChat: () => _openGroupChat(bubble),
-                  onActivateBubble: () => _activateBubble(bubble),
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: ChatGroupTile(
+                    bubble: bubble,
+                    onTap: () => _openExpandedChatView(bubble),
+                    onOpenChat: () => _openGroupChat(bubble),
+                    onActivateBubble: () => _activateBubble(bubble),
+                  ),
                 ),
               );
             },
@@ -496,35 +506,33 @@ class _BubblesPageState extends State<BubblesPage>
               width: 120,
               height: 120,
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    theme.primaryColor.withOpacity(0.1),
-                    theme.primaryColor.withOpacity(0.05),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+                color: PinitColors.creamSunk,
                 shape: BoxShape.circle,
+                border: Border.all(color: PinitColors.creamDeep, width: 1.5),
               ),
-              child: Icon(
+              child: const Icon(
                 Icons.bubble_chart_rounded,
-                size: 60,
-                color: theme.primaryColor.withOpacity(0.5),
+                size: 56,
+                color: PinitColors.aubergineSoft,
               ),
             ),
             const SizedBox(height: 32),
-            Text(
+            const Text(
               'No Bubbles Yet',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Colors.grey[800],
+              style: TextStyle(
+                fontFamily: 'Rova',
+                fontSize: 22,
+                fontWeight: FontWeight.w100,
+                color: PinitColors.aubergine,
+                letterSpacing: 1.2,
               ),
             ),
             const SizedBox(height: 12),
             Text(
               'Create your first bubble to start sharing\nplaces with your friends!',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: Colors.grey[500],
+              style: GoogleFonts.dmSans(
+                color: PinitColors.mute,
+                fontSize: 14,
                 height: 1.5,
               ),
               textAlign: TextAlign.center,
@@ -533,23 +541,27 @@ class _BubblesPageState extends State<BubblesPage>
             ElevatedButton(
               onPressed: _showCreateBubbleDialog,
               style: ElevatedButton.styleFrom(
-                backgroundColor: theme.primaryColor,
-                foregroundColor: Colors.white,
+                backgroundColor: PinitColors.aubergine,
+                foregroundColor: PinitColors.cream,
                 padding:
                     const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(999),
                 ),
                 elevation: 0,
               ),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.add_rounded, size: 20),
-                  SizedBox(width: 8),
+                  const Icon(Icons.add_rounded, size: 18, color: PinitColors.cream),
+                  const SizedBox(width: 8),
                   Text(
                     'Create Your First Bubble',
-                    style: TextStyle(fontWeight: FontWeight.w600),
+                    style: GoogleFonts.dmSans(
+                      fontWeight: FontWeight.w600,
+                      color: PinitColors.cream,
+                      fontSize: 14,
+                    ),
                   ),
                 ],
               ),
@@ -592,14 +604,14 @@ class _BubblesPageState extends State<BubblesPage>
       SnackBar(
         content: Row(
           children: [
-            const Icon(Icons.bubble_chart_rounded, color: Colors.white),
+            const Icon(Icons.bubble_chart_rounded, color: PinitColors.cream),
             const SizedBox(width: 12),
             Text('Activating ${bubble.name}...'),
           ],
         ),
-        backgroundColor: theme.primaryColor,
+        backgroundColor: PinitColors.aubergine,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
       ),
     );
   }
@@ -607,23 +619,40 @@ class _BubblesPageState extends State<BubblesPage>
   ThemeData get theme => Theme.of(context);
 
   Widget _buildSearchField(ThemeData theme) {
+    final bool isSearching =
+        _searchFocusNode.hasFocus || _searchController.text.isNotEmpty;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      child: TextField(
+      padding: EdgeInsets.fromLTRB(isSearching ? 8 : 20, 8, 20, 8),
+      child: Row(
+        children: [
+          if (isSearching) ...[
+            GestureDetector(
+              onTap: () {
+                _searchController.clear();
+                _searchFocusNode.unfocus();
+              },
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                child: Icon(Icons.arrow_back_rounded,
+                    color: PinitColors.aubergine, size: 22),
+              ),
+            ),
+          ],
+          Expanded(
+            child: TextField(
         controller: _searchController,
         focusNode: _searchFocusNode,
-        style: theme.textTheme.bodyMedium,
+        style: GoogleFonts.dmSans(color: PinitColors.aubergine),
         decoration: InputDecoration(
           hintText: 'Search users to add...',
-          hintStyle: TextStyle(color: Colors.grey[400]),
+          hintStyle: GoogleFonts.dmSans(color: PinitColors.mute),
           prefixIcon: Container(
             padding: const EdgeInsets.all(12),
-            child:
-                Icon(Icons.search_rounded, color: Colors.grey[400], size: 22),
+            child: const Icon(Icons.search_rounded, color: PinitColors.mute, size: 22),
           ),
           suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
-                  icon: Icon(Icons.close_rounded, color: Colors.grey[400]),
+                  icon: const Icon(Icons.close_rounded, color: PinitColors.mute),
                   onPressed: () {
                     _searchController.clear();
                     _searchFocusNode.unfocus();
@@ -631,38 +660,51 @@ class _BubblesPageState extends State<BubblesPage>
                 )
               : null,
           filled: true,
-          fillColor: Colors.grey[100],
+          fillColor: PinitColors.creamSunk,
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide.none,
+            borderRadius: BorderRadius.circular(20),
+            borderSide: const BorderSide(color: PinitColors.creamDeep, width: 1),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(20),
+            borderSide: const BorderSide(color: PinitColors.creamDeep, width: 1),
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(color: theme.primaryColor, width: 2),
+            borderRadius: BorderRadius.circular(20),
+            borderSide: const BorderSide(color: PinitColors.aubergine, width: 1.5),
           ),
         ),
+      ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildSearchResults(ThemeData theme) {
+  Widget _buildSearchResults(ThemeData theme, List<Bubble> bubbles) {
+    if (_searchController.text.isEmpty) {
+      return BubbleDiscoverView(
+        bubbles: bubbles,
+        onBubbleTap: _openExpandedChatView,
+        onUserTap: _showUserProfileDialog,
+      );
+    }
+
     if (_isSearching) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(theme.primaryColor),
+            const CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(PinitColors.aubergine),
               strokeWidth: 3,
             ),
             const SizedBox(height: 16),
             Text(
               'Searching...',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: Colors.grey[600],
-              ),
+              style: GoogleFonts.dmSans(color: PinitColors.mute),
             ),
           ],
         ),
@@ -676,27 +718,26 @@ class _BubblesPageState extends State<BubblesPage>
           children: [
             Container(
               padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
+              decoration: const BoxDecoration(
+                color: PinitColors.creamSunk,
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.person_search_rounded,
-                  size: 48, color: Colors.grey[400]),
+              child: const Icon(Icons.person_search_rounded,
+                  size: 48, color: PinitColors.mute),
             ),
             const SizedBox(height: 20),
             Text(
               'No users found',
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: Colors.grey[700],
+              style: GoogleFonts.dmSans(
+                color: PinitColors.aubergine,
                 fontWeight: FontWeight.w600,
+                fontSize: 16,
               ),
             ),
             const SizedBox(height: 8),
             Text(
               'Try a different search term',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: Colors.grey[500],
-              ),
+              style: GoogleFonts.dmSans(color: PinitColors.mute),
             ),
           ],
         ),
@@ -711,15 +752,10 @@ class _BubblesPageState extends State<BubblesPage>
         return Container(
           margin: const EdgeInsets.only(bottom: 8),
           decoration: BoxDecoration(
-            color: theme.cardColor,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
+            color: PinitColors.creamSunk,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: PinitColors.creamDeep, width: 1),
+            boxShadow: PinitColors.subtleShadow,
           ),
           child: ListTile(
             contentPadding:
@@ -728,45 +764,41 @@ class _BubblesPageState extends State<BubblesPage>
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    theme.primaryColor,
-                    theme.primaryColor.withOpacity(0.7),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(14),
+                color: PinitColors.aubergine,
+                borderRadius: BorderRadius.circular(999),
               ),
               child: Center(
                 child: Text(
                   user.username![0].toUpperCase(),
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: GoogleFonts.dmSans(
+                    color: PinitColors.cream,
                     fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
             ),
             title: Text(
               user.username!,
-              style: theme.textTheme.titleMedium?.copyWith(
+              style: GoogleFonts.dmSans(
                 fontWeight: FontWeight.w600,
+                fontSize: 15,
+                color: PinitColors.aubergine,
               ),
             ),
             subtitle: Text(
               user.email,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: Colors.grey[500],
+              style: GoogleFonts.dmSans(
+                fontSize: 12,
+                color: PinitColors.mute,
               ),
             ),
-            trailing: Icon(
+            trailing: const Icon(
               Icons.chevron_right_rounded,
-              color: Colors.grey[400],
+              color: PinitColors.mute,
             ),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(20),
             ),
             onTap: () {
               _searchFocusNode.unfocus();

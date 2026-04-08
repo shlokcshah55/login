@@ -660,11 +660,20 @@ class _CollectionCard extends StatelessWidget {
       ),
       child: Container(
         decoration: BoxDecoration(
-          color: PinitColors.creamSunk,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: PinitColors.creamDeep, width: 1),
+          border: Border.all(color: PinitColors.aubergine, width: 1.5),
+          boxShadow: const [
+            BoxShadow(
+              color: PinitColors.aubergine,
+              blurRadius: 0,
+              offset: Offset(4, 4),
+            ),
+          ],
         ),
-        clipBehavior: Clip.hardEdge,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14.5),
+          child: Container(
+          color: PinitColors.creamSunk,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -723,12 +732,11 @@ class _CollectionCard extends StatelessWidget {
                   ],
                   Text(
                     collection.name,
-                    style: TextStyle(
-                      fontFamily: showOwner ? null : 'Rova',
+                    style: GoogleFonts.dmSans(
                       fontSize: showOwner ? 12 : 15,
-                      fontWeight: showOwner ? FontWeight.w500 : FontWeight.w800,
+                      fontWeight: showOwner ? FontWeight.w500 : FontWeight.w700,
                       color: showOwner ? PinitColors.aubergineSoft : PinitColors.aubergine,
-                      letterSpacing: showOwner ? 0 : 0.5,
+                      letterSpacing: showOwner ? 0 : 0.3,
                       height: 1.15,
                     ),
                     maxLines: 2,
@@ -747,6 +755,8 @@ class _CollectionCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
+          ),
         ),
       ),
     );
