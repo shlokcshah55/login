@@ -415,27 +415,44 @@ class LocationHelper {
         'min_reviews': minReviews.toString(),
       });
 
+      if (kDebugMode) print('[HiddenGems] Requesting: $uri');
+
       final httpResponse = await http.get(uri).timeout(const Duration(seconds: 30));
 
+      if (kDebugMode) print('[HiddenGems] Status: ${httpResponse.statusCode}');
+
       if (httpResponse.statusCode < 200 || httpResponse.statusCode >= 300) {
-        if (kDebugMode) print('Error getting hidden gems: ${httpResponse.statusCode}');
+        if (kDebugMode) print('[HiddenGems] Error body: ${httpResponse.body}');
         return [];
       }
 
+      if (kDebugMode) print('[HiddenGems] Response body: ${httpResponse.body}');
+
       final decoded = jsonDecode(httpResponse.body);
       final recommendations = decoded['recommendations'] as List;
-      final locationIds = recommendations.map((r) => r['location_id'] as int).toList();
+      if (kDebugMode) print('[HiddenGems] Recommendations count: ${recommendations.length}');
 
-      if (locationIds.isEmpty) return [];
+      final locationIds = recommendations.map((r) => r['location_id'] as int).toList();
+      if (kDebugMode) print('[HiddenGems] Location IDs: $locationIds');
+
+      if (locationIds.isEmpty) {
+        if (kDebugMode) print('[HiddenGems] No location IDs returned — empty result');
+        return [];
+      }
 
       final response = await _client
           .from(SupabaseConstants.tableLocations)
           .select()
           .inFilter(SupabaseConstants.columnLocationId, locationIds);
 
-      return await processLocationsWithImages(response as List);
-    } catch (e) {
-      if (kDebugMode) print('Error getting hidden gems: $e');
+      if (kDebugMode) print('[HiddenGems] DB rows fetched: ${(response as List).length}');
+
+      return await processLocationsWithImages(response);
+    } catch (e, stack) {
+      if (kDebugMode) {
+        print('[HiddenGems] Exception: $e');
+        print('[HiddenGems] Stack: $stack');
+      }
       return [];
     }
   }

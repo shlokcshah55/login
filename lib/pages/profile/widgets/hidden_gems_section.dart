@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -62,45 +63,37 @@ class HiddenGemsSection extends StatelessWidget {
       children: [
         // ── Section header ──
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 24, 20, 14),
-          child: Row(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: PinitColors.surfaceLight,
-                  borderRadius: BorderRadius.circular(11),
-                ),
-                child: const Icon(
-                  FeatherIcons.key,
-                  size: 17,
-                  color: PinitColors.textSecondary,
+              Text(
+                'HIDDEN GEMS',
+                style: GoogleFonts.dmSans(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: PinitColors.aubergineSoft,
+                  letterSpacing: 0.12 * 11,
                 ),
               ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Hidden Gems',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: PinitColors.textPrimary,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      'Saved early, before the hype',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: PinitColors.textSecondary,
-                      ),
-                    ),
-                  ],
+              const SizedBox(height: 6),
+              const Text(
+                'Hidden Gems',
+                style: TextStyle(
+                  fontFamily: 'Rova',
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: PinitColors.aubergine,
+                  letterSpacing: 1.0,
+                  height: 1.05,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Saved early, before the hype',
+                style: GoogleFonts.dmSans(
+                  fontSize: 13,
+                  color: PinitColors.aubergineSoft,
                 ),
               ),
             ],
@@ -284,10 +277,10 @@ class _HiddenGemCard extends StatelessWidget {
                               Expanded(
                                 child: Text(
                                   location.name,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w800,
+                                  style: GoogleFonts.dmSans(
                                     fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: PinitColors.aubergine,
                                     letterSpacing: -0.3,
                                     height: 1.2,
                                   ),
@@ -307,12 +300,11 @@ class _HiddenGemCard extends StatelessWidget {
                             const SizedBox(height: 5),
                             Text(
                               _summaryText!,
-                              style: TextStyle(
+                              style: GoogleFonts.dmSans(
                                 color: Colors.white.withValues(alpha: 0.82),
                                 fontSize: 11,
                                 fontWeight: FontWeight.w400,
                                 height: 1.3,
-                                fontStyle: FontStyle.italic,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,

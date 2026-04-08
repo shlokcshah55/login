@@ -13,6 +13,8 @@ class CollectionItem {
   final String? coverColor;
   final String? photo;
   final int placeCount;
+  final String? ownerName;
+  final String? ownerAvatarUrl;
 
   const CollectionItem({
     required this.collectionId,
@@ -21,6 +23,8 @@ class CollectionItem {
     this.coverColor,
     this.photo,
     required this.placeCount,
+    this.ownerName,
+    this.ownerAvatarUrl,
   });
 
   factory CollectionItem.fromJson(Map<String, dynamic> json) => CollectionItem(
@@ -30,6 +34,8 @@ class CollectionItem {
         coverColor: json['cover_color'] as String?,
         photo: json['photo'] as String?,
         placeCount: (json['place_count'] as num).toInt(),
+        ownerName: json['owner_name'] as String?,
+        ownerAvatarUrl: json['owner_avatar_url'] as String?,
       );
 }
 
@@ -139,4 +145,18 @@ class CollectionsHelper {
 
   Future<GenerateCollectionsResult> autoUpdateCollections(String userId) =>
       _callGenerationEndpoint('auto-update-collections', userId);
+
+  /// Load public collections from friends (people the current user follows).
+  Future<List<CollectionItem>> getFriendsCollections(String userId) async {
+    debugPrint('[CollectionsHelper] getFriendsCollections — calling RPC for $userId');
+    final response = await _client.rpc(
+      'get_other_collections',
+      params: {'p_user_id': userId},
+    );
+    final items = (response as List)
+        .map((row) => CollectionItem.fromJson(row as Map<String, dynamic>))
+        .toList();
+    debugPrint('[CollectionsHelper] parsed ${items.length} friends collections');
+    return items;
+  }
 }

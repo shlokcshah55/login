@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -23,45 +24,28 @@ class TrendingNowSection extends StatelessWidget {
       children: [
         // ── Section header ──
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 24, 20, 14),
-          child: Row(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: PinitColors.surfaceLight,
-                  borderRadius: BorderRadius.circular(11),
-                ),
-                child: const Icon(
-                  FeatherIcons.trendingUp,
-                  size: 17,
-                  color: PinitColors.textSecondary,
+              const SizedBox(height: 6),
+              const Text(
+                'Popping Right Now',
+                style: TextStyle(
+                  fontFamily: 'Rova',
+                  fontSize: 28,
+                  fontWeight: FontWeight.w100,
+                  color: PinitColors.aubergine,
+                  letterSpacing: 1.9,
+                  height: 1.05,
                 ),
               ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Popping Right Now',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: PinitColors.textPrimary,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      'Trending places you\'ve saved',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: PinitColors.textSecondary,
-                      ),
-                    ),
-                  ],
+              const SizedBox(height: 4),
+              Text(
+                'Hot places people have saved',
+                style: GoogleFonts.dmSans(
+                  fontSize: 13,
+                  color: PinitColors.aubergineSoft,
                 ),
               ),
             ],
@@ -106,16 +90,16 @@ class _TrendingCard extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
-          color: PinitColors.surfaceCard,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: PinitColors.cardShadow,
+          color: PinitColors.creamSunk,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: PinitColors.creamDeep, width: 1),
         ),
         child: Row(
           children: [
             // ── Image corner ──
             ClipRRect(
               borderRadius: const BorderRadius.horizontal(
-                  left: Radius.circular(16)),
+                  left: Radius.circular(19)),
               child: SizedBox(
                 width: 80,
                 height: 80,
@@ -176,11 +160,11 @@ class _TrendingCard extends StatelessWidget {
                     // Name
                     Text(
                       location.name,
-                      style: const TextStyle(
+                      style: GoogleFonts.dmSans(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
-                        color: PinitColors.textPrimary,
-                        letterSpacing: -0.2,
+                        color: PinitColors.aubergine,
+                        letterSpacing: -0.3,
                         height: 1.2,
                       ),
                       maxLines: 1,
@@ -192,9 +176,9 @@ class _TrendingCard extends StatelessWidget {
                       const SizedBox(height: 3),
                       Text(
                         _summaryText!,
-                        style: const TextStyle(
+                        style: GoogleFonts.dmSans(
                           fontSize: 12,
-                          color: PinitColors.textSecondary,
+                          color: PinitColors.aubergineSoft,
                           height: 1.3,
                         ),
                         maxLines: 1,
