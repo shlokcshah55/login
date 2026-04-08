@@ -8,12 +8,24 @@ import 'package:login/pages/home/search/header_search_types.dart';
 import 'package:login/services/mapbox_search_box_service.dart';
 
 class HeaderSearchCoordinator extends ChangeNotifier {
+  static const int _minMapboxQueryLength = 2;
+
+  /// Friendly status messages cycled into the Recommended section while
+  /// the magic-search endpoint is in flight.
+  static const List<String> magicLoadingMessages = [
+    'Asking the magic search…',
+    'Reading between the lines…',
+    'Finding spots that match your vibe…',
+    'Brewing recommendations…',
+  ];
+
   final HeaderSearchRepository _repository;
   final Duration debounceDuration;
 
   HeaderSearchState _state = HeaderSearchState.initial();
   Timer? _debounce;
   int _requestVersion = 0;
+  int _magicMessageCursor = 0;
   String? _mapboxSessionToken;
 
   HeaderSearchCoordinator({
@@ -29,6 +41,7 @@ class HeaderSearchCoordinator extends ChangeNotifier {
       return SearchIntentType.mixed;
     }
 
+    // ── People ──────────────────────────────────────────────
     const peopleMarkers = [
       '@',
       'friend',
@@ -44,26 +57,79 @@ class HeaderSearchCoordinator extends ChangeNotifier {
       return SearchIntentType.people;
     }
 
+    final words = normalized
+        .split(RegExp(r'\s+'))
+        .where((word) => word.isNotEmpty)
+        .toList();
+    final wordCount = words.length;
+
+    // ── Strong natural-language signals ─────────────────────
+    // Question / sentence starters that almost always mean the user is
+    // describing a vibe rather than naming a place.
+    const naturalLanguageStarters = [
+      'where',
+      'what',
+      'which',
+      'how',
+      'find',
+      'show',
+      'recommend',
+      'suggest',
+      'looking',
+      'tell',
+      'help',
+      'i want',
+      'i need',
+      'i feel',
+      'we want',
+      'we need',
+      'can i',
+      'can we',
+      'should i',
+      'should we',
+      'take me',
+      'take us',
+    ];
+    final startsLikeAQuestion = naturalLanguageStarters.any(
+      (starter) =>
+          normalized == starter || normalized.startsWith('$starter '),
+    );
+    final hasQuestionMark = normalized.contains('?');
+
+    // Vibe / descriptive markers that signal a natural-language search.
     const naturalLanguageMarkers = [
       'somewhere',
       'something',
       'spot with',
+      'spot for',
       'place with',
+      'place for',
       'good for',
       'perfect for',
+      'best for',
       'vibe',
-      'date',
+      'vibes',
       'cozy',
       'romantic',
-      'group',
       'quiet',
-      'fun',
-      'cocktails',
-      'brunch',
+      'lively',
+      'chill',
+      'relaxed',
+      'aesthetic',
+      'mood',
+      'date night',
+      'first date',
+      'hidden gem',
+      'feels like',
+      'tonight',
+      'this weekend',
     ];
     final containsNaturalLanguageCue =
         naturalLanguageMarkers.any(normalized.contains);
 
+    // ── Place signals ───────────────────────────────────────
+    // Concrete cuisine / venue keywords. A query that's mostly one of
+    // these is a place lookup, not a vibe search.
     const placeMarkers = [
       'near me',
       'pizza',
@@ -78,20 +144,55 @@ class HeaderSearchCoordinator extends ChangeNotifier {
       'lunch',
       'dinner',
       'breakfast',
+      'brunch',
+      'tacos',
+      'thai',
+      'indian',
+      'chinese',
+      'mexican',
+      'italian',
+      'japanese',
+      'french',
+      'korean',
+      'vegan',
+      'vegetarian',
+      'bakery',
+      'dessert',
+      'wine bar',
+      'cocktail bar',
     ];
     final containsPlaceCue = placeMarkers.any(normalized.contains);
 
+    // ── Decision tree ───────────────────────────────────────
+    // Strong NL beats anything else.
+    if (startsLikeAQuestion || hasQuestionMark) {
+      return SearchIntentType.naturalLanguage;
+    }
+
+    // Long, sentence-shaped queries are almost always natural language
+    // even without an explicit vibe word ("a place to take my parents
+    // when they visit next month").
+    if (wordCount >= 6) {
+      return SearchIntentType.naturalLanguage;
+    }
+    if (wordCount >= 4 && containsNaturalLanguageCue) {
+      return SearchIntentType.naturalLanguage;
+    }
     if (containsNaturalLanguageCue && !containsPlaceCue) {
       return SearchIntentType.naturalLanguage;
     }
 
+    // Place wins for short, concrete queries like "pizza" or
+    // "best ramen near me".
     if (containsPlaceCue) {
       return SearchIntentType.place;
     }
 
-    if (normalized.split(RegExp(r'\s+')).length >= 4 &&
-        containsNaturalLanguageCue) {
-      return SearchIntentType.naturalLanguage;
+    // 1-2 word queries with no cues are almost always a name lookup
+    // ("Jamun", "Padella"). Treat them as place searches so Mapbox runs
+    // and we don't waste a magic-search call.
+    if (wordCount <= 2) {
+      return SearchIntentType.place;
     }
 
     return SearchIntentType.mixed;
@@ -100,6 +201,12 @@ class HeaderSearchCoordinator extends ChangeNotifier {
   static List<SearchSectionType> sectionOrderForIntent(SearchIntentType intent) {
     switch (intent) {
       case SearchIntentType.place:
+        // Place lookup: no Recommended row at all — Mapbox + DB fill
+        // Places, magic search is skipped to save API calls.
+        return const [
+          SearchSectionType.places,
+          SearchSectionType.people,
+        ];
       case SearchIntentType.mixed:
         return const [
           SearchSectionType.places,
@@ -116,9 +223,20 @@ class HeaderSearchCoordinator extends ChangeNotifier {
         return const [
           SearchSectionType.people,
           SearchSectionType.places,
-          SearchSectionType.naturalLanguage,
         ];
     }
+  }
+
+  /// Whether the LLM-backed natural-language stage should run for [intent].
+  static bool shouldRunNaturalLanguageStage(SearchIntentType intent) {
+    return intent == SearchIntentType.naturalLanguage ||
+        intent == SearchIntentType.mixed;
+  }
+
+  /// Whether the Mapbox `/suggest` stage should run for [intent].
+  static bool shouldRunMapboxStage(SearchIntentType intent) {
+    return intent == SearchIntentType.place ||
+        intent == SearchIntentType.mixed;
   }
 
   static List<LocationModel> mergePlaceResults({
@@ -309,6 +427,13 @@ class HeaderSearchCoordinator extends ChangeNotifier {
         intent: intent,
       ),
     );
+    unawaited(
+      _runNaturalLanguageStage(
+        query: query,
+        requestVersion: requestVersion,
+        intent: intent,
+      ),
+    );
   }
 
   Future<void> _runQuickSuggestionsStage({
@@ -386,14 +511,24 @@ class HeaderSearchCoordinator extends ChangeNotifier {
         return;
       }
 
-      final sections = _orderedSections(
-        intent: intent,
-        sectionsByType: sectionsByType,
-      );
+      // Only update sections that this stage actually loaded. The
+      // natural-language section is filled by _runNaturalLanguageStage in
+      // parallel and must keep its current loading state until that stage
+      // resolves — otherwise we'd clobber the magic-search shimmer.
+      final updatedSections = _state.result.sections.map((section) {
+        if (!sectionsByType.containsKey(section.type)) {
+          return section;
+        }
+        return section.copyWith(
+          items: sectionsByType[section.type] ?? const [],
+          isLoading: false,
+          clearLoadingMessage: true,
+        );
+      }).toList();
 
       _state = _state.copyWith(
         result: _state.result.copyWith(
-          sections: sections,
+          sections: updatedSections,
           completedStages: {
             ..._state.result.completedStages,
             WaterfallStage.fullResults,
@@ -429,8 +564,11 @@ class HeaderSearchCoordinator extends ChangeNotifier {
     required int requestVersion,
     required SearchIntentType intent,
   }) async {
-    if (query.trim().isEmpty) return;
-    if (intent == SearchIntentType.people) return;
+    final trimmed = query.trim();
+    if (trimmed.length < _minMapboxQueryLength) return;
+    // Skip Mapbox for clearly conversational queries — magic search will
+    // handle those — and for people-only queries.
+    if (!shouldRunMapboxStage(intent)) return;
 
     final sessionToken =
         _mapboxSessionToken ??= MapboxSearchBoxService.newSessionToken();
@@ -499,31 +637,73 @@ class HeaderSearchCoordinator extends ChangeNotifier {
     return resolved;
   }
 
+  Future<void> _runNaturalLanguageStage({
+    required String query,
+    required int requestVersion,
+    required SearchIntentType intent,
+  }) async {
+    if (query.trim().isEmpty) return;
+    if (!shouldRunNaturalLanguageStage(intent)) return;
+    // Bail if the section isn't even rendered for this intent.
+    final hasNaturalSection = _state.result.sections
+        .any((section) => section.type == SearchSectionType.naturalLanguage);
+    if (!hasNaturalSection) return;
+
+    List<SearchSuggestionItem> items;
+    try {
+      items = await _repository.loadNaturalLanguageSection(
+        query: query,
+        intent: intent,
+      );
+    } catch (_) {
+      items = const [];
+    }
+    if (!_isLatestRequest(requestVersion)) return;
+
+    final updated = _state.result.sections.map((section) {
+      if (section.type != SearchSectionType.naturalLanguage) return section;
+      return section.copyWith(
+        items: items,
+        isLoading: false,
+        clearLoadingMessage: true,
+      );
+    }).toList();
+
+    _state = _state.copyWith(
+      result: _state.result.copyWith(
+        sections: updated,
+        completedStages: {
+          ..._state.result.completedStages,
+          WaterfallStage.naturalLanguage,
+        },
+      ),
+    );
+    notifyListeners();
+  }
+
   bool _isLatestRequest(int requestVersion) => requestVersion == _requestVersion;
 
-  static List<HeaderSearchSectionModel> _emptySectionsForIntent(
+  String _nextMagicLoadingMessage() {
+    final message =
+        magicLoadingMessages[_magicMessageCursor % magicLoadingMessages.length];
+    _magicMessageCursor++;
+    return message;
+  }
+
+  List<HeaderSearchSectionModel> _emptySectionsForIntent(
     SearchIntentType intent,
   ) {
+    final showMagicMessage = shouldRunNaturalLanguageStage(intent);
     return sectionOrderForIntent(intent).map((type) {
+      final isMagicSection = type == SearchSectionType.naturalLanguage;
       return HeaderSearchSectionModel(
         type: type,
         title: _titleForSection(type),
         items: const [],
         isLoading: true,
-      );
-    }).toList();
-  }
-
-  static List<HeaderSearchSectionModel> _orderedSections({
-    required SearchIntentType intent,
-    required Map<SearchSectionType, List<SearchSuggestionItem>> sectionsByType,
-  }) {
-    return sectionOrderForIntent(intent).map((type) {
-      return HeaderSearchSectionModel(
-        type: type,
-        title: _titleForSection(type),
-        items: sectionsByType[type] ?? const [],
-        isLoading: false,
+        loadingMessage: isMagicSection && showMagicMessage
+            ? _nextMagicLoadingMessage()
+            : null,
       );
     }).toList();
   }

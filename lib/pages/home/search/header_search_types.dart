@@ -22,6 +22,7 @@ enum WaterfallStage {
   databaseMatches,
   fullResults,
   mapboxLiveResults,
+  naturalLanguage,
 }
 
 enum SearchSuggestionKind {
@@ -147,11 +148,17 @@ class HeaderSearchSectionModel {
   final List<SearchSuggestionItem> items;
   final bool isLoading;
 
+  /// Optional message displayed alongside the loading shimmer to give the
+  /// user context about what's running. Used by the natural-language stage
+  /// to signal that an LLM-backed magic search is in flight.
+  final String? loadingMessage;
+
   const HeaderSearchSectionModel({
     required this.type,
     required this.title,
     this.items = const [],
     this.isLoading = false,
+    this.loadingMessage,
   });
 
   HeaderSearchSectionModel copyWith({
@@ -159,12 +166,16 @@ class HeaderSearchSectionModel {
     String? title,
     List<SearchSuggestionItem>? items,
     bool? isLoading,
+    String? loadingMessage,
+    bool clearLoadingMessage = false,
   }) {
     return HeaderSearchSectionModel(
       type: type ?? this.type,
       title: title ?? this.title,
       items: items ?? this.items,
       isLoading: isLoading ?? this.isLoading,
+      loadingMessage:
+          clearLoadingMessage ? null : loadingMessage ?? this.loadingMessage,
     );
   }
 }

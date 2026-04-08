@@ -782,6 +782,39 @@ class _SectionCarousel extends StatelessWidget {
               ],
             ),
           ),
+          if (section.isLoading && section.loadingMessage != null) ...[
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.only(right: 14),
+              child: Row(
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _HeaderSearchPalette.roseAccent.withValues(
+                        alpha: 0.4 + (pulse * 0.5),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      section.loadingMessage!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.sans(
+                        fontSize: 12,
+                        color: _HeaderSearchPalette.secondaryText,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
           SizedBox(
             height: 136,

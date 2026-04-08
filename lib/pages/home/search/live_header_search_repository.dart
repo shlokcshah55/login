@@ -177,38 +177,27 @@ class LiveHeaderSearchRepository implements HeaderSearchRepository {
         ..._locationListManager.popularLocations,
       ].take(10).toList();
 
-      final recommendedLocations =
-          (_locationListManager.hiddenGemLocations.isNotEmpty
-                  ? _locationListManager.hiddenGemLocations
-                  : _locationListManager.popularLocations)
-              .take(10)
-              .toList();
-
       return {
         SearchSectionType.places:
             placeLocations.map(SearchSuggestionItem.place).toList(),
-        SearchSectionType.naturalLanguage: recommendedLocations
-            .map(SearchSuggestionItem.naturalLanguageResult)
-            .toList(),
         SearchSectionType.people:
             suggestedUsers.map(SearchSuggestionItem.person).toList(),
       };
     }
 
+    // Natural-language results are loaded by a separate stage
+    // (loadNaturalLanguageSection) so the magic-search endpoint only fires
+    // when intent detection asks for it. Keep this stage limited to the
+    // fast Supabase queries.
     final placeFuture = _searchPlacesFromDatabase(query: query, limit: 10);
     final peopleFuture = _searchPeople(query: query, limit: 10);
-    final naturalLanguageFuture = _searchNaturalLanguage(query: query, limit: 10);
 
     final placeLocations = await placeFuture;
     final people = await peopleFuture;
-    final naturalLanguageLocations = await naturalLanguageFuture;
 
     return {
       SearchSectionType.places:
           placeLocations.map(SearchSuggestionItem.place).toList(),
-      SearchSectionType.naturalLanguage: naturalLanguageLocations
-          .map(SearchSuggestionItem.naturalLanguageResult)
-          .toList(),
       SearchSectionType.people: people
           .map((user) => SearchSuggestionItem.person(
                 user,
@@ -217,6 +206,15 @@ class LiveHeaderSearchRepository implements HeaderSearchRepository {
               ))
           .toList(),
     };
+  }
+
+  @override
+  Future<List<SearchSuggestionItem>> loadNaturalLanguageSection({
+    required String query,
+    required SearchIntentType intent,
+  }) async {
+    final results = await _searchNaturalLanguage(query: query, limit: 10);
+    return results.map(SearchSuggestionItem.naturalLanguageResult).toList();
   }
 
   @override

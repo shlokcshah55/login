@@ -31,6 +31,14 @@ abstract class HeaderSearchRepository {
     required SearchIntentType intent,
   });
 
+  /// Runs the LLM-backed magic-search endpoint. The coordinator only calls
+  /// this when intent detection signals a natural-language query, so it
+  /// must NOT be invoked unconditionally.
+  Future<List<SearchSuggestionItem>> loadNaturalLanguageSection({
+    required String query,
+    required SearchIntentType intent,
+  });
+
   Future<List<SearchSuggestionItem>> loadMapboxLiveSuggestions({
     required String query,
     required String sessionToken,
@@ -86,6 +94,14 @@ class NoopHeaderSearchRepository implements HeaderSearchRepository {
     required SearchIntentType intent,
   }) async {
     return const {};
+  }
+
+  @override
+  Future<List<SearchSuggestionItem>> loadNaturalLanguageSection({
+    required String query,
+    required SearchIntentType intent,
+  }) async {
+    return const [];
   }
 
   @override
