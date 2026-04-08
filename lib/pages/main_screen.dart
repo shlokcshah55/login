@@ -68,10 +68,14 @@ class _MainScreenState extends State<MainScreen> {
 
     return Scaffold(
       extendBody: true,
-      body: GestureDetector(
+      // Use a passive Listener (raw pointer events, never enters the gesture
+      // arena) to wake the bottom nav. A GestureDetector with onPanDown here
+      // would claim pan gestures and prevent the Mapbox MapWidget from
+      // panning/dragging.
+      body: Listener(
         behavior: HitTestBehavior.translucent,
-        onTap: () => context.read<BottomNavVisibilityProvider>().showTemporarily(),
-        onPanDown: (_) => context.read<BottomNavVisibilityProvider>().showTemporarily(),
+        onPointerDown: (_) =>
+            context.read<BottomNavVisibilityProvider>().showTemporarily(),
         child: IndexedStack(
           index: _currentIndex,
           children: pages,

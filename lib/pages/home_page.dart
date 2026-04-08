@@ -9,7 +9,6 @@ import 'package:login/pages/home/widgets/home_map_layer.dart';
 import 'package:login/pages/home/widgets/magic_search_overlay.dart';
 import 'package:login/pages/home/widgets/gavel_overlay.dart';
 import 'package:login/pages/home/widgets/sweet_treat_overlay.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
 import 'package:login/themes/app_typography.dart';
 import 'package:login/themes/pinit_colors.dart';
@@ -466,41 +465,26 @@ class _TopPanel extends StatelessWidget {
       ),
       child: Padding(
         padding: EdgeInsets.only(
-          top: topPadding + 16,
+          top: topPadding + 4,
           left: 24,
           right: 24,
-          bottom: 24, // generous breathing room before the map
+          bottom: 16,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Corner label — the signature pinit move ──
-            // Padding(
-            //   padding: const EdgeInsets.only(left: 2),
-            //   child: Text(
-            //     'PINIT — DISCOVER',
-            //     style: GoogleFonts.dmSans(
-            //       fontSize: 10,
-            //       fontWeight: FontWeight.w800,
-            //       color: pinit.PinitColors.aubergineSoft,
-            //       letterSpacing: 1.5,
-            //       height: 1.0,
-            //     ),
-            //   ),
-            // ),
-            const SizedBox(height: 8),
             // ── Logo — purplePinit, sized like a poster element ──
             Padding(
               padding: const EdgeInsets.only(left: 1),
               child: Image.asset(
                 'lib/assets/purplePinit.png',
-                height: 44,
+                height: 36,
                 fit: BoxFit.contain,
                 alignment: Alignment.centerLeft,
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             HomeHeaderSearchShell(
               state: viewModel.headerSearchState,
               controller: viewModel.headerSearchController,

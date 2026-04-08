@@ -201,6 +201,16 @@ class LocationModel {
   /// Null if not yet computed or user has no affinity data.
   final double? matchScore;
 
+  /// Source URL the user saved this location from (e.g. a TikTok link).
+  /// Pulled from `user_location_actions.source_video_url` when this model
+  /// is returned by a saved-locations query. Null in other contexts.
+  final String? savedFrom;
+
+  /// How the user saved this location (e.g. 'tiktok', 'in-app').
+  /// Pulled from `user_location_actions.saved_method` when this model
+  /// is returned by a saved-locations query. Null in other contexts.
+  final String? savedMethod;
+
   LocationPreference? preference;
 
   LocationModel({
@@ -277,6 +287,8 @@ class LocationModel {
     this.dietaryRequirementVector,
     this.cuisineScoresJson,
     this.matchScore,
+    this.savedFrom,
+    this.savedMethod,
   });
 
   factory LocationModel.fromJson(
@@ -643,6 +655,8 @@ class LocationModel {
     List<int>? dietaryRequirementVector,
     Map<String, dynamic>? cuisineScoresJson,
     double? matchScore,
+    String? savedFrom,
+    String? savedMethod,
   }) {
     return LocationModel(
       locationId: locationId ?? this.locationId,
@@ -722,6 +736,8 @@ class LocationModel {
           dietaryRequirementVector ?? this.dietaryRequirementVector,
       cuisineScoresJson: cuisineScoresJson ?? this.cuisineScoresJson,
       matchScore: matchScore ?? this.matchScore,
+      savedFrom: savedFrom ?? this.savedFrom,
+      savedMethod: savedMethod ?? this.savedMethod,
     );
   }
 

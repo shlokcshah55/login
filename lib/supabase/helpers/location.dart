@@ -258,7 +258,11 @@ class LocationHelper {
       developer.log('[Saved] Querying saved actions for user ${user.id}', name: 'LocationHelper');
       final savedActions = await _client
           .from(SupabaseConstants.tableUserLocationActions)
-          .select('${SupabaseConstants.columnLocationId}')
+          .select(
+            '${SupabaseConstants.columnLocationId}, '
+            '${SupabaseConstants.columnSourceVideoUrl}, '
+            '${SupabaseConstants.columnSavedMethod}',
+          )
           .eq(SupabaseConstants.columnUserId, user.id)
           .eq(SupabaseConstants.columnAction, SupabaseConstants.actionSave)
           .eq(SupabaseConstants.columnAcked, true);
@@ -268,10 +272,22 @@ class LocationHelper {
         return [];
       }
 
-      // Extract location IDs
-      final locationIds = (savedActions as List)
-          .map((action) => action[SupabaseConstants.columnLocationId] as int)
-          .toList();
+      // Build a per-locationId map of (savedFrom, savedMethod) so we can stamp
+      // each LocationModel after the batch processor returns. If a user has
+      // multiple save actions for the same location, the most recently seen
+      // entry wins.
+      final actionMetaByLocationId = <int, ({String? savedFrom, String? savedMethod})>{};
+      final locationIds = <int>[];
+      for (final action in (savedActions as List)) {
+        final id = action[SupabaseConstants.columnLocationId] as int;
+        if (!actionMetaByLocationId.containsKey(id)) {
+          locationIds.add(id);
+        }
+        actionMetaByLocationId[id] = (
+          savedFrom: action[SupabaseConstants.columnSourceVideoUrl] as String?,
+          savedMethod: action[SupabaseConstants.columnSavedMethod] as String?,
+        );
+      }
       developer.log('[Saved] Found ${locationIds.length} saved IDs: $locationIds', name: 'LocationHelper');
 
       if (locationIds.isEmpty) {
@@ -300,11 +316,22 @@ class LocationHelper {
       }
 
       // Use the efficient batch processor with user affinity for match scoring
-      final result = await processLocationsWithImages(
+      final processed = await processLocationsWithImages(
         locations,
         userVibeAffinity: userVibeAffinity,
         userDietaryAffinity: userDietaryAffinity,
       );
+
+      // Stamp each location with its saved-action metadata.
+      final result = processed.map((loc) {
+        final meta = actionMetaByLocationId[loc.locationId];
+        if (meta == null) return loc;
+        return loc.copyWith(
+          savedFrom: meta.savedFrom,
+          savedMethod: meta.savedMethod,
+        );
+      }).toList();
+
       developer.log(
         '[Saved] Processed ${result.length}/${(locations as List).length} locations OK in ${stopwatch.elapsedMilliseconds}ms',
         name: 'LocationHelper',
@@ -329,7 +356,11 @@ class LocationHelper {
       // First get all user_location_actions with 'save' action for this user
       final savedActions = await _client
           .from(SupabaseConstants.tableUserLocationActions)
-          .select('${SupabaseConstants.columnLocationId}')
+          .select(
+            '${SupabaseConstants.columnLocationId}, '
+            '${SupabaseConstants.columnSourceVideoUrl}, '
+            '${SupabaseConstants.columnSavedMethod}',
+          )
           .eq(SupabaseConstants.columnUserId, userId)
           .eq(SupabaseConstants.columnAction, SupabaseConstants.actionSave)
           .eq(SupabaseConstants.columnAcked, true);
@@ -338,10 +369,20 @@ class LocationHelper {
         return [];
       }
 
-      // Extract location IDs
-      final locationIds = (savedActions as List)
-          .map((action) => action[SupabaseConstants.columnLocationId] as int)
-          .toList();
+      // Build a per-locationId map of (savedFrom, savedMethod) so we can stamp
+      // each LocationModel after the batch processor returns.
+      final actionMetaByLocationId = <int, ({String? savedFrom, String? savedMethod})>{};
+      final locationIds = <int>[];
+      for (final action in (savedActions as List)) {
+        final id = action[SupabaseConstants.columnLocationId] as int;
+        if (!actionMetaByLocationId.containsKey(id)) {
+          locationIds.add(id);
+        }
+        actionMetaByLocationId[id] = (
+          savedFrom: action[SupabaseConstants.columnSourceVideoUrl] as String?,
+          savedMethod: action[SupabaseConstants.columnSavedMethod] as String?,
+        );
+      }
 
       if (locationIds.isEmpty) {
         return [];
@@ -353,8 +394,16 @@ class LocationHelper {
           .select()
           .inFilter(SupabaseConstants.columnLocationId, locationIds);
 
-      // Use the efficient batch processor
-      return await processLocationsWithImages(locations as List);
+      // Use the efficient batch processor, then stamp action metadata.
+      final processed = await processLocationsWithImages(locations as List);
+      return processed.map((loc) {
+        final meta = actionMetaByLocationId[loc.locationId];
+        if (meta == null) return loc;
+        return loc.copyWith(
+          savedFrom: meta.savedFrom,
+          savedMethod: meta.savedMethod,
+        );
+      }).toList();
     } catch (e) {
       if (kDebugMode) {
         print('Error getting user saved locations: $e');
