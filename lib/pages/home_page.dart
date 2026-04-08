@@ -9,6 +9,8 @@ import 'package:login/pages/home/widgets/home_map_layer.dart';
 import 'package:login/pages/home/widgets/magic_search_overlay.dart';
 import 'package:login/pages/home/widgets/gavel_overlay.dart';
 import 'package:login/pages/home/widgets/sweet_treat_overlay.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
 import 'package:login/themes/app_typography.dart';
 import 'package:login/themes/pinit_colors.dart';
 import 'package:login/pages/home/widgets/mode_toggle.dart';
@@ -294,14 +296,16 @@ class _HomePageState extends State<HomePage> {
                   ),
 
                 // ─── Loading state ─────────────────────────────
+                // IgnorePointer so the dim/spinner doesn't block map gestures.
                 if (viewModel.isLoadingRecommendations &&
                     viewModel.currentListType == LocationListType.recommended)
                   Builder(builder: (ctx) {
                     final pc = Theme.of(ctx).extension<PinitColors>()!;
                     return Positioned.fill(
-                      child: Container(
-                        color: Colors.black.withValues(alpha: 0.25),
-                        child: Center(
+                      child: IgnorePointer(
+                        child: Container(
+                          color: Colors.black.withValues(alpha: 0.25),
+                          child: Center(
                           child: Container(
                             padding: const EdgeInsets.all(24.0),
                             decoration: BoxDecoration(
@@ -334,6 +338,7 @@ class _HomePageState extends State<HomePage> {
                               ],
                             ),
                           ),
+                        ),
                         ),
                       ),
                     );
@@ -429,8 +434,10 @@ class _HomePageState extends State<HomePage> {
 }
 
 // ─────────────────────────────────────────────────────────────────
-//  Top panel — theme-aware surface, logo + search + chips.
-//  Dark: near-black purple surface. Light: white surface.
+//  Top panel — Style.MD pinit surface.
+//  Cream fade → transparent. Tracked uppercase corner label, oversized
+//  display title in Rova, then search shell + chip row. Matches the
+//  bubbles / profile / carousel aesthetic.
 // ─────────────────────────────────────────────────────────────────
 class _TopPanel extends StatelessWidget {
   final double topPadding;
@@ -443,47 +450,57 @@ class _TopPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = Theme.of(context).extension<PinitColors>()!;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    // Fade-to-transparent header — lets the map breathe through
-    final bgColor = isDark ? c.surfaceBg : c.elevatedSurface;
+    // Cream fade — lets the map breathe through the bottom edge.
     return DecoratedBox(
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          stops: const [0.0, 0.75, 1.0],
+          stops: [0.0, 0.6, 1.0],
           colors: [
-            bgColor,
-            bgColor.withValues(alpha: 0.92),
-            bgColor.withValues(alpha: 0.0),
+            pinit.PinitColors.cream,
+            Color(0xF2FBF6F3), // cream @ 95%
+            Color(0x00FBF6F3), // cream @ 0%
           ],
         ),
       ),
       child: Padding(
         padding: EdgeInsets.only(
-          top: topPadding + 4,
-          left: 16,
-          right: 16,
-          bottom: 18, // extra so the fade has room
+          top: topPadding + 16,
+          left: 24,
+          right: 24,
+          bottom: 24, // generous breathing room before the map
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Logo — compact
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Padding(
-                padding: const EdgeInsets.only(left: 8),
-                child: Image.asset(
-                  'lib/assets/logo-transparent.png',
-                  height: 30,
-                  fit: BoxFit.contain,
-                ),
+            // ── Corner label — the signature pinit move ──
+            // Padding(
+            //   padding: const EdgeInsets.only(left: 2),
+            //   child: Text(
+            //     'PINIT — DISCOVER',
+            //     style: GoogleFonts.dmSans(
+            //       fontSize: 10,
+            //       fontWeight: FontWeight.w800,
+            //       color: pinit.PinitColors.aubergineSoft,
+            //       letterSpacing: 1.5,
+            //       height: 1.0,
+            //     ),
+            //   ),
+            // ),
+            const SizedBox(height: 8),
+            // ── Logo — purplePinit, sized like a poster element ──
+            Padding(
+              padding: const EdgeInsets.only(left: 1),
+              child: Image.asset(
+                'lib/assets/purplePinit.png',
+                height: 44,
+                fit: BoxFit.contain,
+                alignment: Alignment.centerLeft,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 16),
             HomeHeaderSearchShell(
               state: viewModel.headerSearchState,
               controller: viewModel.headerSearchController,

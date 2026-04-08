@@ -1,60 +1,49 @@
-import 'dart:ui' as ui;
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
-import 'package:login/themes/app_typography.dart';
+import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:developer';
 
 // ─────────────────────────────────────────────────────────────
-//  Vibe tag display config: label, icon, colour
+//  Vibe tag display config: label + icon
+//  Colours intentionally omitted — pinit palette is cream + aubergine.
 // ─────────────────────────────────────────────────────────────
 class _VibeTagStyle {
   final String label;
   final IconData icon;
-  final Color color;
-  const _VibeTagStyle(this.label, this.icon, this.color);
+  const _VibeTagStyle(this.label, this.icon);
 }
 
 const Map<String, _VibeTagStyle> _vibeStyles = {
-  'cafe': _VibeTagStyle('Café', FeatherIcons.coffee, Color(0xFFA0522D)),
-  'casual': _VibeTagStyle('Casual', FeatherIcons.smile, Color(0xFF5B9BD5)),
-  'cozy': _VibeTagStyle('Cozy', FeatherIcons.home, Color(0xFFE8915A)),
-  'coffee_shop':
-      _VibeTagStyle('Coffee', FeatherIcons.coffee, Color(0xFF6F4E37)),
-  'bar': _VibeTagStyle('Bar', FeatherIcons.moon, Color(0xFF7B68EE)),
-  'elegant': _VibeTagStyle('Elegant', FeatherIcons.feather, Color(0xFFB8860B)),
-  'fine_dining':
-      _VibeTagStyle('Fine Dining', FeatherIcons.award, Color(0xFFC9A96E)),
-  'food_truck':
-      _VibeTagStyle('Food Truck', FeatherIcons.truck, Color(0xFFFF6347)),
-  'hole_in_the_wall':
-      _VibeTagStyle('Hidden Gem', FeatherIcons.key, Color(0xFFCD853F)),
-  'late_night':
-      _VibeTagStyle('Late Night', FeatherIcons.moon, Color(0xFF483D8B)),
-  'live_music':
-      _VibeTagStyle('Live Music', FeatherIcons.music, Color(0xFFDC143C)),
-  'michelin_starred':
-      _VibeTagStyle('Michelin', FeatherIcons.star, Color(0xFFFFD700)),
-  'modern': _VibeTagStyle('Modern', FeatherIcons.zap, Color(0xFF00CED1)),
-  'fast_food':
-      _VibeTagStyle('Fast Food', FeatherIcons.fastForward, Color(0xFFFF4500)),
-  'quiet': _VibeTagStyle('Quiet', FeatherIcons.volumeX, Color(0xFF8FBC8F)),
-  'romantic': _VibeTagStyle('Romantic', FeatherIcons.heart, Color(0xFFFF69B4)),
-  'sports_bar': _VibeTagStyle('Sports Bar', FeatherIcons.tv, Color(0xFF228B22)),
-  'trendy': _VibeTagStyle('Trendy', FeatherIcons.trendingUp, Color(0xFFFF1493)),
-  'takeout_friendly':
-      _VibeTagStyle('Takeaway', FeatherIcons.package, Color(0xFF20B2AA)),
-  'pub': _VibeTagStyle('Pub', FeatherIcons.home, Color(0xFF8B4513)),
-  'grocery_store':
-      _VibeTagStyle('Grocery', FeatherIcons.shoppingCart, Color(0xFF3CB371)),
-  'brunch': _VibeTagStyle('Brunch', FeatherIcons.sun, Color(0xFFFFA07A)),
-  'outdoor_dining':
-      _VibeTagStyle('Outdoor', FeatherIcons.wind, Color(0xFF87CEEB)),
-  'wavy': _VibeTagStyle('Wavy 🌊', FeatherIcons.activity, Color(0xFFA970FF)),
-  'bossman': _VibeTagStyle('Bossman', FeatherIcons.shield, Color(0xFF636E72)),
+  'cafe': _VibeTagStyle('Café', FeatherIcons.coffee),
+  'casual': _VibeTagStyle('Casual', FeatherIcons.smile),
+  'cozy': _VibeTagStyle('Cozy', FeatherIcons.home),
+  'coffee_shop': _VibeTagStyle('Coffee', FeatherIcons.coffee),
+  'bar': _VibeTagStyle('Bar', FeatherIcons.moon),
+  'elegant': _VibeTagStyle('Elegant', FeatherIcons.feather),
+  'fine_dining': _VibeTagStyle('Fine Dining', FeatherIcons.award),
+  'food_truck': _VibeTagStyle('Food Truck', FeatherIcons.truck),
+  'hole_in_the_wall': _VibeTagStyle('Hidden Gem', FeatherIcons.key),
+  'late_night': _VibeTagStyle('Late Night', FeatherIcons.moon),
+  'live_music': _VibeTagStyle('Live Music', FeatherIcons.music),
+  'michelin_starred': _VibeTagStyle('Michelin', FeatherIcons.star),
+  'modern': _VibeTagStyle('Modern', FeatherIcons.zap),
+  'fast_food': _VibeTagStyle('Fast Food', FeatherIcons.fastForward),
+  'quiet': _VibeTagStyle('Quiet', FeatherIcons.volumeX),
+  'romantic': _VibeTagStyle('Romantic', FeatherIcons.heart),
+  'sports_bar': _VibeTagStyle('Sports Bar', FeatherIcons.tv),
+  'trendy': _VibeTagStyle('Trendy', FeatherIcons.trendingUp),
+  'takeout_friendly': _VibeTagStyle('Takeaway', FeatherIcons.package),
+  'pub': _VibeTagStyle('Pub', FeatherIcons.home),
+  'grocery_store': _VibeTagStyle('Grocery', FeatherIcons.shoppingCart),
+  'brunch': _VibeTagStyle('Brunch', FeatherIcons.sun),
+  'outdoor_dining': _VibeTagStyle('Outdoor', FeatherIcons.wind),
+  'wavy': _VibeTagStyle('Wavy', FeatherIcons.activity),
+  'bossman': _VibeTagStyle('Bossman', FeatherIcons.shield),
 };
 
 class LocationCarousel extends StatelessWidget {
@@ -126,7 +115,6 @@ class LocationCarousel extends StatelessWidget {
 
 /// Wraps a [_CarouselCard] with vertical swipe gesture detection.
 /// Swipe up → shortlist; swipe down → save.
-/// Shows animated vertical translation + opacity for tactile feedback.
 class _SwipeableCard extends StatefulWidget {
   final LocationModel location;
   final bool isSelected;
@@ -161,7 +149,6 @@ class _SwipeableCardState extends State<_SwipeableCard>
 
   void _onVerticalDragEnd(DragEndDetails d) {
     if (_dragY < -_threshold && widget.onSwipeUp != null) {
-      // Swiped up → shortlist
       _shortlistFeedbackTimer?.cancel();
       setState(() => _showShortlistConfirmed = true);
       _shortlistFeedbackTimer = Timer(const Duration(milliseconds: 700), () {
@@ -170,7 +157,6 @@ class _SwipeableCardState extends State<_SwipeableCard>
       });
       widget.onSwipeUp!(widget.location);
     } else if (_dragY > _threshold && widget.onSwipeDown != null) {
-      // Swiped down → save
       widget.onSwipeDown!(widget.location);
     }
     setState(() => _dragY = 0);
@@ -213,7 +199,7 @@ class _SwipeableCardState extends State<_SwipeableCard>
                 bottomNavVisible: widget.bottomNavVisible,
                 onLocationSelected: widget.onLocationSelected,
               ),
-              // Swipe up shortlist feedback (beneath card)
+              // Swipe up shortlist feedback
               Positioned(
                 bottom: -34,
                 left: 0,
@@ -237,39 +223,40 @@ class _SwipeableCardState extends State<_SwipeableCard>
                           scale: shortlistIndicatorScale,
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 18,
-                              vertical: 10,
+                              horizontal: 16,
+                              vertical: 9,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF16A34A),
-                              borderRadius: BorderRadius.circular(18),
-                              boxShadow: [
+                              color: PinitColors.aubergine,
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: PinitColors.aubergine,
+                                width: 1.5,
+                              ),
+                              boxShadow: const [
                                 BoxShadow(
-                                  color: const Color(
-                                    0xFF16A34A,
-                                  ).withValues(alpha: 0.42),
-                                  blurRadius: 20,
-                                  spreadRadius: 1,
-                                  offset: const Offset(0, 6),
+                                  color: PinitColors.aubergine,
+                                  blurRadius: 0,
+                                  offset: Offset(3, 3),
                                 ),
                               ],
                             ),
-                            child: const Row(
+                            child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(
+                                const Icon(
                                   Icons.playlist_add_check_rounded,
-                                  size: 18,
-                                  color: Colors.white,
+                                  size: 16,
+                                  color: PinitColors.cream,
                                 ),
-                                SizedBox(width: 8),
+                                const SizedBox(width: 6),
                                 Text(
-                                  'Shortlisted',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 13,
+                                  'SHORTLISTED',
+                                  style: GoogleFonts.dmSans(
+                                    color: PinitColors.cream,
+                                    fontSize: 11,
                                     fontWeight: FontWeight.w700,
-                                    letterSpacing: 0.2,
+                                    letterSpacing: 1.2,
                                   ),
                                 ),
                               ],
@@ -283,26 +270,33 @@ class _SwipeableCardState extends State<_SwipeableCard>
               ),
               if (_dragY > 30)
                 Positioned(
-                  bottom: -24,
+                  bottom: -28,
                   left: 0,
                   right: 0,
-                  child: Center(
-                    child: AnimatedOpacity(
-                      duration: const Duration(milliseconds: 100),
-                      opacity: (_dragY / _threshold).clamp(0.0, 1.0),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF00B894),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Text(
-                          '↓ Save',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
+                  child: IgnorePointer(
+                    child: Center(
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 100),
+                        opacity: (_dragY / _threshold).clamp(0.0, 1.0),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: PinitColors.cream,
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: PinitColors.aubergine,
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Text(
+                            'SAVE',
+                            style: GoogleFonts.dmSans(
+                              color: PinitColors.aubergine,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.4,
+                            ),
                           ),
                         ),
                       ),
@@ -318,7 +312,8 @@ class _SwipeableCardState extends State<_SwipeableCard>
 }
 
 // ─────────────────────────────────────────────────────────────
-//  Individual card – image-dominant with overlaid info
+//  Individual card – pinit style: cream surface, aubergine border,
+//  hard offset shadow, image left / info right.
 // ─────────────────────────────────────────────────────────────
 class _CarouselCard extends StatelessWidget {
   final LocationModel location;
@@ -333,12 +328,15 @@ class _CarouselCard extends StatelessWidget {
     required this.onLocationSelected,
   });
 
-  // ── Whether this location is "wavy" enough to get the shimmer border ──
   bool get _isWavy => (location.vibe?.wavyScore ?? 0) > 0.45;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final Color borderColor =
+        _isWavy ? PinitColors.accent : PinitColors.aubergine;
+    final Color shadowColor =
+        _isWavy ? PinitColors.accent : PinitColors.aubergine;
 
     return GestureDetector(
       onTap: () {
@@ -361,291 +359,226 @@ class _CarouselCard extends StatelessWidget {
       },
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(26),
-          // Wavy locations get a playful purple glow
-          border: _isWavy
-              ? Border.all(
-                  color: const Color(0xFFA970FF).withValues(alpha: 0.5),
-                  width: 2.5)
-              : isSelected
-                  ? Border.all(
-                      color: colorScheme.primary.withValues(alpha: 0.6),
-                      width: 2)
-                  : null,
+          color: PinitColors.cream,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: borderColor,
+            width: isSelected ? 2.0 : 1.5,
+          ),
           boxShadow: [
-            if (_isWavy) ...[
-              BoxShadow(
-                color: const Color(0xFFA970FF).withValues(alpha: 0.22),
-                blurRadius: 18,
-                spreadRadius: 2,
-                offset: const Offset(0, 4),
-              ),
-            ] else ...[
-              BoxShadow(
-                color: colorScheme.shadow
-                    .withValues(alpha: isSelected ? 0.18 : 0.08),
-                blurRadius: isSelected ? 12 : 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
+            BoxShadow(
+              color: shadowColor,
+              blurRadius: 0,
+              offset: Offset(isSelected ? 5 : 4, isSelected ? 5 : 4),
+            ),
           ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: Stack(
-            fit: StackFit.expand,
+          borderRadius: BorderRadius.circular(8.5),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // ── 1. Full-bleed image ──
-              _buildImage(theme),
-
-              // ── 2. Gradient scrim for readability ──
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.black.withValues(alpha: 0.0),
-                        Colors.black.withValues(alpha: 0.08),
-                        Colors.black.withValues(alpha: 0.65),
-                      ],
-                      stops: const [0.0, 0.4, 1.0],
-                    ),
-                  ),
-                ),
-              ),
-
-              // ── 3. Top-left: Emoji + preference badge ──
-              Positioned(
-                top: 10,
-                left: 10,
-                child: Row(
+              // ── Left: Image column (with floating overlays) ──
+              SizedBox(
+                width: 122,
+                child: Stack(
+                  fit: StackFit.expand,
                   children: [
-                    // Emoji circle
-                    if (location.emoji != null && location.emoji!.isNotEmpty)
-                      Container(
-                        width: 38,
-                        height: 38,
+                    _buildImage(theme),
+                    // Subtle bottom-up scrim so overlays stay legible
+                    const Positioned.fill(
+                      child: DecoratedBox(
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.85),
-                          shape: BoxShape.circle,
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          location.emoji!,
-                          style: const TextStyle(fontSize: 20),
-                        ),
-                      ),
-                    const SizedBox(width: 6),
-                    if (location.preference != null)
-                      _buildPreferenceBadge(location.preference!, theme),
-                  ],
-                ),
-              ),
-
-              // ── 4. Top-right: status badges stack ──
-              Positioned(
-                top: 10,
-                right: 10,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    // Open / Closed live indicator
-                    if (location.openNow != null)
-                      _StatusPill(
-                        text: location.openNow! ? 'Open' : 'Closed',
-                        color: location.openNow!
-                            ? const Color(0xFF00B894)
-                            : const Color(0xFFE17055),
-                        icon: location.openNow!
-                            ? FeatherIcons.checkCircle
-                            : FeatherIcons.xCircle,
-                      ),
-                    if (location.openNow != null) const SizedBox(height: 4),
-
-                    // Match score badge
-                    if (location.matchScore != null &&
-                        location.matchScore! > 0.1)
-                      _StatusPill(
-                        text: '${(location.matchScore! * 100).round()}% match',
-                        color: colorScheme.primary,
-                        icon: FeatherIcons.target,
-                      ),
-                    if (location.matchScore != null &&
-                        location.matchScore! > 0.1)
-                      const SizedBox(height: 4),
-
-                    // Saved count
-                    if (location.savedCount != null && location.savedCount! > 0)
-                      _StatusPill(
-                        text: '${location.savedCount} saves',
-                        color: Colors.white.withValues(alpha: 0.85),
-                        textColor: Colors.black87,
-                        icon: FeatherIcons.bookmark,
-                        iconColor: colorScheme.primary,
-                      ),
-                  ],
-                ),
-              ),
-
-              // ── 5. Bottom overlay: all the info ──
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: ClipRRect(
-                  borderRadius:
-                      const BorderRadius.vertical(bottom: Radius.circular(24)),
-                  child: BackdropFilter(
-                    filter: ui.ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-                    child: Container(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.white.withValues(alpha: 0.08),
-                            Colors.black.withValues(alpha: 0.35),
-                          ],
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // ── Name + rating row ──
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  location.name,
-                                  style: AppTypography.brand(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w400,
-                                    fontSize: 17.5,
-                                    letterSpacing: 0.36,
-                                    height: 1.1,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              if (location.rating != null)
-                                _RatingChip(
-                                  rating: location.rating!,
-                                  reviewCount: location.userRatingsTotal,
-                                ),
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Color(0x00000000),
+                              Color(0x33000000),
                             ],
+                            stops: [0.55, 1.0],
                           ),
+                        ),
+                      ),
+                    ),
+                    // Emoji circle (top-left)
+                    if (location.emoji != null && location.emoji!.isNotEmpty)
+                      Positioned(
+                        top: 8,
+                        left: 8,
+                        child: Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: PinitColors.cream,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: PinitColors.aubergine,
+                              width: 1.4,
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            location.emoji!,
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                        ),
+                      ),
+                    // Open / closed pill (bottom-left of image)
+                    if (location.openNow != null)
+                      Positioned(
+                        bottom: 8,
+                        left: 8,
+                        right: 8,
+                        child: _PinitPill(
+                          label: location.openNow! ? 'OPEN' : 'CLOSED',
+                          icon: location.openNow!
+                              ? FeatherIcons.checkCircle
+                              : FeatherIcons.xCircle,
+                          filled: true,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
 
-                          const SizedBox(height: 8),
+              // ── Vertical divider (matches the chunky border style) ──
+              Container(
+                width: 1.5,
+                color: borderColor,
+              ),
 
-                          // ── One-liner summary or vicinity ──
-                          if (_summaryText != null)
-                            Text(
-                              _summaryText!,
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.9),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w400,
-                                height: 1.3,
+              // ── Right: Info column ──
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.max,
+                  children: [
+                    // Top label strip (cream-sunk) — distance / preference / match
+                    Container(
+                      color: PinitColors.creamSunk,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      child: Row(
+                        children: [
+                          Icon(
+                            location.preference == LocationPreference.saved
+                                ? FeatherIcons.heart
+                                : location.preference ==
+                                        LocationPreference.recommended
+                                    ? FeatherIcons.award
+                                    : FeatherIcons.mapPin,
+                            size: 11,
+                            color: PinitColors.mute,
+                          ),
+                          const SizedBox(width: 5),
+                          Expanded(
+                            child: Text(
+                              _topStripLabel(),
+                              style: GoogleFonts.dmSans(
+                                fontSize: 10,
+                                color: PinitColors.mute,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.0,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                          if (_summaryText != null) const SizedBox(height: 9),
-
-                          // ── Tags row: price + cuisine + vibe pills ──
-                          SizedBox(
-                            height: 28,
-                            child: ListView(
-                              scrollDirection: Axis.horizontal,
-                              physics: const BouncingScrollPhysics(),
-                              children: [
-                                // Price level
-                                if (location.priceLevel != null &&
-                                    location.priceLevel! > 0)
-                                  _InfoPill(
-                                    text: '£' * location.priceLevel!,
-                                    bgColor: const Color(0xFF00B894)
-                                        .withValues(alpha: 0.25),
-                                    textColor: const Color(0xFF55EFC4),
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                // Cuisine
-                                if (location.cuisine != null &&
-                                    location.cuisine!.isNotEmpty)
-                                  _InfoPill(
-                                    text: location.cuisine!,
-                                    bgColor: Colors.white.withValues(
-                                      alpha: 0.15,
-                                    ),
-                                    textColor: Colors.white,
-                                  ),
-                                // Top 2 vibe tags
-                                ..._topVibeTags.map((entry) {
-                                  final style = _vibeStyles[entry.key];
-                                  if (style == null)
-                                    return const SizedBox.shrink();
-                                  return _InfoPill(
-                                    text: style.label,
-                                    icon: style.icon,
-                                    bgColor: style.color.withValues(
-                                      alpha: 0.25,
-                                    ),
-                                    textColor: Color.lerp(
-                                        style.color, Colors.white, 0.5)!,
-                                  );
-                                }),
-                                // Feature micro-icons
-                                ..._featureIcons,
-                              ],
-                            ),
                           ),
+                          if (location.rating != null) ...[
+                            _CompactRating(
+                              rating: location.rating!,
+                              reviewCount: location.userRatingsTotal,
+                            ),
+                            const SizedBox(width: 6),
+                          ],
+                          if (location.matchScore != null &&
+                              location.matchScore! > 0.1)
+                            _MatchBadge(
+                                score: (location.matchScore! * 100).round()),
                         ],
                       ),
                     ),
-                  ),
+
+                    // Body
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 10, 12, 10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.max,
+                          children: [
+                            // Name — full row, up to 2 lines
+                            Text(
+                              location.name,
+                              style: GoogleFonts.dmSans(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w800,
+                                color: PinitColors.aubergine,
+                                height: 1.15,
+                                letterSpacing: -0.3,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            if (_summaryText != null)
+                              Text(
+                                _summaryText!,
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 11.5,
+                                  color: PinitColors.mute,
+                                  fontWeight: FontWeight.w500,
+                                  height: 1.3,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            const Spacer(),
+                            // Tags row: price + cuisine + vibe pills + features
+                            SizedBox(
+                              height: 24,
+                              child: ListView(
+                                scrollDirection: Axis.horizontal,
+                                physics: const BouncingScrollPhysics(),
+                                children: [
+                                  if (location.priceLevel != null &&
+                                      location.priceLevel! > 0)
+                                    _PinitPill(
+                                      label: '£' * location.priceLevel!,
+                                      filled: true,
+                                    ),
+                                  if (location.cuisine != null &&
+                                      location.cuisine!.isNotEmpty)
+                                    _PinitPill(label: location.cuisine!),
+                                  ..._topVibeTags.map((entry) {
+                                    final style = _vibeStyles[entry.key];
+                                    if (style == null) {
+                                      return const SizedBox.shrink();
+                                    }
+                                    final isWavyTag = entry.key == 'wavy';
+                                    return _PinitPill(
+                                      label: style.label,
+                                      icon: style.icon,
+                                      accent: isWavyTag,
+                                    );
+                                  }),
+                                  if (location.isOpenLate == true)
+                                    const _PinitPill(
+                                      label: 'Late Night',
+                                      icon: FeatherIcons.moon,
+                                    ),
+                                  ..._featureMicros,
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-
-              // ── 6. Wavy shimmer overlay (top edge gleam) ──
-              if (_isWavy)
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: 2.5,
-                  child: Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Color(0xFFA970FF),
-                          Color(0xFFE2C7FF),
-                          Color(0xFFD4A5FF),
-                          Color(0xFFE2C7FF),
-                          Color(0xFFA970FF),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-
-              // ── 7. Late night indicator (bottom-right) ──
-              if (location.isOpenLate == true)
-                Positioned(
-                  top: 10,
-                  left: location.emoji != null ? 100 : 60,
-                  child: _StatusPill(
-                    text: 'Late Night',
-                    color: const Color(0xFF2D3436),
-                    icon: FeatherIcons.moon,
-                    iconColor: const Color(0xFFFDCB6E),
-                  ),
-                ),
             ],
           ),
         ),
@@ -654,6 +587,21 @@ class _CarouselCard extends StatelessWidget {
   }
 
   // ── Computed helpers ──
+
+  String _topStripLabel() {
+    if (location.preference == LocationPreference.saved) return 'SAVED';
+    if (location.preference == LocationPreference.recommended) {
+      return 'TOP PICK';
+    }
+    if (location.preference == LocationPreference.search) return 'MATCH';
+    if (location.savedCount != null && location.savedCount! > 0) {
+      return '${location.savedCount} SAVES';
+    }
+    if (location.cuisine != null && location.cuisine!.isNotEmpty) {
+      return location.cuisine!.toUpperCase();
+    }
+    return 'NEARBY';
+  }
 
   String? get _summaryText {
     if (location.generatedSummary != null &&
@@ -666,7 +614,7 @@ class _CarouselCard extends StatelessWidget {
     }
     if (location.recommendedDishes != null &&
         location.recommendedDishes!.isNotEmpty) {
-      return '🍽 Try: ${location.recommendedDishes!}';
+      return 'Try: ${location.recommendedDishes!}';
     }
     if (location.vicinity != null && location.vicinity!.isNotEmpty) {
       return location.vicinity!;
@@ -683,98 +631,47 @@ class _CarouselCard extends StatelessWidget {
         .toList();
   }
 
-  List<Widget> get _featureIcons {
+  List<Widget> get _featureMicros {
     final icons = <Widget>[];
-    void addIf(bool? flag, IconData icon, Color color, String tooltip) {
+    void addIf(bool? flag, IconData icon, String tooltip) {
       if (flag == true) {
         icons.add(
           Tooltip(
             message: tooltip,
             child: Container(
-              margin: const EdgeInsets.only(left: 4),
-              padding: const EdgeInsets.all(4),
+              margin: const EdgeInsets.only(right: 5),
+              width: 24,
+              height: 24,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(8),
+                color: PinitColors.creamSunk,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: PinitColors.creamDeep,
+                  width: 1,
+                ),
               ),
-              child: Icon(icon, size: 13, color: color),
+              alignment: Alignment.center,
+              child: Icon(icon, size: 11, color: PinitColors.aubergineSoft),
             ),
           ),
         );
       }
     }
 
-    addIf(location.outdoorSeating, FeatherIcons.sun, const Color(0xFFFDCB6E),
-        'Outdoor seating');
-    addIf(location.liveMusic, FeatherIcons.music, const Color(0xFFE17055),
-        'Live music');
-    addIf(location.servesCocktails, FeatherIcons.droplet,
-        const Color(0xFF74B9FF), 'Cocktails');
-    addIf(location.servesBrunch, FeatherIcons.sunrise, const Color(0xFFFFA502),
-        'Brunch');
-    addIf(location.servesVegetarianFood, FeatherIcons.feather,
-        const Color(0xFF00B894), 'Vegetarian');
-    addIf(location.goodForGroups, FeatherIcons.users, const Color(0xFFA29BFE),
-        'Good for groups');
-    addIf(location.isTakeaway, FeatherIcons.package, const Color(0xFF81ECEC),
-        'Takeaway');
+    addIf(location.outdoorSeating, FeatherIcons.sun, 'Outdoor seating');
+    addIf(location.liveMusic, FeatherIcons.music, 'Live music');
+    addIf(location.servesCocktails, FeatherIcons.droplet, 'Cocktails');
+    addIf(location.servesBrunch, FeatherIcons.sunrise, 'Brunch');
+    addIf(location.servesVegetarianFood, FeatherIcons.feather, 'Vegetarian');
+    addIf(location.goodForGroups, FeatherIcons.users, 'Good for groups');
+    addIf(location.isTakeaway, FeatherIcons.package, 'Takeaway');
 
     return icons;
-  }
-
-  // ── Preference badge ──
-
-  Widget _buildPreferenceBadge(LocationPreference pref, ThemeData theme) {
-    final (IconData icon, String label, Color bg, Color fg) = switch (pref) {
-      LocationPreference.saved => (
-          FeatherIcons.heart,
-          'Saved',
-          theme.colorScheme.primary,
-          theme.colorScheme.onPrimary,
-        ),
-      LocationPreference.recommended => (
-          FeatherIcons.award,
-          'Top Pick',
-          const Color(0xFFFDCB6E),
-          Colors.black87,
-        ),
-      LocationPreference.search => (
-          FeatherIcons.search,
-          'Match',
-          Colors.white.withValues(alpha: 0.9),
-          Colors.black87,
-        ),
-    };
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 11, color: fg),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              color: fg,
-              fontWeight: FontWeight.w700,
-              fontSize: 10.5,
-              letterSpacing: 0.2,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   // ── Image builder ──
 
   Widget _buildImage(ThemeData theme) {
-    final colorScheme = theme.colorScheme;
     final url = location.imageUrl ?? location.photoReference;
 
     if (url != null) {
@@ -783,70 +680,59 @@ class _CarouselCard extends StatelessWidget {
         fit: BoxFit.cover,
         width: double.infinity,
         height: double.infinity,
-        placeholder: (_, __) => _imagePlaceholder(colorScheme),
+        placeholder: (_, __) => _imagePlaceholder(),
         errorWidget: (_, __, error) {
           log("Error loading image for ${location.name}: $error");
-          return _imageError(colorScheme);
+          return _imageError();
         },
       );
     }
-    return _imageEmpty(colorScheme);
+    return _imageEmpty();
   }
 
-  Widget _imagePlaceholder(ColorScheme cs) => Container(
-        color: cs.surfaceContainerHighest,
-        child: Center(
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            valueColor: AlwaysStoppedAnimation(cs.primary),
+  Widget _imagePlaceholder() => Container(
+        color: PinitColors.creamSunk,
+        child: const Center(
+          child: SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation(PinitColors.aubergineSoft),
+            ),
           ),
         ),
       );
 
-  Widget _imageError(ColorScheme cs) => Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              cs.surfaceContainerHighest,
-              cs.surfaceContainerHighest.withValues(alpha: 0.7),
-            ],
-          ),
-        ),
-        child: Center(
+  Widget _imageError() => Container(
+        color: PinitColors.creamSunk,
+        child: const Center(
           child: Icon(FeatherIcons.image,
-              size: 36, color: cs.onSurfaceVariant.withValues(alpha: 0.4)),
+              size: 28, color: PinitColors.aubergineSoft),
         ),
       );
 
-  Widget _imageEmpty(ColorScheme cs) => Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              cs.primaryContainer.withValues(alpha: 0.3),
-              cs.surfaceContainerHighest,
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
+  Widget _imageEmpty() => Container(
+        color: PinitColors.creamSunk,
         child: Center(
           child: Text(
             location.emoji ?? '📍',
-            style: const TextStyle(fontSize: 48),
+            style: const TextStyle(fontSize: 40),
           ),
         ),
       );
 }
 
 // ─────────────────────────────────────────────────────────────
-//  Reusable micro-widgets
+//  Pinit-styled micro-widgets
 // ─────────────────────────────────────────────────────────────
 
-/// Compact rating chip: "4.5 ★ (1.2k)"
-class _RatingChip extends StatelessWidget {
+/// Compact rating used inside the top label strip — no background,
+/// just a star + number so it sits next to the tracked uppercase label.
+class _CompactRating extends StatelessWidget {
   final double rating;
   final int? reviewCount;
-  const _RatingChip({required this.rating, this.reviewCount});
+  const _CompactRating({required this.rating, this.reviewCount});
 
   String _formatCount(int n) {
     if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}k';
@@ -855,130 +741,131 @@ class _RatingChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: Colors.amber.withValues(alpha: 0.25),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            rating.toStringAsFixed(1),
-            style: const TextStyle(
-              color: Colors.amber,
-              fontWeight: FontWeight.w800,
-              fontSize: 12,
-            ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(FeatherIcons.star, size: 11, color: PinitColors.aubergine),
+        const SizedBox(width: 3),
+        Text(
+          rating.toStringAsFixed(1),
+          style: GoogleFonts.dmSans(
+            color: PinitColors.aubergine,
+            fontWeight: FontWeight.w800,
+            fontSize: 11,
+            height: 1.0,
+            letterSpacing: 0.2,
           ),
-          const SizedBox(width: 2),
-          const Icon(FeatherIcons.star, size: 10, color: Colors.amber),
-          if (reviewCount != null && reviewCount! > 0) ...[
-            const SizedBox(width: 4),
-            Text(
-              '(${_formatCount(reviewCount!)})',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.6),
-                fontSize: 10,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-/// Status pill used for Open/Closed, match %, saves count
-class _StatusPill extends StatelessWidget {
-  final String text;
-  final Color color;
-  final Color? textColor;
-  final IconData? icon;
-  final Color? iconColor;
-
-  const _StatusPill({
-    required this.text,
-    required this.color,
-    this.textColor,
-    this.icon,
-    this.iconColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.85),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            Icon(icon, size: 10, color: iconColor ?? textColor ?? Colors.white),
-            const SizedBox(width: 3),
-          ],
+        ),
+        if (reviewCount != null && reviewCount! > 0) ...[
+          const SizedBox(width: 3),
           Text(
-            text,
-            style: TextStyle(
-              color: textColor ?? Colors.white,
-              fontWeight: FontWeight.w700,
+            '(${_formatCount(reviewCount!)})',
+            style: GoogleFonts.dmSans(
+              color: PinitColors.mute,
               fontSize: 10,
-              letterSpacing: 0.1,
+              fontWeight: FontWeight.w600,
+              height: 1.0,
             ),
           ),
         ],
+      ],
+    );
+  }
+}
+
+/// Match-score badge for the top strip.
+class _MatchBadge extends StatelessWidget {
+  final int score;
+  const _MatchBadge({required this.score});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = PinitColors.matchIndicator(score);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.35), width: 1),
+      ),
+      child: Text(
+        '$score%',
+        style: GoogleFonts.dmSans(
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          color: color,
+          letterSpacing: 0.4,
+        ),
       ),
     );
   }
 }
 
-/// Small info pill for tags row (price, cuisine, vibe tags)
-class _InfoPill extends StatelessWidget {
-  final String text;
+/// Universal pinit pill — used for tags, status, vibes.
+/// - default: cream-sunk fill, aubergine ink, cream-deep border
+/// - filled : aubergine fill, cream ink (active state)
+/// - accent : accent fill, cream ink (reserved for "wavy")
+class _PinitPill extends StatelessWidget {
+  final String label;
   final IconData? icon;
-  final Color bgColor;
-  final Color textColor;
-  final FontWeight fontWeight;
+  final bool filled;
+  final bool accent;
 
-  const _InfoPill({
-    required this.text,
+  const _PinitPill({
+    required this.label,
     this.icon,
-    required this.bgColor,
-    required this.textColor,
-    this.fontWeight = FontWeight.w600,
+    this.filled = false,
+    this.accent = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    late final Color bg;
+    late final Color fg;
+    late final Color border;
+
+    if (accent) {
+      bg = PinitColors.accent;
+      fg = PinitColors.cream;
+      border = PinitColors.accent;
+    } else if (filled) {
+      bg = PinitColors.aubergine;
+      fg = PinitColors.cream;
+      border = PinitColors.aubergine;
+    } else {
+      bg = PinitColors.creamSunk;
+      fg = PinitColors.aubergine;
+      border = PinitColors.creamDeep;
+    }
+
     return Container(
       margin: const EdgeInsets.only(right: 5),
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(12),
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: border, width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 10, color: textColor),
-            const SizedBox(width: 3),
+            Icon(icon, size: 10, color: fg),
+            const SizedBox(width: 4),
           ],
-          Text(
-            text,
-            style: TextStyle(
-              color: textColor,
-              fontWeight: fontWeight,
-              fontSize: 10.5,
-              letterSpacing: 0.1,
+          Flexible(
+            child: Text(
+              label,
+              style: GoogleFonts.dmSans(
+                color: fg,
+                fontWeight: FontWeight.w700,
+                fontSize: 10,
+                letterSpacing: 0.4,
+                height: 1.0,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),

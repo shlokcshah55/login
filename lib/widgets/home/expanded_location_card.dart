@@ -4,7 +4,9 @@ import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
+import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:login/supabase/constants.dart';
@@ -140,34 +142,6 @@ const Map<String, IconData> _vibeIcons = {
   'outdoor_dining': Icons.deck_rounded,
   'wavy': Icons.waves_rounded,
   'bossman': Icons.storefront_rounded,
-};
-
-const Map<String, Color> _vibeColors = {
-  'cafe': Color(0xFF8D6E63),
-  'casual': Color(0xFF78909C),
-  'cozy': Color(0xFFFF8A65),
-  'coffee_shop': Color(0xFF6D4C41),
-  'bar': Color(0xFF7E57C2),
-  'elegant': Color(0xFFCE93D8),
-  'fine_dining': Color(0xFFE91E63),
-  'food_truck': Color(0xFF66BB6A),
-  'hole_in_the_wall': Color(0xFFFFB74D),
-  'late_night': Color(0xFF5C6BC0),
-  'live_music': Color(0xFFEF5350),
-  'michelin_starred': Color(0xFFFFD700),
-  'modern': Color(0xFF29B6F6),
-  'fast_food': Color(0xFFFFA726),
-  'quiet': Color(0xFF90A4AE),
-  'romantic': Color(0xFFEC407A),
-  'sports_bar': Color(0xFF42A5F5),
-  'trendy': Color(0xFFFF7043),
-  'takeout_friendly': Color(0xFF26A69A),
-  'pub': Color(0xFF8D6E63),
-  'grocery_store': Color(0xFF66BB6A),
-  'brunch': Color(0xFFFDD835),
-  'outdoor_dining': Color(0xFF81C784),
-  'wavy': Color(0xFFE040FB),
-  'bossman': Color(0xFF90A4AE),
 };
 
 String _vibeDisplayName(String tag) {
@@ -621,7 +595,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                       },
                       child: Container(
                         decoration: const BoxDecoration(
-                          color: Color(0xFFFAF9FB),
+                          color: PinitColors.cream,
                           borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
                         ),
                         child: Stack(
@@ -679,8 +653,8 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                                   width: 36,
                                   height: 4,
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFD1D5DB),
-                                    borderRadius: BorderRadius.circular(2),
+                                    color: PinitColors.creamDeep,
+                                    borderRadius: BorderRadius.circular(999),
                                   ),
                                 ),
                               ),
@@ -793,7 +767,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
               if (widget.location.vibe != null &&
                   widget.location.vibe!.wavyScore >= 0.35) ...[
                 const SizedBox(width: 8),
-                _glassBadge('✨ Wavy', textColor: const Color(0xFFE040FB)),
+                _glassBadge('✨ Wavy', textColor: PinitColors.accent),
               ],
             ],
           ),
@@ -826,15 +800,16 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
 
   Widget _glassBadge(String label, {Color? dotColor, Color? textColor}) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(999),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.28),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withOpacity(0.15)),
+            color: PinitColors.aubergine.withValues(alpha: 0.55),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+                color: PinitColors.cream.withValues(alpha: 0.18), width: 1),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -848,15 +823,15 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                     shape: BoxShape.circle,
                   ),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 7),
               ],
               Text(
-                label,
-                style: TextStyle(
-                  color: textColor ?? Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.2,
+                label.toUpperCase(),
+                style: GoogleFonts.dmSans(
+                  color: textColor ?? PinitColors.cream,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.15 * 10,
                 ),
               ),
             ],
@@ -874,22 +849,12 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 0, 20, 0),
       transform: Matrix4.translationValues(0, -28, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: PinitColors.creamSunk,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: _match.color.withOpacity(0.10),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
-          ),
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: PinitColors.creamDeep, width: 1.5),
+        boxShadow: PinitColors.subtleShadow,
       ),
       child: Row(
         children: [
@@ -902,17 +867,17 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
               child: CustomPaint(
                 painter: _MatchRingPainter(
                   progress: _matchAnim.value * _match.score,
-                  color: _match.color,
-                  trackColor: const Color(0xFFF3F4F6),
+                  color: PinitColors.aubergine,
+                  trackColor: PinitColors.creamDeep,
                   strokeWidth: 5.0,
                 ),
                 child: Center(
                   child: Text(
                     '${(_matchAnim.value * _match.percent).round()}%',
-                    style: TextStyle(
+                    style: GoogleFonts.dmSans(
                       fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: _match.color,
+                      fontWeight: FontWeight.w700,
+                      color: PinitColors.aubergine,
                       letterSpacing: -0.5,
                     ),
                   ),
@@ -926,23 +891,35 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _match.label,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: _match.color,
-                    letterSpacing: -0.3,
+                  'MATCH',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: PinitColors.aubergineSoft,
+                    letterSpacing: 0.12 * 11,
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 4),
+                Text(
+                  _match.label,
+                  style: const TextStyle(
+                    fontFamily: 'Rova',
+                    fontSize: 20,
+                    fontWeight: FontWeight.w100,
+                    color: PinitColors.aubergine,
+                    letterSpacing: 1.2,
+                    height: 1.05,
+                  ),
+                ),
+                const SizedBox(height: 4),
                 Text(
                   _match.topContributors.isNotEmpty
                       ? 'Based on ${_match.topContributors.take(3).map((e) => _vibeDisplayName(e.key).toLowerCase()).join(', ')}'
                       : 'Save more places to improve matching',
-                  style: const TextStyle(
+                  style: GoogleFonts.dmSans(
                     fontSize: 13,
-                    color: Color(0xFF9CA3AF),
-                    height: 1.3,
+                    color: PinitColors.mute,
+                    height: 1.35,
                   ),
                 ),
               ],
@@ -958,12 +935,11 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   Widget _dietaryBadge(double ratio) {
     final ok = ratio >= 0.8;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: ok
-            ? const Color(0xFF10B981).withOpacity(0.10)
-            : const Color(0xFFF59E0B).withOpacity(0.10),
-        borderRadius: BorderRadius.circular(10),
+        color: PinitColors.cream,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: PinitColors.creamDeep, width: 1.5),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -971,15 +947,16 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
           Icon(
             ok ? Icons.check_circle_rounded : Icons.info_outline_rounded,
             size: 14,
-            color: ok ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+            color: ok ? PinitColors.aubergine : PinitColors.accent,
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 5),
           Text(
-            ok ? 'Diet ✓' : 'Diet ~',
-            style: TextStyle(
-              fontSize: 12,
+            ok ? 'DIET ✓' : 'DIET ~',
+            style: GoogleFonts.dmSans(
+              fontSize: 10,
               fontWeight: FontWeight.w600,
-              color: ok ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+              color: ok ? PinitColors.aubergine : PinitColors.accent,
+              letterSpacing: 0.15 * 10,
             ),
           ),
         ],
@@ -996,38 +973,48 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
+          'THE PLACE',
+          style: GoogleFonts.dmSans(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: PinitColors.aubergineSoft,
+            letterSpacing: 0.12 * 11,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
           widget.location.name,
           style: const TextStyle(
-            fontSize: 26,
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF111827),
-            height: 1.15,
-            letterSpacing: -0.5,
+            fontFamily: 'Rova',
+            fontSize: 36,
+            fontWeight: FontWeight.w100,
+            color: PinitColors.aubergine,
+            height: 1.05,
+            letterSpacing: 1.4,
           ),
         ),
         if (widget.location.vicinity != null) ...[
-          const SizedBox(height: 6),
+          const SizedBox(height: 10),
           GestureDetector(
             onTap: _openInGoogleMaps,
             child: Row(
               children: [
-                Icon(Icons.location_on_rounded, size: 15, color: _accentColor),
-                const SizedBox(width: 4),
+                const Icon(Icons.location_on_rounded,
+                    size: 16, color: PinitColors.aubergineSoft),
+                const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     widget.location.vicinity!,
-                    style: TextStyle(
+                    style: GoogleFonts.dmSans(
                       fontSize: 14,
-                      color: _accentColor.withOpacity(0.8),
-                      decoration: TextDecoration.underline,
-                      decorationColor: _accentColor.withOpacity(0.3),
-                      decorationStyle: TextDecorationStyle.dotted,
+                      color: PinitColors.aubergineSoft,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ),
                 const SizedBox(width: 4),
-                Icon(Icons.open_in_new_rounded,
-                    size: 13, color: _accentColor.withOpacity(0.5)),
+                const Icon(Icons.open_in_new_rounded,
+                    size: 13, color: PinitColors.mute),
               ],
             ),
           ),
@@ -1047,58 +1034,55 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
         children: [
           if (widget.location.rating != null)
             _statChip(
-              '${widget.location.rating!.toStringAsFixed(1)}',
+              widget.location.rating!.toStringAsFixed(1),
               Icons.star_rounded,
-              const Color(0xFFF59E0B),
             ),
           if (widget.location.userRatingsTotal != null)
             _statChip(
               _formatCount(widget.location.userRatingsTotal!),
               Icons.reviews_rounded,
-              const Color(0xFF6B7280),
             ),
           if (widget.location.savedCount != null && widget.location.savedCount! > 0)
             _statChip(
               '${_formatCount(widget.location.savedCount!)} saves',
               Icons.bookmark_rounded,
-              const Color(0xFF8B5CF6),
             ),
           if (widget.location.cuisinePrimary != null)
             _statChip(
               widget.location.cuisinePrimary!,
               Icons.restaurant_menu_rounded,
-              _accentColor,
             ),
           if (widget.location.isOpenLate == true)
-            _statChip('Late night', Icons.nightlife_rounded, const Color(0xFF6366F1)),
+            _statChip('Late night', Icons.nightlife_rounded),
           if (widget.location.servesCocktails == true)
-            _statChip('Cocktails', Icons.local_bar_rounded, const Color(0xFFEC4899)),
+            _statChip('Cocktails', Icons.local_bar_rounded),
           if (widget.location.outdoorSeating == true)
-            _statChip('Outdoor', Icons.deck_rounded, const Color(0xFF10B981)),
+            _statChip('Outdoor', Icons.deck_rounded),
         ],
       ),
     );
   }
 
-  Widget _statChip(String label, IconData icon, Color color) {
+  Widget _statChip(String label, IconData icon) {
     return Container(
       margin: const EdgeInsets.only(right: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(12),
+        color: PinitColors.creamSunk,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: PinitColors.creamDeep, width: 1.5),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 15, color: color),
-          const SizedBox(width: 5),
+          Icon(icon, size: 14, color: PinitColors.aubergine),
+          const SizedBox(width: 6),
           Text(
             label,
-            style: TextStyle(
+            style: GoogleFonts.dmSans(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: color,
+              color: PinitColors.aubergine,
             ),
           ),
         ],
@@ -1170,36 +1154,38 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        height: 50,
+        height: 52,
         width: fullWidth ? double.infinity : null,
         decoration: BoxDecoration(
-          color: filled ? _accentColor : Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: filled ? null : Border.all(color: const Color(0xFFE5E7EB), width: 1.5),
-          boxShadow: filled
-              ? [BoxShadow(color: _accentColor.withOpacity(0.25), blurRadius: 12, offset: const Offset(0, 4))]
-              : null,
+          color: filled ? PinitColors.aubergine : PinitColors.creamSunk,
+          borderRadius: BorderRadius.circular(999),
+          border: filled
+              ? null
+              : Border.all(color: PinitColors.creamDeep, width: 1.5),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (isLoading)
               SizedBox(
-                width: 18, height: 18,
+                width: 18,
+                height: 18,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: filled ? Colors.white : _accentColor,
+                  color: filled ? PinitColors.cream : PinitColors.aubergine,
                 ),
               )
             else
-              Icon(icon, size: 19, color: filled ? Colors.white : _accentColor),
-            const SizedBox(width: 7),
+              Icon(icon,
+                  size: 19,
+                  color: filled ? PinitColors.cream : PinitColors.aubergine),
+            const SizedBox(width: 8),
             Text(
               label,
-              style: TextStyle(
+              style: GoogleFonts.dmSans(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: filled ? Colors.white : const Color(0xFF374151),
+                color: filled ? PinitColors.cream : PinitColors.aubergine,
               ),
             ),
           ],
@@ -1208,25 +1194,28 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     );
   }
 
-  Widget _iconAction(IconData icon, {VoidCallback? onTap, bool isLoading = false}) {
+  Widget _iconAction(IconData icon,
+      {VoidCallback? onTap, bool isLoading = false}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 50,
-        height: 50,
+        width: 52,
+        height: 52,
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE5E7EB), width: 1.5),
+          color: PinitColors.creamSunk,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: PinitColors.creamDeep, width: 1.5),
         ),
         child: isLoading
             ? const Center(
                 child: SizedBox(
-                  width: 18, height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF6B7280)),
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: PinitColors.aubergine),
                 ),
               )
-            : Icon(icon, size: 20, color: const Color(0xFF6B7280)),
+            : Icon(icon, size: 20, color: PinitColors.aubergine),
       ),
     );
   }
@@ -1247,29 +1236,28 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: const Color(0xFF8B5CF6).withOpacity(0.10),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.waves_rounded, size: 18, color: Color(0xFF8B5CF6)),
-            ),
-            const SizedBox(width: 10),
-            const Text(
-              'Vibe Profile',
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF111827),
-                letterSpacing: -0.3,
-              ),
-            ),
-          ],
+        Text(
+          'VIBE PROFILE',
+          style: GoogleFonts.dmSans(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: PinitColors.aubergineSoft,
+            letterSpacing: 0.12 * 11,
+          ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
+        const Text(
+          'How it feels',
+          style: TextStyle(
+            fontFamily: 'Rova',
+            fontSize: 28,
+            fontWeight: FontWeight.w100,
+            color: PinitColors.aubergine,
+            letterSpacing: 1.3,
+            height: 1.05,
+          ),
+        ),
+        const SizedBox(height: 20),
 
         // Vibe bars
         ...topVibes.map((entry) => _vibeBar(entry.key, entry.value, maxVal)),
@@ -1281,7 +1269,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
             '✨',
             'This spot has wavy energy',
             'Novel, interesting, worth discovering',
-            const Color(0xFFE040FB),
+            true,
           ),
         ] else if (vibe.bossmanScore >= 0.35) ...[
           const SizedBox(height: 12),
@@ -1289,7 +1277,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
             '🏪',
             'Classic bossman joint',
             'Reliable, familiar, no-frills',
-            const Color(0xFF9CA3AF),
+            false,
           ),
         ],
       ],
@@ -1297,27 +1285,26 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   }
 
   Widget _vibeBar(String tag, double value, double max) {
-    final color = _vibeColors[tag] ?? const Color(0xFF9CA3AF);
     final icon = _vibeIcons[tag] ?? Icons.label_rounded;
     final ratio = max > 0 ? (value / max).clamp(0.0, 1.0) : 0.0;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         children: [
           SizedBox(
-            width: 110,
+            width: 120,
             child: Row(
               children: [
-                Icon(icon, size: 16, color: color),
-                const SizedBox(width: 6),
+                Icon(icon, size: 16, color: PinitColors.aubergineSoft),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     _vibeDisplayName(tag),
-                    style: const TextStyle(
+                    style: GoogleFonts.dmSans(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
-                      color: Color(0xFF4B5563),
+                      color: PinitColors.aubergine,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -1334,8 +1321,8 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                     Container(
                       height: 8,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF3F4F6),
-                        borderRadius: BorderRadius.circular(4),
+                        color: PinitColors.creamDeep,
+                        borderRadius: BorderRadius.circular(999),
                       ),
                     ),
                     AnimatedContainer(
@@ -1344,13 +1331,8 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                       height: 8,
                       width: constraints.maxWidth * ratio,
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            color.withOpacity(0.7),
-                            color,
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(4),
+                        color: PinitColors.aubergine,
+                        borderRadius: BorderRadius.circular(999),
                       ),
                     ),
                   ],
@@ -1364,10 +1346,11 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
             child: Text(
               '${(value * 100).round()}',
               textAlign: TextAlign.right,
-              style: TextStyle(
+              style: GoogleFonts.dmSans(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: color,
+                color: PinitColors.aubergineSoft,
+                fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
           ),
@@ -1376,13 +1359,14 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     );
   }
 
-  Widget _vibeCallout(String emoji, String title, String subtitle, Color color) {
+  Widget _vibeCallout(String emoji, String title, String subtitle, bool isWavy) {
+    final accentColor = isWavy ? PinitColors.accent : PinitColors.aubergine;
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.06),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withOpacity(0.15)),
+        color: PinitColors.creamSunk,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: PinitColors.creamDeep, width: 1.5),
       ),
       child: Row(
         children: [
@@ -1394,18 +1378,18 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
               children: [
                 Text(
                   title,
-                  style: TextStyle(
+                  style: GoogleFonts.dmSans(
                     fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: color,
+                    fontWeight: FontWeight.w700,
+                    color: accentColor,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
                 Text(
                   subtitle,
-                  style: TextStyle(
+                  style: GoogleFonts.dmSans(
                     fontSize: 12,
-                    color: color.withOpacity(0.7),
+                    color: PinitColors.aubergineSoft,
                   ),
                 ),
               ],
@@ -1429,22 +1413,34 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'About',
-          style: TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF111827),
-            letterSpacing: -0.3,
+        Text(
+          'ABOUT',
+          style: GoogleFonts.dmSans(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: PinitColors.aubergineSoft,
+            letterSpacing: 0.12 * 11,
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
+        const Text(
+          'The story',
+          style: TextStyle(
+            fontFamily: 'Rova',
+            fontSize: 28,
+            fontWeight: FontWeight.w100,
+            color: PinitColors.aubergine,
+            letterSpacing: 1.3,
+            height: 1.05,
+          ),
+        ),
+        const SizedBox(height: 14),
         Text(
           summary,
-          style: const TextStyle(
-            fontSize: 14,
-            color: Color(0xFF6B7280),
-            height: 1.6,
+          style: GoogleFonts.dmSans(
+            fontSize: 15,
+            color: PinitColors.aubergineSoft,
+            height: 1.55,
           ),
         ),
       ],
@@ -1567,21 +1563,33 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Details',
-          style: TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF111827),
-            letterSpacing: -0.3,
+        Text(
+          'DETAILS',
+          style: GoogleFonts.dmSans(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: PinitColors.aubergineSoft,
+            letterSpacing: 0.12 * 11,
           ),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 8),
+        const Text(
+          'The essentials',
+          style: TextStyle(
+            fontFamily: 'Rova',
+            fontSize: 28,
+            fontWeight: FontWeight.w100,
+            color: PinitColors.aubergine,
+            letterSpacing: 1.3,
+            height: 1.05,
+          ),
+        ),
+        const SizedBox(height: 16),
         Container(
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFF3F4F6)),
+            color: PinitColors.creamSunk,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: PinitColors.creamDeep, width: 1.5),
           ),
           child: Column(
             children: items.asMap().entries.map((entry) {
@@ -1597,39 +1605,39 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
 
   Widget _detailRow(_DetailItem item, {bool showDivider = true}) {
     final child = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       child: Row(
         children: [
           Container(
-            width: 34,
-            height: 34,
+            width: 38,
+            height: 38,
             decoration: BoxDecoration(
-              color: item.color.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(9),
+              color: PinitColors.creamDeep,
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(item.icon, size: 17, color: item.color),
+            child: Icon(item.icon, size: 18, color: PinitColors.aubergine),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  item.label,
-                  style: const TextStyle(
+                  item.label.toUpperCase(),
+                  style: GoogleFonts.dmSans(
                     fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xFF9CA3AF),
-                    letterSpacing: 0.3,
+                    fontWeight: FontWeight.w600,
+                    color: PinitColors.aubergineSoft,
+                    letterSpacing: 0.12 * 11,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 4),
                 Text(
                   item.value,
-                  style: TextStyle(
+                  style: GoogleFonts.dmSans(
                     fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: item.onTap != null ? item.color : const Color(0xFF374151),
+                    fontWeight: FontWeight.w600,
+                    color: PinitColors.aubergine,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -1638,7 +1646,8 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
             ),
           ),
           if (item.onTap != null)
-            Icon(Icons.chevron_right_rounded, size: 20, color: item.color.withOpacity(0.5)),
+            const Icon(Icons.chevron_right_rounded,
+                size: 20, color: PinitColors.aubergineSoft),
         ],
       ),
     );
@@ -1649,9 +1658,9 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
             ? GestureDetector(onTap: item.onTap, child: child)
             : child,
         if (showDivider)
-          Padding(
-            padding: const EdgeInsets.only(left: 62),
-            child: Divider(height: 1, color: const Color(0xFFF3F4F6)),
+          const Padding(
+            padding: EdgeInsets.only(left: 70, right: 18),
+            child: Divider(height: 1, color: PinitColors.creamDeep),
           ),
       ],
     );
@@ -1678,39 +1687,38 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF59E0B).withOpacity(0.10),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.local_dining_rounded, size: 18, color: Color(0xFFF59E0B)),
-            ),
-            const SizedBox(width: 10),
-            const Text(
-              'Recommended Dishes',
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF111827),
-                letterSpacing: -0.3,
-              ),
-            ),
-          ],
+        Text(
+          'WORTH ORDERING',
+          style: GoogleFonts.dmSans(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: PinitColors.aubergineSoft,
+            letterSpacing: 0.12 * 11,
+          ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
+        const Text(
+          'On the menu',
+          style: TextStyle(
+            fontFamily: 'Rova',
+            fontSize: 28,
+            fontWeight: FontWeight.w100,
+            color: PinitColors.aubergine,
+            letterSpacing: 1.3,
+            height: 1.05,
+          ),
+        ),
+        const SizedBox(height: 16),
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: dishes.map((dish) {
             return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE5E7EB)),
+                color: PinitColors.creamSunk,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: PinitColors.creamDeep, width: 1.5),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -1719,10 +1727,10 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                   const SizedBox(width: 6),
                   Text(
                     dish,
-                    style: const TextStyle(
+                    style: GoogleFonts.dmSans(
                       fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFF374151),
+                      fontWeight: FontWeight.w600,
+                      color: PinitColors.aubergine,
                     ),
                   ),
                 ],
@@ -1749,34 +1757,51 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Text(
+          'WHAT PEOPLE SAY',
+          style: GoogleFonts.dmSans(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: PinitColors.aubergineSoft,
+            letterSpacing: 0.12 * 11,
+          ),
+        ),
+        const SizedBox(height: 8),
         const Text(
           'Reviews',
           style: TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF111827),
-            letterSpacing: -0.3,
+            fontFamily: 'Rova',
+            fontSize: 28,
+            fontWeight: FontWeight.w100,
+            color: PinitColors.aubergine,
+            letterSpacing: 1.3,
+            height: 1.05,
           ),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 16),
 
         if (_isLoadingReview)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 20),
             child: Center(
               child: SizedBox(
-                width: 24, height: 24,
-                child: CircularProgressIndicator(strokeWidth: 2.5),
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  valueColor:
+                      AlwaysStoppedAnimation<Color>(PinitColors.aubergine),
+                ),
               ),
             ),
           )
         else if (reviewText.isNotEmpty) ...[
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFF3F4F6)),
+              color: PinitColors.creamSunk,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: PinitColors.creamDeep, width: 1.5),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1788,45 +1813,49 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                         Icons.star_rounded,
                         size: 16,
                         color: (rating != null && i < rating)
-                            ? const Color(0xFFF59E0B)
-                            : const Color(0xFFE5E7EB),
+                            ? PinitColors.aubergine
+                            : PinitColors.creamDeep,
                       );
                     }),
                     const Spacer(),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF3F4F6),
-                        borderRadius: BorderRadius.circular(6),
+                        color: PinitColors.cream,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                            color: PinitColors.creamDeep, width: 1.5),
                       ),
                       child: Text(
-                        sourceLabel,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF9CA3AF),
+                        sourceLabel.toUpperCase(),
+                        style: GoogleFonts.dmSans(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: PinitColors.aubergineSoft,
+                          letterSpacing: 0.15 * 10,
                         ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 Text(
                   '"$reviewText"',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF374151),
-                    height: 1.6,
-                    fontStyle: FontStyle.italic,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 15,
+                    color: PinitColors.aubergine,
+                    height: 1.55,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
                 if (createdAt != null) ...[
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
                   Text(
                     _formatTimeAgo(createdAt),
-                    style: const TextStyle(
+                    style: GoogleFonts.dmSans(
                       fontSize: 12,
-                      color: Color(0xFF9CA3AF),
+                      color: PinitColors.mute,
                     ),
                   ),
                 ],
@@ -1836,7 +1865,10 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
         ] else
           Text(
             'No reviews yet — be the first!',
-            style: TextStyle(fontSize: 14, color: const Color(0xFF9CA3AF)),
+            style: GoogleFonts.dmSans(
+              fontSize: 14,
+              color: PinitColors.mute,
+            ),
           ),
 
         if (_isRestaurant()) ...[
@@ -1848,7 +1880,11 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
           const SizedBox(height: 10),
           Text(
             _reviewError!,
-            style: const TextStyle(color: Color(0xFFDC2626), fontSize: 13),
+            style: GoogleFonts.dmSans(
+              color: PinitColors.accent,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
       ],
@@ -1857,87 +1893,104 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
 
   Widget _buildReviewComposer() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF3F4F6)),
+        color: PinitColors.creamSunk,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: PinitColors.creamDeep, width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Leave a review',
-            style: TextStyle(
-              fontSize: 14,
+          Text(
+            'LEAVE A REVIEW',
+            style: GoogleFonts.dmSans(
+              fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: Color(0xFF374151),
+              color: PinitColors.aubergineSoft,
+              letterSpacing: 0.12 * 11,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Row(
             children: List.generate(5, (i) {
               final val = i + 1;
               return GestureDetector(
                 onTap: () => setState(() => _selectedRating = val),
                 child: Padding(
-                  padding: const EdgeInsets.only(right: 4),
+                  padding: const EdgeInsets.only(right: 6),
                   child: Icon(
                     Icons.star_rounded,
-                    size: 28,
+                    size: 30,
                     color: val <= _selectedRating
-                        ? const Color(0xFFF59E0B)
-                        : const Color(0xFFE5E7EB),
+                        ? PinitColors.aubergine
+                        : PinitColors.creamDeep,
                   ),
                 ),
               );
             }),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 14),
           TextField(
             controller: _reviewController,
             focusNode: _reviewFocusNode,
             minLines: 2,
             maxLines: 4,
-            style: const TextStyle(fontSize: 14),
+            style: GoogleFonts.dmSans(
+              fontSize: 14,
+              color: PinitColors.aubergine,
+            ),
             decoration: InputDecoration(
               hintText: 'What did you love?',
-              hintStyle: const TextStyle(color: Color(0xFFD1D5DB)),
+              hintStyle: GoogleFonts.dmSans(color: PinitColors.mute),
               filled: true,
-              fillColor: const Color(0xFFFAF9FB),
-              contentPadding: const EdgeInsets.all(14),
+              fillColor: PinitColors.cream,
+              contentPadding: const EdgeInsets.all(16),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFFF3F4F6)),
+                borderSide:
+                    const BorderSide(color: PinitColors.creamDeep, width: 1.5),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFFF3F4F6)),
+                borderSide:
+                    const BorderSide(color: PinitColors.creamDeep, width: 1.5),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: _accentColor.withOpacity(0.5)),
+                borderSide:
+                    const BorderSide(color: PinitColors.aubergine, width: 1.5),
               ),
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 14),
           SizedBox(
             width: double.infinity,
-            height: 44,
+            height: 50,
             child: ElevatedButton(
               onPressed: _isSubmittingReview ? null : _submitReview,
               style: ElevatedButton.styleFrom(
-                backgroundColor: _accentColor,
-                foregroundColor: Colors.white,
+                backgroundColor: PinitColors.aubergine,
+                foregroundColor: PinitColors.cream,
                 elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999)),
               ),
               child: _isSubmittingReview
                   ? const SizedBox(
-                      width: 18, height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: PinitColors.cream),
                     )
-                  : const Text('Post Review', style: TextStyle(fontWeight: FontWeight.w600)),
+                  : Text(
+                      'Post Review',
+                      style: GoogleFonts.dmSans(
+                        fontWeight: FontWeight.w600,
+                        color: PinitColors.cream,
+                        fontSize: 15,
+                      ),
+                    ),
             ),
           ),
         ],
@@ -1953,40 +2006,49 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Text(
+          'SIMILAR VIBES',
+          style: GoogleFonts.dmSans(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: PinitColors.aubergineSoft,
+            letterSpacing: 0.12 * 11,
+          ),
+        ),
+        const SizedBox(height: 8),
         Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: const Color(0xFF6366F1).withOpacity(0.10),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.explore_rounded, size: 18, color: Color(0xFF6366F1)),
-            ),
-            const SizedBox(width: 10),
             const Expanded(
               child: Text(
-                'Similar Vibes',
+                'You might also like',
                 style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF111827),
-                  letterSpacing: -0.3,
+                  fontFamily: 'Rova',
+                  fontSize: 28,
+                  fontWeight: FontWeight.w100,
+                  color: PinitColors.aubergine,
+                  letterSpacing: 1.3,
+                  height: 1.05,
                 ),
               ),
             ),
-            Text(
-              '${_similarPlaces.length} found',
-              style: const TextStyle(
-                fontSize: 13,
-                color: Color(0xFF9CA3AF),
+            const SizedBox(width: 12),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                '${_similarPlaces.length} found',
+                style: GoogleFonts.dmSans(
+                  fontSize: 13,
+                  color: PinitColors.mute,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 18),
         SizedBox(
-          height: 195,
+          height: 200,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             itemCount: _similarPlaces.length,
@@ -2003,7 +2065,6 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   Widget _buildSimilarPlaceCard(_SimilarPlace similar, int index) {
     final loc = similar.location;
     final simPercent = (similar.similarity * 100).round();
-    final cardColor = PinitMarkerPalette.forCuisine(loc.cuisine, loc.types);
     final imageUrl = loc.imageUrl?.trim();
     final hasImage = imageUrl != null && imageUrl.isNotEmpty;
 
@@ -2018,24 +2079,16 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
         _handleClose();
       },
       child: Container(
-        width: 158,
-        margin: EdgeInsets.only(right: index < _similarPlaces.length - 1 ? 12 : 0),
+        width: 162,
+        margin:
+            EdgeInsets.only(right: index < _similarPlaces.length - 1 ? 12 : 0),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
+          color: PinitColors.creamSunk,
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isWavy
-                ? const Color(0xFFE040FB).withOpacity(0.20)
-                : const Color(0xFFF3F4F6),
-            width: isWavy ? 1.5 : 1.0,
+            color: isWavy ? PinitColors.accent : PinitColors.creamDeep,
+            width: 1.5,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
-            ),
-          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2044,35 +2097,38 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
             Stack(
               children: [
                 ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(17)),
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(18)),
                   child: hasImage
                       ? CachedNetworkImage(
                           imageUrl: imageUrl,
-                          height: 90,
+                          height: 92,
                           width: double.infinity,
                           fit: BoxFit.cover,
-                          placeholder: (_, __) => _similarImagePlaceholder(cardColor),
-                          errorWidget: (_, __, ___) => _similarImagePlaceholder(cardColor),
+                          placeholder: (_, __) => _similarImagePlaceholder(),
+                          errorWidget: (_, __, ___) =>
+                              _similarImagePlaceholder(),
                         )
-                      : _similarImagePlaceholder(cardColor),
+                      : _similarImagePlaceholder(),
                 ),
                 // Similarity pill — top right
                 Positioned(
                   top: 8,
                   right: 8,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.55),
-                      borderRadius: BorderRadius.circular(10),
+                      color: PinitColors.aubergine,
+                      borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(
-                      '$simPercent% match',
-                      style: const TextStyle(
-                        fontSize: 10,
+                      '$simPercent% MATCH',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 9,
                         fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                        letterSpacing: 0.2,
+                        color: PinitColors.cream,
+                        letterSpacing: 0.15 * 9,
                       ),
                     ),
                   ),
@@ -2083,14 +2139,20 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                     top: 8,
                     left: 8,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 5),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFE040FB).withOpacity(0.85),
-                        borderRadius: BorderRadius.circular(8),
+                        color: PinitColors.accent,
+                        borderRadius: BorderRadius.circular(999),
                       ),
-                      child: const Text(
-                        '✨',
-                        style: TextStyle(fontSize: 10),
+                      child: Text(
+                        '✨ WAVY',
+                        style: GoogleFonts.dmSans(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          color: PinitColors.cream,
+                          letterSpacing: 0.15 * 9,
+                        ),
                       ),
                     ),
                   ),
@@ -2100,7 +2162,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
             // Info
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -2108,16 +2170,17 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                     Row(
                       children: [
                         if (loc.emoji != null && loc.emoji!.isNotEmpty) ...[
-                          Text(loc.emoji!, style: const TextStyle(fontSize: 14)),
+                          Text(loc.emoji!,
+                              style: const TextStyle(fontSize: 14)),
                           const SizedBox(width: 4),
                         ],
                         Expanded(
                           child: Text(
                             loc.name,
-                            style: const TextStyle(
+                            style: GoogleFonts.dmSans(
                               fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF1F2937),
+                              fontWeight: FontWeight.w700,
+                              color: PinitColors.aubergine,
                               height: 1.2,
                             ),
                             maxLines: 1,
@@ -2126,31 +2189,32 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                         ),
                       ],
                     ),
-                    const SizedBox(height: 5),
+                    const SizedBox(height: 6),
 
                     // Rating + cuisine row
                     Row(
                       children: [
                         if (loc.rating != null) ...[
-                          const Icon(Icons.star_rounded, size: 12, color: Color(0xFFF59E0B)),
-                          const SizedBox(width: 2),
+                          const Icon(Icons.star_rounded,
+                              size: 12, color: PinitColors.aubergine),
+                          const SizedBox(width: 3),
                           Text(
                             loc.rating!.toStringAsFixed(1),
-                            style: const TextStyle(
+                            style: GoogleFonts.dmSans(
                               fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF6B7280),
+                              fontWeight: FontWeight.w600,
+                              color: PinitColors.aubergineSoft,
                             ),
                           ),
-                          const SizedBox(width: 6),
+                          const SizedBox(width: 8),
                         ],
                         if (loc.cuisinePrimary != null)
                           Expanded(
                             child: Text(
                               loc.cuisinePrimary!,
-                              style: TextStyle(
+                              style: GoogleFonts.dmSans(
                                 fontSize: 11,
-                                color: cardColor,
+                                color: PinitColors.mute,
                                 fontWeight: FontWeight.w500,
                               ),
                               maxLines: 1,
@@ -2165,22 +2229,24 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                     // Shared vibes
                     if (similar.sharedVibes.isNotEmpty)
                       Wrap(
-                        spacing: 4,
-                        runSpacing: 4,
+                        spacing: 5,
+                        runSpacing: 5,
                         children: similar.sharedVibes.map((tag) {
-                          final color = _vibeColors[tag] ?? const Color(0xFF9CA3AF);
                           return Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: color.withOpacity(0.10),
-                              borderRadius: BorderRadius.circular(6),
+                              color: PinitColors.cream,
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                  color: PinitColors.creamDeep, width: 1),
                             ),
                             child: Text(
-                              _vibeDisplayName(tag),
-                              style: TextStyle(
+                              _vibeDisplayName(tag).toLowerCase(),
+                              style: GoogleFonts.dmSans(
                                 fontSize: 10,
-                                fontWeight: FontWeight.w500,
-                                color: color,
+                                fontWeight: FontWeight.w600,
+                                color: PinitColors.aubergineSoft,
                               ),
                             ),
                           );
@@ -2196,25 +2262,18 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     );
   }
 
-  Widget _similarImagePlaceholder(Color color) {
+  Widget _similarImagePlaceholder() {
     return Container(
-      height: 90,
+      height: 92,
       width: double.infinity,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            color.withOpacity(0.12),
-            color.withOpacity(0.04),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+      decoration: const BoxDecoration(
+        color: PinitColors.creamDeep,
       ),
-      child: Center(
+      child: const Center(
         child: Icon(
           Icons.restaurant_rounded,
           size: 28,
-          color: color.withOpacity(0.3),
+          color: PinitColors.aubergineSoft,
         ),
       ),
     );
@@ -2226,20 +2285,16 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     return GestureDetector(
       onTap: _handleClose,
       child: Container(
-        width: 38,
-        height: 38,
+        width: 42,
+        height: 42,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: PinitColors.cream,
           shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.08),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
-            ),
-          ],
+          border: Border.all(color: PinitColors.creamDeep, width: 1.5),
+          boxShadow: PinitColors.subtleShadow,
         ),
-        child: const Icon(Icons.close_rounded, size: 20, color: Color(0xFF6B7280)),
+        child: const Icon(Icons.close_rounded,
+            size: 20, color: PinitColors.aubergine),
       ),
     );
   }
@@ -2429,8 +2484,8 @@ class _AddToCollectionSheetState extends State<_AddToCollectionSheet> {
   Widget build(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
-        color: Color(0xFFFAF9F7),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        color: PinitColors.cream,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).padding.bottom + 16,
@@ -2442,37 +2497,49 @@ class _AddToCollectionSheetState extends State<_AddToCollectionSheet> {
           // Handle
           Center(
             child: Container(
-              margin: const EdgeInsets.only(top: 12, bottom: 20),
+              margin: const EdgeInsets.only(top: 12, bottom: 24),
               width: 36,
               height: 4,
               decoration: BoxDecoration(
-                color: const Color(0xFFD1D5DB),
-                borderRadius: BorderRadius.circular(2),
+                color: PinitColors.creamDeep,
+                borderRadius: BorderRadius.circular(999),
               ),
             ),
           ),
 
           // Title
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Text(
+                  'SAVE TO',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: PinitColors.aubergineSoft,
+                    letterSpacing: 0.12 * 11,
+                  ),
+                ),
+                const SizedBox(height: 8),
                 const Text(
                   'Add to Collection',
                   style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF111827),
-                    letterSpacing: -0.4,
+                    fontFamily: 'Rova',
+                    fontSize: 28,
+                    fontWeight: FontWeight.w100,
+                    color: PinitColors.aubergine,
+                    letterSpacing: 1.3,
+                    height: 1.05,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Text(
                   widget.locationName,
-                  style: const TextStyle(
+                  style: GoogleFonts.dmSans(
                     fontSize: 13,
-                    color: Color(0xFF9CA3AF),
+                    color: PinitColors.mute,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -2481,7 +2548,7 @@ class _AddToCollectionSheetState extends State<_AddToCollectionSheet> {
             ),
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
 
           // Collections list
           if (_loading)
@@ -2490,38 +2557,43 @@ class _AddToCollectionSheetState extends State<_AddToCollectionSheet> {
               child: Center(
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: Color(0xFFE85D4C),
+                  valueColor:
+                      AlwaysStoppedAnimation<Color>(PinitColors.aubergine),
                 ),
               ),
             )
           else if (_collections.isEmpty)
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
               child: Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF3F1EE),
-                  borderRadius: BorderRadius.circular(16),
+                  color: PinitColors.creamSunk,
+                  borderRadius: BorderRadius.circular(20),
+                  border:
+                      Border.all(color: PinitColors.creamDeep, width: 1.5),
                 ),
-                child: const Column(
+                child: Column(
                   children: [
-                    Icon(Icons.collections_bookmark_rounded,
-                        size: 36, color: Color(0xFFA3A3A3)),
-                    SizedBox(height: 12),
-                    Text(
+                    const Icon(Icons.collections_bookmark_rounded,
+                        size: 36, color: PinitColors.aubergineSoft),
+                    const SizedBox(height: 14),
+                    const Text(
                       'No collections yet',
                       style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF6B6B6B),
+                        fontFamily: 'Rova',
+                        fontSize: 22,
+                        fontWeight: FontWeight.w100,
+                        color: PinitColors.aubergine,
+                        letterSpacing: 1.2,
                       ),
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     Text(
                       'Create a collection from your profile',
-                      style: TextStyle(
+                      style: GoogleFonts.dmSans(
                         fontSize: 13,
-                        color: Color(0xFFA3A3A3),
+                        color: PinitColors.mute,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -2536,11 +2608,11 @@ class _AddToCollectionSheetState extends State<_AddToCollectionSheet> {
               ),
               child: ListView.separated(
                 shrinkWrap: true,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(horizontal: 24),
                 itemCount: _collections.length,
                 separatorBuilder: (_, __) => const Divider(
                   height: 1,
-                  color: Color(0xFFF3F1EE),
+                  color: PinitColors.creamDeep,
                 ),
                 itemBuilder: (context, i) {
                   final c = _collections[i];
@@ -2548,16 +2620,18 @@ class _AddToCollectionSheetState extends State<_AddToCollectionSheet> {
                   return GestureDetector(
                     onTap: isAdding ? null : () => _addToCollection(c.id),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
                       child: Row(
                         children: [
                           // Icon/emoji
                           Container(
-                            width: 44,
-                            height: 44,
+                            width: 48,
+                            height: 48,
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF3F1EE),
+                              color: PinitColors.creamSunk,
                               borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                  color: PinitColors.creamDeep, width: 1.5),
                             ),
                             child: Center(
                               child: c.emoji != null && c.emoji!.isNotEmpty
@@ -2566,7 +2640,7 @@ class _AddToCollectionSheetState extends State<_AddToCollectionSheet> {
                                   : const Icon(
                                       Icons.collections_bookmark_rounded,
                                       size: 20,
-                                      color: Color(0xFFA3A3A3),
+                                      color: PinitColors.aubergineSoft,
                                     ),
                             ),
                           ),
@@ -2577,20 +2651,20 @@ class _AddToCollectionSheetState extends State<_AddToCollectionSheet> {
                               children: [
                                 Text(
                                   c.name,
-                                  style: const TextStyle(
+                                  style: GoogleFonts.dmSans(
                                     fontSize: 15,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF111827),
+                                    fontWeight: FontWeight.w700,
+                                    color: PinitColors.aubergine,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                                const SizedBox(height: 2),
+                                const SizedBox(height: 3),
                                 Text(
                                   '${c.placeCount} ${c.placeCount == 1 ? 'place' : 'places'}',
-                                  style: const TextStyle(
+                                  style: GoogleFonts.dmSans(
                                     fontSize: 12,
-                                    color: Color(0xFF9CA3AF),
+                                    color: PinitColors.mute,
                                   ),
                                 ),
                               ],
@@ -2602,14 +2676,15 @@ class _AddToCollectionSheetState extends State<_AddToCollectionSheet> {
                               height: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: Color(0xFFE85D4C),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                    PinitColors.aubergine),
                               ),
                             )
                           else
                             const Icon(
                               Icons.add_circle_outline_rounded,
                               size: 22,
-                              color: Color(0xFFD1D5DB),
+                              color: PinitColors.aubergineSoft,
                             ),
                         ],
                       ),

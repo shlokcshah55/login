@@ -2,11 +2,12 @@ import 'dart:math' as math;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_feather_icons/flutter_feather_icons.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/pages/home/search/header_search_types.dart';
+import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
 import 'package:login/themes/app_typography.dart';
-import 'package:login/themes/pinit_colors.dart';
-import 'package:login/themes/pinit_theme.dart';
 
 class HomeHeaderSearchShell extends StatelessWidget {
   final HeaderSearchState state;
@@ -116,6 +117,8 @@ class _CollapsedHeaderSearch extends StatelessWidget {
   }
 }
 
+/// Pinit-styled collapsed search entry — cream surface, chunky aubergine
+/// border, hard offset shadow. Matches the carousel card aesthetic.
 class _CollapsedSearchEntry extends StatelessWidget {
   final VoidCallback onTap;
 
@@ -125,48 +128,70 @@ class _CollapsedSearchEntry extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<PinitColors>()!;
-
     return GestureDetector(
       key: const Key('home_header_search_entry'),
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: PinitMotion.standard,
-        curve: PinitMotion.curve,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         decoration: BoxDecoration(
-          color: colors.searchSurface,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
+          color: pinit.PinitColors.cream,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: pinit.PinitColors.aubergine,
+            width: 1.5,
+          ),
+          boxShadow: const [
             BoxShadow(
-              color: colors.glowAccent.withValues(alpha: 0.1),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
+              color: pinit.PinitColors.aubergine,
+              blurRadius: 0,
+              offset: Offset(3, 3),
             ),
           ],
         ),
         child: Row(
           children: [
-            Icon(
-              CupertinoIcons.search,
-              color: colors.textSecondary,
-              size: 18,
+            const Icon(
+              FeatherIcons.search,
+              color: pinit.PinitColors.aubergine,
+              size: 16,
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             Expanded(
               child: Text(
-                'Search places, prompts, or people',
-                style: AppTypography.sans(
-                  fontSize: 14,
-                  color: colors.textMuted,
-                  fontWeight: FontWeight.w500,
+                'SEARCH PLACES, PROMPTS, OR PEOPLE',
+                style: GoogleFonts.dmSans(
+                  fontSize: 11,
+                  color: pinit.PinitColors.aubergineSoft,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.0,
+                  height: 1.0,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-            Icon(
-              CupertinoIcons.arrow_up_left_arrow_down_right,
-              color: colors.textMuted,
-              size: 16,
+            const SizedBox(width: 10),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              decoration: BoxDecoration(
+                color: pinit.PinitColors.creamSunk,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: pinit.PinitColors.creamDeep,
+                  width: 1,
+                ),
+              ),
+              child: Text(
+                '⌘K',
+                style: GoogleFonts.dmSans(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w800,
+                  color: pinit.PinitColors.aubergineSoft,
+                  letterSpacing: 0.6,
+                  height: 1.0,
+                ),
+              ),
             ),
           ],
         ),
@@ -175,6 +200,8 @@ class _CollapsedSearchEntry extends StatelessWidget {
   }
 }
 
+/// Pinit accent button — the single high-energy CTA in the header.
+/// Accent fill, cream sparkle, hard offset accent shadow.
 class _MagicSearchButton extends StatelessWidget {
   final VoidCallback onTap;
 
@@ -184,32 +211,30 @@ class _MagicSearchButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<PinitColors>()!;
-
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 52,
-        height: 52,
+        width: 54,
+        height: 54,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          gradient: LinearGradient(
-            colors: [
-              colors.primaryPurple,
-              colors.softPurple,
-            ],
+          color: pinit.PinitColors.accent,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: pinit.PinitColors.aubergine,
+            width: 1.5,
           ),
-          boxShadow: [
+          boxShadow: const [
             BoxShadow(
-              color: colors.primaryPurple.withValues(alpha: 0.24),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
+              color: pinit.PinitColors.aubergine,
+              blurRadius: 0,
+              offset: Offset(3, 3),
             ),
           ],
         ),
         child: const Icon(
-          Icons.auto_awesome_rounded,
-          color: Colors.white,
+          FeatherIcons.zap,
+          color: pinit.PinitColors.cream,
+          size: 22,
         ),
       ),
     );
