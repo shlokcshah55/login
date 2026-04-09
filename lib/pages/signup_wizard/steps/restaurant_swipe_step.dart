@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../models/signup_wizard_state.dart';
 import '../../../models/locations.dart';
 import '../../../widgets/loading_widget.dart';
 import '../../../widgets/swipe_card_stack.dart';
+import '../../profile/widgets/pinit_colors.dart';
 
 class RestaurantSwipeStep extends StatefulWidget {
   final VoidCallback onBack;
@@ -35,7 +37,7 @@ class _RestaurantSwipeStepState extends State<RestaurantSwipeStep> {
   Widget build(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
-        color: Colors.white,
+        color: PinitColors.cream,
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(30),
           topRight: Radius.circular(30),
@@ -52,18 +54,20 @@ class _RestaurantSwipeStepState extends State<RestaurantSwipeStep> {
                 const Text(
                   'I want to show you restaurants that are my vibe',
                   style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                    fontFamily: 'Rova',
+                    fontSize: 28,
+                    fontWeight: FontWeight.w100,
+                    color: PinitColors.aubergine,
+                    letterSpacing: 1.5,
                   ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Swipe right if you\'d go, left if not',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey.shade600,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 15,
+                    color: PinitColors.aubergineSoft,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -81,14 +85,14 @@ class _RestaurantSwipeStepState extends State<RestaurantSwipeStep> {
                         const Icon(
                           Icons.restaurant_menu,
                           size: 64,
-                          color: Colors.grey,
+                          color: PinitColors.mute,
                         ),
                         const SizedBox(height: 16),
                         Text(
                           'No restaurants available',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.grey.shade600,
+                          style: GoogleFonts.dmSans(
+                            fontSize: 16,
+                            color: PinitColors.mute,
                           ),
                         ),
                       ],
@@ -109,10 +113,10 @@ class _RestaurantSwipeStepState extends State<RestaurantSwipeStep> {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: PinitColors.cream,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: PinitColors.aubergine.withValues(alpha: 0.06),
                   blurRadius: 10,
                   offset: const Offset(0, -2),
                 ),
@@ -130,7 +134,7 @@ class _RestaurantSwipeStepState extends State<RestaurantSwipeStep> {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: Colors.red,
+                            color: PinitColors.aubergine.withValues(alpha: 0.3),
                             width: 2,
                           ),
                         ),
@@ -138,7 +142,7 @@ class _RestaurantSwipeStepState extends State<RestaurantSwipeStep> {
                           onPressed: () => _swipeKey.currentState?.swipeLeft(),
                           icon: const Icon(
                             Icons.close,
-                            color: Colors.red,
+                            color: PinitColors.aubergine,
                             size: 32,
                           ),
                           iconSize: 48,
@@ -150,7 +154,7 @@ class _RestaurantSwipeStepState extends State<RestaurantSwipeStep> {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: Colors.green,
+                            color: PinitColors.accent,
                             width: 2,
                           ),
                         ),
@@ -158,7 +162,7 @@ class _RestaurantSwipeStepState extends State<RestaurantSwipeStep> {
                           onPressed: () => _swipeKey.currentState?.swipeRight(),
                           icon: const Icon(
                             Icons.favorite,
-                            color: Colors.green,
+                            color: PinitColors.accent,
                             size: 32,
                           ),
                           iconSize: 48,
@@ -178,17 +182,20 @@ class _RestaurantSwipeStepState extends State<RestaurantSwipeStep> {
                         onPressed: widget.isCompleting ? null : widget.onBack,
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
-                          side: const BorderSide(color: Color(0xFF6A1B9A)),
+                          side: const BorderSide(
+                            color: PinitColors.aubergine,
+                            width: 1.5,
+                          ),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(20),
                           ),
                         ),
-                        child: const Text(
+                        child: Text(
                           'Back',
-                          style: TextStyle(
+                          style: GoogleFonts.dmSans(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFF6A1B9A),
+                            color: PinitColors.aubergine,
                           ),
                         ),
                       ),
@@ -201,20 +208,21 @@ class _RestaurantSwipeStepState extends State<RestaurantSwipeStep> {
                         onPressed: widget.isCompleting ? null : widget.onComplete,
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
-                          backgroundColor: const Color(0xFF6A1B9A),
-                          foregroundColor: Colors.white,
-                          elevation: 4,
+                          backgroundColor: PinitColors.aubergine,
+                          foregroundColor: PinitColors.cream,
+                          elevation: 0,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(20),
                           ),
                         ),
                         child: widget.isCompleting
                             ? const LoadingWidget(width: 24, height: 24)
-                            : const Text(
+                            : Text(
                                 'Complete Setup',
-                                style: TextStyle(
+                                style: GoogleFonts.dmSans(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.5,
                                 ),
                               ),
                       ),

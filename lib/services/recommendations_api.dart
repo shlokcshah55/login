@@ -7,7 +7,7 @@ import 'package:login/models/proximal_models.dart';
 
 class RecommendationsApi {
   static const String _baseUrl =
-      'https://pinit-recommendations-api-1070859807237.europe-west2.run.app';
+      'https://pinit-recommendations-api-jnj4ne6sqq-nw.a.run.app';
   static const String _path = '/recommendations/proximal';
 
   final http.Client _client;

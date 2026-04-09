@@ -114,6 +114,7 @@ flutter:
     - lib/assets/AppLogo.png
     - lib/assets/splashscren.json
     - lib/assets/messsaging_background.png
+    - lib/assets/flipped-background.png
     - lib/assets/vibe/brunchy.png
     - lib/assets/vibe/cozy.png
     - lib/assets/vibe/localSpot.png
@@ -129,6 +130,7 @@ flutter:
     - lib/assets/pin_emojis/sushiIcon.jpg
     - lib/assets/pin_emojis/tacoIcon.jpg
     - lib/assets/pin_emojis/thaiIcon.jpg
+    - lib/assets/illustrations/login-one.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware

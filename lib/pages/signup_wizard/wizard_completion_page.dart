@@ -6,6 +6,7 @@ import '../../supabase/service.dart';
 import '../../supabase/supabase_client.dart';
 import '../../supabase/constants.dart';
 import '../auth_handler.dart';
+import '../profile/widgets/pinit_colors.dart';
 import 'steps/dietary_step.dart';
 import 'steps/vibe_step.dart';
 import 'steps/restaurant_swipe_step.dart';
@@ -43,12 +44,6 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
   List<LocationModel>? _restaurants;
   bool _isLoadingRestaurants = false;
   bool _isCompletingWizard = false;
-
-  final List<String> _stepTitles = [
-    'Dietary Preferences',
-    'Your Vibe',
-    'Find Your Restaurants',
-  ];
 
   @override
   void dispose() {
@@ -191,30 +186,30 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF42143d),
+      backgroundColor: PinitColors.cream,
       body: SafeArea(
         child: Column(
           children: [
             // Progress Indicator
             Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
               child: Column(
                 children: [
                   Row(
                     children: [
                       // Close button
                       IconButton(
-                        icon: const Icon(Icons.close, color: Colors.white),
+                        icon: const Icon(Icons.close, color: PinitColors.aubergine),
                         onPressed: () => Navigator.of(context).pop(),
                       ),
                       const Spacer(),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   Container(
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.3),
+                      color: PinitColors.accent.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(2),
                     ),
                     child: LayoutBuilder(
@@ -224,7 +219,7 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
                           curve: Curves.easeOutQuint,
                           width: constraints.maxWidth * _calculateProgress(),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: PinitColors.accent,
                             borderRadius: BorderRadius.circular(2),
                           ),
                         );
@@ -232,21 +227,6 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Text(
-                    _stepTitles[_currentStep],
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    'Step ${_currentStep + 1} of 3',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.8),
-                      fontSize: 14,
-                    ),
-                  ),
                 ],
               ),
             ),

@@ -23,14 +23,11 @@ class AuthHelper {
   /// Resend the signup confirmation OTP to the given email
   Future<void> resendSignUpOtp(String email) async {
     try {
+      print('📤 [RESEND_OTP] Calling Supabase resend() with email: $email, type: signup');
       await _client.auth.resend(type: OtpType.signup, email: email);
-      if (kDebugMode) {
-        print('Signup OTP resent to $email');
-      }
+      print('✅ [RESEND_OTP] Successfully sent OTP to $email');
     } catch (e) {
-      if (kDebugMode) {
-        print('Error resending signup OTP: $e');
-      }
+      print('❌ [RESEND_OTP] Error resending signup OTP to $email: $e');
       rethrow;
     }
   }
@@ -39,19 +36,16 @@ class AuthHelper {
   /// Returns true if verification succeeds (user is now confirmed and signed in)
   Future<bool> verifyEmailOtp(String email, String token) async {
     try {
+      print('🔐 [VERIFY_OTP] Verifying OTP for email: $email, token: $token');
       final response = await _client.auth.verifyOTP(
         email: email,
         token: token,
         type: OtpType.signup,
       );
-      if (kDebugMode) {
-        print('Signup OTP verified for $email');
-      }
+      print('✅ [VERIFY_OTP] OTP verified successfully. User: ${response.user?.id}');
       return response.user != null;
     } catch (e) {
-      if (kDebugMode) {
-        print('Error verifying signup OTP: $e');
-      }
+      print('❌ [VERIFY_OTP] Error verifying signup OTP for $email: $e');
       return false;
     }
   }
@@ -64,17 +58,32 @@ class AuthHelper {
     String? username
   }) async {
     try {
+      print('📝 [SIGNUP] Starting signup for email: $email');
+
       final response = await _client.auth.signUp(
         email: email,
         password: password,
         data: name != null ? {'name': name} : null,
       );
 
+      print('✅ [SIGNUP] Signup response received. User: ${response.user?.id}');
+
       if (response.user == null) {
         throw Exception('Failed to sign up. User is null.');
       }
 
       final user = response.user!;
+      print('✅ [SIGNUP] User created successfully: ${user.id}');
+
+      // Send OTP for email confirmation
+      print('📤 [OTP] Attempting to send OTP to $email...');
+      try {
+        await resendSignUpOtp(email);
+        print('✅ [OTP] OTP sent successfully to $email');
+      } catch (e) {
+        print('❌ [OTP] Failed to send OTP: $e');
+        // Don't throw - account was created, just warn about OTP
+      }
 
       await _client.rpc('create_user_profile', params: {
         'p_supabase_id': user.id,

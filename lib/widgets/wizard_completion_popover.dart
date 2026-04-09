@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:login/themes/app_colors.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:login/animations/common_animations.dart';
+import 'package:login/pages/profile/widgets/pinit_colors.dart';
 
 /// Bold, energetic popover that prompts users to complete their profile wizard
 class WizardCompletionPopover extends StatefulWidget {
@@ -60,47 +61,49 @@ class _WizardCompletionPopoverState extends State<WizardCompletionPopover>
           width: size.width * 0.85,
           child: Container(
             decoration: BoxDecoration(
-              image: const DecorationImage(
-                image: AssetImage('lib/assets/background.jpg'),
-                fit: BoxFit.cover,
-              ),
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
-                  blurRadius: 24,
-                  offset: const Offset(0, 12),
+              color: PinitColors.aubergine,
+              borderRadius: BorderRadius.circular(16),
+              border: Border(
+                right: BorderSide(
+                  color: PinitColors.black,
+                  width: 7,
                 ),
-              ],
+                bottom: BorderSide(
+                  color: PinitColors.black,
+                  width: 7,
+                ),
+              ),
+              boxShadow: PinitColors.cardShadow,
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(16),
               child: Padding(
                 padding: const EdgeInsets.all(24.0),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                   // Typing title animation
-                  const TypingText(
+                  TypingText(
                     text: 'Give us some more...',
-                    totalDuration: Duration(milliseconds: 800),
+                    totalDuration: const Duration(milliseconds: 800),
                     style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                      letterSpacing: 0.2,
-                      decoration: TextDecoration.none,
-                    ),
+                    fontFamily: 'Rova',
+                    fontSize: 28,
+                    fontWeight: FontWeight.w100,
+                    color: PinitColors.cream,
+                    letterSpacing: 1.7,
+                    height: 1.05,
                   ),
-                  const SizedBox(height: 16),
+                  ),
+                  const SizedBox(height: 20),
 
                   // Description text
                   Text(
-                    'We do better with more information! It takes less time that 3 scrolls on Tiktok 😉',
+                    'We do better with more information! ',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: GoogleFonts.dmSans(
                       fontSize: 16,
-                      color: Colors.white.withOpacity(0.9),
+                      color: PinitColors.cream,
                       height: 1.5,
                       decoration: TextDecoration.none,
                     ),
@@ -116,8 +119,8 @@ class _WizardCompletionPopoverState extends State<WizardCompletionPopover>
                     onPressed: widget.onDismiss,
                     child: Text(
                       'Later',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.7),
+                      style: GoogleFonts.dmSans(
+                        color: PinitColors.cream.withValues(alpha: 0.6),
                         fontSize: 16,
                         decoration: TextDecoration.none,
                       ),
@@ -139,16 +142,26 @@ class _WizardCompletionPopoverState extends State<WizardCompletionPopover>
       animation: _pulseController,
       builder: (context, child) {
         final scale = 1.0 + (_pulseController.value * 0.05);
-        final glowOpacity = 0.3 * _pulseController.value;
+        final glowOpacity = 0.2 * _pulseController.value;
 
         return Transform.scale(
           scale: scale,
           child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
+              border: Border(
+                right: BorderSide(
+                  color: PinitColors.black,
+                  width: 7,
+                ),
+                bottom: BorderSide(
+                  color: PinitColors.black,
+                  width: 7,
+                ),
+              ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.white.withOpacity(glowOpacity),
+                  color: PinitColors.cream.withValues(alpha: glowOpacity),
                   blurRadius: 16,
                   spreadRadius: 4,
                 ),
@@ -159,20 +172,21 @@ class _WizardCompletionPopoverState extends State<WizardCompletionPopover>
               child: ElevatedButton(
                 onPressed: widget.onComplete,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: AppColors.primary,
-                  padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 40),
+                  backgroundColor: PinitColors.cream,
+                  foregroundColor: PinitColors.aubergine,
+                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 40),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                  elevation: 8,
+                  elevation: 0,
+                  shadowColor: Colors.transparent,
                 ),
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    const Text(
+                    Text(
                       'Complete Profile',
-                      style: TextStyle(
+                      style: GoogleFonts.dmSans(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 0.5,
@@ -187,7 +201,7 @@ class _WizardCompletionPopoverState extends State<WizardCompletionPopover>
                           return CustomPaint(
                             painter: _ButtonShimmerPainter(
                               shimmerProgress: _shimmerController.value,
-                              color: Colors.white.withOpacity(0.4),
+                              color: Colors.white.withValues(alpha: 0.15),
                             ),
                           );
                         },
@@ -221,9 +235,9 @@ class _ButtonShimmerPainter extends CustomPainter {
         begin: Alignment(-1 + shimmerProgress * 3, 0),
         end: Alignment(-0.5 + shimmerProgress * 3, 0),
         colors: [
-          color.withOpacity(0.0),
+          color.withValues(alpha: 0.0),
           color,
-          color.withOpacity(0.0),
+          color.withValues(alpha: 0.0),
         ],
       ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
 

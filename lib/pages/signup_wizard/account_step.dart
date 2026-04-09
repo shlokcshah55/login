@@ -2,6 +2,8 @@ import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import '../../animations/animation_builders.dart';
@@ -12,6 +14,7 @@ import '../../supabase/service.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/profile/profile_photo_selector.dart';
 import '../auth_handler.dart';
+import '../profile/widgets/pinit_colors.dart';
 
 class AccountStep extends StatefulWidget {
   final VoidCallback onNext;
@@ -218,11 +221,15 @@ class _AccountStepState extends State<AccountStep>
   }
 
   Future<void> _advanceToNextSubStep() async {
+    print('⏭️ [ADVANCE] Moving from step $_currentSubStep to ${_currentSubStep + 1}');
+
     // Reverse animation
     await _transitionController.reverse();
 
     // Move to next sub-step
     setState(() => _currentSubStep++);
+    print('⏭️ [ADVANCE] Now at step $_currentSubStep');
+
     await _pageController.animateToPage(
       _currentSubStep,
       duration: const Duration(milliseconds: 300),
@@ -233,6 +240,7 @@ class _AccountStepState extends State<AccountStep>
     await _transitionController.forward();
 
     // Focus the appropriate field for the newly shown sub-step
+    print('⏭️ [ADVANCE] Calling _focusCurrentField for step $_currentSubStep');
     _focusCurrentField();
 
     // Notify parent of progress
@@ -241,6 +249,7 @@ class _AccountStepState extends State<AccountStep>
 
   Future<void> _createAccountAndAdvance() async {
     if (!_validatePassword()) {
+      print('❌ [CREATE_ACCOUNT] Password validation failed');
       return;
     }
 
@@ -248,6 +257,7 @@ class _AccountStepState extends State<AccountStep>
     errorNotifier.value = null;
 
     try {
+      print('🚀 [CREATE_ACCOUNT] Starting account creation...');
       final supabaseProvider =
           Provider.of<SupabaseService>(context, listen: false);
       final wizardState =
@@ -255,12 +265,15 @@ class _AccountStepState extends State<AccountStep>
 
       // Create Supabase account — with "Confirm email" enabled in Supabase,
       // this sends a 6-digit OTP to the user's email automatically
+      print('📝 [CREATE_ACCOUNT] Calling signUp with email: ${emailController.text}');
       String userID = await supabaseProvider.signUp(
         emailController.text,
         passwordController.text,
         name: nameController.text,
         username: usernameController.text,
       );
+
+      print('✅ [CREATE_ACCOUNT] Account created successfully. UserID: $userID');
 
       if (userID.isEmpty) {
         throw Exception('Failed to create account');
@@ -269,9 +282,11 @@ class _AccountStepState extends State<AccountStep>
       wizardState.setUserId(userID);
       wizardState.setAccountInfo(nameController.text, emailController.text);
 
+      print('➡️ [CREATE_ACCOUNT] Advancing to OTP verification step...');
       // Advance to OTP verification step
       _advanceToNextSubStep();
     } catch (e) {
+      print('❌ [CREATE_ACCOUNT] Error: ${e.toString()}');
       errorNotifier.value = 'Sign up failed: ${e.toString()}';
     } finally {
       if (mounted) {
@@ -283,11 +298,15 @@ class _AccountStepState extends State<AccountStep>
   /// Verify the OTP code and complete account setup
   Future<void> _verifyOtpAndComplete() async {
     final code = otpController.text.trim();
+    print('🔐 [VERIFY] OTP input: "$code"');
+
     if (code.isEmpty) {
+      print('❌ [VERIFY] Code is empty');
       errorNotifier.value = 'Please enter the verification code';
       return;
     }
     if (code.length != 6) {
+      print('❌ [VERIFY] Code length is ${code.length}, expected 6');
       errorNotifier.value = 'Code must be 6 digits';
       return;
     }
@@ -296,37 +315,49 @@ class _AccountStepState extends State<AccountStep>
     errorNotifier.value = null;
 
     try {
+      print('🚀 [VERIFY] Starting OTP verification...');
       final supabaseProvider =
           Provider.of<SupabaseService>(context, listen: false);
       final wizardState =
           Provider.of<SignupWizardState>(context, listen: false);
 
       // Verify the signup confirmation OTP
+      print('📧 [VERIFY] Verifying with email: ${emailController.text.trim()}, code: $code');
       final verified = await supabaseProvider.users.verifyEmailOtp(
         emailController.text.trim(),
         code,
       );
 
+      print('✅ [VERIFY] Verification result: $verified');
+
       if (!verified) {
+        print('❌ [VERIFY] OTP verification failed');
         errorNotifier.value = 'Invalid code. Please try again.';
         return;
       }
 
+      print('✅ [VERIFY] Email verified successfully');
+
       // Email verified — now initialize vibe tags
       if (wizardState.userId != null) {
+        print('🏷️ [VERIFY] Initializing vibe tags for user: ${wizardState.userId}');
         await supabaseProvider.tags.initializeVibeTagsForUser(wizardState.userId!);
       }
 
       // Spinning for user to be fully registered
+      print('⏳ [VERIFY] Waiting for user to be fully registered...');
       int retryCount = 0;
       while (supabaseProvider.users.currentUser == null && retryCount < 10) {
         await Future.delayed(const Duration(milliseconds: 200));
         retryCount++;
       }
+      print('✅ [VERIFY] User registration complete (retries: $retryCount)');
 
       // Advance to profile picture step
+      print('➡️ [VERIFY] Advancing to profile picture step...');
       await _addProfilePic();
     } catch (e) {
+      print('❌ [VERIFY] Error: ${e.toString()}');
       errorNotifier.value = 'Verification failed: ${e.toString()}';
     } finally {
       if (mounted) {
@@ -470,15 +501,19 @@ class _AccountStepState extends State<AccountStep>
     return Container(
       height: height,
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: PinitColors.creamSunk,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+        border: Border(
+          right: BorderSide(
+            color: PinitColors.aubergine,
+            width: 4,
           ),
-        ],
+          bottom: BorderSide(
+            color: PinitColors.aubergine,
+            width: 4,
+          ),
+        ),
+        boxShadow: PinitColors.cardShadow,
       ),
       child: TextField(
         controller: controller,
@@ -486,11 +521,12 @@ class _AccountStepState extends State<AccountStep>
         keyboardType: keyboardType,
         focusNode: focusNode,
         autofocus: false,
-        style: const TextStyle(fontSize: 16, color: Colors.black87),
+        textInputAction: TextInputAction.next,
+        style: GoogleFonts.dmSans(fontSize: 15, color: PinitColors.aubergine),
         decoration: InputDecoration(
           hintText: hintText,
-          hintStyle: TextStyle(color: Colors.grey.shade500),
-          prefixIcon: Icon(icon, color: Colors.grey.shade700),
+          hintStyle: TextStyle(color: PinitColors.aubergineSoft.withValues(alpha: 0.6)),
+          prefixIcon: Icon(icon, color: PinitColors.aubergineSoft.withValues(alpha: 0.6)),
           suffixIcon: suffixIcon,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
@@ -501,7 +537,7 @@ class _AccountStepState extends State<AccountStep>
             vertical: height != null ? 12 : 18,
           ),
           filled: true,
-          fillColor: Colors.grey.shade100,
+          fillColor: PinitColors.creamSunk,
         ),
       ),
     );
@@ -515,37 +551,43 @@ class _AccountStepState extends State<AccountStep>
 
         return AnimatedContainer(
           duration: const Duration(milliseconds: 300),
-          // reduce vertical spacing so banner is less tall
-          margin: const EdgeInsets.only(bottom: 8),
-          // smaller padding to reduce height
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: Colors.red.shade50,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.red.shade200),
+            color: PinitColors.creamSunk,
+            borderRadius: BorderRadius.circular(16),
+            border: Border(
+              right: BorderSide(
+                color: PinitColors.aubergine,
+                width: 4,
+              ),
+              bottom: BorderSide(
+                color: PinitColors.aubergine,
+                width: 4,
+              ),
+            ),
+            boxShadow: PinitColors.cardShadow,
           ),
-          constraints: const BoxConstraints(minHeight: 36, maxHeight: 52),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.error_outline, color: Colors.red.shade700, size: 16),
-              const SizedBox(width: 8),
+              Icon(Icons.info_outline, color: PinitColors.aubergine, size: 18),
+              const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   error,
-                  style: TextStyle(
-                    color: Colors.red.shade700,
-                    fontSize: 13,
+                  style: GoogleFonts.dmSans(
+                    color: PinitColors.aubergine,
+                    fontSize: 14,
                   ),
-                  maxLines: 1,
+                  maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              IconButton(
-                icon: Icon(Icons.close, size: 18, color: Colors.red.shade700),
-                onPressed: () => errorNotifier.value = null,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 24, minHeight: 20),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => errorNotifier.value = null,
+                child: Icon(Icons.close, size: 18, color: PinitColors.aubergine),
               ),
             ],
           ),
@@ -559,22 +601,44 @@ class _AccountStepState extends State<AccountStep>
     if (!mounted) return;
     switch (_currentSubStep) {
       case 0:
+        print('📍 [FOCUS] Reached Name step');
         FocusScope.of(context).requestFocus(nameFocusNode);
         break;
       case 1:
+        print('📍 [FOCUS] Reached Username step');
         FocusScope.of(context).requestFocus(usernameFocusNode);
         break;
       case 2:
+        print('📍 [FOCUS] Reached Email step');
         FocusScope.of(context).requestFocus(emailFocusNode);
         break;
       case 3:
+        print('📍 [FOCUS] Reached Password step');
         FocusScope.of(context).requestFocus(passwordFocusNode);
         break;
       case 4:
+        print('📍 [FOCUS] Reached OTP step - sending OTP now!');
         FocusScope.of(context).requestFocus(otpFocusNode);
+        // Send OTP when we reach the OTP verification step
+        _sendOtpOnReachingStep();
         break;
       default:
+        print('📍 [FOCUS] Reached default step');
         FocusScope.of(context).unfocus();
+    }
+  }
+
+  // Send OTP when reaching the OTP verification step
+  Future<void> _sendOtpOnReachingStep() async {
+    print('🚀 [SEND_OTP] Attempting to send OTP to ${emailController.text}');
+    try {
+      final supabaseProvider =
+          Provider.of<SupabaseService>(context, listen: false);
+      await supabaseProvider.users.resendSignUpOtp(emailController.text.trim());
+      print('✅ [SEND_OTP] OTP sent successfully!');
+    } catch (e) {
+      print('❌ [SEND_OTP] Failed to send OTP: $e');
+      // Don't show error since they can manually resend
     }
   }
 
@@ -584,7 +648,7 @@ class _AccountStepState extends State<AccountStep>
       canPop: true,
       child: Container(
         decoration: const BoxDecoration(
-          color: Colors.white,
+          color: PinitColors.cream,
           borderRadius: BorderRadius.only(
             topLeft: Radius.circular(30),
             topRight: Radius.circular(30),
@@ -615,7 +679,7 @@ class _AccountStepState extends State<AccountStep>
   Widget _buildNameSubStep() {
     return _buildAnimatedSubStep(
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
           // Top text with stagger
           SlideTransition(
@@ -624,22 +688,26 @@ class _AccountStepState extends State<AccountStep>
               opacity: AnimationBuilders.createFadeAnimation(_transitionController),
               child: Column(
                 children: [
-                  const SizedBox(height: 40),
                   TypingText(
                     key: ValueKey(_currentSubStep == 0),
                     text: 'What should we call you?',
                     style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      fontFamily: 'Rova',
+                      fontSize: 18,
+                      fontWeight: FontWeight.w100,
+                      color: PinitColors.aubergine,
+                      letterSpacing: 1.2,
+                      height: 1.2,
                     ),
                     totalDuration: const Duration(milliseconds: 2200),
                   ),
-                  const SizedBox(height: 12),
+                                    const SizedBox(height: 15),
+
                 ],
               ),
             ),
           ),
+          const SizedBox(height: 16),
 
           // Middle: Name field
           SlideTransition(
@@ -659,38 +727,80 @@ class _AccountStepState extends State<AccountStep>
               ),
             ),
           ),
+          const SizedBox(height: 20),
 
           // Bottom: Continue button
           SlideTransition(
             position: AnimationBuilders.createBottomSlideAnimation(_transitionController),
             child: FadeTransition(
               opacity: AnimationBuilders.createFadeAnimation(_transitionController),
-              child: SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: () {
-                    if (_validateName()) {
-                      _advanceToNextSubStep();
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF42143d),
-                    foregroundColor: Colors.white,
-                    elevation: 4,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border(
+                    right: BorderSide(
+                      color: PinitColors.aubergine,
+                      width: 2,
+                    ),
+                    bottom: BorderSide(
+                      color: PinitColors.aubergine,
+                      width: 2,
                     ),
                   ),
-                  child: const Text(
-                    'Continue',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                  boxShadow: PinitColors.cardShadow,
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      if (_validateName()) {
+                        _advanceToNextSubStep();
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: PinitColors.aubergine,
+                      foregroundColor: PinitColors.cream,
+                      elevation: 0,
+                      shadowColor: Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      'Continue',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w100,
+                      ),
                     ),
                   ),
                 ),
               ),
+            ),
+          ),
+          // Quote design
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Box space 
+                const SizedBox(height: 30),
+                // Quote text
+                Text(
+                  'Did you know less than 5% of saved posts ever get looked at again',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontStyle: FontStyle.italic,
+                    fontWeight: FontWeight.w500,
+                    color: PinitColors.aubergine,
+                    height: 1.5,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -702,7 +812,7 @@ class _AccountStepState extends State<AccountStep>
   Widget _buildUserNameSubStep() {
     return _buildAnimatedSubStep(
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
           // Top text with stagger
           SlideTransition(
@@ -711,30 +821,24 @@ class _AccountStepState extends State<AccountStep>
               opacity: AnimationBuilders.createFadeAnimation(_transitionController),
               child: Column(
                 children: [
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 16),
                   TypingText(
                     key: ValueKey(_currentSubStep == 1),
-                    text: 'What should other people call you?',
+                    text: 'Pick a username for your mates to see..',
                     style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      fontFamily: 'Rova',
+                      fontSize: 22,
+                      fontWeight: FontWeight.normal,
+                      color: PinitColors.aubergine,
                     ),
                     totalDuration: const Duration(milliseconds: 2200),
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Sorry fella, this needs to be unique..',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey.shade600,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
+                  const SizedBox(height: 8),
                 ],
               ),
             ),
           ),
+          const SizedBox(height: 16),
 
           // Middle: Name field
           SlideTransition(
@@ -754,50 +858,91 @@ class _AccountStepState extends State<AccountStep>
               ),
             ),
           ),
+          
 
           // Bottom: Continue button
           SlideTransition(
             position: AnimationBuilders.createBottomSlideAnimation(_transitionController),
             child: FadeTransition(
               opacity: AnimationBuilders.createFadeAnimation(_transitionController),
-              child: SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    if (await _validateUserName()) {
-                      _advanceToNextSubStep();
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF42143d),
-                    foregroundColor: Colors.white,
-                    elevation: 4,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border(
+                    right: BorderSide(
+                      color: PinitColors.aubergine,
+                      width: 2,
+                    ),
+                    bottom: BorderSide(
+                      color: PinitColors.aubergine,
+                      width: 2,
                     ),
                   ),
-                  child: const Text(
-                    'Continue',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                  boxShadow: PinitColors.cardShadow,
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      if (await _validateUserName()) {
+                        _advanceToNextSubStep();
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: PinitColors.aubergine,
+                      foregroundColor: PinitColors.cream,
+                      elevation: 0,
+                      shadowColor: Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      'Continue',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
           ),
+          // Quote design
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Large quotation mark
+                const SizedBox(height: 2),
+                Text(
+                  'Did you know the average person spends 40 minutes researching restaurants on social media before booking',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontStyle: FontStyle.italic,
+                    fontWeight: FontWeight.w500,
+                    color: PinitColors.aubergine,
+                    height: 1.5,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
-  
-  // Sub-Step 2: Email Field
+
+  // Sub-Step 3: Email Field
   Widget _buildEmailSubStep() {
     return _buildAnimatedSubStep(
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
           // Top text
           SlideTransition(
@@ -806,23 +951,23 @@ class _AccountStepState extends State<AccountStep>
               opacity: AnimationBuilders.createFadeAnimation(_transitionController),
               child: Column(
                 children: [
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
                   TypingText(
                     key: ValueKey(_currentSubStep == 2),
-                    text: 'What\'s your email address pal?',
+                    text: 'What\'s your email address?',
                     style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      fontFamily: 'Rova',
+                      fontSize: 22,
+                      fontWeight: FontWeight.normal,
+                      color: PinitColors.aubergine,
                     ),
                     totalDuration: const Duration(milliseconds: 2200),
                   ),
-                  const SizedBox(height: 12),
-    
                 ],
               ),
             ),
           ),
+          const SizedBox(height: 16),
 
           // Middle: Email field
           SlideTransition(
@@ -843,38 +988,79 @@ class _AccountStepState extends State<AccountStep>
               ),
             ),
           ),
+          const SizedBox(height: 12),
 
           // Bottom: Continue button
           SlideTransition(
             position: AnimationBuilders.createBottomSlideAnimation(_transitionController),
             child: FadeTransition(
               opacity: AnimationBuilders.createFadeAnimation(_transitionController),
-              child: SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    if (await _validateEmail()) {
-                      _advanceToNextSubStep();
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF42143d),
-                    foregroundColor: Colors.white,
-                    elevation: 4,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border(
+                    right: BorderSide(
+                      color: PinitColors.aubergine,
+                      width: 2,
+                    ),
+                    bottom: BorderSide(
+                      color: PinitColors.aubergine,
+                      width: 2,
                     ),
                   ),
-                  child: const Text(
-                    'Continue',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                  boxShadow: PinitColors.cardShadow,
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      if (await _validateEmail()) {
+                        _advanceToNextSubStep();
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: PinitColors.aubergine,
+                      foregroundColor: PinitColors.cream,
+                      elevation: 0,
+                      shadowColor: Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      'Continue',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
               ),
+            ),
+          ),
+          // Quote design
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 8),
+                // Quote text
+                Text(
+                  'Did you know 73% of the time people report on settling for a restaurant because they cba',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontStyle: FontStyle.italic,
+                    fontWeight: FontWeight.w500,
+                    color: PinitColors.aubergine,
+                    height: 1.5,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -886,7 +1072,7 @@ class _AccountStepState extends State<AccountStep>
   Widget _buildOtpSubStep() {
     return _buildAnimatedSubStep(
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
           // Top text
           SlideTransition(
@@ -900,18 +1086,20 @@ class _AccountStepState extends State<AccountStep>
                     key: ValueKey(_currentSubStep == 4),
                     text: 'Check your email',
                     style: const TextStyle(
+                      fontFamily: 'Rova',
                       fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      fontWeight: FontWeight.normal,
+                      color: PinitColors.aubergine,
                     ),
                     totalDuration: const Duration(milliseconds: 2200),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 19),
                   Text(
                     'We sent a 6-digit code to ${emailController.text}',
                     style: TextStyle(
+                      fontFamily: 'Geist',
                       fontSize: 16,
-                      color: Colors.grey.shade600,
+                      color: PinitColors.mute,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -927,6 +1115,8 @@ class _AccountStepState extends State<AccountStep>
               opacity: AnimationBuilders.createFadeAnimation(_transitionController),
               child: Column(
                 children: [
+                  // Spacing adjustment
+                  const SizedBox(height: 8),
                   _buildErrorBanner(),
                   _buildTextField(
                     controller: otpController,
@@ -954,6 +1144,7 @@ class _AccountStepState extends State<AccountStep>
                         if (mounted) setState(() => _isSendingOtp = false);
                       }
                     },
+                    
                     child: Text(
                       'Resend code',
                       style: TextStyle(
@@ -969,40 +1160,60 @@ class _AccountStepState extends State<AccountStep>
             ),
           ),
 
+          const SizedBox(height: 12),
+
           // Bottom: Verify button
           SlideTransition(
             position: AnimationBuilders.createBottomSlideAnimation(_transitionController),
             child: FadeTransition(
               opacity: AnimationBuilders.createFadeAnimation(_transitionController),
-              child: SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: _isVerifyingOtp ? null : _verifyOtpAndComplete,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF42143d),
-                    foregroundColor: Colors.white,
-                    elevation: 4,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border(
+                    right: BorderSide(
+                      color: PinitColors.aubergine,
+                      width: 2,
+                    ),
+                    bottom: BorderSide(
+                      color: PinitColors.aubergine,
+                      width: 2,
                     ),
                   ),
-                  child: _isVerifyingOtp
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
+                  boxShadow: PinitColors.cardShadow,
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: _isVerifyingOtp ? null : _verifyOtpAndComplete,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: PinitColors.aubergine,
+                      foregroundColor: PinitColors.cream,
+                      elevation: 0,
+                      shadowColor: Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: _isVerifyingOtp
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: PinitColors.cream,
+                            ),
+                          )
+                        : const Text(
+                            'Verify',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        )
-                      : const Text(
-                          'Verify',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                  ),
                 ),
               ),
             ),
@@ -1016,7 +1227,7 @@ class _AccountStepState extends State<AccountStep>
   Widget _buildPasswordSubStep() {
     return _buildAnimatedSubStep(
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
           // Top text
           SlideTransition(
@@ -1025,14 +1236,14 @@ class _AccountStepState extends State<AccountStep>
               opacity: AnimationBuilders.createFadeAnimation(_transitionController),
               child: Column(
                 children: [
-                  const SizedBox(height: 10),
                   TypingText(
                     key: ValueKey(_currentSubStep == 3),
                     text: 'Create a secure password',
                     style: const TextStyle(
+                      fontFamily: 'Rova',
                       fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      fontWeight: FontWeight.normal,
+                      color: PinitColors.aubergine,
                     ),
                     totalDuration: const Duration(milliseconds: 2200),
                   ),
@@ -1059,13 +1270,13 @@ class _AccountStepState extends State<AccountStep>
                         icon: Icons.lock_outline,
                         obscureText: !_isPasswordVisible,
                         focusNode: passwordFocusNode,
-                        height: 48,
+                        height: 60,
                         suffixIcon: IconButton(
                           icon: Icon(
                             _isPasswordVisible
                                 ? Icons.visibility_outlined
                                 : Icons.visibility_off_outlined,
-                            color: Colors.grey.shade700,
+                            color: Colors.white70,
                           ),
                           onPressed: () {
                             setState(() {
@@ -1100,13 +1311,13 @@ class _AccountStepState extends State<AccountStep>
                         hintText: 'Confirm Password',
                         icon: Icons.lock_outline,
                         obscureText: !_isConfirmPasswordVisible,
-                        height: 48,
+                        height: 60,
                         suffixIcon: IconButton(
                           icon: Icon(
                             _isConfirmPasswordVisible
                                 ? Icons.visibility_outlined
                                 : Icons.visibility_off_outlined,
-                            color: Colors.grey.shade700,
+                            color: PinitColors.aubergine,
                           ),
                           onPressed: () {
                             setState(() {
@@ -1130,32 +1341,50 @@ class _AccountStepState extends State<AccountStep>
               opacity: AnimationBuilders.createFadeAnimation(_transitionController),
               child: Column(
                 children: [
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: ElevatedButton(
-                      onPressed: isLoading ? null : _advanceToNextSubStep,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF42143d),
-                        foregroundColor: Colors.white,
-                        elevation: 4,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border(
+                        right: BorderSide(
+                          color: PinitColors.aubergine,
+                          width: 2,
+                        ),
+                        bottom: BorderSide(
+                          color: PinitColors.aubergine,
+                          width: 2,
                         ),
                       ),
-                      child: isLoading
-                          ? const LoadingWidget(width: 24, height: 24)
-                          : const Text(
-                              'Create Account',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 0.5,
+                      boxShadow: PinitColors.cardShadow,
+                    ),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        onPressed: isLoading ? null : _advanceToNextSubStep,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: PinitColors.aubergine,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shadowColor: Colors.transparent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: isLoading
+                            ? const LoadingWidget(width: 24, height: 24)
+                            : const Text(
+                                'Create Account',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w100,
+                                  letterSpacing: 0.5,
+                                ),
                               ),
-                            ),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 2),
                 ],
               ),
             ),
@@ -1169,7 +1398,7 @@ class _AccountStepState extends State<AccountStep>
   Widget _buildProfilePictureSubStep() {
     return _buildAnimatedSubStep(
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
           // Use the reusable ProfilePhotoSelector widget
           Expanded(
@@ -1187,10 +1416,12 @@ class _AccountStepState extends State<AccountStep>
                   });
                 },
                 animationController: _transitionController,
-                borderColor: const Color(0xFF42143d).withOpacity(0.3),
+                borderColor: PinitColors.aubergine.withValues(alpha: 0.3),
               ),
             ),
           ),
+
+          const SizedBox(height: 12),
 
           // Bottom: Buttons section
           SlideTransition(
@@ -1205,7 +1436,7 @@ class _AccountStepState extends State<AccountStep>
                     child: ElevatedButton(
                       onPressed: isLoading ? null : _createAccountAndAdvance,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF42143d),
+                        backgroundColor: PinitColors.aubergine,
                         foregroundColor: Colors.white,
                         elevation: 4,
                         shape: RoundedRectangleBorder(

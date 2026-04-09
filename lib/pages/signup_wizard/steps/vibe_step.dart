@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:login/animations/common_animations.dart';
 import 'package:provider/provider.dart';
 import '../../../models/signup_wizard_state.dart';
 import '../../../models/locations.dart';
 import '../../../supabase/service.dart';
 import '../../../widgets/spinnable_tile.dart';
+import '../../profile/widgets/pinit_colors.dart';
 
 class VibeStep extends StatefulWidget {
   final VoidCallback onNext;
@@ -127,7 +129,7 @@ class _VibeStepState extends State<VibeStep> {
 
     return Container(
       decoration: const BoxDecoration(
-        color: Colors.white,
+        color: PinitColors.cream,
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(30),
           topRight: Radius.circular(30),
@@ -145,11 +147,13 @@ class _VibeStepState extends State<VibeStep> {
 
                   // Small textbox-like hint area
                   TypingText(
-                      text: 'Of these people, which 2 are you most commonly like? (hold for more info)',
+                      text: 'Of these, which two people are you most like.. (hold for more info)',
                       style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      fontFamily: 'Rova',
+                      fontSize: 28,
+                      fontWeight: FontWeight.w100,
+                      color: PinitColors.aubergine,
+                      letterSpacing: 1.5,
                     ),
                     totalDuration: const Duration(milliseconds: 2200),
                   ),
@@ -207,10 +211,10 @@ class _VibeStepState extends State<VibeStep> {
                   // Helper/counter text
                   Text(
                     '${_selected.length} / 2 selected',
-                    style: TextStyle(
+                    style: GoogleFonts.dmSans(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: _selected.length == 2 ? const Color(0xFF42143d) : Colors.grey.shade700,
+                      color: _selected.length == 2 ? PinitColors.aubergine : PinitColors.mute,
                     ),
                   ),
                 ],
@@ -222,10 +226,10 @@ class _VibeStepState extends State<VibeStep> {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: PinitColors.cream,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: PinitColors.aubergine.withValues(alpha: 0.06),
                   blurRadius: 10,
                   offset: const Offset(0, -2),
                 ),
@@ -239,17 +243,20 @@ class _VibeStepState extends State<VibeStep> {
                     onPressed: widget.onBack,
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      side: const BorderSide(color: Color(0xFF42143d)),
+                      side: const BorderSide(
+                        color: PinitColors.aubergine,
+                        width: 1.5,
+                      ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(20),
                       ),
                     ),
-                    child: const Text(
+                    child: Text(
                       'Back',
-                      style: TextStyle(
+                      style: GoogleFonts.dmSans(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF42143d),
+                        color: PinitColors.aubergine,
                       ),
                     ),
                   ),
@@ -262,40 +269,42 @@ class _VibeStepState extends State<VibeStep> {
                     onPressed: (widget.isLoadingRestaurants || !_hasTwoSelected) ? null : _handleNext,
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: const Color(0xFF42143d),
-                      foregroundColor: Colors.white,
-                      elevation: 4,
+                      backgroundColor: PinitColors.aubergine,
+                      foregroundColor: PinitColors.cream,
+                      elevation: 0,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(20),
                       ),
                     ),
                     child: widget.isLoadingRestaurants
-                        ? const Row(
+                        ? Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              SizedBox(
+                              const SizedBox(
                                 width: 20,
                                 height: 20,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  valueColor: AlwaysStoppedAnimation<Color>(PinitColors.cream),
                                 ),
                               ),
-                              SizedBox(width: 12),
+                              const SizedBox(width: 12),
                               Text(
                                 'Loading restaurants...',
-                                style: TextStyle(
+                                style: GoogleFonts.dmSans(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.5,
                                 ),
                               ),
                             ],
                           )
-                        : const Text(
+                        : Text(
                             'Continue',
-                            style: TextStyle(
+                            style: GoogleFonts.dmSans(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
+                              letterSpacing: 0.5,
                             ),
                           ),
                   ),
