@@ -179,6 +179,7 @@ class SupabaseConstants {
   static const String columnContentReview = 'content';
   static const String columnRatingReview = 'rating';
   static const String columnPrivate = 'private';
+  static const String columnGatekeep = 'gatekeep';
 
   // Column names - user_tags
   // columnId, columnUserId, and columnTagId are already defined above
@@ -215,6 +216,7 @@ class SupabaseConstants {
   static const String actionSave = 'save';
   static const String actionSharedVideo = 'shared_video';
   static const String actionDislike = 'dislike';
+  static const String actionBeenTo = 'been_to';
 
   // Enum values - saved_method
   static const String savedMethodTikTok = 'tiktok';

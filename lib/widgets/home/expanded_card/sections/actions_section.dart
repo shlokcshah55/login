@@ -11,21 +11,27 @@ class ActionsSection extends StatelessWidget {
     required this.isSaved,
     required this.isSaving,
     required this.isDisliking,
+    required this.isBeenTo,
+    required this.isBeenToLoading,
     required this.onAddToBubble,
     required this.onToggleSave,
     required this.onDislike,
     required this.onShare,
     required this.onAddToCollection,
+    required this.onBeenTo,
   });
 
   final bool isSaved;
   final bool isSaving;
   final bool isDisliking;
+  final bool isBeenTo;
+  final bool isBeenToLoading;
   final VoidCallback onAddToBubble;
   final VoidCallback? onToggleSave;
   final VoidCallback? onDislike;
   final VoidCallback onShare;
   final VoidCallback onAddToCollection;
+  final VoidCallback? onBeenTo;
 
   @override
   Widget build(BuildContext context) {
@@ -81,6 +87,23 @@ class ActionsSection extends StatelessWidget {
               isLoading: isDisliking,
             ),
           ],
+        ),
+        const SizedBox(height: 10),
+        // "Been to" — third full-width row. Flips between filled (active)
+        // and outlined states once a been-to review exists for this place.
+        SizedBox(
+          width: double.infinity,
+          child: _ActionButton(
+            label: isBeenTo ? 'Been here' : 'Been to',
+            icon: isBeenTo
+                ? Icons.check_circle_rounded
+                : Icons.restaurant_menu_rounded,
+            variant: isBeenTo
+                ? _ActionVariant.activeFilled
+                : _ActionVariant.outlined,
+            isLoading: isBeenToLoading,
+            onTap: (isBeenTo || isBeenToLoading) ? null : onBeenTo,
+          ),
         ),
       ],
     );

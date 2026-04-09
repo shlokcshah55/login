@@ -6,6 +6,10 @@ import 'package:login/models/markers.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
+import 'package:login/supabase/helpers/location_reviews.dart';
+import 'package:login/supabase/supabase_client.dart';
+import 'package:login/widgets/home/been_to_review_sheet.dart';
+import 'package:login/widgets/home/been_to_swipe_ranker.dart';
 import 'package:login/widgets/home/expanded_card/add_to_collection_sheet.dart';
 import 'package:login/widgets/home/expanded_card/helpers/match_result.dart';
 import 'package:login/widgets/home/expanded_card/helpers/similar_place.dart';
@@ -57,6 +61,11 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   bool _isSaved = false;
   bool _isSaving = false;
   bool _isDisliking = false;
+
+  // ── Been-to state ──
+  bool _isBeenTo = false;
+  bool _isBeenToLoading = false;
+  final LocationReviewsHelper _reviewsHelper = LocationReviewsHelper();
 
   // ── Hero photo state ──
   int _currentPhotoIndex = 0;
@@ -119,6 +128,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     });
 
     _checkSavedStatus();
+    _checkBeenToStatus();
     _findSimilarPlaces();
   }
 
@@ -160,6 +170,87 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  //  Been to
+  // ─────────────────────────────────────────────────────────────
+
+  /// Read the user's been-to state for this location. We use the
+  /// existence of a review row as the source of truth — every been-to
+  /// flow inserts a review (the rating may be null if the user only
+  /// captured notes), so this stays consistent with the dock state.
+  void _checkBeenToStatus() async {
+    final user = SupabaseClientManager().currentUser;
+    if (user == null) return;
+    try {
+      final review = await _reviewsHelper.getUserReview(
+        locationId: widget.location.locationId,
+        userId: user.id,
+      );
+      if (mounted) setState(() => _isBeenTo = review != null);
+    } catch (_) {
+      // Silent — Been to button just stays in its default state.
+    }
+  }
+
+  Future<void> _onBeenToTap() async {
+    if (_isBeenTo || _isBeenToLoading) return;
+    final user = SupabaseClientManager().currentUser;
+    if (user == null) return;
+    setState(() => _isBeenToLoading = true);
+    try {
+      final count = await _reviewsHelper.getUserBeenToCount(userId: user.id);
+      if (!mounted) return;
+
+      Future<void> handleSubmit(
+        double rating,
+        String? notes,
+        bool gatekeep,
+      ) async {
+        await _reviewsHelper.submitBeenTo(
+          locationId: widget.location.locationId,
+          rating: rating,
+          content: notes,
+          gatekeep: gatekeep,
+        );
+        if (mounted) setState(() => _isBeenTo = true);
+      }
+
+      if (count > 5) {
+        final reviews =
+            await _reviewsHelper.getUserBeenToReviews(userId: user.id);
+        if (!mounted) return;
+        await showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => BeenToSwipeRanker(
+            newLocation: widget.location,
+            existingReviews: reviews,
+            onSubmitted: handleSubmit,
+          ),
+        );
+      } else {
+        await showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => BeenToReviewSheet(
+            locationName: widget.location.name,
+            onSubmit: handleSubmit,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to log visit: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isBeenToLoading = false);
     }
   }
 
@@ -466,11 +557,14 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                                   isSaved: _isSaved,
                                   isSaving: _isSaving,
                                   isDisliking: _isDisliking,
+                                  isBeenTo: _isBeenTo,
+                                  isBeenToLoading: _isBeenToLoading,
                                   onAddToBubble: () {},
                                   onToggleSave: _toggleSave,
                                   onAddToCollection:
                                       _showAddToCollectionSheet,
                                   onDislike: _dislikeLocation,
+                                  onBeenTo: _onBeenToTap,
                                 ),
                               ),
                           ],
@@ -637,11 +731,14 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                 isSaved: _isSaved,
                 isSaving: _isSaving,
                 isDisliking: _isDisliking,
+                isBeenTo: _isBeenTo,
+                isBeenToLoading: _isBeenToLoading,
                 onAddToBubble: () {},
                 onToggleSave: _toggleSave,
                 onDislike: _dislikeLocation,
                 onShare: () {},
                 onAddToCollection: _showAddToCollectionSheet,
+                onBeenTo: _onBeenToTap,
               ),
               if (widget.location.generatedSummary != null ||
                   widget.location.editorialSummary != null) ...[

@@ -26,19 +26,25 @@ class PersistentActionDock extends StatelessWidget {
     required this.isSaved,
     required this.isSaving,
     required this.isDisliking,
+    required this.isBeenTo,
+    required this.isBeenToLoading,
     required this.onAddToBubble,
     required this.onToggleSave,
     required this.onAddToCollection,
     required this.onDislike,
+    required this.onBeenTo,
   });
 
   final bool isSaved;
   final bool isSaving;
   final bool isDisliking;
+  final bool isBeenTo;
+  final bool isBeenToLoading;
   final VoidCallback onAddToBubble;
   final VoidCallback? onToggleSave;
   final VoidCallback onAddToCollection;
   final VoidCallback? onDislike;
+  final VoidCallback? onBeenTo;
 
   /// Visual height of the dock chrome itself, excluding the bottom
   /// safe-area inset. The parent uses this + safe area to compute the
@@ -88,6 +94,16 @@ class PersistentActionDock extends StatelessWidget {
             icon: Icons.collections_bookmark_rounded,
             tooltip: 'Add to Collection',
             onTap: onAddToCollection,
+          ),
+          const SizedBox(width: 8),
+          _DockIconButton(
+            icon: isBeenTo
+                ? Icons.check_circle_rounded
+                : Icons.restaurant_menu_rounded,
+            tooltip: isBeenTo ? 'Been here' : 'Been to',
+            isActive: isBeenTo,
+            isLoading: isBeenToLoading,
+            onTap: (isBeenTo || isBeenToLoading) ? null : onBeenTo,
           ),
           const SizedBox(width: 8),
           _DockIconButton(
