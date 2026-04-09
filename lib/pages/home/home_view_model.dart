@@ -110,9 +110,26 @@ class HomeViewModel extends ChangeNotifier {
         break;
       case HomeMode.explore:
         locationListManager.setCurrentListType(LocationListType.recommended);
+        // Lazy-load recommendations the first time Explore is opened.
+        _maybeFetchInitialRecommendations();
         break;
     }
     notifyListeners();
+  }
+
+  /// Fetches recommendations once, the first time the user enters Explore mode
+  /// and a location is available. If Explore is opened before a location is
+  /// known, [_onExternalStateChanged] will pick it up when the stream arrives.
+  void _maybeFetchInitialRecommendations() {
+    if (_initialRecommendationsFetched) return;
+    if (_homeMode != HomeMode.explore) return;
+    if (locationListManager.currentPosition == null) return;
+
+    _initialRecommendationsFetched = true;
+    log("HomeViewModel: Explore active, fetching initial recommendations");
+    _homeController.fetchAndPlotRecommendedPins(
+      locationListManager.currentPosition,
+    );
   }
 
   // ── Shortlist delegates ───────────────────────────────────────
@@ -166,15 +183,10 @@ class HomeViewModel extends ChangeNotifier {
   }
 
   void _onExternalStateChanged() {
-    // Fetch initial recommendations once we have a location from the stream
-    if (!_initialRecommendationsFetched &&
-        locationListManager.currentPosition != null) {
-      _initialRecommendationsFetched = true;
-      log("HomeViewModel: Location stream provided position, fetching initial recommendations");
-      _homeController.fetchAndPlotRecommendedPins(
-        locationListManager.currentPosition
-      );
-    }
+    // If the user is already in Explore mode, fetch recommendations as soon
+    // as a location becomes available. In You mode we stay lazy — the
+    // carousel sticks to saved locations until Explore is tapped.
+    _maybeFetchInitialRecommendations();
     notifyListeners();
   }
 
@@ -413,6 +425,47 @@ class HomeViewModel extends ChangeNotifier {
     _justDecideLocations = [];
     _showJustDecideSwipeMode = false;
     notifyListeners();
+  }
+
+  // ── Quick Picks (new flow) ────────────────────────────────────
+
+  /// Fetches quick-pick recommendations for the given walking budget and
+  /// returns them directly to the caller. Used by the Quick Picks screens
+  /// which own their own navigation state instead of going through the
+  /// view-model overlay flags.
+  ///
+  /// Returns an empty list if we don't have a location fix yet or the API
+  /// call fails — the caller can surface an error.
+  Future<List<LocationModel>> requestQuickPicks(double walkingMinutes) async {
+    final radiusKm = (walkingMinutes * 5.0) / 60.0;
+    log("HomeViewModel: Requesting quick picks for $walkingMinutes min (~${radiusKm.toStringAsFixed(2)} km)");
+
+    final currentLocation = locationListManager.currentPosition ??
+        await locationListManager.getCurrentLocation();
+
+    if (currentLocation == null) {
+      log("HomeViewModel: Cannot fetch quick picks without location");
+      return const [];
+    }
+
+    await locationListManager.fetchJustDecideRecommendations(
+      latitude: currentLocation.latitude,
+      longitude: currentLocation.longitude,
+      radiusKm: radiusKm,
+      maxResults: 10,
+    );
+
+    if (locationListManager.error != null) {
+      log("HomeViewModel: Quick picks error: ${locationListManager.error}");
+    }
+
+    return List<LocationModel>.from(locationListManager.justDecideLocations);
+  }
+
+  /// Saves a location that was liked in the quick-picks deck.
+  void saveQuickPick(LocationModel location) {
+    log("HomeViewModel: Quick pick saved → ${location.name}");
+    locationListManager.saveLocation(location);
   }
 
   // ── Sweet Treat overlay ───────────────────────────────────────

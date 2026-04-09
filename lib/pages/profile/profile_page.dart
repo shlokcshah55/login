@@ -18,6 +18,8 @@ import 'widgets/collections_grid.dart';
 import 'widgets/recent_activity_section.dart';
 import 'widgets/notifications_sheet.dart';
 import 'widgets/pinit_colors.dart';
+import 'edit_profile_page.dart';
+import 'preferences_page.dart';
 import 'other_user_profile_page.dart';
 import '../../widgets/profile/find_friends_section.dart';
 
@@ -146,7 +148,7 @@ class _ProfilePageState extends State<ProfilePage>
                     shadowColor: PinitColors.aubergine.withValues(alpha: 0.06),
                     backgroundColor: PinitColors.cream,
                     automaticallyImplyLeading: false,
-                    toolbarHeight: 40,
+                    toolbarHeight: 20,
                     flexibleSpace: _buildPinnedTabs(),
                   ),
                   SliverToBoxAdapter(
@@ -182,6 +184,7 @@ class _ProfilePageState extends State<ProfilePage>
         return Column(
           children: [
             HiddenGemsSection(locations: hiddenGemLocations),
+            SizedBox(height: 20),
             TrendingNowSection(locations: popularLocations),
             const RecentActivitySection(),
           ],
@@ -265,15 +268,16 @@ class _ProfilePageState extends State<ProfilePage>
 
   Widget _buildPinnedTabs() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 6),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: _tabs.asMap().entries.map((entry) {
           final isSelected = entry.key == _selectedTab;
           final isLast = entry.key == _tabs.length - 1;
+          final icon = _iconForTab(entry.key);
 
           return Padding(
-            padding: EdgeInsets.only(right: isLast ? 0 : 8),
+            padding: EdgeInsets.only(right: isLast ? 0 : 10),
             child: GestureDetector(
               onTap: () {
                 if (_selectedTab == entry.key) return;
@@ -281,22 +285,58 @@ class _ProfilePageState extends State<ProfilePage>
                 setState(() => _selectedTab = entry.key);
               },
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 220),
+                duration: const Duration(milliseconds: 280),
                 curve: Curves.easeOutCubic,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                decoration: BoxDecoration(
-                  color: isSelected ? PinitColors.aubergine : Colors.transparent,
-                  borderRadius: BorderRadius.circular(999),
+                height: 40,
+                padding: EdgeInsets.symmetric(
+                  horizontal: isSelected ? 16 : 11,
                 ),
-                child: Text(
-                  entry.value,
-                  style: TextStyle(
-                    fontFamily: 'Rova',
-                    fontSize: 20,
-                    fontWeight: FontWeight.w100,
-                    color: isSelected ? PinitColors.cream : PinitColors.mute,
-                    letterSpacing: 0.4,
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? PinitColors.aubergine
+                      : PinitColors.creamSunk,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: isSelected
+                        ? PinitColors.aubergine
+                        : PinitColors.creamDeep,
+                    width: 1.5,
                   ),
+                  boxShadow: isSelected ? PinitColors.subtleShadow : null,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      icon,
+                      size: 17,
+                      color: isSelected
+                          ? PinitColors.cream
+                          : PinitColors.aubergineSoft,
+                    ),
+                    ClipRect(
+                      child: AnimatedSize(
+                        duration: const Duration(milliseconds: 280),
+                        curve: Curves.easeOutCubic,
+                        alignment: Alignment.centerLeft,
+                        child: isSelected
+                            ? Padding(
+                                padding: const EdgeInsets.only(left: 8),
+                                child: Text(
+                                  entry.value,
+                                  style: const TextStyle(
+                                    fontFamily: 'Rova',
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w100,
+                                    color: PinitColors.cream,
+                                    letterSpacing: 0.6,
+                                  ),
+                                ),
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -304,6 +344,19 @@ class _ProfilePageState extends State<ProfilePage>
         }).toList(),
       ),
     );
+  }
+
+  IconData _iconForTab(int index) {
+    switch (index) {
+      case 0:
+        return Icons.local_fire_department_rounded;
+      case 1:
+        return Icons.collections_bookmark_rounded;
+      case 2:
+        return Icons.people_alt_rounded;
+      default:
+        return Icons.circle;
+    }
   }
 
   Widget _buildNotificationButton() {
@@ -520,8 +573,22 @@ class _ProfilePageState extends State<ProfilePage>
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => _ProfileSettingsSheet(
         user: user,
-        onEditProfile: () => Navigator.pop(sheetContext),
-        onPreferences: () => Navigator.pop(sheetContext),
+        onEditProfile: () {
+          Navigator.pop(sheetContext);
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const EditProfilePage(),
+            ),
+          );
+        },
+        onPreferences: () {
+          Navigator.pop(sheetContext);
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const PreferencesPage(),
+            ),
+          );
+        },
         onShareProfile: () => Navigator.pop(sheetContext),
         onSignOut: () {
           Navigator.pop(sheetContext);
@@ -589,26 +656,29 @@ class _ProfileSettingsSheet extends StatelessWidget {
                   const SizedBox(height: 18),
                   _ProfileSettingsIntro(user: user),
                   const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _ProfileSettingsCard(
-                          icon: Icons.draw_rounded,
-                          title: 'Edit Profile',
-                          subtitle: 'Photo, bio, and top vibes',
-                          onTap: onEditProfile,
+                  IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: _ProfileSettingsCard(
+                            icon: Icons.draw_rounded,
+                            title: 'Edit Profile',
+                            subtitle: 'Photo, bio, and top vibes',
+                            onTap: onEditProfile,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _ProfileSettingsCard(
-                          icon: Icons.tune_rounded,
-                          title: 'Preferences',
-                          subtitle: 'Taste, alerts, and privacy',
-                          onTap: onPreferences,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _ProfileSettingsCard(
+                            icon: Icons.tune_rounded,
+                            title: 'Preferences',
+                            subtitle: 'Taste, alerts, and privacy',
+                            onTap: onPreferences,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 12),
                   _ProfileSettingsRow(
@@ -694,18 +764,22 @@ class _ProfileSettingsIntro extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   user.name ?? 'Your profile',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontFamily: 'Rova',
-                    fontSize: 28,
+                    fontSize: 26,
                     fontWeight: FontWeight.w800,
                     color: PinitColors.aubergine,
-                    letterSpacing: 1.8,
+                    letterSpacing: 1.6,
                     height: 1.05,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'Small changes here shape how people discover you on Pinit.',
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.dmSans(
                     fontSize: 13,
                     color: PinitColors.aubergineSoft,
@@ -745,8 +819,7 @@ class _ProfileSettingsCard extends StatelessWidget {
           onTap();
         },
         child: Ink(
-          height: 146,
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             color: PinitColors.creamSunk,
             borderRadius: BorderRadius.circular(20),
@@ -754,6 +827,7 @@ class _ProfileSettingsCard extends StatelessWidget {
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
                 width: 42,
@@ -764,24 +838,34 @@ class _ProfileSettingsCard extends StatelessWidget {
                 ),
                 child: Icon(icon, color: PinitColors.aubergine, size: 20),
               ),
-              const Spacer(),
-              Text(
-                title,
-                style: GoogleFonts.dmSans(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: PinitColors.aubergine,
-                  letterSpacing: -0.3,
-                ),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                subtitle,
-                style: GoogleFonts.dmSans(
-                  fontSize: 13,
-                  color: PinitColors.aubergineSoft,
-                  height: 1.3,
-                ),
+              const SizedBox(height: 18),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: PinitColors.aubergine,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 13,
+                      color: PinitColors.aubergineSoft,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

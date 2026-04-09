@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:login/pages/home/home_view_model.dart';
+import 'package:login/pages/home/quick_picks/quick_picks_distance_page.dart';
 import 'package:login/pages/home/search/header_search_types.dart';
 import 'package:login/pages/home/widgets/home_carousel.dart';
 import 'package:login/pages/home/widgets/home_header_search_shell.dart';
@@ -294,55 +295,6 @@ class _HomePageState extends State<HomePage> {
                     onDeactivate: viewModel.deactivateBubbleMode,
                   ),
 
-                // ─── Loading state ─────────────────────────────
-                // IgnorePointer so the dim/spinner doesn't block map gestures.
-                if (viewModel.isLoadingRecommendations &&
-                    viewModel.currentListType == LocationListType.recommended)
-                  Builder(builder: (ctx) {
-                    final pc = Theme.of(ctx).extension<PinitColors>()!;
-                    return Positioned.fill(
-                      child: IgnorePointer(
-                        child: Container(
-                          color: Colors.black.withValues(alpha: 0.25),
-                          child: Center(
-                          child: Container(
-                            padding: const EdgeInsets.all(24.0),
-                            decoration: BoxDecoration(
-                              color: pc.elevatedSurface,
-                              borderRadius: BorderRadius.circular(14),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.10),
-                                  blurRadius: 16,
-                                  offset: const Offset(0, 6),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                CircularProgressIndicator(
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    pc.primaryPurple,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Loading recommendations…',
-                                  style: AppTypography.sans(
-                                    fontSize: 15,
-                                    color: pc.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        ),
-                      ),
-                    );
-                  }),
-
                 // ─── Just Decide swipe mode ────────────────────
                 if (viewModel.showJustDecideSwipeMode)
                   Builder(builder: (ctx) {
@@ -553,7 +505,15 @@ class _TopPanel extends StatelessWidget {
                 onDecideTap: () {
                   DecideBottomSheet.show(
                     context,
-                    onQuickPicks: () => viewModel.toggleJustDecideOverlay(true),
+                    onQuickPicks: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => QuickPicksDistancePage(
+                            viewModel: viewModel,
+                          ),
+                        ),
+                      );
+                    },
                     onSweetTreat: () => viewModel.toggleSweetTreatOverlay(true),
                     onSurpriseMe: viewModel.submitSurpriseMe,
                   );

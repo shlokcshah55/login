@@ -1,19 +1,34 @@
-CREATE OR REPLACE FUNCTION public.unsave_location(p_user_id uuid, p_location_id integer)
- RETURNS void
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
+-- Apply a stock negated vibe-affinity nudge when a user unsaves a
+-- location. This is the inverse of the formula in
+-- save_location_with_tags: it is not an exact rollback, it is a stock
+-- counter-effect that prevents repeated save/unsave cycles from
+-- compounding the affinity nudge in one direction.
+--
+-- Trade-off: a user who genuinely changes their mind will see their
+-- affinity nudged back roughly to where they started. We accept that
+-- because the alternative (a one-time grant ledger) is overkill for
+-- the scale of abuse this realistically protects against. We can
+-- revisit if we ever observe affinity drift in practice.
+
+CREATE OR REPLACE FUNCTION public.unsave_location(
+    p_user_id     uuid,
+    p_location_id integer
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
 AS $function$
 DECLARE
-    v_saved_method  saved_method;
-    v_location_vibes REAL[];
-    v_user_vibes     REAL[];
-    v_multiplier     NUMERIC;
-    v_interaction_weight NUMERIC;
+    v_saved_method        saved_method;
+    v_location_vibes      REAL[];
+    v_user_vibes          REAL[];
+    v_multiplier          NUMERIC;
+    v_interaction_weight  NUMERIC;
 BEGIN
-    -- Step 1: Look up the original save row so we know which multiplier
-    --         was applied when the user first saved this location.
-    --         If there is no save row there is nothing to undo.
+    -- Look up the original save row so we know which multiplier was
+    -- applied when the user first saved this location. If there is no
+    -- save row there is nothing to undo.
     SELECT saved_method
       INTO v_saved_method
     FROM user_location_actions
@@ -26,11 +41,7 @@ BEGIN
         RETURN;
     END IF;
 
-    -- Step 2: Apply a stock negated vibe-affinity nudge — the inverse of
-    --         the formula in save_location_with_tags. This is not an
-    --         exact rollback (the user's affinity has evolved since the
-    --         original save), it is a stock counter-effect that stops
-    --         repeated save/unsave cycles from compounding.
+    -- Apply the inverse of save_location_with_tags' nudge.
     SELECT calculate_interaction_weight(p_user_id) INTO v_interaction_weight;
 
     SELECT vibe_vector
@@ -63,16 +74,9 @@ BEGIN
         WHERE supabase_id = p_user_id;
     END IF;
 
-    -- Step 3: Delete the save row.
     DELETE FROM user_location_actions
     WHERE user_id = p_user_id
       AND location_id = p_location_id
       AND action = 'save';
-
-    -- Step 4: Mirror save_location_with_tags by handling popularity
-    --         bookkeeping inside the RPC, so callers don't need a
-    --         second round-trip. decrement_saves_count clamps at 0.
-    PERFORM decrement_saves_count(p_location_id);
 END;
-$function$
-;
+$function$;

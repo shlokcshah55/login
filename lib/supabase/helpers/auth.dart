@@ -848,6 +848,24 @@ class AuthHelper {
     }
   }
 
+  /// Replaces the user's full vibe-tag affinity vector with [affinity].
+  /// Writes directly to the users row (no RPC needed).
+  Future<bool> updateVibeTagAffinity(
+      String userId, List<int> affinity) async {
+    try {
+      await _client
+          .from(SupabaseConstants.tableUsers)
+          .update({SupabaseConstants.columnVibeTagAffinity: affinity})
+          .eq(SupabaseConstants.columnSupabaseId, userId);
+      return true;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error updating vibe tag affinity: $e');
+      }
+      return false;
+    }
+  }
+
   Future<String> uploadImage(File file, String filePath, String userId) async {
     try {
     final user = _client.auth.currentUser;

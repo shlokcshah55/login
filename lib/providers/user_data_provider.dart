@@ -116,7 +116,10 @@ class UserDataProvider with ChangeNotifier {
 
   /// Updates user profile data in Supabase
   Future<bool> updateUserProfile(
-      {String? name, String? email, String? profileImageUrl}) async {
+      {String? name,
+      String? email,
+      String? profileImageUrl,
+      String? bio}) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -128,6 +131,7 @@ class UserDataProvider with ChangeNotifier {
       if (email != null) updateData['email'] = email;
       if (profileImageUrl != null)
         updateData['profile_image_url'] = profileImageUrl;
+      if (bio != null) updateData['bio'] = bio;
 
       if (updateData.isEmpty) {
         log('UserDataProvider: Nothing to update');
@@ -147,6 +151,7 @@ class UserDataProvider with ChangeNotifier {
             if (email != null) _userData!['email'] = email;
             if (profileImageUrl != null)
               _userData!['profile_image_url'] = profileImageUrl;
+            if (bio != null) _userData!['bio'] = bio;
           }
 
           log("UserDataProvider: Updated user profile in Supabase");
@@ -168,5 +173,25 @@ class UserDataProvider with ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  /// Optimistically replaces the user's vibe-tag affinity vector and persists
+  /// to Supabase. Reverts on failure.
+  Future<bool> updateVibeTagAffinity(List<int> newAffinity) async {
+    final current = _supabaseUserData;
+    if (current == null || current.supabaseId == null) return false;
+
+    final previous = current.vibeTagAffinity;
+    _supabaseUserData = current.copyWith(vibeTagAffinity: newAffinity);
+    notifyListeners();
+
+    final ok = await _supabaseProvider.users
+        .updateVibeTagAffinity(current.supabaseId!, newAffinity);
+
+    if (!ok) {
+      _supabaseUserData = current.copyWith(vibeTagAffinity: previous);
+      notifyListeners();
+    }
+    return ok;
   }
 }

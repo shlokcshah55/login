@@ -414,10 +414,12 @@ class _PinitMapState extends State<PinitMap> {
           },
         ),
 
-        // "Search this area" button - only show on recommended tab
+        // "Search this area" button - only show on recommended tab.
+        // Positioned below the header panel (logo + search shell + chip row)
+        // so it never sits behind the You / Explore / Decide chips.
         if (mapStateProvider.showSearchThisAreaButton && isRecommendedTab)
           Positioned(
-            top: 150,
+            top: MediaQuery.of(context).padding.top + 160,
             left: 0,
             right: 0,
             child: Center(

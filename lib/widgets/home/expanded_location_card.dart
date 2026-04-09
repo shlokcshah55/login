@@ -15,11 +15,16 @@ import 'package:login/widgets/home/expanded_card/sections/details_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/hero_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/match_banner_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/name_location_section.dart';
+import 'package:login/widgets/home/expanded_card/sections/persistent_action_dock.dart';
 import 'package:login/widgets/home/expanded_card/sections/quick_stats_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/recommended_dishes_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/review_section.dart';
+import 'package:login/widgets/home/expanded_card/sections/saved_from_badge.dart';
 import 'package:login/widgets/home/expanded_card/sections/similar_places_section.dart';
+import 'package:login/widgets/home/expanded_card/sections/social_proof_section.dart';
+import 'package:login/widgets/home/expanded_card/sections/summary_slab_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/vibe_section.dart';
+import 'package:login/widgets/home/expanded_card/sections/why_go_section.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -299,6 +304,19 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     }
   }
 
+  /// Launches the original source URL the user pinned this location
+  /// from (e.g. a TikTok video). Used by the "Saved from this TikTok"
+  /// flash badge in the summary slab.
+  Future<void> _openSavedFromUrl() async {
+    final url = widget.location.savedFrom;
+    if (url == null || url.trim().isEmpty) return;
+    final parsed = Uri.tryParse(url.trim());
+    if (parsed == null) return;
+    if (await canLaunchUrl(parsed)) {
+      await launchUrl(parsed, mode: LaunchMode.externalApplication);
+    }
+  }
+
   // ─────────────────────────────────────────────────────────────
   //  Display helpers
   // ─────────────────────────────────────────────────────────────
@@ -336,6 +354,16 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     return '£' * (level.clamp(0, 4) + 1);
   }
 
+  /// Heuristic for whether to apply the 2026-04-08 restaurant-only
+  /// structural redesign. Mirrors the same check used inside
+  /// [ReviewSection] so the gating stays consistent across the card.
+  bool _isRestaurant() {
+    final types = widget.location.types?.toLowerCase() ?? '';
+    if (types.contains('restaurant')) return true;
+    if ((widget.location.cuisine ?? '').trim().isNotEmpty) return true;
+    return false;
+  }
+
   // ══════════════════════════════════════════════════════════════
   //  BUILD
   // ══════════════════════════════════════════════════════════════
@@ -346,6 +374,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     final topPad = MediaQuery.of(context).padding.top;
     final isWavy = widget.location.vibe != null &&
         widget.location.vibe!.wavyScore >= 0.35;
+    final isRestaurant = _isRestaurant();
 
     return Material(
       color: Colors.transparent,
@@ -395,104 +424,17 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                         ),
                         child: Stack(
                           children: [
-                            ListView(
-                              controller: scrollCtrl,
-                              padding: EdgeInsets.zero,
-                              children: [
-                                HeroSection(
-                                  height: size.height * 0.34,
-                                  photos: _photos,
-                                  currentPhotoIndex: _currentPhotoIndex,
-                                  onPhotoChanged: (i) =>
-                                      setState(() => _currentPhotoIndex = i),
-                                  accentColor: _accentColor,
-                                  openStatusLabel: _openStatusLabel(),
-                                  openStatusColor: _openStatusColor(),
-                                  priceLabel: _priceLabel(),
-                                  isWavy: isWavy,
-                                ),
-                                MatchBannerSection(
-                                  match: _match,
-                                  matchAnim: _matchAnim,
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                      20, 0, 20, 24),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const SizedBox(height: 20),
-                                      NameLocationSection(
-                                        name: widget.location.name,
-                                        vicinity: widget.location.vicinity,
-                                        onAddressTap: _openInGoogleMaps,
-                                      ),
-                                      const SizedBox(height: 16),
-                                      QuickStatsSection(
-                                          location: widget.location),
-                                      const SizedBox(height: 20),
-                                      ActionsSection(
-                                        isSaved: _isSaved,
-                                        isSaving: _isSaving,
-                                        isDisliking: _isDisliking,
-                                        onAddToBubble: () {},
-                                        onToggleSave: _toggleSave,
-                                        onDislike: _dislikeLocation,
-                                        onShare: () {},
-                                        onAddToCollection:
-                                            _showAddToCollectionSheet,
-                                      ),
-                                      // Energy block — editorial first
-                                      // (human language), structured vibe
-                                      // scoring second.
-                                      if (widget.location.generatedSummary !=
-                                              null ||
-                                          widget.location.editorialSummary !=
-                                              null) ...[
-                                        const SizedBox(height: 28),
-                                        AboutSection(
-                                          generatedSummary:
-                                              widget.location.generatedSummary,
-                                          editorialSummary:
-                                              widget.location.editorialSummary,
-                                        ),
-                                      ],
-                                      const SizedBox(height: 28),
-                                      VibeSection(vibe: widget.location.vibe),
-                                      if (widget.location.recommendedDishes !=
-                                          null) ...[
-                                        const SizedBox(height: 28),
-                                        RecommendedDishesSection(
-                                          recommendedDishes: widget
-                                              .location.recommendedDishes,
-                                        ),
-                                      ],
-                                      const SizedBox(height: 28),
-                                      ReviewSection(location: widget.location),
-                                      // Utility — moved to the end of the
-                                      // hierarchy. Practical info should not
-                                      // dominate the page above taste,
-                                      // editorial, and social proof.
-                                      const SizedBox(height: 28),
-                                      DetailsSection(
-                                        location: widget.location,
-                                        onOpenInMaps: _openInGoogleMaps,
-                                        onOpenWebsite: _openWebsite,
-                                      ),
-                                      if (_similarPlaces.isNotEmpty) ...[
-                                        const SizedBox(height: 32),
-                                        SimilarPlacesSection(
-                                          similarPlaces: _similarPlaces,
-                                          onPlaceTap: (_) => _handleClose(),
-                                        ),
-                                      ],
-                                      const SizedBox(height: 120),
-                                    ],
+                            isRestaurant
+                                ? _buildRestaurantBody(
+                                    scrollCtrl: scrollCtrl,
+                                    heroHeight: size.height * 0.34,
+                                    isWavy: isWavy,
+                                  )
+                                : _buildLegacyBody(
+                                    scrollCtrl: scrollCtrl,
+                                    heroHeight: size.height * 0.34,
+                                    isWavy: isWavy,
                                   ),
-                                ),
-                              ],
-                            ),
 
                             // Drag handle
                             Positioned(
@@ -510,6 +452,27 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                                 ),
                               ),
                             ),
+
+                            // Persistent action dock — restaurant-only.
+                            // Anchored to the bottom of the sheet so the
+                            // primary actions stay visible while the
+                            // editorial body scrolls behind.
+                            if (isRestaurant)
+                              Positioned(
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                child: PersistentActionDock(
+                                  isSaved: _isSaved,
+                                  isSaving: _isSaving,
+                                  isDisliking: _isDisliking,
+                                  onAddToBubble: () {},
+                                  onToggleSave: _toggleSave,
+                                  onAddToCollection:
+                                      _showAddToCollectionSheet,
+                                  onDislike: _dislikeLocation,
+                                ),
+                              ),
                           ],
                         ),
                       ),
@@ -528,6 +491,194 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
           ],
         ),
       ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  //  Body composition (2026-04-08 redesign)
+  // ─────────────────────────────────────────────────────────────
+
+  /// Restaurant composition: hero → summary slab → editorial body
+  /// (Why go / What to get / Social proof / Practicals). Action row is
+  /// owned by the persistent dock and intentionally absent from the
+  /// scroll body.
+  Widget _buildRestaurantBody({
+    required ScrollController scrollCtrl,
+    required double heroHeight,
+    required bool isWavy,
+  }) {
+    // Bottom inset reserves space for the persistent dock so the final
+    // section remains fully readable above it. Dock chrome height plus
+    // safe-area inset plus a little breathing room.
+    final dockBottomInset = MediaQuery.of(context).padding.bottom +
+        PersistentActionDock.dockHeight +
+        24;
+
+    return ListView(
+      controller: scrollCtrl,
+      padding: EdgeInsets.zero,
+      children: [
+        HeroSection(
+          height: heroHeight,
+          photos: _photos,
+          currentPhotoIndex: _currentPhotoIndex,
+          onPhotoChanged: (i) => setState(() => _currentPhotoIndex = i),
+          accentColor: _accentColor,
+          openStatusLabel: _openStatusLabel(),
+          openStatusColor: _openStatusColor(),
+          priceLabel: _priceLabel(),
+          isWavy: isWavy,
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Layer 2 — summary slab (page backbone).
+              SummarySlabSection(
+                location: widget.location,
+                match: _match,
+                matchAnim: _matchAnim,
+                onAddressTap: _openInGoogleMaps,
+                onSavedFromTap: _openSavedFromUrl,
+              ),
+
+              // Layer 3 — editorial body.
+              const SizedBox(height: 32),
+              WhyGoSection(
+                generatedSummary: widget.location.generatedSummary,
+                editorialSummary: widget.location.editorialSummary,
+                vibe: widget.location.vibe,
+              ),
+              if (widget.location.recommendedDishes != null) ...[
+                const SizedBox(height: 32),
+                RecommendedDishesSection(
+                  recommendedDishes: widget.location.recommendedDishes,
+                ),
+              ],
+              const SizedBox(height: 32),
+              SocialProofSection(
+                location: widget.location,
+                similarPlaces: _similarPlaces,
+                onSimilarPlaceTap: (_) => _handleClose(),
+              ),
+              const SizedBox(height: 32),
+              DetailsSection(
+                location: widget.location,
+                onOpenInMaps: _openInGoogleMaps,
+                onOpenWebsite: _openWebsite,
+              ),
+              SizedBox(height: dockBottomInset),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Legacy composition for non-restaurant locations. The 2026-04-08
+  /// redesign is intentionally restaurant-only — other place types
+  /// continue to use the previous structure unchanged.
+  Widget _buildLegacyBody({
+    required ScrollController scrollCtrl,
+    required double heroHeight,
+    required bool isWavy,
+  }) {
+    return ListView(
+      controller: scrollCtrl,
+      padding: EdgeInsets.zero,
+      children: [
+        HeroSection(
+          height: heroHeight,
+          photos: _photos,
+          currentPhotoIndex: _currentPhotoIndex,
+          onPhotoChanged: (i) => setState(() => _currentPhotoIndex = i),
+          accentColor: _accentColor,
+          openStatusLabel: _openStatusLabel(),
+          openStatusColor: _openStatusColor(),
+          priceLabel: _priceLabel(),
+          isWavy: isWavy,
+        ),
+        MatchBannerSection(
+          match: _match,
+          matchAnim: _matchAnim,
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 20),
+              // Provenance — "Saved from this TikTok" flash badge.
+              // Mirrors the placement used in SummarySlabSection so the
+              // signal is consistent across both card compositions.
+              if ((widget.location.savedMethod ?? '').toLowerCase() ==
+                      'tiktok' &&
+                  (widget.location.savedFrom ?? '').trim().isNotEmpty) ...[
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: SavedFromBadge(
+                    savedMethod: widget.location.savedMethod,
+                    sourceUrl: widget.location.savedFrom,
+                    onTap: _openSavedFromUrl,
+                  ),
+                ),
+                const SizedBox(height: 14),
+              ],
+              NameLocationSection(
+                name: widget.location.name,
+                vicinity: widget.location.vicinity,
+                onAddressTap: _openInGoogleMaps,
+              ),
+              const SizedBox(height: 16),
+              QuickStatsSection(location: widget.location),
+              const SizedBox(height: 20),
+              ActionsSection(
+                isSaved: _isSaved,
+                isSaving: _isSaving,
+                isDisliking: _isDisliking,
+                onAddToBubble: () {},
+                onToggleSave: _toggleSave,
+                onDislike: _dislikeLocation,
+                onShare: () {},
+                onAddToCollection: _showAddToCollectionSheet,
+              ),
+              if (widget.location.generatedSummary != null ||
+                  widget.location.editorialSummary != null) ...[
+                const SizedBox(height: 28),
+                AboutSection(
+                  generatedSummary: widget.location.generatedSummary,
+                  editorialSummary: widget.location.editorialSummary,
+                ),
+              ],
+              const SizedBox(height: 28),
+              VibeSection(vibe: widget.location.vibe),
+              if (widget.location.recommendedDishes != null) ...[
+                const SizedBox(height: 28),
+                RecommendedDishesSection(
+                  recommendedDishes: widget.location.recommendedDishes,
+                ),
+              ],
+              const SizedBox(height: 28),
+              ReviewSection(location: widget.location),
+              const SizedBox(height: 28),
+              DetailsSection(
+                location: widget.location,
+                onOpenInMaps: _openInGoogleMaps,
+                onOpenWebsite: _openWebsite,
+              ),
+              if (_similarPlaces.isNotEmpty) ...[
+                const SizedBox(height: 32),
+                SimilarPlacesSection(
+                  similarPlaces: _similarPlaces,
+                  onPlaceTap: (_) => _handleClose(),
+                ),
+              ],
+              const SizedBox(height: 120),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

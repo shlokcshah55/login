@@ -582,20 +582,36 @@ class LocationHelper {
 
 
 
-  /// Save a location for the current user
-  Future<bool> saveLocation(int locationId, {String? savedMethod}) async {
+  /// Save a location for the current user via the
+  /// `save_location_with_tags` RPC.
+  ///
+  /// The RPC is the single source of truth for save side-effects
+  /// (action row, popularity bump, vibe affinity nudge). Vibe affinity
+  /// only fires the first time a given (user, location) is saved, ever
+  /// — see `user_tag_affinity_grants` for the gating.
+  ///
+  /// [sourceVideoUrl] is forwarded to `source_video_url` and is what
+  /// powers the "Saved from this TikTok" provenance badge on the
+  /// expanded card. Pass it whenever the save originates from a
+  /// social-video flow.
+  Future<bool> saveLocation(
+    int locationId, {
+    String? savedMethod,
+    String? sourceVideoUrl,
+  }) async {
     try {
       final user = SupabaseClientManager().currentUser;
       if (user == null) {
         throw Exception('User not authenticated');
       }
 
+      print('[LocationHelper] Saving location $locationId for user ${user.id} with method $savedMethod and sourceVideoUrl $sourceVideoUrl');
       final result = await _client.rpc('save_location_with_tags', params: {
         'p_user_id': user.id,
         'p_location_id': locationId,
         'p_saved_method': savedMethod ?? 'in-app',
         'p_acked': true,
-        'p_source_video_url': null,
+        'p_source_video_url': sourceVideoUrl,
       });
 
       return result['success'] == true;
@@ -616,6 +632,7 @@ class LocationHelper {
         throw Exception('User not authenticated');
       }
 
+      print('[LocationHelper] Disliking location $locationId for user ${user.id}');
       final result = await _client.rpc('dislike_location_with_tags', params: {
         'p_user_id': user.id,
         'p_location_id': locationId,
@@ -656,7 +673,14 @@ class LocationHelper {
     }
   }
 
-  /// Unsave a location for the current user
+  /// Unsave a location for the current user via the `unsave_location`
+  /// RPC.
+  ///
+  /// The RPC is the single source of truth for unsave side-effects:
+  /// applies a stock negated vibe-affinity nudge (the inverse of
+  /// save_location_with_tags' formula, using the same multiplier the
+  /// original save used), deletes the action row, and decrements the
+  /// popularity counter. Callers do not need a second round-trip.
   Future<bool> unsaveLocation(int locationId) async {
     try {
       final user = SupabaseClientManager().currentUser;
@@ -669,9 +693,6 @@ class LocationHelper {
         'p_user_id': user.id,
         'p_location_id': locationId,
       });
-
-      // Update location popularity counter
-      decrementSaveCount(locationId);
 
       return true;
     } catch (e) {

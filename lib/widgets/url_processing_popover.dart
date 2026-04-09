@@ -212,10 +212,13 @@ class _UrlProcessingPopoverState extends State<UrlProcessingPopover>
 
         print("💾 SAVE: Saving location #$index: ${locationModel.name} (ID: ${locationModel.locationId})");
 
-        // Save location using the Supabase service
+        // Save location using the Supabase service. Pass the original
+        // TikTok URL through so the expanded card can surface its
+        // "Saved from this TikTok" provenance badge.
         final success = await _supabaseService.locations.saveLocation(
           locationModel.locationId,
           savedMethod: 'tiktok',
+          sourceVideoUrl: widget.url,
         );
 
         print("💾 SAVE: Location #$index save result: $success");
