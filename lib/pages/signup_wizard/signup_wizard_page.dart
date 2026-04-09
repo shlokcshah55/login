@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../models/signup_wizard_state.dart';
 import '../../models/locations.dart';
 import '../../supabase/service.dart';
 import '../../supabase/constants.dart';
 import '../auth_handler.dart';
+import '../profile/widgets/pinit_colors.dart';
 import 'account_step.dart';
 import 'steps/dietary_step.dart';
 import 'steps/vibe_step.dart';
@@ -203,20 +205,33 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF42143d), // App primary color
+      backgroundColor: PinitColors.cream,
       body: SafeArea(
           child: Column(
             children: [
               // Progress Indicator
               Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 5),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Text(
+                      _stepTitles[_currentStep],
+                      style: const TextStyle(
+                        fontFamily: 'Rova',
+                        fontSize: 32,
+                        fontWeight: FontWeight.w100,
+                        color: PinitColors.aubergine,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    // Progress bar
                     Container(
-                      height: 4,
+                      height: 12,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(2),
+                        color: PinitColors.creamDeep,
+                        borderRadius: BorderRadius.circular(4),
                       ),
                       child: LayoutBuilder(
                         builder: (context, constraints) {
@@ -225,27 +240,11 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
                             curve: Curves.easeOutQuint,
                             width: constraints.maxWidth * _calculateProgress(),
                             decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(2),
+                              color: PinitColors.accent,
+                              borderRadius: BorderRadius.circular(4),
                             ),
                           );
                         },
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      _stepTitles[_currentStep],
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      'Step ${_currentStep + 1} of 4',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.8),
-                        fontSize: 14,
                       ),
                     ),
                   ],

@@ -24,6 +24,7 @@ class PinitColors {
   static const Color primary        = aubergine;
   static const Color accentSoft     = creamSunk;
   static const Color error          = accent;
+  static const Color black         = Color.fromARGB(255, 0, 0, 0);
 
   // ── Single allowed gradient (hero bg only) ────────────────────
   static const LinearGradient heroGradient = LinearGradient(

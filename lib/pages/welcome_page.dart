@@ -70,9 +70,9 @@ class WelcomePage extends StatelessWidget {
                   // Logo
                   Image.asset(
                     'lib/assets/logo-transparent.png',
-                    height: 400,
-                    width: 400,
-                    fit: BoxFit.cover,
+                    height: 250,
+                    width: 250,
+                    fit: BoxFit.contain,
                   ),
 
                   const Spacer(flex: 3),
@@ -102,8 +102,9 @@ class WelcomePage extends StatelessWidget {
                       child: const Text(
                         'Login',
                         style: TextStyle(
+                          fontFamily: 'Lato',
                           fontSize: 18,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w800,
                           letterSpacing: 1.0,
                         ),
                       ),
@@ -136,8 +137,9 @@ class WelcomePage extends StatelessWidget {
                       child: const Text(
                         'Sign Up',
                         style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
+                          fontFamily: 'Lato',
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
                           letterSpacing: 0.5,
                         ),
                       ),
@@ -187,8 +189,9 @@ class WelcomePage extends StatelessWidget {
                       label: const Text(
                         'Continue with Google',
                         style: TextStyle(
+                          fontFamily: 'Lato',
                           fontSize: 16,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w800,
                           letterSpacing: 0.5,
                         ),
                       ),

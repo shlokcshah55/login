@@ -1,9 +1,12 @@
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../models/signup_wizard_state.dart';
 import '../../../supabase/service.dart';
 import '../../../widgets/loading_widget.dart';
+import '../../profile/widgets/pinit_colors.dart';
 
 class DietaryStep extends StatefulWidget {
   final VoidCallback onNext;
@@ -67,7 +70,7 @@ class _DietaryStepState extends State<DietaryStep> {
 
     return Container(
       decoration: const BoxDecoration(
-        color: Colors.white,
+        color: PinitColors.cream,
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(30),
           topRight: Radius.circular(30),
@@ -85,7 +88,7 @@ class _DietaryStepState extends State<DietaryStep> {
                           children: [
                             Text(
                               _error!,
-                              style: const TextStyle(color: Colors.red),
+                              style: GoogleFonts.dmSans(color: PinitColors.accent),
                               textAlign: TextAlign.center,
                             ),
                             const SizedBox(height: 16),
@@ -96,126 +99,181 @@ class _DietaryStepState extends State<DietaryStep> {
                           ],
                         ),
                       )
-                    : SingleChildScrollView(
-                        padding: const EdgeInsets.all(24.0),
+                    : Padding(
+                        padding: const EdgeInsets.fromLTRB(24.0, 16.0, 24.0, 12.0),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // Title at the top
+                            const Text(
+                              'Dietary Preferences',
+                              style: TextStyle(
+                                fontFamily: 'Rova',
+                                fontSize: 32,
+                                fontWeight: FontWeight.w100,
+                                color: PinitColors.aubergine,
+                                letterSpacing: 1.5,
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+
+                            // Subtitle with avatar
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                SvgPicture.asset(
+                                  'lib/assets/illustrations/Avatars - Default.svg',
+                                  width: 48,
+                                  height: 48,
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Tell us about your dietary needs',
+                                        style: GoogleFonts.dmSans(
+                                          fontSize: 15,
+                                          color: PinitColors.aubergine,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Select all that apply (optional)',
+                                        style: GoogleFonts.dmSans(
+                                          fontSize: 13,
+                                          color: PinitColors.aubergineSoft,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+
                             const SizedBox(height: 16),
 
-                            // Title
-                            const Text(
-                              'Tell us about your dietary needs',
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Select all that apply (optional)',
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-
-                            const SizedBox(height: 24),
-
-                            // Dietary tags
+                            // Dietary tags with shadow styling
                             Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
+                              spacing: 6,
+                              runSpacing: 6,
                               children: _dietaryTags.map((tag) {
                                 final tagId = tag['tag_id'] as String;
                                 final isSelected = wizardState.selectedDietaryTagIds
                                     .contains(tagId);
+                                final tagColor = tag['colour'] != null
+                                    ? Color(int.parse(tag['colour'].toString().replaceAll('#', '0xFF')))
+                                    : PinitColors.creamSunk;
 
-                                return FilterChip(
-                                  label: Text(tag['text'] as String),
-                                  selected: isSelected,
-                                  onSelected: (selected) {
-                                    wizardState.toggleDietaryTag(tagId);
-                                  },
-                                  backgroundColor: tag['colour'] != null
-                                      ? Color(int.parse(tag['colour'].toString().replaceAll('#', '0xFF')))
-                                      : Colors.grey.shade100,
-                                  selectedColor: const Color(0xFF42143d)
-                                      .withOpacity(0.2),
-                                  checkmarkColor: const Color(0xFF42143d),
-                                  labelStyle: TextStyle(
-                                    color: isSelected
-                                        ? const Color(0xFF42143d)
-                                        : Colors.black87,
-                                    fontWeight: isSelected
-                                        ? FontWeight.w600
-                                        : FontWeight.normal,
-                                  ),
-                                  shape: RoundedRectangleBorder(
+                                return Container(
+                                  decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(12),
-                                    side: BorderSide(
-                                      color: isSelected
-                                          ? const Color(0xFF42143d)
-                                          : Colors.grey.shade300,
-                                      width: isSelected ? 2 : 1,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: PinitColors.aubergine,
+                                        blurRadius: 0,
+                                        offset: const Offset(3, 3),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Material(
+                                    color: isSelected ? tagColor : tagColor,
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: InkWell(
+                                      onTap: () {
+                                        wizardState.toggleDietaryTag(tagId);
+                                      },
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            if (isSelected)
+                                              Padding(
+                                                padding: const EdgeInsets.only(right: 6),
+                                                child: Icon(
+                                                  Icons.check,
+                                                  size: 16,
+                                                  color: PinitColors.aubergine,
+                                                ),
+                                              ),
+                                            Text(
+                                              tag['text'] as String,
+                                              style: GoogleFonts.dmSans(
+                                                fontSize: 14,
+                                                color: PinitColors.aubergine,
+                                                fontWeight: isSelected
+                                                    ? FontWeight.w600
+                                                    : FontWeight.normal,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 );
                               }).toList(),
                             ),
 
-                            const SizedBox(height: 40),
+                            const SizedBox(height: 16),
 
                             // Spice tolerance section
                             const Text(
                               'How much spice can you handle?',
                               style: TextStyle(
+                                fontFamily: 'Rova',
                                 fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
+                                fontWeight: FontWeight.w100,
+                                color: PinitColors.aubergine,
+                                letterSpacing: 1.5,
                               ),
                             ),
-                            const SizedBox(height: 24),
+                            const SizedBox(height: 12),
 
                             // Spice level indicator
                             Center(
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                  vertical: 12,
+                                  horizontal: 16,
+                                  vertical: 8,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF42143d).withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(16),
+                                  color: PinitColors.aubergine.withValues(alpha: 0.08),
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Text(
                                   _spiceLabels[wizardState.spiceTolerance - 1],
-                                  style: const TextStyle(
-                                    fontSize: 16,
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 13,
                                     fontWeight: FontWeight.w600,
-                                    color: Color(0xFF42143d),
-                                    height: 1.4,
+                                    color: PinitColors.aubergine,
+                                    height: 1.3,
                                   ),
                                   textAlign: TextAlign.center,
                                 ),
                               ),
                             ),
 
-                            const SizedBox(height: 24),
+                            const SizedBox(height: 12),
 
                             // Spice slider
                             SliderTheme(
                               data: SliderTheme.of(context).copyWith(
-                                activeTrackColor: const Color(0xFF42143d),
-                                inactiveTrackColor:
-                                    const Color(0xFF42143d).withOpacity(0.2),
-                                thumbColor: const Color(0xFF42143d),
-                                overlayColor:
-                                    const Color(0xFF42143d).withOpacity(0.2),
-                                trackHeight: 8,
+                                activeTrackColor: PinitColors.accent,
+                                inactiveTrackColor: PinitColors.creamDeep,
+                                thumbColor: PinitColors.accent,
+                                overlayColor: PinitColors.accent.withValues(alpha: 0.2),
+                                trackHeight: 6,
                                 thumbShape: const RoundSliderThumbShape(
-                                  enabledThumbRadius: 14,
+                                  enabledThumbRadius: 12,
                                 ),
                               ),
                               child: Slider(
@@ -231,32 +289,28 @@ class _DietaryStepState extends State<DietaryStep> {
 
                             // Level indicators
                             Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 8.0),
+                              padding: const EdgeInsets.symmetric(horizontal: 8.0),
                               child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: List.generate(
                                   5,
                                   (index) => Text(
                                     '${index + 1}',
-                                    style: TextStyle(
-                                      fontSize: 14,
+                                    style: GoogleFonts.dmSans(
+                                      fontSize: 12,
                                       fontWeight: wizardState.spiceTolerance ==
                                               (index + 1)
-                                          ? FontWeight.bold
+                                          ? FontWeight.w700
                                           : FontWeight.normal,
                                       color: wizardState.spiceTolerance ==
                                               (index + 1)
-                                          ? const Color(0xFF42143d)
-                                          : Colors.grey.shade600,
+                                          ? PinitColors.aubergine
+                                          : PinitColors.mute,
                                     ),
                                   ),
                                 ),
                               ),
                             ),
-
-                            const SizedBox(height: 40),
                           ],
                         ),
                       ),
@@ -264,12 +318,12 @@ class _DietaryStepState extends State<DietaryStep> {
 
           // Navigation buttons
           Container(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: PinitColors.cream,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: PinitColors.aubergine.withValues(alpha: 0.06),
                   blurRadius: 10,
                   offset: const Offset(0, -2),
                 ),
@@ -282,42 +336,46 @@ class _DietaryStepState extends State<DietaryStep> {
                   child: OutlinedButton(
                     onPressed: widget.onBack,
                     style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      side: const BorderSide(color: Color(0xFF42143d)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      side: const BorderSide(
+                        color: PinitColors.aubergine,
+                        width: 1.5,
+                      ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(20),
                       ),
                     ),
-                    child: const Text(
+                    child: Text(
                       'Back',
-                      style: TextStyle(
-                        fontSize: 16,
+                      style: GoogleFonts.dmSans(
+                        fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF42143d),
+                        color: PinitColors.aubergine,
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 // Next button
                 Expanded(
                   flex: 2,
                   child: ElevatedButton(
                     onPressed: _isLoading ? null : widget.onNext,
                     style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: const Color(0xFF42143d),
-                      foregroundColor: Colors.white,
-                      elevation: 4,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      backgroundColor: PinitColors.aubergine,
+                      foregroundColor: PinitColors.cream,
+                      elevation: 0,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(20),
                       ),
                     ),
-                    child: const Text(
+                    child: Text(
                       'Continue',
-                      style: TextStyle(
-                        fontSize: 16,
+                      style: GoogleFonts.dmSans(
+                        fontSize: 14,
                         fontWeight: FontWeight.w600,
+                        letterSpacing: 0.5,
                       ),
                     ),
                   ),
