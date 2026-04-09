@@ -1,11 +1,17 @@
-CREATE OR REPLACE FUNCTION public.dislike_location_with_tags(p_user_id uuid, p_location_id integer)
- RETURNS jsonb
- LANGUAGE plpgsql
-AS $function$DECLARE
-    v_location_id INTEGER;
-    v_action_exists BOOLEAN := FALSE;
-    v_location_vibes REAL[];
-    v_user_vibes REAL[];
+CREATE OR REPLACE FUNCTION public.dislike_location_with_tags(
+    p_user_id     uuid,
+    p_location_id integer
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+    v_location_id        INTEGER;
+    v_action_exists      BOOLEAN := FALSE;
+    v_location_vibes     REAL[];
+    v_user_vibes         REAL[];
     v_interaction_weight NUMERIC;
 BEGIN
     -- Step 1: Verify Location Exists
@@ -39,28 +45,38 @@ BEGIN
     -- Step 4: Update Location Popularity
     PERFORM increment_dislikes_count(v_location_id);
 
-    -- Step 5: Update User Vibe Vector (push away from location vibes)
+    -- Step 5: Update User Vibe Vector (push away from location vibes).
+    -- IMPORTANT: this whole function runs in a single sub-transaction. The
+    -- WHEN OTHERS rescue at the bottom would otherwise roll back the
+    -- INSERT above if any line in this block throws (e.g. NULL vibe
+    -- vectors on new accounts), so guard the math up front.
     SELECT calculate_interaction_weight(p_user_id) INTO v_interaction_weight;
 
     SELECT vibe_vector INTO v_location_vibes FROM locations WHERE location_id = v_location_id;
     SELECT vibe_tag_affinity INTO v_user_vibes FROM users WHERE supabase_id = p_user_id;
 
-    UPDATE users
-    SET vibe_tag_affinity = (
-        SELECT array_agg(
-            LEAST(100.0, GREATEST(0.0,
-                v_user_vibes[i] + ((v_user_vibes[i] - v_location_vibes[i]) / 100.0) * 2.0 * v_interaction_weight
-            ))
-            ORDER BY i
+    IF v_user_vibes IS NOT NULL
+       AND v_location_vibes IS NOT NULL
+       AND array_length(v_user_vibes, 1) >= 25
+       AND array_length(v_location_vibes, 1) >= 25 THEN
+        UPDATE users
+        SET vibe_tag_affinity = (
+            SELECT array_agg(
+                LEAST(100.0, GREATEST(0.0,
+                    v_user_vibes[i] + ((v_user_vibes[i] - v_location_vibes[i]) / 100.0) * 2.0 * v_interaction_weight
+                ))
+                ORDER BY i
+            )
+            FROM generate_series(1, 25) AS i
         )
-        FROM generate_series(1, 25) AS i
-    )
-    WHERE supabase_id = p_user_id;
+        WHERE supabase_id = p_user_id;
+    END IF;
 
     -- Step 6: Return Success
     RETURN jsonb_build_object(
         'success', TRUE, 'location_id', v_location_id,
-        'action_created', TRUE, 'popularity_updated', TRUE, 'vibes_updated', TRUE
+        'action_created', TRUE, 'popularity_updated', TRUE,
+        'vibes_updated', (v_user_vibes IS NOT NULL AND v_location_vibes IS NOT NULL)
     );
 
 EXCEPTION
@@ -71,5 +87,5 @@ EXCEPTION
             'action_created', FALSE, 'message', 'Location already disliked (race condition)');
     WHEN OTHERS THEN
         RETURN jsonb_build_object('success', FALSE, 'error', SQLERRM);
-END;$function$
-;
+END;
+$function$;

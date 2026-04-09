@@ -1,3 +1,20 @@
+-- Fix save_location_with_tags rolling back its own INSERT.
+--
+-- Same shape as 20260410120000_dislike_location_guard_vibe_update: the
+-- function body has a top-level `WHEN OTHERS` rescue, and Step 5's
+-- vibe-vector UPDATE dereferences v_user_vibes[i] without first checking
+-- whether the array is NULL or short. New accounts (NULL
+-- vibe_tag_affinity) and locations with a missing vibe_vector blow up
+-- there, the rescue catches it, the whole sub-transaction rolls back —
+-- including the Step 3 INSERT into user_location_actions — and PostgREST
+-- happily returns 200 with {success: false}. Flutter saw "RPC succeeded"
+-- but no row landed.
+--
+-- Fix: guard the UPDATE the same way unsave_location already does, and
+-- additionally check array_length so a short vector can't crash array_agg
+-- either. Also add SECURITY DEFINER + search_path so this function has
+-- the same execution context as its siblings.
+
 CREATE OR REPLACE FUNCTION public.save_location_with_tags(
     p_user_id          uuid,
     p_location_id      integer,
@@ -51,11 +68,8 @@ BEGIN
     -- Step 4: Update Location Popularity
     PERFORM increment_saves_count(v_location_id);
 
-    -- Step 5: Update User Vibe Vector.
-    -- IMPORTANT: this whole function runs in a single sub-transaction. The
-    -- WHEN OTHERS rescue at the bottom would otherwise roll back the
-    -- INSERT above if any line in this block throws (e.g. NULL or short
-    -- vibe vectors on new accounts), so guard the math up front.
+    -- Step 5: Update User Vibe Vector. Guarded against NULL / short
+    -- vectors so a missing vector can never roll back the INSERT above.
     SELECT calculate_interaction_weight(p_user_id) INTO v_interaction_weight;
 
     SELECT vibe_vector INTO v_location_vibes FROM locations WHERE location_id = v_location_id;

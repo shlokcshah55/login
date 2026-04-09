@@ -614,7 +614,13 @@ class LocationHelper {
         'p_source_video_url': sourceVideoUrl,
       });
 
-      return result['success'] == true;
+      final success = result is Map && result['success'] == true;
+      if (!success && kDebugMode) {
+        // RPC body said success=false. Surface the embedded error so we
+        // don't silently swallow rolled-back inserts again.
+        print('[LocationHelper] save RPC returned failure: $result');
+      }
+      return success;
     } catch (e) {
       if (kDebugMode) {
         print('Error saving location: $e');
@@ -638,7 +644,13 @@ class LocationHelper {
         'p_location_id': locationId,
       });
 
-      return result['success'] == true;
+      final success = result is Map && result['success'] == true;
+      if (!success && kDebugMode) {
+        // RPC body said success=false. Surface the embedded error so we
+        // don't silently swallow rolled-back inserts again.
+        print('[LocationHelper] dislike RPC returned failure: $result');
+      }
+      return success;
     } catch (e) {
       if (kDebugMode) {
         print('Error disliking location: $e');
@@ -689,11 +701,19 @@ class LocationHelper {
         throw Exception('User not authenticated');
       }
 
-      await _client.rpc('unsave_location', params: {
+      print('[LocationHelper] Unsaving location $locationId for user ${user.id}');
+      final result = await _client.rpc('unsave_location', params: {
         'p_user_id': user.id,
         'p_location_id': locationId,
       });
 
+      // unsave_location returns void, so a successful call is `null`. If the
+      // RPC ever evolves to return a JSON envelope (matching save/dislike),
+      // surface a `success: false` payload the same way the other helpers do.
+      if (result is Map && result['success'] == false && kDebugMode) {
+        print('[LocationHelper] unsave RPC returned failure: $result');
+        return false;
+      }
       return true;
     } catch (e) {
       if (kDebugMode) {

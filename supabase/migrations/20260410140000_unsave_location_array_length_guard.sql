@@ -1,3 +1,18 @@
+-- Harden unsave_location against short vibe vectors.
+--
+-- The previous migration (20260409120000) guarded the vibe-affinity UPDATE
+-- with `IF v_user_vibes IS NOT NULL AND v_location_vibes IS NOT NULL`,
+-- which catches the new-account case but NOT the case where one of the
+-- vectors exists but has fewer than 25 elements (legacy rows, partial
+-- migrations, mid-rollout schema). In that case the inner array_agg over
+-- generate_series(1, 25) dereferences past the end of the array and
+-- throws.
+--
+-- unsave_location has no WHEN OTHERS rescue so this would surface as a
+-- 5xx rather than a silent rollback, but it still leaves the function
+-- unable to complete and the DELETE never runs. Mirror the array_length
+-- check from the save/dislike fixes for consistency.
+
 CREATE OR REPLACE FUNCTION public.unsave_location(
     p_user_id     uuid,
     p_location_id integer
@@ -15,8 +30,8 @@ DECLARE
     v_interaction_weight  NUMERIC;
 BEGIN
     -- Step 1: Look up the original save row so we know which multiplier
-    --         was applied when the user first saved this location.
-    --         If there is no save row there is nothing to undo.
+    -- was applied when the user first saved this location. If there is
+    -- no save row there is nothing to undo.
     SELECT saved_method
       INTO v_saved_method
     FROM user_location_actions
@@ -30,10 +45,8 @@ BEGIN
     END IF;
 
     -- Step 2: Apply a stock negated vibe-affinity nudge — the inverse of
-    --         the formula in save_location_with_tags. This is not an
-    --         exact rollback (the user's affinity has evolved since the
-    --         original save), it is a stock counter-effect that stops
-    --         repeated save/unsave cycles from compounding.
+    -- save_location_with_tags' formula. Stock counter-effect, not an
+    -- exact rollback.
     SELECT calculate_interaction_weight(p_user_id) INTO v_interaction_weight;
 
     SELECT vibe_vector
@@ -52,8 +65,6 @@ BEGIN
         v_multiplier := 3.0;
     END IF;
 
-    -- Guard against NULL or short vibe vectors so a missing/legacy vector
-    -- can never crash array_agg and prevent the DELETE below from running.
     IF v_user_vibes IS NOT NULL
        AND v_location_vibes IS NOT NULL
        AND array_length(v_user_vibes, 1) >= 25
@@ -78,8 +89,7 @@ BEGIN
       AND action = 'save';
 
     -- Step 4: Mirror save_location_with_tags by handling popularity
-    --         bookkeeping inside the RPC, so callers don't need a
-    --         second round-trip. decrement_saves_count clamps at 0.
+    -- bookkeeping inside the RPC. decrement_saves_count clamps at 0.
     PERFORM decrement_saves_count(p_location_id);
 END;
 $function$;
