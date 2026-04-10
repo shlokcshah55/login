@@ -858,9 +858,10 @@ class AuthHelper {
   }
 
   /// Replaces the user's full vibe-tag affinity vector with [affinity].
-  /// Writes directly to the users row (no RPC needed).
+  /// Writes directly to the users row (no RPC needed). Values are doubles
+  /// because the column is float4[] — see lib/models/users.dart.
   Future<bool> updateVibeTagAffinity(
-      String userId, List<int> affinity) async {
+      String userId, List<double> affinity) async {
     try {
       await _client
           .from(SupabaseConstants.tableUsers)

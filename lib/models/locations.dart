@@ -753,7 +753,7 @@ class LocationModel {
   /// Uses weighted sum of vibe and dietary match scores.
   /// Returns 0.0 if user has no affinity data or location lacks vectors.
   static double calculateMatchScore({
-    required List<int>? userVibeAffinity,
+    required List<double>? userVibeAffinity,
     required List<int>? userDietaryAffinity,
     required List<double>? locationVibeVector,
     required List<int>? locationDietaryVector,
@@ -768,7 +768,7 @@ class LocationModel {
     double vibeScore = 0.0;
     double dietaryScore = 0.0;
 
-    // Vibe match: dot product of user affinity (int) and location vector (double)
+    // Vibe match: dot product of user affinity and location vector (both double)
     if (userVibeAffinity != null &&
         userVibeAffinity.isNotEmpty &&
         locationVibeVector != null &&
@@ -776,7 +776,7 @@ class LocationModel {
       double dot = 0, magA = 0, magB = 0;
       final len = math.min(userVibeAffinity.length, locationVibeVector.length);
       for (var i = 0; i < len; i++) {
-        final a = userVibeAffinity[i].toDouble();
+        final a = userVibeAffinity[i];
         final b = locationVibeVector[i];
         dot += a * b;
         magA += a * a;

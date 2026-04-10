@@ -17,10 +17,12 @@ class UserModel {
   final bool wizardCompleted;
   final String? username;
 
-  /// User’s vibe-tag affinity vector (integer[]; indices match tag order).
-  final List<int>? vibeTagAffinity;
+  /// User’s vibe-tag affinity vector (float4[]; indices match tag order).
+  /// Continuous values in roughly [0, 100]; the RPC nudges fractionally on
+  /// each save/dislike so int storage was rounding small deltas to nothing.
+  final List<double>? vibeTagAffinity;
 
-  /// User’s dietary-requirement affinity vector (integer[]).
+  /// User’s dietary-requirement affinity vector (integer[]; 0/1 mask).
   final List<int>? dietaryRequirementTagAffinity;
 
   /// Whether the user has already generated AI collections at least once.
@@ -55,7 +57,7 @@ class UserModel {
     final len = math.min(vibeTagAffinity!.length, locationVibeVector.length);
     double dot = 0, magA = 0, magB = 0;
     for (var i = 0; i < len; i++) {
-      final a = vibeTagAffinity![i].toDouble();
+      final a = vibeTagAffinity![i];
       final b = locationVibeVector[i];
       dot += a * b;
       magA += a * a;
@@ -108,9 +110,9 @@ class UserModel {
       wizardCompleted: json[SupabaseConstants.columnWizardCompleted] ?? false,
       username: json[SupabaseConstants.columnUsername] ?? '',
       vibeTagAffinity: json[SupabaseConstants.columnVibeTagAffinity] != null
-          ? List<int>.from(
+          ? List<double>.from(
               (json[SupabaseConstants.columnVibeTagAffinity] as List)
-                  .map((e) => (e as num).toInt()))
+                  .map((e) => (e as num).toDouble()))
           : null,
       dietaryRequirementTagAffinity:
           json[SupabaseConstants.columnDietaryRequirementTagAffinity] != null
@@ -157,7 +159,7 @@ class UserModel {
     int? spiceTolerance,
     bool? wizardCompleted,
     String? username,
-    List<int>? vibeTagAffinity,
+    List<double>? vibeTagAffinity,
     List<int>? dietaryRequirementTagAffinity,
     bool? generatedCollections,
   }) {

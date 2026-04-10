@@ -19,13 +19,15 @@ class PreferencesPage extends StatefulWidget {
 }
 
 class _PreferencesPageState extends State<PreferencesPage> {
-  static const int _step = 5;
+  static const double _step = 5.0;
 
   late Future<List<Map<String, dynamic>>> _tagsFuture;
 
   /// Local working copy of the affinity vector — gets updated optimistically
-  /// and synced to the provider on a debounce.
-  List<int>? _localAffinity;
+  /// and synced to the provider on a debounce. Doubles because the column
+  /// is float4[]; users see whole numbers, but underlying values may be
+  /// fractional from save/dislike nudges.
+  List<double>? _localAffinity;
 
   Timer? _saveDebounce;
   bool _dirty = false;
@@ -35,8 +37,8 @@ class _PreferencesPageState extends State<PreferencesPage> {
     super.initState();
     final supabase = context.read<SupabaseService>();
     _tagsFuture = supabase.tags.getVibeTags();
-    _localAffinity = List<int>.from(
-        context.read<UserDataProvider>().vibeTagAffinity ?? const []);
+    _localAffinity = List<double>.from(
+        context.read<UserDataProvider>().vibeTagAffinity ?? const <double>[]);
   }
 
   @override
@@ -51,14 +53,14 @@ class _PreferencesPageState extends State<PreferencesPage> {
 
   void _ensureLength(int length) {
     if (_localAffinity == null) {
-      _localAffinity = List<int>.filled(length, 0);
+      _localAffinity = List<double>.filled(length, 0.0);
     } else if (_localAffinity!.length < length) {
       _localAffinity!
-          .addAll(List<int>.filled(length - _localAffinity!.length, 0));
+          .addAll(List<double>.filled(length - _localAffinity!.length, 0.0));
     }
   }
 
-  void _adjust(int index, int delta) {
+  void _adjust(int index, double delta) {
     HapticFeedback.selectionClick();
     setState(() {
       _localAffinity![index] = _localAffinity![index] + delta;
@@ -77,7 +79,7 @@ class _PreferencesPageState extends State<PreferencesPage> {
     if (!_dirty || _localAffinity == null) return;
     _dirty = false;
     final provider = context.read<UserDataProvider>();
-    await provider.updateVibeTagAffinity(List<int>.from(_localAffinity!));
+    await provider.updateVibeTagAffinity(List<double>.from(_localAffinity!));
   }
 
   @override
@@ -263,7 +265,7 @@ class _PreferencesPageState extends State<PreferencesPage> {
 class _VibeRow extends StatelessWidget {
   final String label;
   final IconData icon;
-  final int value;
+  final double value;
   final VoidCallback onMinus;
   final VoidCallback onPlus;
 
@@ -313,7 +315,7 @@ class _VibeRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Affinity $value',
+                  'Affinity ${value.round()}',
                   style: GoogleFonts.dmSans(
                     fontSize: 12,
                     color: PinitColors.aubergineSoft,
@@ -332,10 +334,10 @@ class _VibeRow extends StatelessWidget {
               child: ScaleTransition(scale: animation, child: child),
             ),
             child: SizedBox(
-              key: ValueKey(value),
+              key: ValueKey(value.round()),
               width: 36,
               child: Text(
-                '$value',
+                '${value.round()}',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.dmSans(
                   fontSize: 16,

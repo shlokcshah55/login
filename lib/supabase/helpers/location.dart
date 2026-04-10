@@ -108,7 +108,7 @@ class LocationHelper {
   /// Optionally calculates match scores using user affinity vectors.
   Future<List<LocationModel>> processLocationsWithImages(
       List<dynamic> locationsData, {
-      List<int>? userVibeAffinity,
+      List<double>? userVibeAffinity,
       List<int>? userDietaryAffinity,
   }) async {
     if (locationsData.isEmpty) return [];
@@ -228,7 +228,7 @@ class LocationHelper {
       _cleanExpiredCache();
 
       // Fetch user affinity vectors for match scoring
-      List<int>? userVibeAffinity;
+      List<double>? userVibeAffinity;
       List<int>? userDietaryAffinity;
       try {
         final userProf = await _client
@@ -242,9 +242,9 @@ class LocationHelper {
         if (userProf != null) {
           final vibeRaw = userProf[SupabaseConstants.columnVibeTagAffinity];
           if (vibeRaw is List) {
-            userVibeAffinity = List<int>.from(vibeRaw.map((e) => (e as num).toInt()));
+            userVibeAffinity = List<double>.from(vibeRaw.map((e) => (e as num).toDouble()));
           }
-          
+
           final dietaryRaw = userProf[SupabaseConstants.columnDietaryRequirementTagAffinity];
           if (dietaryRaw is List) {
             userDietaryAffinity = List<int>.from(dietaryRaw.map((e) => (e as num).toInt()));
