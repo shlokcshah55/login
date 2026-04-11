@@ -247,6 +247,37 @@ class _AccountStepState extends State<AccountStep>
     widget.onSubStepChanged?.call(_currentSubStep + 1);
   }
 
+  /// Whether the back button should be shown on the current sub-step.
+  /// Only safe on steps 1–3 (username, email, password): on step 0 there's
+  /// nothing to go back to, and on steps 4+ (OTP, profile pic) the account
+  /// has already been created via signUp, so letting the user rewind would
+  /// let them edit fields that are already persisted server-side.
+  bool get _canGoBackSubStep => _currentSubStep >= 1 && _currentSubStep <= 2;
+
+  Future<void> _goToPreviousSubStep() async {
+    if (!_canGoBackSubStep) return;
+    print('⏮️ [BACK] Moving from step $_currentSubStep to ${_currentSubStep - 1}');
+
+    // Clear any lingering validation error from the step we're leaving.
+    errorNotifier.value = null;
+
+    await _transitionController.reverse();
+
+    setState(() => _currentSubStep--);
+
+    await _pageController.animateToPage(
+      _currentSubStep,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+
+    await _transitionController.forward();
+
+    _focusCurrentField();
+
+    widget.onSubStepChanged?.call(_currentSubStep + 1);
+  }
+
   Future<void> _createAccountAndAdvance() async {
     if (!_validatePassword()) {
       print('❌ [CREATE_ACCOUNT] Password validation failed');
@@ -654,22 +685,96 @@ class _AccountStepState extends State<AccountStep>
             topRight: Radius.circular(30),
           ),
         ),
-        child: PageView(
-          controller: _pageController,
-          physics: const NeverScrollableScrollPhysics(),
-          onPageChanged: (index) {
-            setState(() => _currentSubStep = index);
-            widget.onSubStepChanged?.call(index + 1);
-            _focusCurrentField();
-          },
+        child: Stack(
           children: [
-            _buildKeyboardAwareSubStep(_buildNameSubStep(), lockKeyboard: true),
-            _buildKeyboardAwareSubStep(_buildUserNameSubStep(), lockKeyboard: true),
-            _buildKeyboardAwareSubStep(_buildEmailSubStep(), lockKeyboard: true),
-            _buildKeyboardAwareSubStep(_buildPasswordSubStep(), lockKeyboard: true),
-            _buildKeyboardAwareSubStep(_buildOtpSubStep(), lockKeyboard: true),
-            _buildKeyboardAwareSubStep(_buildProfilePictureSubStep()),
+            PageView(
+              controller: _pageController,
+              physics: const NeverScrollableScrollPhysics(),
+              onPageChanged: (index) {
+                setState(() => _currentSubStep = index);
+                widget.onSubStepChanged?.call(index + 1);
+                _focusCurrentField();
+              },
+              children: [
+                _buildKeyboardAwareSubStep(_buildNameSubStep(), lockKeyboard: true),
+                _buildKeyboardAwareSubStep(_buildUserNameSubStep(), lockKeyboard: true),
+                _buildKeyboardAwareSubStep(_buildEmailSubStep(), lockKeyboard: true),
+                _buildKeyboardAwareSubStep(_buildPasswordSubStep(), lockKeyboard: true),
+                _buildKeyboardAwareSubStep(_buildOtpSubStep(), lockKeyboard: true),
+                _buildKeyboardAwareSubStep(_buildProfilePictureSubStep()),
+              ],
+            ),
+            // Back button — floats above the PageView so it's in the same
+            // spot on every sub-step. Hidden on step 0 (nothing to go back
+            // to) and on steps 4+ (account already created by signUp, so
+            // rewinding would be unsafe).
+            Positioned(
+              top: 12,
+              left: 12,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 200),
+                opacity: _canGoBackSubStep ? 1.0 : 0.0,
+                child: IgnorePointer(
+                  ignoring: !_canGoBackSubStep,
+                  child: _buildSubStepBackButton(),
+                ),
+              ),
+            ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubStepBackButton() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          _goToPreviousSubStep();
+        },
+        child: Ink(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: PinitColors.creamSunk,
+            shape: BoxShape.circle,
+            border: Border.all(color: PinitColors.creamDeep, width: 1.5),
+            boxShadow: PinitColors.subtleShadow,
+          ),
+          child: const Icon(
+            Icons.arrow_back_rounded,
+            size: 20,
+            color: PinitColors.aubergine,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Borderless chevron-left button, themed in aubergine, used inline
+  /// to the left of the "Create Account" CTA on the password sub-step.
+  Widget _buildInlineBackChevron() {
+    return Semantics(
+      button: true,
+      label: 'Back',
+      child: InkResponse(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          _goToPreviousSubStep();
+        },
+        radius: 28,
+        containedInkWell: false,
+        child: const SizedBox(
+          width: 48,
+          height: 48,
+          child: Icon(
+            Icons.chevron_left_rounded,
+            size: 32,
+            color: PinitColors.aubergine,
+          ),
         ),
       ),
     );
@@ -690,7 +795,7 @@ class _AccountStepState extends State<AccountStep>
                 children: [
                   TypingText(
                     key: ValueKey(_currentSubStep == 0),
-                    text: 'What should we call you?',
+                    text: 'What\'s your name?',
                     style: const TextStyle(
                       fontFamily: 'Rova',
                       fontSize: 18,
@@ -1334,54 +1439,64 @@ class _AccountStepState extends State<AccountStep>
             ),
           ),
 
-          // Bottom: Create Account button
+          // Bottom: Back chevron + Create Account button
           SlideTransition(
             position: AnimationBuilders.createBottomSlideAnimation(_transitionController),
             child: FadeTransition(
               opacity: AnimationBuilders.createFadeAnimation(_transitionController),
               child: Column(
                 children: [
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 12),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border(
-                        right: BorderSide(
-                          color: PinitColors.aubergine,
-                          width: 2,
-                        ),
-                        bottom: BorderSide(
-                          color: PinitColors.aubergine,
-                          width: 2,
-                        ),
-                      ),
-                      boxShadow: PinitColors.cardShadow,
-                    ),
-                    child: SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton(
-                        onPressed: isLoading ? null : _advanceToNextSubStep,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: PinitColors.aubergine,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shadowColor: Colors.transparent,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        child: isLoading
-                            ? const LoadingWidget(width: 24, height: 24)
-                            : const Text(
-                                'Create Account',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w100,
-                                  letterSpacing: 0.5,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Row(
+                      children: [
+                        _buildInlineBackChevron(),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border(
+                                right: BorderSide(
+                                  color: PinitColors.aubergine,
+                                  width: 2,
+                                ),
+                                bottom: BorderSide(
+                                  color: PinitColors.aubergine,
+                                  width: 2,
                                 ),
                               ),
-                      ),
+                              boxShadow: PinitColors.cardShadow,
+                            ),
+                            child: SizedBox(
+                              width: double.infinity,
+                              height: 48,
+                              child: ElevatedButton(
+                                onPressed: isLoading ? null : _advanceToNextSubStep,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: PinitColors.aubergine,
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  shadowColor: Colors.transparent,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                ),
+                                child: isLoading
+                                    ? const LoadingWidget(width: 24, height: 24)
+                                    : const Text(
+                                        'Create Account',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w100,
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 2),
