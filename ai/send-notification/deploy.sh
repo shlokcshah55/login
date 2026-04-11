@@ -8,7 +8,7 @@ gcloud functions deploy send-push-notifications \
   --allow-unauthenticated \
   --memory=256Mi \
   --timeout=60s \
-  --set-env-vars SUPABASE_URL="https://umjoqvsfqhirysdjxnaf.supabase.co" \
-  --set-env-vars SUPABASE_SERVICE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtam9xdnNmcWhpcnlzZGp4bmFmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NTY3ODE2MCwiZXhwIjoyMDYxMjU0MTYwfQ.wnmNALWVY2kNHhg_lxFsrhis1xDxgWAKIoNmCHzlD-w" \
-  --set-env-vars API_SECRET_KEY="RnP9BGrHqnMLpWcvwFFnxDmTf+ES21Yd15pIFz5CjGg=" \
-  --set-env-vars GOOGLE_APPLICATION_CREDENTIALS="pinit-a97eb-8f62b614bdc2.json"
+  --set-env-vars SUPABASE_URL="{$SUPABASE_URL}" \
+  --set-env-vars SUPABASE_SERVICE_KEY="{$SUPABASE_SERVICE_KEY}" \
+  --set-env-vars API_SECRET_KEY="{$API_SECRET_KEY}" \
+  --set-env-vars GOOGLE_APPLICATION_CREDENTIALS="{$GOOGLE_APPLICATION_CREDENTIALS}"
