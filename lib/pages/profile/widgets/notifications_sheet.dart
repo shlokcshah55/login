@@ -1,298 +1,362 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:login/models/notification_type.dart';
+import 'package:login/models/notifications/base_notification.dart';
 import 'package:login/services/fcm_service.dart';
 import 'pinit_colors.dart';
 
-/// Notifications bottom sheet - cleaner, more modern than popover
 class NotificationsSheet extends StatelessWidget {
   const NotificationsSheet({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    final notifications = FCMService().notifications;
-
     return Container(
       height: MediaQuery.of(context).size.height * 0.75,
       decoration: const BoxDecoration(
         color: PinitColors.background,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      child: Column(
-        children: [
-          // Handle
-          const SizedBox(height: 12),
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: PinitColors.textMuted.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
+      child: StreamBuilder<BaseNotification>(
+        stream: FCMService().notificationStream,
+        builder: (context, snapshot) {
+          final notifications = FCMService().notifications;
+          final unreadCount = FCMService().unreadCount;
 
-          // Header
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
-            child: Row(
-              children: [
-                const Text(
-                  'Notifications',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: PinitColors.textPrimary,
-                    letterSpacing: -0.5,
-                  ),
+          return Column(
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: PinitColors.aubergine.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(999),
                 ),
-                const Spacer(),
-                if (FCMService().unreadCount > 0)
-                  TextButton(
-                    onPressed: () {
-                      FCMService().markAllAsRead();
-                    },
-                    child: const Text(
-                      'Mark all read',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: PinitColors.primary,
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 18),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Notifications',
+                            style: TextStyle(
+                              fontFamily: 'Rova',
+                              fontSize: 28,
+                              fontWeight: FontWeight.w100,
+                              color: PinitColors.aubergine,
+                              letterSpacing: 1.9,
+                              height: 1.05,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            unreadCount > 0
+                                ? '$unreadCount unread updates'
+                                : 'You are all caught up',
+                            style: GoogleFonts.dmSans(
+                              fontSize: 13,
+                              color: PinitColors.aubergineSoft,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-              ],
-            ),
-          ),
-
-          // Notifications list
-          Expanded(
-            child: notifications.isEmpty
-                ? _EmptyNotifications()
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    itemCount: notifications.length,
-                    itemBuilder: (context, index) {
-                      final notification = notifications[index];
-                      return _NotificationItem(
-                        title: notification.getNotificationTitle(),
-                        body: notification.getNotificationBody(),
-                        isRead: notification.isRead,
-                        timeAgo: notification.getFormattedTimestamp(),
-                        type: _getNotificationType(notification),
-                      );
-                    },
-                  ),
-          ),
-        ],
+                    if (unreadCount > 0)
+                      GestureDetector(
+                        onTap: FCMService().markAllAsRead,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: PinitColors.cream,
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: PinitColors.aubergine,
+                              width: 1.2,
+                            ),
+                          ),
+                          child: Text(
+                            'Mark all read',
+                            style: GoogleFonts.dmSans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: PinitColors.aubergine,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: notifications.isEmpty
+                    ? const _EmptyNotifications()
+                    : ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                        itemCount: notifications.length,
+                        itemBuilder: (context, index) {
+                          final notification = notifications[index];
+                          return _NotificationItem(notification: notification);
+                        },
+                      ),
+              ),
+            ],
+          );
+        },
       ),
     );
-  }
-
-  String _getNotificationType(dynamic notification) {
-    final title = notification.getNotificationTitle().toLowerCase();
-    if (title.contains('follow')) return 'follow';
-    if (title.contains('save') || title.contains('pin')) return 'save';
-    if (title.contains('collection')) return 'collection';
-    return 'general';
   }
 }
 
 class _NotificationItem extends StatelessWidget {
-  final String title;
-  final String body;
-  final bool isRead;
-  final String timeAgo;
-  final String type;
+  final BaseNotification notification;
 
   const _NotificationItem({
-    required this.title,
-    required this.body,
-    required this.isRead,
-    required this.timeAgo,
-    required this.type,
+    required this.notification,
   });
 
   @override
   Widget build(BuildContext context) {
+    final meta = _metaFor(notification.type);
+    final body = notification.getNotificationBody().trim();
+    final title = notification.getNotificationTitle().trim();
+    final showBody = body.isNotEmpty && body != title;
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isRead ? Colors.white : PinitColors.accentSoft.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isRead
-              ? PinitColors.surfaceLight
-              : PinitColors.primary.withOpacity(0.2),
-          width: 1,
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Icon
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: _getIconBackground(),
-              borderRadius: BorderRadius.circular(12),
+      margin: const EdgeInsets.only(bottom: 10),
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 180),
+        opacity: notification.isRead ? 0.84 : 1,
+        child: Container(
+          decoration: const BoxDecoration(
+            color: PinitColors.cream,
+            border: Border.fromBorderSide(
+              BorderSide(color: PinitColors.aubergine, width: 1.5),
             ),
-            child: Center(
-              child: Icon(
-                _getIcon(),
-                size: 20,
-                color: _getIconColor(),
+            borderRadius: BorderRadius.all(Radius.circular(10)),
+            boxShadow: [
+              BoxShadow(
+                color: PinitColors.aubergine,
+                blurRadius: 0,
+                offset: Offset(4, 4),
               ),
-            ),
+            ],
           ),
-
-          const SizedBox(width: 14),
-
-          // Content
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: isRead ? FontWeight.w500 : FontWeight.w700,
-                          color: PinitColors.textPrimary,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8.5),
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(width: 3, color: meta.accentColor),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 11,
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  meta.label,
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 1.4,
+                                    color: meta.accentColor,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  title,
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: PinitColors.aubergine,
+                                    height: 1.2,
+                                  ),
+                                ),
+                                if (showBody) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    body,
+                                    style: GoogleFonts.dmSans(
+                                      fontSize: 12,
+                                      color: PinitColors.aubergineSoft,
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                notification.getFormattedTimestamp(),
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 11,
+                                  color: PinitColors.mute,
+                                ),
+                              ),
+                              if (!notification.isRead) ...[
+                                const SizedBox(height: 10),
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    color: meta.accentColor,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      timeAgo,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: PinitColors.textMuted,
-                      ),
-                    ),
-                  ],
-                ),
-                if (body.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    body,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: PinitColors.textSecondary,
-                      height: 1.35,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
-              ],
-            ),
-          ),
-
-          // Unread indicator
-          if (!isRead)
-            Container(
-              width: 8,
-              height: 8,
-              margin: const EdgeInsets.only(left: 8, top: 6),
-              decoration: const BoxDecoration(
-                color: PinitColors.primary,
-                shape: BoxShape.circle,
               ),
             ),
-        ],
+          ),
+        ),
       ),
     );
   }
 
-  IconData _getIcon() {
+  _NotificationMeta _metaFor(NotificationType type) {
     switch (type) {
-      case 'follow':
-        return Icons.person_add_outlined;
-      case 'save':
-        return Icons.push_pin_outlined;
-      case 'collection':
-        return Icons.folder_outlined;
-      default:
-        return Icons.notifications_outlined;
-    }
-  }
-
-  Color _getIconBackground() {
-    switch (type) {
-      case 'follow':
-        return const Color(0xFFE8F5E9);
-      case 'save':
-        return PinitColors.accentSoft;
-      case 'collection':
-        return const Color(0xFFFFF3E0);
-      default:
-        return PinitColors.surfaceLight;
-    }
-  }
-
-  Color _getIconColor() {
-    switch (type) {
-      case 'follow':
-        return PinitColors.success;
-      case 'save':
-        return PinitColors.primary;
-      case 'collection':
-        return const Color(0xFFE65100);
-      default:
-        return PinitColors.textSecondary;
+      case NotificationType.videoProcessed:
+        return const _NotificationMeta(
+          label: 'VIDEO READY',
+          accentColor: PinitColors.primary,
+        );
+      case NotificationType.followRequest:
+        return const _NotificationMeta(
+          label: 'FOLLOW REQUEST',
+          accentColor: Color(0xFFE85D4C),
+        );
+      case NotificationType.followAccepted:
+        return const _NotificationMeta(
+          label: 'FOLLOW ACCEPTED',
+          accentColor: Color(0xFF34A853),
+        );
+      case NotificationType.friendVisitedLocation:
+        return const _NotificationMeta(
+          label: 'FRIEND ACTIVITY',
+          accentColor: PinitColors.primary,
+        );
+      case NotificationType.proximityLocation:
+        return const _NotificationMeta(
+          label: 'NEARBY PIN',
+          accentColor: Color(0xFFFFB800),
+        );
+      case NotificationType.newMessage:
+        return const _NotificationMeta(
+          label: 'NEW MESSAGE',
+          accentColor: Color(0xFF5B4DC7),
+        );
+      case NotificationType.userAddedToBubble:
+        return const _NotificationMeta(
+          label: 'BUBBLE INVITE',
+          accentColor: Color(0xFF5B4DC7),
+        );
     }
   }
 }
 
 class _EmptyNotifications extends StatelessWidget {
+  const _EmptyNotifications();
+
   @override
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(40),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: PinitColors.surfaceLight,
-                borderRadius: BorderRadius.circular(20),
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+        child: Container(
+          width: double.infinity,
+          decoration: const BoxDecoration(
+            color: PinitColors.cream,
+            border: Border.fromBorderSide(
+              BorderSide(color: PinitColors.aubergine, width: 1.5),
+            ),
+            borderRadius: BorderRadius.all(Radius.circular(10)),
+            boxShadow: [
+              BoxShadow(
+                color: PinitColors.aubergine,
+                blurRadius: 0,
+                offset: Offset(4, 4),
               ),
-              child: const Center(
-                child: Icon(
-                  Icons.notifications_outlined,
-                  size: 36,
-                  color: PinitColors.textMuted,
+            ],
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: PinitColors.creamSunk,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: const Icon(
+                  Icons.notifications_none_rounded,
+                  size: 28,
+                  color: PinitColors.aubergineSoft,
                 ),
               ),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'All caught up!',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: PinitColors.textPrimary,
+              const SizedBox(height: 16),
+              const Text(
+                'All caught up!',
+                style: TextStyle(
+                  fontFamily: 'Rova',
+                  fontSize: 24,
+                  fontWeight: FontWeight.w100,
+                  color: PinitColors.aubergine,
+                  letterSpacing: 1.4,
+                  height: 1,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'No new notifications',
-              style: TextStyle(
-                fontSize: 15,
-                color: PinitColors.textSecondary,
+              const SizedBox(height: 8),
+              Text(
+                'No new notifications right now.',
+                style: GoogleFonts.dmSans(
+                  fontSize: 14,
+                  color: PinitColors.aubergineSoft,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
+}
+
+class _NotificationMeta {
+  final String label;
+  final Color accentColor;
+
+  const _NotificationMeta({
+    required this.label,
+    required this.accentColor,
+  });
 }

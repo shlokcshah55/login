@@ -188,6 +188,9 @@ class HomeViewModel extends ChangeNotifier {
     if (_initialized) return;
     _initialized = true;
 
+    unawaited(
+      locationListManager.setCurrentListType(LocationListType.saved),
+    );
     mapStateProvider.setCarouselPageController(pageController);
     mapStateProvider.addListener(_onSelectedMarkerChanged);
     locationListManager.addListener(_onExternalStateChanged);
@@ -308,15 +311,6 @@ class HomeViewModel extends ChangeNotifier {
     await _headerSearchCoordinator.rememberQuery(query);
   }
 
-  /// Resolves a Mapbox suggestion stub (no coordinates) to a full
-  /// [LocationModel] by calling Mapbox `/retrieve`. Returns null if the
-  /// item isn't a Mapbox stub or the call fails.
-  Future<LocationModel?> resolveMapboxHeaderSelection(
-    SearchSuggestionItem item,
-  ) {
-    return _headerSearchCoordinator.resolveMapboxSelection(item);
-  }
-
   Future<void> selectHeaderSearchLocation(
     LocationModel location, {
     String? query,
@@ -426,8 +420,8 @@ class HomeViewModel extends ChangeNotifier {
   }
 
   Future<bool> showCollectionOnMap(CollectionItem collection) async {
-    final locations =
-        await _collectionsHelper.getLocationsForCollection(collection.collectionId);
+    final locations = await _collectionsHelper
+        .getLocationsForCollection(collection.collectionId);
     if (locations.isEmpty) {
       return false;
     }
@@ -574,7 +568,7 @@ class HomeViewModel extends ChangeNotifier {
     final center = viewData['center'] as LatLng;
     final radiusKm = viewData['radius'] as double;
 
-    await locationListManager.searchThisArea(
+    final didSearch = await locationListManager.searchThisArea(
       center: center,
       radiusKm: radiusKm,
       vibeTagIds: locationListManager.vibeTagIds.isNotEmpty
@@ -585,7 +579,9 @@ class HomeViewModel extends ChangeNotifier {
           : null,
     );
 
-    mapStateProvider.setLastSearchedArea(center, radiusKm);
+    if (didSearch) {
+      mapStateProvider.setLastSearchedArea(center, radiusKm);
+    }
   }
 
   // ── Bubble mode ───────────────────────────────────────────────

@@ -21,6 +21,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 enum LocationListType { saved, recommended, search }
 
 class LocationListManager with ChangeNotifier {
+  static const String noRecommendationsInAreaMessage =
+      'No recommendations found in this area';
+
   final GooglePlacesService _googlePlacesService;
   final SupabaseService _supabaseService = SupabaseService();
   final LocationService _locationService = LocationService();
@@ -127,6 +130,17 @@ class LocationListManager with ChangeNotifier {
   bool get isLoadingRecommendations => _isLoadingRecommendations;
   LatLng? get lastSearchedCenter => _lastSearchedCenter;
   double? get lastSearchedRadius => _lastSearchedRadius;
+
+  void _updateLastSearchedArea(LatLng center, double radiusKm) {
+    _lastSearchedCenter = center;
+    _lastSearchedRadius = radiusKm;
+  }
+
+  void _syncRecommendedItemsIfActive() {
+    if (_currentListType == LocationListType.recommended) {
+      _currentItems = _recommendedLocations;
+    }
+  }
 
   // Method to update the user ID when the user logs in
   void setUserId(String? userId) {
@@ -795,6 +809,7 @@ class LocationListManager with ChangeNotifier {
     final searchRadius = radiusKm;
 
     _isLoadingRecommendations = true;
+    _error = null;
     notifyListeners();
 
     try {
@@ -826,8 +841,10 @@ class LocationListManager with ChangeNotifier {
 
       if (locationIds.isEmpty) {
         log("Recommendations API returned no results");
-        _error = "No recommendations found in this area";
+        _error = noRecommendationsInAreaMessage;
         _recommendedLocations = {};
+        _updateLastSearchedArea(searchCenter, searchRadius);
+        _syncRecommendedItemsIfActive();
         notifyListeners();
         return;
       }
@@ -862,11 +879,11 @@ class LocationListManager with ChangeNotifier {
       );
 
       _recommendedLocations = Map.fromEntries(markers);
+      _syncRecommendedItemsIfActive();
       _error = null; // Clear any previous errors
 
       // Update last searched area
-      _lastSearchedCenter = searchCenter;
-      _lastSearchedRadius = searchRadius;
+      _updateLastSearchedArea(searchCenter, searchRadius);
 
       log("Fetched ${locations.length} personalized recommendations");
     } catch (e) {
@@ -1008,11 +1025,11 @@ class LocationListManager with ChangeNotifier {
       );
 
       _recommendedLocations = Map.fromEntries(markers);
+      _syncRecommendedItemsIfActive();
       _error = null; // Clear any previous errors
 
       // Update last searched area
-      _lastSearchedCenter = searchCenter;
-      _lastSearchedRadius = searchRadius;
+      _updateLastSearchedArea(searchCenter, searchRadius);
 
       log("Fetched ${locations.length} bubble recommendations");
     } catch (e) {
@@ -1124,7 +1141,7 @@ class LocationListManager with ChangeNotifier {
 
   /// Search recommendations in the visible map area using proximal API.
   /// Updates the Recommended tab with results from the current map area.
-  Future<void> searchThisArea({
+  Future<bool> searchThisArea({
     required LatLng center,
     required double radiusKm,
     int maxResults = 20,
@@ -1138,10 +1155,11 @@ class LocationListManager with ChangeNotifier {
     if (_userId == null) {
       _error = "User not logged in";
       notifyListeners();
-      return;
+      return false;
     }
 
     _isSearchingArea = true;
+    _error = null;
     notifyListeners();
 
     try {
@@ -1163,6 +1181,15 @@ class LocationListManager with ChangeNotifier {
           .map((rec) => rec.locationId)
           .where((id) => id > 0)
           .toList();
+
+      if (locationIds.isEmpty) {
+        _recommendedLocations = {};
+        _updateLastSearchedArea(center, radiusKm);
+        _areaChanged = false;
+        _error = noRecommendationsInAreaMessage;
+        await setCurrentListType(LocationListType.recommended);
+        return true;
+      }
 
       final locations = await _fetchLocationsByIdsInOrder(locationIds);
 
@@ -1191,16 +1218,18 @@ class LocationListManager with ChangeNotifier {
       // Update recommended locations instead of search locations
       _recommendedLocations = Map.fromEntries(
           markers.whereType<MapEntry<LocationModel, MapMarkerData>>());
-      _lastSearchedCenter = center;
+      _updateLastSearchedArea(center, radiusKm);
       _areaChanged = false;
       _error = null;
 
       // Update current items if on recommended tab, or switch to recommended tab
       await setCurrentListType(LocationListType.recommended);
+      return true;
     } catch (e) {
       log('LocationListManager: Search this area failed: $e');
       _error = "Search failed: ${e.toString()}";
       notifyListeners();
+      return false;
     } finally {
       _isSearchingArea = false;
       notifyListeners();
@@ -1257,11 +1286,44 @@ class LocationListManager with ChangeNotifier {
       return; // Or handle appropriately, maybe prompt login
     }
 
-    // Add location with placeholder marker
-    _savedLocations[location] = MapMarkerData(
-        id: location.locationId.toString(),
-        position: const LatLng(0, 0),
-        imageBytes: const []);
+    final savedLocation = location.setPreference(LocationPreference.saved);
+
+    _savedLocations.removeWhere(
+      (existing, _) => existing.locationId == savedLocation.locationId,
+    );
+
+    // Add location with placeholder marker immediately for responsive UI.
+    _savedLocations[savedLocation] = MapMarkerData(
+      id: savedLocation.locationId.toString(),
+      position: savedLocation.position ?? const LatLng(0, 0),
+      imageBytes: const [],
+      title: savedLocation.name,
+      snippet: savedLocation.vicinity ?? '',
+    );
+
+    // If the user is currently viewing saved locations, update the view now.
+    if (_currentListType == LocationListType.saved) {
+      _currentItems = Map.from(_savedLocations);
+    }
+
+    // Remove from recommended/search right away so the UI reflects the save.
+    _recommendedLocations.removeWhere(
+      (existing, _) => existing.locationId == savedLocation.locationId,
+    );
+    _searchLocations.removeWhere(
+      (existing, _) => existing.locationId == savedLocation.locationId,
+    );
+    _mapStateProvider?.bounceRecentlySaved(savedLocation.locationId);
+    notifyListeners();
+
+    unawaited(_finalizeSavedLocation(savedLocation));
+  }
+
+  Future<void> _finalizeSavedLocation(LocationModel location) async {
+    if (!_savedLocations.keys
+        .any((saved) => saved.locationId == location.locationId)) {
+      return;
+    }
 
     // Re-apply name selection to all saved locations
     final selectedForNames = _selectLocationsForNameDisplay(
@@ -1276,30 +1338,32 @@ class LocationListManager with ChangeNotifier {
         final marker = await loc
             .setPreference(LocationPreference.saved)
             .toMarker(_devicePixelRatio, shouldShowName: shouldShowName);
-        return MapEntry(loc, marker!);
+        return MapEntry(
+          loc,
+          marker ??
+              MapMarkerData(
+                id: loc.locationId.toString(),
+                position: loc.position ?? const LatLng(0, 0),
+                imageBytes: const [],
+                title: loc.name,
+                snippet: loc.vicinity ?? '',
+              ),
+        );
       }),
     );
     _savedLocations = Map.fromEntries(updatedMarkers);
-    _mapStateProvider?.bounceRecentlySaved(location.locationId);
+    if (_currentListType == LocationListType.saved) {
+      _currentItems = Map.from(_savedLocations);
+    }
+    notifyListeners();
 
-    // Try to save in Supabase first
-    bool supabaseSuccess = await _supabaseService.locations
+    final supabaseSuccess = await _supabaseService.locations
         .saveLocation(location.locationId, savedMethod: 'in-app');
-
     if (supabaseSuccess) {
       log("Saved location to Supabase: ${location.name}");
+    } else {
+      log("Failed to save location to Supabase: ${location.name}");
     }
-
-    // If the user is currently viewing saved locations, update the view
-    if (_currentListType == LocationListType.saved) {
-      _currentItems = _savedLocations;
-    }
-
-    // Optionally remove from recommended/search if it was there
-    _recommendedLocations.remove(location);
-    _searchLocations.remove(location);
-
-    notifyListeners();
   }
 
   Future<List<LocationModel>> _fetchLocationsByIdsInOrder(
@@ -1454,7 +1518,9 @@ class LocationListManager with ChangeNotifier {
     }
 
     // Remove from local state immediately for responsive UI
-    _savedLocations.remove(location);
+    _savedLocations.removeWhere(
+      (existing, _) => existing.locationId == location.locationId,
+    );
 
     // Update current items if viewing saved locations
     if (_currentListType == LocationListType.saved) {

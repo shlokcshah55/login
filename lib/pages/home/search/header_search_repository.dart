@@ -1,4 +1,3 @@
-import 'package:login/models/locations.dart';
 import 'package:login/pages/home/search/header_search_types.dart';
 import 'package:login/utils/geo_types.dart';
 
@@ -39,18 +38,12 @@ abstract class HeaderSearchRepository {
     required SearchIntentType intent,
   });
 
-  Future<List<SearchSuggestionItem>> loadMapboxLiveSuggestions({
+  Future<List<SearchSuggestionItem>> loadGoogleAutocompleteSuggestions({
     required String query,
-    required String sessionToken,
     LatLng? proximity,
   });
 
   Future<LatLng?> currentProximity();
-
-  Future<LocationModel?> resolveMapboxSuggestion({
-    required String mapboxId,
-    required String sessionToken,
-  });
 }
 
 class NoopHeaderSearchRepository implements HeaderSearchRepository {
@@ -105,9 +98,8 @@ class NoopHeaderSearchRepository implements HeaderSearchRepository {
   }
 
   @override
-  Future<List<SearchSuggestionItem>> loadMapboxLiveSuggestions({
+  Future<List<SearchSuggestionItem>> loadGoogleAutocompleteSuggestions({
     required String query,
-    required String sessionToken,
     LatLng? proximity,
   }) async {
     return const [];
@@ -115,14 +107,6 @@ class NoopHeaderSearchRepository implements HeaderSearchRepository {
 
   @override
   Future<LatLng?> currentProximity() async => null;
-
-  @override
-  Future<LocationModel?> resolveMapboxSuggestion({
-    required String mapboxId,
-    required String sessionToken,
-  }) async {
-    return null;
-  }
 
   @override
   Future<void> saveRecentQuery(String query) async {}

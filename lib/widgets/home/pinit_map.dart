@@ -1,10 +1,12 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 import 'package:login/models/locations.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/map_state_provider.dart';
+import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
 import 'package:login/supabase/helpers/tags.dart';
 import 'package:login/utils/geo_types.dart';
 import 'package:login/utils/marker_clustering.dart';
@@ -28,16 +30,16 @@ class PinitMap extends StatefulWidget {
 class _PinitMapState extends State<PinitMap> {
   bool _locationTrackingStarted = false;
   LocationListManager? _locationListManager;
-  
+
   // Legacy fields for PointAnnotation-based rendering (when useGeoJsonLayers is false)
   // ignore: unused_field
   bool _mapReady = false;
-  // ignore: unused_field  
+  // ignore: unused_field
   Map<String, MapMarkerData> _clusteredMarkers = {};
   int _lastSyncedItemCount = 0;
   String _lastSyncedItemIds = '';
   bool _syncInProgress = false;
-  
+
   // GeoJSON: Track last synced location IDs to avoid redundant updates
   String _lastGeoJsonSyncKey = '';
 
@@ -100,7 +102,8 @@ class _PinitMapState extends State<PinitMap> {
               tags: _vibeTags!,
               selectedTagIds: _selectedVibeTagIds,
               onApply: (selected) async {
-                print('🎨 [PinitMap] Vibe filter applied - selected: $selected');
+                print(
+                    '🎨 [PinitMap] Vibe filter applied - selected: $selected');
                 _selectedVibeTagIds = selected;
                 // Apply filters to location manager
                 await _locationListManager?.applyFilters(
@@ -129,7 +132,8 @@ class _PinitMapState extends State<PinitMap> {
               tags: _cuisineTags!,
               selectedTagIds: _selectedCuisineTagIds,
               onApply: (selected) async {
-                print('🍽️ [PinitMap] Cuisine filter applied - selected: $selected');
+                print(
+                    '🍽️ [PinitMap] Cuisine filter applied - selected: $selected');
                 _selectedCuisineTagIds = selected;
                 // Apply filters to location manager
                 await _locationListManager?.applyFilters(
@@ -188,30 +192,25 @@ class _PinitMapState extends State<PinitMap> {
     MapStateProvider mapStateProvider,
   ) {
     if (!mapStateProvider.useGeoJsonLayers) return;
-    if (currentItems.isEmpty) {
-      print('PinitMap: No items to display');
-      return;
-    }
 
     // Generate a key to detect changes
     final itemIds = currentItems.keys.map((e) {
       if (e is LocationModel) return e.locationId.toString();
       return e.toString();
-    }).toList()..sort();
+    }).toList()
+      ..sort();
     final syncKey = '${itemIds.length}_${itemIds.hashCode}';
-    
+
     if (syncKey == _lastGeoJsonSyncKey) {
       // No change, skip update
       return;
     }
-    
+
     print('PinitMap: Updating GeoJSON with ${currentItems.length} locations');
-    
+
     // Extract LocationModel instances
-    final locations = currentItems.keys
-        .whereType<LocationModel>()
-        .toList();
-    
+    final locations = currentItems.keys.whereType<LocationModel>().toList();
+
     // Update via provider (which delegates to GeoJsonMapLayerService)
     // Only mark as synced if the update actually succeeded
     mapStateProvider.updateMapLocations(locations).then((success) {
@@ -219,7 +218,8 @@ class _PinitMapState extends State<PinitMap> {
         _lastGeoJsonSyncKey = syncKey;
         print('PinitMap: GeoJSON sync successful, key set to $syncKey');
       } else {
-        print('PinitMap: GeoJSON update skipped (service not ready), will retry on next rebuild');
+        print(
+            'PinitMap: GeoJSON update skipped (service not ready), will retry on next rebuild');
       }
     });
   }
@@ -235,26 +235,40 @@ class _PinitMapState extends State<PinitMap> {
   ) {
     // Skip if using GeoJSON layers
     if (mapStateProvider.useGeoJsonLayers) return;
-    
-    if (currentItems.isEmpty) {
-      print('PinitMap: currentItems is empty, skipping clustering');
-      return;
-    }
-    
+
     // Check if items actually changed to avoid redundant updates
-    final currentItemIds = currentItems.keys.map((e) => e.toString()).toList()..sort();
+    final currentItemIds = currentItems.keys.map((e) => e.toString()).toList()
+      ..sort();
     final itemIdsKey = currentItemIds.join(',');
-    if (itemIdsKey == _lastSyncedItemIds && currentItems.length == _lastSyncedItemCount) {
+    if (itemIdsKey == _lastSyncedItemIds &&
+        currentItems.length == _lastSyncedItemCount) {
       return;
     }
-    
+
     if (_syncInProgress) return;
     _syncInProgress = true;
-    
-    print('PinitMap: _applyClusteringAsync called with ${currentItems.length} items (changed)');
-    
+
+    print(
+        'PinitMap: _applyClusteringAsync called with ${currentItems.length} items (changed)');
+
     Future.microtask(() async {
       try {
+        if (currentItems.isEmpty) {
+          if (!mounted) return;
+          setState(() {
+            _clusteredMarkers = {};
+          });
+          await _syncAnnotations(
+            const {},
+            mapStateProvider,
+            mapStateReader,
+            locationListManager,
+          );
+          _lastSyncedItemCount = 0;
+          _lastSyncedItemIds = '';
+          return;
+        }
+
         final result = await MarkerClustering.clusterMarkers(
           locationMarkers: Map.fromEntries(
             currentItems.entries.map((e) => MapEntry(e.key, e.value)),
@@ -262,8 +276,10 @@ class _PinitMapState extends State<PinitMap> {
           devicePixelRatio: dpr,
         );
 
-        final clusteredMarkers = result['markers'] as Map<dynamic, MapMarkerData>;
-        print('PinitMap: Clustering produced ${clusteredMarkers.length} markers');
+        final clusteredMarkers =
+            result['markers'] as Map<dynamic, MapMarkerData>;
+        print(
+            'PinitMap: Clustering produced ${clusteredMarkers.length} markers');
 
         final Map<String, MapMarkerData> markersWithHandlers = {};
         for (final entry in clusteredMarkers.entries) {
@@ -274,7 +290,8 @@ class _PinitMapState extends State<PinitMap> {
           setState(() {
             _clusteredMarkers = markersWithHandlers;
           });
-          await _syncAnnotations(markersWithHandlers, mapStateProvider, mapStateReader, locationListManager);
+          await _syncAnnotations(markersWithHandlers, mapStateProvider,
+              mapStateReader, locationListManager);
           _lastSyncedItemCount = currentItems.length;
           _lastSyncedItemIds = itemIdsKey;
         }
@@ -293,7 +310,8 @@ class _PinitMapState extends State<PinitMap> {
   ) async {
     final mgr = mapStateProvider.pointAnnotationManager;
     if (mgr == null) {
-      print('PinitMap: pointAnnotationManager is null, cannot sync annotations');
+      print(
+          'PinitMap: pointAnnotationManager is null, cannot sync annotations');
       return;
     }
 
@@ -315,7 +333,8 @@ class _PinitMapState extends State<PinitMap> {
 
       if (options.isNotEmpty) {
         final annotations = await mgr.createMulti(options);
-        print('PinitMap: Successfully created ${annotations.length} annotations');
+        print(
+            'PinitMap: Successfully created ${annotations.length} annotations');
 
         mgr.addOnPointAnnotationClickListener(
           _AnnotationClickListener(
@@ -337,14 +356,14 @@ class _PinitMapState extends State<PinitMap> {
     print('PinitMap: Location tapped: $locationId');
     final mapState = context.read<MapStateProvider>();
     final locationManager = context.read<LocationListManager>();
-    
+
     mapState.setSelectedMarkerId(locationId.toString());
-    
+
     // Find index in current items and animate carousel
     final index = locationManager.currentItems.keys
         .toList()
         .indexWhere((loc) => loc.locationId == locationId);
-    
+
     if (index != -1) {
       mapState.animateToCarouselItem(index);
     }
@@ -354,7 +373,7 @@ class _PinitMapState extends State<PinitMap> {
   void _onClusterTapped(LatLng center, int pointCount) {
     print('PinitMap: Cluster tapped at $center with $pointCount points');
     final mapState = context.read<MapStateProvider>();
-    
+
     // Zoom in to expand the cluster
     mapState.animateCamera(center, zoom: mapState.currentZoom + 2);
   }
@@ -387,6 +406,7 @@ class _PinitMapState extends State<PinitMap> {
     final currentPosition = locationListManager.currentPosition;
     final isRecommendedTab =
         locationListManager.currentListType == LocationListType.recommended;
+    final isSearchingArea = locationListManager.isSearchingArea;
 
     final initialCenter = currentPosition ??
         const LatLng(PinitMap.DEFAULT_LAT, PinitMap.DEFAULT_LNG);
@@ -417,55 +437,84 @@ class _PinitMapState extends State<PinitMap> {
         // "Search this area" button - only show on recommended tab.
         // Positioned below the header panel (logo + search shell + chip row)
         // so it never sits behind the You / Explore / Decide chips.
-        if (mapStateProvider.showSearchThisAreaButton && isRecommendedTab)
+        if (isRecommendedTab)
           Positioned(
             top: MediaQuery.of(context).padding.top + 160,
             left: 0,
             right: 0,
-            child: Center(
-              child: Container(
-                decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor.withValues(alpha: 0.85),
-                    borderRadius: BorderRadius.circular(20.0),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.15),
-                        blurRadius: 3,
-                        offset: const Offset(0, 1),
-                      )
-                    ]),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(20.0),
-                    onTap: () {
-                      widget.onSearchThisArea?.call();
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14.0,
-                        vertical: 8.0,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            FeatherIcons.search,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            "Search this area",
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
-                                ?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                ),
+            child: IgnorePointer(
+              ignoring:
+                  !mapStateProvider.showSearchThisAreaButton || isSearchingArea,
+              child: AnimatedSlide(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                offset: mapStateProvider.showSearchThisAreaButton
+                    ? Offset.zero
+                    : const Offset(0, -0.18),
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 180),
+                  opacity:
+                      mapStateProvider.showSearchThisAreaButton ? 1.0 : 0.0,
+                  child: Center(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: pinit.PinitColors.cream,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: pinit.PinitColors.aubergine,
+                          width: 1.5,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: pinit.PinitColors.aubergine,
+                            blurRadius: 0,
+                            offset: const Offset(3, 3),
                           ),
                         ],
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(999),
+                          onTap: widget.onSearchThisArea,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  width: 13,
+                                  height: 13,
+                                  child: isSearchingArea
+                                      ? CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: pinit.PinitColors.aubergine,
+                                        )
+                                      : const Icon(
+                                          FeatherIcons.search,
+                                          size: 13,
+                                          color: pinit.PinitColors.aubergine,
+                                        ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  isSearchingArea
+                                      ? 'Searching...'
+                                      : 'Search this area',
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: pinit.PinitColors.aubergine,
+                                    letterSpacing: 0.4,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -480,7 +529,7 @@ class _PinitMapState extends State<PinitMap> {
   void _onMapCreated(mapbox.MapboxMap map) async {
     final mapState = context.read<MapStateProvider>();
     final locationManager = context.read<LocationListManager>();
-    
+
     // Initialize map with callbacks for GeoJSON layer events
     await mapState.setMapboxMap(
       map,
@@ -499,24 +548,24 @@ class _PinitMapState extends State<PinitMap> {
     print('Setting initial location in onMapCreated: $initialLocation');
     mapState.setLastFocusedUserLocation(initialLocation);
     _mapReady = true;
-    
+
     // Reset sync key to force an update now that the map is ready
     _lastGeoJsonSyncKey = '';
-    
+
     // Trigger initial location update for GeoJSON mode
     if (mapState.useGeoJsonLayers && locationManager.currentItems.isNotEmpty) {
-      final locations = locationManager.currentItems.keys
-          .whereType<LocationModel>()
-          .toList();
+      final locations =
+          locationManager.currentItems.keys.whereType<LocationModel>().toList();
       final success = await mapState.updateMapLocations(locations);
       if (success) {
         // Update sync key to match current state
-        final itemIds = locationManager.currentItems.keys.map((e) {
-          if (e is LocationModel) return e.locationId.toString();
-          return e.toString();
-        }).toList()..sort();
+        final itemIds = locationManager.currentItems.keys
+            .map((location) => location.locationId.toString())
+            .toList()
+          ..sort();
         _lastGeoJsonSyncKey = '${itemIds.length}_${itemIds.hashCode}';
-        print('PinitMap: Initial GeoJSON sync after map created, ${locations.length} locations');
+        print(
+            'PinitMap: Initial GeoJSON sync after map created, ${locations.length} locations');
       }
     }
   }
@@ -565,7 +614,8 @@ class _AnnotationClickListener extends mapbox.OnPointAnnotationClickListener {
 
   @override
   void onPointAnnotationClick(mapbox.PointAnnotation annotation) {
-    final annotationIndex = annotations.indexWhere((a) => a?.id == annotation.id);
+    final annotationIndex =
+        annotations.indexWhere((a) => a?.id == annotation.id);
     if (annotationIndex < 0) return;
 
     final markerList = markers.values.toList();

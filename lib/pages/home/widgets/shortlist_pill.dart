@@ -1,10 +1,9 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:login/themes/app_typography.dart';
-import 'package:login/themes/pinit_colors.dart';
-import 'package:login/themes/pinit_theme.dart';
+import 'package:flutter_feather_icons/flutter_feather_icons.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
 
-/// Shortlist count pill — theme-aware surface + text.
+/// Shortlist count pill styled to match the home action pills.
 class ShortlistPill extends StatefulWidget {
   final int count;
   final VoidCallback onTap;
@@ -24,8 +23,6 @@ class _ShortlistPillState extends State<ShortlistPill> {
 
   @override
   Widget build(BuildContext context) {
-    final c = Theme.of(context).extension<PinitColors>()!;
-
     return GestureDetector(
       onTapDown: (_) => setState(() => _scale = 0.94),
       onTapUp: (_) {
@@ -35,37 +32,41 @@ class _ShortlistPillState extends State<ShortlistPill> {
       onTapCancel: () => setState(() => _scale = 1.0),
       child: AnimatedScale(
         scale: _scale,
-        duration: PinitMotion.fast,
-        curve: PinitMotion.curve,
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOutCubic,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
-            color: c.elevatedSurface,
-            borderRadius: BorderRadius.circular(22),
+            color: pinit.PinitColors.aubergine,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: pinit.PinitColors.black,
+              width: 1.5,
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
+                color: pinit.PinitColors.black,
+                blurRadius: 0,
+                offset: const Offset(3, 3),
               ),
             ],
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                CupertinoIcons.tray_arrow_up_fill,
-                size: 14,
-                color: c.primaryPurple,
+              const Icon(
+                FeatherIcons.bookmark,
+                size: 13,
+                color: pinit.PinitColors.cream,
               ),
               const SizedBox(width: 6),
               Text(
                 'Shortlist (${widget.count})',
-                style: AppTypography.brand(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                  color: c.textPrimary,
-                  letterSpacing: 0.1,
+                style: GoogleFonts.dmSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: pinit.PinitColors.cream,
+                  letterSpacing: 0.4,
                 ),
               ),
             ],

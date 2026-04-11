@@ -6,6 +6,24 @@ import 'dart:developer';
 
 import 'package:login/models/locations.dart';
 
+class GoogleAutocompleteSuggestion {
+  final String placeId;
+  final String text;
+  final String? mainText;
+  final String? secondaryText;
+  final List<String> types;
+  final double? distanceMeters;
+
+  const GoogleAutocompleteSuggestion({
+    required this.placeId,
+    required this.text,
+    this.mainText,
+    this.secondaryText,
+    this.types = const [],
+    this.distanceMeters,
+  });
+}
+
 class GooglePlacesService {
   final String? apiKey = dotenv.env["GOOGLE_PLACE_API_KEY"];
 
@@ -27,7 +45,7 @@ class GooglePlacesService {
   String? getPhotoUrl(String? photoReference, {int maxWidth = 400}) {
     if (photoReference == null || photoReference.isEmpty) return null;
     if (apiKey == null || apiKey!.isEmpty) return null;
-    
+
     return 'https://maps.googleapis.com/maps/api/place/photo?maxwidth=$maxWidth&photoreference=$photoReference&key=$apiKey';
   }
 
@@ -39,7 +57,8 @@ class GooglePlacesService {
     int radius = 2000,
   }) async {
     if (apiKey == null || apiKey!.isEmpty) {
-      throw Exception('GooglePlaceService: GOOGLE_PLACE_API_KEY not found in .env file');
+      throw Exception(
+          'GooglePlaceService: GOOGLE_PLACE_API_KEY not found in .env file');
     }
 
     String url;
@@ -52,7 +71,7 @@ class GooglePlacesService {
       url = 'https://maps.googleapis.com/maps/api/place/textsearch/json?'
           'query=${Uri.encodeComponent(query)}&key=$apiKey';
     }
-    
+
     log('GooglePlaceService: Searching with URL: $url');
     return processApiCall(url, LocationPreference.search);
   }
@@ -60,7 +79,91 @@ class GooglePlacesService {
   Future<List<LocationModel>> handleMagicSearchQuery(String query) {
     // Enhanced magic search that works better
     return searchPlaces(query: query);
-  } 
+  }
+
+  Future<List<GoogleAutocompleteSuggestion>> autocompleteFoodAndDrink({
+    required String query,
+    LatLng? origin,
+    int limit = 6,
+  }) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) {
+      return const [];
+    }
+    if (apiKey == null || apiKey!.isEmpty) {
+      throw Exception(
+        'GooglePlaceService: GOOGLE_PLACE_API_KEY not found in .env file',
+      );
+    }
+
+    final uri = Uri.https('places.googleapis.com', '/v1/places:autocomplete');
+    final body = <String, dynamic>{
+      'input': trimmed,
+      'includeQueryPredictions': false,
+      'includedPrimaryTypes': const [
+        'restaurant',
+        'bar',
+        'pub',
+        'cafe',
+        'night_club',
+      ],
+    };
+
+    if (origin != null) {
+      body['origin'] = {
+        'latitude': origin.latitude,
+        'longitude': origin.longitude,
+      };
+      body['locationBias'] = {
+        'circle': {
+          'center': {
+            'latitude': origin.latitude,
+            'longitude': origin.longitude,
+          },
+          'radius': 50000.0,
+        },
+      };
+    }
+
+    final response = await http.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey!,
+        'X-Goog-FieldMask': 'suggestions.placePrediction.placeId,'
+            'suggestions.placePrediction.text.text,'
+            'suggestions.placePrediction.structuredFormat.mainText.text,'
+            'suggestions.placePrediction.structuredFormat.secondaryText.text,'
+            'suggestions.placePrediction.types,'
+            'suggestions.placePrediction.distanceMeters',
+      },
+      body: jsonEncode(body),
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      log(
+        'GooglePlaceService: Autocomplete request failed '
+        '(${response.statusCode}): ${response.body}',
+      );
+      return const [];
+    }
+
+    final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+    final rawSuggestions = decoded['suggestions'] as List<dynamic>? ?? const [];
+    final suggestions = rawSuggestions
+        .whereType<Map<String, dynamic>>()
+        .map(_parseAutocompleteSuggestion)
+        .whereType<GoogleAutocompleteSuggestion>()
+        .toList();
+
+    suggestions.sort((left, right) {
+      final leftDistance = left.distanceMeters ?? double.infinity;
+      final rightDistance = right.distanceMeters ?? double.infinity;
+      return leftDistance.compareTo(rightDistance);
+    });
+
+    return suggestions.take(limit).toList(growable: false);
+  }
 
   Future<List<LocationModel>> fetchNearbyPlaces({
     required double latitude,
@@ -69,33 +172,74 @@ class GooglePlacesService {
     int radius = 1500,
   }) async {
     if (apiKey == null || apiKey!.isEmpty) {
-      throw Exception('GooglePlaceService: GOOGLE_PLACE_API_KEY not found in .env file');
+      throw Exception(
+          'GooglePlaceService: GOOGLE_PLACE_API_KEY not found in .env file');
     }
 
     final String url =
         'https://maps.googleapis.com/maps/api/place/nearbysearch/json?'
         'location=$latitude,$longitude&radius=$radius&type=$placeType&key=$apiKey';
-    
+
     log('GooglePlaceService: Fetching nearby places with URL: $url');
     return processApiCall(url, LocationPreference.recommended);
   }
 
-  Future<List<LocationModel>> processApiCall(String url, LocationPreference preference) async {
+  GoogleAutocompleteSuggestion? _parseAutocompleteSuggestion(
+    Map<String, dynamic> json,
+  ) {
+    final prediction = json['placePrediction'];
+    if (prediction is! Map<String, dynamic>) {
+      return null;
+    }
+
+    final placeId = prediction['placeId']?.toString();
+    final text =
+        (prediction['text'] as Map<String, dynamic>?)?['text']?.toString();
+    if (placeId == null || placeId.isEmpty || text == null || text.isEmpty) {
+      return null;
+    }
+
+    final structured =
+        prediction['structuredFormat'] as Map<String, dynamic>? ?? const {};
+    final types = (prediction['types'] as List<dynamic>? ?? const [])
+        .map((value) => value.toString())
+        .where((value) => value.isNotEmpty)
+        .toList(growable: false);
+    final distanceMeters = prediction['distanceMeters'];
+
+    return GoogleAutocompleteSuggestion(
+      placeId: placeId,
+      text: text,
+      mainText: (structured['mainText'] as Map<String, dynamic>?)?['text']
+          ?.toString(),
+      secondaryText:
+          (structured['secondaryText'] as Map<String, dynamic>?)?['text']
+              ?.toString(),
+      types: types,
+      distanceMeters: distanceMeters is num ? distanceMeters.toDouble() : null,
+    );
+  }
+
+  Future<List<LocationModel>> processApiCall(
+      String url, LocationPreference preference) async {
     try {
       log('GooglePlaceService: Making API call to: $url');
-      
+
       final response = await http.get(Uri.parse(url));
       log('GooglePlaceService: Response status: ${response.statusCode}');
-      
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         log('GooglePlaceService: Response data: ${data.toString().substring(0, 200)}...');
-        
+
         // Check for API errors
-        if (data['status'] != null && data['status'] != 'OK' && data['status'] != 'ZERO_RESULTS') {
-          throw Exception('GooglePlaceService: API Error - ${data['status']}: ${data['error_message'] ?? 'Unknown error'}');
+        if (data['status'] != null &&
+            data['status'] != 'OK' &&
+            data['status'] != 'ZERO_RESULTS') {
+          throw Exception(
+              'GooglePlaceService: API Error - ${data['status']}: ${data['error_message'] ?? 'Unknown error'}');
         }
-        
+
         final results = data['results'];
         if (results != null && results.isNotEmpty) {
           List<LocationModel> places = [];
@@ -117,7 +261,8 @@ class GooglePlacesService {
       } else {
         final errorBody = response.body;
         log('GooglePlaceService: HTTP Error ${response.statusCode}: $errorBody');
-        throw Exception('GooglePlaceService: HTTP ${response.statusCode} - Failed to fetch places');
+        throw Exception(
+            'GooglePlaceService: HTTP ${response.statusCode} - Failed to fetch places');
       }
     } catch (e) {
       log('GooglePlaceService: Exception during API call: $e');
@@ -125,27 +270,26 @@ class GooglePlacesService {
     }
   }
 
-  
-
-  LocationModel _processPlace(Map<String, dynamic> result, LocationPreference locationPreference) {
+  LocationModel _processPlace(
+      Map<String, dynamic> result, LocationPreference locationPreference) {
     try {
       log('GooglePlaceService: Processing place: ${result['name']}');
-      
+
       var id = result['place_id'];
       var name = result['name'] ?? 'Unknown Place';
       var location = result['geometry']?['location'];
-      
+
       if (location == null) {
         throw Exception('Place missing location data');
       }
-      
+
       var lat = location['lat'];
       var lng = location['lng'];
       var vicinity = result['vicinity'] ?? result['formatted_address'] ?? '';
       var rating = result['rating']?.toDouble();
       var userRatingsTotal = result['user_ratings_total'];
       var priceLevel = result['price_level'];
-      
+
       // Get photo reference safely
       var photoReference;
       if (result['photos'] != null && result['photos'].isNotEmpty) {
@@ -156,7 +300,7 @@ class GooglePlacesService {
       if (photoReference != null) {
         imageUrl = getPhotoUrl(photoReference);
       }
-      
+
       var types = result['types'] as List<dynamic>? ?? [];
       String? cuisine = _extractCuisine(types, name);
 
@@ -185,157 +329,153 @@ class GooglePlacesService {
     }
   }
 
+  Future<String> getWalkingDuration({
+    required LatLng? originLatLng,
+    required String destinationPlaceId,
+  }) async {
+    if (originLatLng == null) {
+      return 'N/A';
+    }
 
-Future<String> getWalkingDuration({
-  required LatLng? originLatLng,
-  required String destinationPlaceId,
-}) async {
-  if (originLatLng == null) {
-    return 'N/A';
-  }
-  
-  if (apiKey == null || apiKey!.isEmpty) {
-    log('GooglePlaceService: API key not available for walking duration');
-    return 'N/A';
-  }
+    if (apiKey == null || apiKey!.isEmpty) {
+      log('GooglePlaceService: API key not available for walking duration');
+      return 'N/A';
+    }
 
-  try {
-    log('GooglePlaceService: Getting walking duration from ${originLatLng.latitude}, ${originLatLng.longitude} to $destinationPlaceId');
-    
-    double lat = originLatLng.latitude;
-    double lng = originLatLng.longitude;
-    
-    final String url =
-        "https://maps.googleapis.com/maps/api/distancematrix/json?"
-        "origins=$lat,$lng"
-        "&destinations=place_id:$destinationPlaceId"
-        "&mode=walking"
-        "&key=$apiKey";
-        
-    log('GooglePlaceService: Distance Matrix URL: $url');
-    final response = await http.get(Uri.parse(url));
+    try {
+      log('GooglePlaceService: Getting walking duration from ${originLatLng.latitude}, ${originLatLng.longitude} to $destinationPlaceId');
 
-    if (response.statusCode == 200) {
-      log('GooglePlaceService: Distance Matrix response OK');
-      final data = json.decode(response.body);
-      log('GooglePlaceService: Distance Matrix data: $data');
-      
-      if (data["status"] == "OK" && 
-          data["rows"] != null && 
-          data["rows"].isNotEmpty &&
-          data["rows"][0]["elements"] != null &&
-          data["rows"][0]["elements"].isNotEmpty) {
-        
-        final element = data["rows"][0]["elements"][0];
-        if (element["status"] == "OK" && element["duration"] != null) {
-          final duration = element["duration"]["text"];
-          log('GooglePlaceService: Walking duration: $duration');
-          return _convertDurationToMinutes(duration);
+      double lat = originLatLng.latitude;
+      double lng = originLatLng.longitude;
+
+      final String url =
+          "https://maps.googleapis.com/maps/api/distancematrix/json?"
+          "origins=$lat,$lng"
+          "&destinations=place_id:$destinationPlaceId"
+          "&mode=walking"
+          "&key=$apiKey";
+
+      log('GooglePlaceService: Distance Matrix URL: $url');
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode == 200) {
+        log('GooglePlaceService: Distance Matrix response OK');
+        final data = json.decode(response.body);
+        log('GooglePlaceService: Distance Matrix data: $data');
+
+        if (data["status"] == "OK" &&
+            data["rows"] != null &&
+            data["rows"].isNotEmpty &&
+            data["rows"][0]["elements"] != null &&
+            data["rows"][0]["elements"].isNotEmpty) {
+          final element = data["rows"][0]["elements"][0];
+          if (element["status"] == "OK" && element["duration"] != null) {
+            final duration = element["duration"]["text"];
+            log('GooglePlaceService: Walking duration: $duration');
+            return _convertDurationToMinutes(duration);
+          } else {
+            log('GooglePlaceService: Distance Matrix element error: ${element["status"]}');
+            return 'N/A';
+          }
         } else {
-          log('GooglePlaceService: Distance Matrix element error: ${element["status"]}');
+          log('GooglePlaceService: Distance Matrix API error: ${data["status"]}');
           return 'N/A';
         }
       } else {
-        log('GooglePlaceService: Distance Matrix API error: ${data["status"]}');
+        log('GooglePlaceService: Distance Matrix HTTP error: ${response.statusCode}');
         return 'N/A';
       }
-    } else {
-      log('GooglePlaceService: Distance Matrix HTTP error: ${response.statusCode}');
+    } catch (e) {
+      log('GooglePlaceService: Exception in getWalkingDuration: $e');
       return 'N/A';
     }
-  } catch (e) {
-    log('GooglePlaceService: Exception in getWalkingDuration: $e');
-    return 'N/A';
-  }
-}
-
-String _convertDurationToMinutes(String duration) {
-  final regex = RegExp(r'(\d+)\s*hours?|\s*(\d+)\s*mins?');
-  int totalMinutes = 0;
-
-  for (var match in regex.allMatches(duration)) {
-    if (match.group(1) != null) {
-      totalMinutes += int.parse(match.group(1)!) * 60; // Convert hours to minutes
-    }
-    if (match.group(2) != null) {
-      totalMinutes += int.parse(match.group(2)!); // Add minutes
-    }
-  }
-  
-  return totalMinutes > 0 ? '${totalMinutes} mins' : duration;
-}
-
-
-String? _extractCuisine(List<dynamic> types, String name) {
-  const Map<String, String> cuisineFlags = {
-    'italian': '🇮🇹',  // Italy
-    'pizza': '🇮🇹',  // Italy
-    'pasta': '🇮🇹',
-    'sushi': '🇯🇵',  // Japan
-    'ramen': '🇯🇵',  // Japan
-    'taco': '🇲🇽',  // Mexico
-    'mexican': '🇲🇽',  // Mexico
-    'thai': '🇹🇭',  // Thailand
-    'indian': '🇮🇳',  // India
-    'curry': '🇮🇳',
-    'piri-piri': '🇵🇹',
-    'gyros':'🇬🇷',
-    'dosa':'🇮🇳',
-    'burger': '🇺🇸',  // USA
-    'steak': '🇦🇷',  // Argentina (famous for steaks)
-    'barbecue': '🇺🇸',  // USA
-    'bbq': '🇺🇸',  // USA
-    'kebab': '🇹🇷',  // Turkey
-    'chinese': '🇨🇳',  // China
-    'cafe': '🇫🇷',  // France
-    'coffee': '🇮🇹',  // Italy (Espresso culture)
-    'bakery': '🇫🇷',  // France
-    'french': '🇫🇷',  // France
-    'korean': '🇰🇷',  // Korea
-    'vietnamese': '🇻🇳',  // Vietnam
-    'seafood': '🇪🇸',  // Spain (Paella, seafood culture)
-    'middle_eastern': '🇱🇧',  // Lebanon
-    'turkish': '🇹🇷',  // Turkey
-    'greek': '🇬🇷',  // Greece
-    'japanese': '🇯🇵',  // Japan
-    'spanish': '🇪🇸',  // Spain
-    'german': '🇩🇪',  // Germany
-    'brazilian': '🇧🇷',  // Brazil
-    'argentinian': '🇦🇷',  // Argentina
-    'portuguese': '🇵🇹',  // Portugal
-    'lebanese': '🇱🇧',  // Lebanon
-    'moroccan': '🇲🇦',  // Morocco
-    'ethiopian': '🇪🇹',  // Ethiopia
-    'russian': '🇷🇺',  // Russia
-    'british': '🇬🇧',  // United Kingdom
-    'american': '🇺🇸',  // USA
-    'canadian': '🇨🇦',  // Canada
-    'australian': '🇦🇺',  // Australia
-    'south_african': '🇿🇦',  // South Africa
-    'indonesian': '🇮🇩',  // Indonesia
-    'malaysian': '🇲🇾',  // Malaysia
-    'filipino': '🇵🇭',  // Philippines
-    'polish': '🇵🇱',  // Poland
-  };
-
-  // Check if the place types contain any known cuisines
-  for (var type in types) {
-    if (cuisineFlags.containsKey(type)) {
-      return cuisineFlags[type];
-    }
   }
 
-  // Check if the name contains a cuisine-related keyword
-  for (var keyword in cuisineFlags.keys) {
-    if (name.toLowerCase().contains(keyword)) {
-      return cuisineFlags[keyword];
+  String _convertDurationToMinutes(String duration) {
+    final regex = RegExp(r'(\d+)\s*hours?|\s*(\d+)\s*mins?');
+    int totalMinutes = 0;
+
+    for (var match in regex.allMatches(duration)) {
+      if (match.group(1) != null) {
+        totalMinutes +=
+            int.parse(match.group(1)!) * 60; // Convert hours to minutes
+      }
+      if (match.group(2) != null) {
+        totalMinutes += int.parse(match.group(2)!); // Add minutes
+      }
     }
+
+    return totalMinutes > 0 ? '${totalMinutes} mins' : duration;
   }
 
-  return '🌎';  // Default to a neutral flag emoji if no match
-}
+  String? _extractCuisine(List<dynamic> types, String name) {
+    const Map<String, String> cuisineFlags = {
+      'italian': '🇮🇹', // Italy
+      'pizza': '🇮🇹', // Italy
+      'pasta': '🇮🇹',
+      'sushi': '🇯🇵', // Japan
+      'ramen': '🇯🇵', // Japan
+      'taco': '🇲🇽', // Mexico
+      'mexican': '🇲🇽', // Mexico
+      'thai': '🇹🇭', // Thailand
+      'indian': '🇮🇳', // India
+      'curry': '🇮🇳',
+      'piri-piri': '🇵🇹',
+      'gyros': '🇬🇷',
+      'dosa': '🇮🇳',
+      'burger': '🇺🇸', // USA
+      'steak': '🇦🇷', // Argentina (famous for steaks)
+      'barbecue': '🇺🇸', // USA
+      'bbq': '🇺🇸', // USA
+      'kebab': '🇹🇷', // Turkey
+      'chinese': '🇨🇳', // China
+      'cafe': '🇫🇷', // France
+      'coffee': '🇮🇹', // Italy (Espresso culture)
+      'bakery': '🇫🇷', // France
+      'french': '🇫🇷', // France
+      'korean': '🇰🇷', // Korea
+      'vietnamese': '🇻🇳', // Vietnam
+      'seafood': '🇪🇸', // Spain (Paella, seafood culture)
+      'middle_eastern': '🇱🇧', // Lebanon
+      'turkish': '🇹🇷', // Turkey
+      'greek': '🇬🇷', // Greece
+      'japanese': '🇯🇵', // Japan
+      'spanish': '🇪🇸', // Spain
+      'german': '🇩🇪', // Germany
+      'brazilian': '🇧🇷', // Brazil
+      'argentinian': '🇦🇷', // Argentina
+      'portuguese': '🇵🇹', // Portugal
+      'lebanese': '🇱🇧', // Lebanon
+      'moroccan': '🇲🇦', // Morocco
+      'ethiopian': '🇪🇹', // Ethiopia
+      'russian': '🇷🇺', // Russia
+      'british': '🇬🇧', // United Kingdom
+      'american': '🇺🇸', // USA
+      'canadian': '🇨🇦', // Canada
+      'australian': '🇦🇺', // Australia
+      'south_african': '🇿🇦', // South Africa
+      'indonesian': '🇮🇩', // Indonesia
+      'malaysian': '🇲🇾', // Malaysia
+      'filipino': '🇵🇭', // Philippines
+      'polish': '🇵🇱', // Poland
+    };
 
+    // Check if the place types contain any known cuisines
+    for (var type in types) {
+      if (cuisineFlags.containsKey(type)) {
+        return cuisineFlags[type];
+      }
+    }
 
+    // Check if the name contains a cuisine-related keyword
+    for (var keyword in cuisineFlags.keys) {
+      if (name.toLowerCase().contains(keyword)) {
+        return cuisineFlags[keyword];
+      }
+    }
+
+    return '🌎'; // Default to a neutral flag emoji if no match
+  }
 
 // example response from Google Places API
 // {

@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/models/users.dart';
-import 'package:login/services/mapbox_search_box_service.dart';
 
 enum SearchIntentType {
   place,
@@ -21,7 +20,7 @@ enum WaterfallStage {
   personalSuggestions,
   databaseMatches,
   fullResults,
-  mapboxLiveResults,
+  googleAutocompleteResults,
   naturalLanguage,
 }
 
@@ -43,8 +42,8 @@ class SearchSuggestionItem {
   final LocationModel? location;
   final UserModel? user;
   final bool isPersonalized;
-  final bool isMapboxResult;
-  final String? mapboxId;
+  final bool isGoogleResult;
+  final double? distanceMeters;
 
   const SearchSuggestionItem({
     required this.id,
@@ -55,8 +54,8 @@ class SearchSuggestionItem {
     this.location,
     this.user,
     this.isPersonalized = false,
-    this.isMapboxResult = false,
-    this.mapboxId,
+    this.isGoogleResult = false,
+    this.distanceMeters,
   });
 
   factory SearchSuggestionItem.recentQuery(String query) {
@@ -80,7 +79,8 @@ class SearchSuggestionItem {
 
   factory SearchSuggestionItem.place(
     LocationModel location, {
-    bool isMapboxResult = false,
+    bool isGoogleResult = false,
+    double? distanceMeters,
   }) {
     return SearchSuggestionItem(
       id: 'place:${location.locationId}',
@@ -89,21 +89,8 @@ class SearchSuggestionItem {
       subtitle: location.vicinity ?? location.cuisine,
       queryValue: location.name,
       location: location,
-      isMapboxResult: isMapboxResult,
-    );
-  }
-
-  /// Stub created from a Mapbox `/suggest` response. [location] is null until
-  /// the user taps the result and `/retrieve` is called to resolve coordinates.
-  factory SearchSuggestionItem.mapboxSuggestion(MapboxSuggestion suggestion) {
-    return SearchSuggestionItem(
-      id: 'mapbox:${suggestion.mapboxId}',
-      kind: SearchSuggestionKind.place,
-      title: suggestion.name,
-      subtitle: suggestion.placeFormatted ?? suggestion.address,
-      queryValue: suggestion.name,
-      isMapboxResult: true,
-      mapboxId: suggestion.mapboxId,
+      isGoogleResult: isGoogleResult,
+      distanceMeters: distanceMeters,
     );
   }
 
@@ -126,9 +113,8 @@ class SearchSuggestionItem {
     UserModel user, {
     bool isPersonalized = false,
   }) {
-    final username = (user.username?.isNotEmpty ?? false)
-        ? '@${user.username}'
-        : null;
+    final username =
+        (user.username?.isNotEmpty ?? false) ? '@${user.username}' : null;
     return SearchSuggestionItem(
       id: 'person:${user.supabaseId ?? user.email}',
       kind: SearchSuggestionKind.person,
@@ -187,6 +173,8 @@ class HeaderSearchResultModel {
   final String? inlineCompletion;
   final List<SearchSuggestionItem> quickSuggestions;
   final List<SearchSuggestionItem> databaseMatches;
+  final List<SearchSuggestionItem> databasePlaceItems;
+  final List<SearchSuggestionItem> googlePlaceItems;
   final List<HeaderSearchSectionModel> sections;
   final Set<WaterfallStage> completedStages;
   final bool isSearching;
@@ -198,6 +186,8 @@ class HeaderSearchResultModel {
     this.inlineCompletion,
     this.quickSuggestions = const [],
     this.databaseMatches = const [],
+    this.databasePlaceItems = const [],
+    this.googlePlaceItems = const [],
     this.sections = const [],
     this.completedStages = const {},
     this.isSearching = false,
@@ -230,6 +220,8 @@ class HeaderSearchResultModel {
     bool clearInlineCompletion = false,
     List<SearchSuggestionItem>? quickSuggestions,
     List<SearchSuggestionItem>? databaseMatches,
+    List<SearchSuggestionItem>? databasePlaceItems,
+    List<SearchSuggestionItem>? googlePlaceItems,
     List<HeaderSearchSectionModel>? sections,
     Set<WaterfallStage>? completedStages,
     bool? isSearching,
@@ -244,6 +236,8 @@ class HeaderSearchResultModel {
           : inlineCompletion ?? this.inlineCompletion,
       quickSuggestions: quickSuggestions ?? this.quickSuggestions,
       databaseMatches: databaseMatches ?? this.databaseMatches,
+      databasePlaceItems: databasePlaceItems ?? this.databasePlaceItems,
+      googlePlaceItems: googlePlaceItems ?? this.googlePlaceItems,
       sections: sections ?? this.sections,
       completedStages: completedStages ?? this.completedStages,
       isSearching: isSearching ?? this.isSearching,

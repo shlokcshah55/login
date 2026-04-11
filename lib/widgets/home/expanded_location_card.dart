@@ -258,20 +258,29 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
 
   Future<void> _toggleSave() async {
     if (_isSaving) return;
+    final wasSaved = _isSaved;
     setState(() => _isSaving = true);
     try {
       final mgr = Provider.of<LocationListManager>(context, listen: false);
-      if (_isSaved) {
+      if (wasSaved) {
+        if (mounted) {
+          setState(() => _isSaved = false);
+        }
         final ok = await mgr.unsaveLocation(widget.location);
-        if (ok && mounted) setState(() => _isSaved = false);
+        if (!ok && mounted) {
+          setState(() => _isSaved = true);
+        }
       } else {
+        if (mounted) {
+          setState(() => _isSaved = true);
+        }
         await mgr.saveLocation(widget.location);
-        if (mounted) setState(() => _isSaved = true);
       }
     } catch (_) {
       if (mounted) {
+        setState(() => _isSaved = wasSaved);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to ${_isSaved ? 'unsave' : 'save'}')),
+          SnackBar(content: Text('Failed to ${wasSaved ? 'unsave' : 'save'}')),
         );
       }
     } finally {

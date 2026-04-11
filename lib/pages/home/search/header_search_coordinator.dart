@@ -5,10 +5,9 @@ import 'package:login/models/locations.dart';
 import 'package:login/models/users.dart';
 import 'package:login/pages/home/search/header_search_repository.dart';
 import 'package:login/pages/home/search/header_search_types.dart';
-import 'package:login/services/mapbox_search_box_service.dart';
 
 class HeaderSearchCoordinator extends ChangeNotifier {
-  static const int _minMapboxQueryLength = 2;
+  static const int _minGoogleAutocompleteQueryLength = 2;
 
   /// Friendly status messages cycled into the Recommended section while
   /// the magic-search endpoint is in flight.
@@ -26,7 +25,6 @@ class HeaderSearchCoordinator extends ChangeNotifier {
   Timer? _debounce;
   int _requestVersion = 0;
   int _magicMessageCursor = 0;
-  String? _mapboxSessionToken;
 
   HeaderSearchCoordinator({
     HeaderSearchRepository? repository,
@@ -87,8 +85,7 @@ class HeaderSearchCoordinator extends ChangeNotifier {
       'take us',
     ];
     final startsLikeAQuestion = naturalLanguageStarters.any(
-      (starter) =>
-          normalized == starter || normalized.startsWith('$starter '),
+      (starter) => normalized == starter || normalized.startsWith('$starter '),
     );
     final hasQuestionMark = normalized.contains('?');
 
@@ -177,7 +174,8 @@ class HeaderSearchCoordinator extends ChangeNotifier {
     return SearchIntentType.mixed;
   }
 
-  static List<SearchSectionType> sectionOrderForIntent(SearchIntentType intent) {
+  static List<SearchSectionType> sectionOrderForIntent(
+      SearchIntentType intent) {
     switch (intent) {
       case SearchIntentType.place:
         return const [
@@ -210,15 +208,14 @@ class HeaderSearchCoordinator extends ChangeNotifier {
         intent == SearchIntentType.mixed;
   }
 
-  /// Whether the Mapbox `/suggest` stage should run for [intent].
-  static bool shouldRunMapboxStage(SearchIntentType intent) {
-    return intent == SearchIntentType.place ||
-        intent == SearchIntentType.mixed;
+  /// Whether the Google autocomplete stage should run for [intent].
+  static bool shouldRunGoogleAutocompleteStage(SearchIntentType intent) {
+    return intent == SearchIntentType.place || intent == SearchIntentType.mixed;
   }
 
   static List<LocationModel> mergePlaceResults({
     required List<LocationModel> databaseResults,
-    required List<LocationModel> mapboxResults,
+    required List<LocationModel> googleResults,
   }) {
     final seenKeys = <String>{};
     final merged = <LocationModel>[];
@@ -233,7 +230,7 @@ class HeaderSearchCoordinator extends ChangeNotifier {
     }
 
     appendAll(databaseResults);
-    appendAll(mapboxResults);
+    appendAll(googleResults);
     return merged;
   }
 
@@ -268,7 +265,6 @@ class HeaderSearchCoordinator extends ChangeNotifier {
       _state = _state.copyWith(isActive: true);
       notifyListeners();
     }
-    _mapboxSessionToken ??= MapboxSearchBoxService.newSessionToken();
 
     final requestVersion = ++_requestVersion;
     final recentQueries = await _repository.loadRecentQueries();
@@ -289,7 +285,6 @@ class HeaderSearchCoordinator extends ChangeNotifier {
   void close() {
     _debounce?.cancel();
     _requestVersion++;
-    _mapboxSessionToken = null;
     _state = _state.copyWith(
       isActive: false,
       isPreviewingMap: false,
@@ -398,7 +393,7 @@ class HeaderSearchCoordinator extends ChangeNotifier {
       ),
     );
     unawaited(
-      _runMapboxLiveStage(
+      _runGoogleAutocompleteStage(
         query: query,
         requestVersion: requestVersion,
         intent: intent,
@@ -493,6 +488,9 @@ class HeaderSearchCoordinator extends ChangeNotifier {
       // parallel and must keep its current loading state until that stage
       // resolves — otherwise we'd clobber the magic-search shimmer.
       final updatedSections = _state.result.sections.map((section) {
+        if (section.type == SearchSectionType.places) {
+          return section;
+        }
         if (!sectionsByType.containsKey(section.type)) {
           return section;
         }
@@ -503,31 +501,55 @@ class HeaderSearchCoordinator extends ChangeNotifier {
         );
       }).toList();
 
-      _state = _state.copyWith(
-        result: _state.result.copyWith(
+      final completedStages = {
+        ..._state.result.completedStages,
+        WaterfallStage.fullResults,
+      };
+      final nextResult = _state.result.copyWith(
+        databasePlaceItems:
+            sectionsByType[SearchSectionType.places] ?? const [],
+        sections: _syncPlacesSection(
+          result: _state.result.copyWith(
+            databasePlaceItems:
+                sectionsByType[SearchSectionType.places] ?? const [],
+            completedStages: completedStages,
+          ),
           sections: updatedSections,
-          completedStages: {
-            ..._state.result.completedStages,
-            WaterfallStage.fullResults,
-          },
-          isSearching: false,
         ),
+        completedStages: completedStages,
+        isSearching: false,
+      );
+
+      _state = _state.copyWith(
+        result: nextResult,
       );
       notifyListeners();
     } catch (_) {
       if (!_isLatestRequest(requestVersion)) {
         return;
       }
-      // Drop the loading state on every section so any results that
-      // arrive afterwards (e.g. from the parallel Mapbox live stage)
-      // render through the carousel instead of being hidden by the
-      // shimmer placeholder.
-      final clearedSections = _state.result.sections
-          .map((section) => section.copyWith(isLoading: false))
-          .toList();
+
+      final completedStages = {
+        ..._state.result.completedStages,
+        WaterfallStage.fullResults,
+      };
+      final clearedSections = _state.result.sections.map((section) {
+        if (section.type == SearchSectionType.places) {
+          return section;
+        }
+        return section.copyWith(isLoading: false);
+      }).toList();
       _state = _state.copyWith(
         result: _state.result.copyWith(
-          sections: clearedSections,
+          databasePlaceItems: const [],
+          sections: _syncPlacesSection(
+            result: _state.result.copyWith(
+              databasePlaceItems: const [],
+              completedStages: completedStages,
+            ),
+            sections: clearedSections,
+          ),
+          completedStages: completedStages,
           isSearching: false,
           errorMessage: 'Search is temporarily unavailable.',
         ),
@@ -536,82 +558,43 @@ class HeaderSearchCoordinator extends ChangeNotifier {
     }
   }
 
-  Future<void> _runMapboxLiveStage({
+  Future<void> _runGoogleAutocompleteStage({
     required String query,
     required int requestVersion,
     required SearchIntentType intent,
   }) async {
     final trimmed = query.trim();
-    if (trimmed.length < _minMapboxQueryLength) return;
-    // Skip Mapbox for clearly conversational queries — magic search will
+    if (trimmed.length < _minGoogleAutocompleteQueryLength) {
+      if (!_isLatestRequest(requestVersion)) return;
+      _completeGoogleAutocompleteStage(
+        liveItems: const [],
+      );
+      return;
+    }
+    // Skip autocomplete for clearly conversational queries — magic search will
     // handle those — and for people-only queries.
-    if (!shouldRunMapboxStage(intent)) return;
-
-    final sessionToken =
-        _mapboxSessionToken ??= MapboxSearchBoxService.newSessionToken();
+    if (!shouldRunGoogleAutocompleteStage(intent)) {
+      if (!_isLatestRequest(requestVersion)) return;
+      _completeGoogleAutocompleteStage(
+        liveItems: const [],
+      );
+      return;
+    }
 
     List<SearchSuggestionItem> liveItems;
     try {
       final proximity = await _repository.currentProximity();
       if (!_isLatestRequest(requestVersion)) return;
-      liveItems = await _repository.loadMapboxLiveSuggestions(
+      liveItems = await _repository.loadGoogleAutocompleteSuggestions(
         query: query,
-        sessionToken: sessionToken,
         proximity: proximity,
       );
     } catch (_) {
       liveItems = const [];
     }
-    if (!_isLatestRequest(requestVersion) || liveItems.isEmpty) {
-      return;
-    }
+    if (!_isLatestRequest(requestVersion)) return;
 
-    // Clear isLoading on the Places section when merging — the section
-    // stage may still be in flight (or may have failed), and the UI hides
-    // items behind a shimmer while isLoading is true.
-    final sections = _state.result.sections.map((section) {
-      if (section.type != SearchSectionType.places) {
-        return section;
-      }
-      final merged = _mergeSuggestionLists(
-        primary: section.items,
-        secondary: liveItems,
-      );
-      return section.copyWith(items: merged, isLoading: false);
-    }).toList();
-
-    _state = _state.copyWith(
-      result: _state.result.copyWith(
-        sections: sections,
-        completedStages: {
-          ..._state.result.completedStages,
-          WaterfallStage.mapboxLiveResults,
-        },
-      ),
-    );
-    notifyListeners();
-  }
-
-  /// Resolves a tapped Mapbox suggestion stub to a [LocationModel] with
-  /// coordinates by calling Mapbox's `/retrieve` endpoint. Rotates the
-  /// session token afterwards because Mapbox sessions end on retrieve.
-  Future<LocationModel?> resolveMapboxSelection(
-    SearchSuggestionItem item,
-  ) async {
-    final mapboxId = item.mapboxId;
-    if (mapboxId == null) return null;
-    final sessionToken =
-        _mapboxSessionToken ??= MapboxSearchBoxService.newSessionToken();
-
-    final resolved = await _repository.resolveMapboxSuggestion(
-      mapboxId: mapboxId,
-      sessionToken: sessionToken,
-    );
-
-    // Mapbox sessions end after a /retrieve call — rotate so the next
-    // /suggest starts a fresh session.
-    _mapboxSessionToken = MapboxSearchBoxService.newSessionToken();
-    return resolved;
+    _completeGoogleAutocompleteStage(liveItems: liveItems);
   }
 
   Future<void> _runNaturalLanguageStage({
@@ -658,7 +641,8 @@ class HeaderSearchCoordinator extends ChangeNotifier {
     notifyListeners();
   }
 
-  bool _isLatestRequest(int requestVersion) => requestVersion == _requestVersion;
+  bool _isLatestRequest(int requestVersion) =>
+      requestVersion == _requestVersion;
 
   String _nextMagicLoadingMessage() {
     final message =
@@ -696,6 +680,76 @@ class HeaderSearchCoordinator extends ChangeNotifier {
     }
   }
 
+  void _completeGoogleAutocompleteStage({
+    required List<SearchSuggestionItem> liveItems,
+  }) {
+    final completedStages = {
+      ..._state.result.completedStages,
+      WaterfallStage.googleAutocompleteResults,
+    };
+    final nextResult = _state.result.copyWith(
+      googlePlaceItems: liveItems,
+      sections: _syncPlacesSection(
+        result: _state.result.copyWith(
+          googlePlaceItems: liveItems,
+          completedStages: completedStages,
+        ),
+      ),
+      completedStages: completedStages,
+    );
+
+    _state = _state.copyWith(result: nextResult);
+    notifyListeners();
+  }
+
+  List<HeaderSearchSectionModel> _syncPlacesSection({
+    required HeaderSearchResultModel result,
+    List<HeaderSearchSectionModel>? sections,
+  }) {
+    final combinedItems = _mergeSuggestionLists(
+      primary: result.databasePlaceItems,
+      secondary: result.googlePlaceItems,
+    );
+    final isLoading = _isPlacesSectionLoading(
+      result: result,
+      combinedItems: combinedItems,
+    );
+
+    return (sections ?? result.sections).map((section) {
+      if (section.type != SearchSectionType.places) {
+        return section;
+      }
+      return section.copyWith(
+        items: combinedItems,
+        isLoading: isLoading,
+        clearLoadingMessage: true,
+      );
+    }).toList();
+  }
+
+  bool _isPlacesSectionLoading({
+    required HeaderSearchResultModel result,
+    required List<SearchSuggestionItem> combinedItems,
+  }) {
+    if (combinedItems.isNotEmpty) {
+      return false;
+    }
+
+    final databaseDone =
+        result.completedStages.contains(WaterfallStage.fullResults);
+    final googleDone = !_shouldRunGoogleAutocompleteForResult(result) ||
+        result.completedStages
+            .contains(WaterfallStage.googleAutocompleteResults);
+
+    return !databaseDone || !googleDone;
+  }
+
+  bool _shouldRunGoogleAutocompleteForResult(HeaderSearchResultModel result) {
+    final trimmed = result.query.trim();
+    return trimmed.length >= _minGoogleAutocompleteQueryLength &&
+        shouldRunGoogleAutocompleteStage(result.intent);
+  }
+
   static List<SearchSuggestionItem> _mergeSuggestionLists({
     required List<SearchSuggestionItem> primary,
     required List<SearchSuggestionItem> secondary,
@@ -706,7 +760,7 @@ class HeaderSearchCoordinator extends ChangeNotifier {
     for (final item in [...primary, ...secondary]) {
       final key = item.location != null
           ? _locationDeduplicationKey(item.location!)
-          : (item.mapboxId != null ? 'mapbox:${item.mapboxId}' : item.id);
+          : item.id;
       if (seen.add(key)) {
         merged.add(item);
       }

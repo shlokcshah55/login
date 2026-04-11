@@ -7,8 +7,9 @@ import 'package:login/models/proximal_models.dart';
 
 class RecommendationsApi {
   static const String _baseUrl =
-      'https://pinit-recommendations-api-jnj4ne6sqq-nw.a.run.app';
+      'https://pinit-recommendations-api-1070859807237.europe-west2.run.app';
   static const String _path = '/recommendations/proximal';
+  static const String _addLocationPath = '/locations/add';
 
   final http.Client _client;
 
@@ -60,18 +61,24 @@ class RecommendationsApi {
 
     // Retry logic for 500 errors (transient failures)
     const maxRetries = 3;
-    const retryDelays = [Duration(milliseconds: 500), Duration(seconds: 1), Duration(seconds: 2)];
-    
+    const retryDelays = [
+      Duration(milliseconds: 500),
+      Duration(seconds: 1),
+      Duration(seconds: 2)
+    ];
+
     late http.Response response;
     for (int attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        response = await _client.post(
-          uri,
-          headers: const {
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode(requestJson),
-        ).timeout(const Duration(seconds: 30));
+        response = await _client
+            .post(
+              uri,
+              headers: const {
+                'Content-Type': 'application/json',
+              },
+              body: jsonEncode(requestJson),
+            )
+            .timeout(const Duration(seconds: 30));
 
         log('📥 [RecommendationsApi] Response status: ${response.statusCode}');
 
@@ -149,6 +156,44 @@ class RecommendationsApi {
 
     final decoded = jsonDecode(response.body) as Map<String, dynamic>;
     return ProximalResponse.fromJson(decoded);
+  }
+
+  Future<int?> addLocationByGooglePlaceId({
+    required String googlePlaceId,
+    bool classifyPhoto = true,
+  }) async {
+    final trimmed = googlePlaceId.trim();
+    if (trimmed.isEmpty) {
+      return null;
+    }
+
+    final uri = Uri.parse('$_baseUrl$_addLocationPath');
+    final response = await _client.post(
+      uri,
+      headers: const {
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'google_place_id': trimmed,
+        'classify_photo': classifyPhoto,
+      }),
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw RecommendationsApiException(
+        'Failed with status ${response.statusCode}: ${response.body}',
+      );
+    }
+
+    final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+    final locationId = decoded['location_id'];
+    if (locationId is int) {
+      return locationId;
+    }
+    if (locationId is num) {
+      return locationId.toInt();
+    }
+    return null;
   }
 }
 

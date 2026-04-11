@@ -248,13 +248,13 @@ class _ChipStateState extends State<_Chip> {
       case _ChipState.accent:
         bg = PinitColors.accent;
         fg = PinitColors.cream;
-        border = PinitColors.accent;
+        border = PinitColors.aubergine;
         elevated = true;
         break;
       case _ChipState.filled:
         bg = PinitColors.aubergine;
         fg = PinitColors.cream;
-        border = PinitColors.aubergine;
+        border = PinitColors.black;
         elevated = true;
         break;
       case _ChipState.normal:

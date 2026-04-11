@@ -6,7 +6,7 @@ import 'package:login/pages/home/search/header_search_repository.dart';
 import 'package:login/pages/home/search/header_search_types.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
-import 'package:login/services/mapbox_search_box_service.dart';
+import 'package:login/services/google_place_service.dart';
 import 'package:login/services/natural_language_search_service.dart';
 import 'package:login/supabase/constants.dart';
 import 'package:login/supabase/service.dart';
@@ -21,9 +21,9 @@ class LiveHeaderSearchRepository implements HeaderSearchRepository {
   final NaturalLanguageSearchService _naturalLanguageSearchService;
   // Nullable + lazy getter so a new field added during hot reload doesn't
   // null-deref on instances created before the reload.
-  MapboxSearchBoxService? _mapboxSearchBoxServiceField;
-  MapboxSearchBoxService get _mapboxSearchBoxService =>
-      _mapboxSearchBoxServiceField ??= MapboxSearchBoxService();
+  GooglePlacesService? _googlePlacesServiceField;
+  GooglePlacesService get _googlePlacesService =>
+      _googlePlacesServiceField ??= GooglePlacesService();
 
   List<UserModel>? _suggestedUsersCache;
   Map<String, int?>? _friendInfluenceCache;
@@ -34,14 +34,14 @@ class LiveHeaderSearchRepository implements HeaderSearchRepository {
     required SupabaseService supabaseService,
     HeaderSearchRecentStore? recentStore,
     NaturalLanguageSearchService? naturalLanguageSearchService,
-    MapboxSearchBoxService? mapboxSearchBoxService,
+    GooglePlacesService? googlePlacesService,
   })  : _locationListManager = locationListManager,
         _userDataProvider = userDataProvider,
         _supabaseService = supabaseService,
         _recentStore = recentStore ?? HeaderSearchRecentStore(),
         _naturalLanguageSearchService =
             naturalLanguageSearchService ?? NaturalLanguageSearchService(),
-        _mapboxSearchBoxServiceField = mapboxSearchBoxService;
+        _googlePlacesServiceField = googlePlacesService;
 
   @override
   Future<List<String>> loadRecentQueries() {
@@ -215,38 +215,33 @@ class LiveHeaderSearchRepository implements HeaderSearchRepository {
   }
 
   @override
-  Future<List<SearchSuggestionItem>> loadMapboxLiveSuggestions({
+  Future<List<SearchSuggestionItem>> loadGoogleAutocompleteSuggestions({
     required String query,
-    required String sessionToken,
     LatLng? proximity,
   }) async {
     if (query.trim().isEmpty) {
       return const [];
     }
 
-    final suggestions = await _mapboxSearchBoxService.suggest(
+    final suggestions = await _googlePlacesService.autocompleteFoodAndDrink(
       query: query,
-      sessionToken: sessionToken,
-      proximity: proximity,
+      origin: proximity,
       limit: 6,
     );
 
-    return suggestions.map(SearchSuggestionItem.mapboxSuggestion).toList();
+    return suggestions
+        .map(
+          (suggestion) => SearchSuggestionItem.place(
+            _buildGoogleAutocompleteLocation(suggestion),
+            isGoogleResult: true,
+            distanceMeters: suggestion.distanceMeters,
+          ),
+        )
+        .toList(growable: false);
   }
 
   @override
   Future<LatLng?> currentProximity() => _currentLocation();
-
-  @override
-  Future<LocationModel?> resolveMapboxSuggestion({
-    required String mapboxId,
-    required String sessionToken,
-  }) {
-    return _mapboxSearchBoxService.retrieve(
-      mapboxId: mapboxId,
-      sessionToken: sessionToken,
-    );
-  }
 
   Future<List<LocationModel>> _searchPlacesFromDatabase({
     required String query,
@@ -285,7 +280,7 @@ class LiveHeaderSearchRepository implements HeaderSearchRepository {
       return processed;
     } catch (error) {
       // Statement timeout, network blip, schema issue — degrade to empty
-      // so the Mapbox stage can still populate the Places row.
+      // so the Google autocomplete stage can still populate the Places row.
       return const [];
     }
   }
@@ -293,6 +288,62 @@ class LiveHeaderSearchRepository implements HeaderSearchRepository {
   Future<LatLng?> _currentLocation() async {
     return _locationListManager.currentPosition ??
         await _locationListManager.getCurrentLocation();
+  }
+
+  LocationModel _buildGoogleAutocompleteLocation(
+    GoogleAutocompleteSuggestion suggestion,
+  ) {
+    final name = (suggestion.mainText?.trim().isNotEmpty ?? false)
+        ? suggestion.mainText!.trim()
+        : suggestion.text.trim();
+    final secondaryText = suggestion.secondaryText?.trim();
+    final typeLabel = _displayTypeLabel(suggestion.types);
+
+    return LocationModel(
+      locationId: -suggestion.placeId.hashCode.abs(),
+      name: name,
+      vicinity: secondaryText?.isNotEmpty == true ? secondaryText : null,
+      createdAt: DateTime.now(),
+      googlePlaceId: suggestion.placeId,
+      cuisine: typeLabel,
+      types: suggestion.types.join(','),
+      preference: LocationPreference.search,
+      googleMapsUri:
+          'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(name)}&query_place_id=${suggestion.placeId}',
+    );
+  }
+
+  String? _displayTypeLabel(List<String> types) {
+    if (types.isEmpty) {
+      return null;
+    }
+
+    const preferredTypes = [
+      'restaurant',
+      'bar',
+      'pub',
+      'cafe',
+      'night_club',
+      'wine_bar',
+      'sports_bar',
+      'cocktail_bar',
+      'bakery',
+    ];
+
+    for (final preferred in preferredTypes) {
+      if (types.contains(preferred)) {
+        return preferred
+            .split('_')
+            .map((part) => part[0].toUpperCase() + part.substring(1))
+            .join(' ');
+      }
+    }
+
+    final first = types.first;
+    return first
+        .split('_')
+        .map((part) => part[0].toUpperCase() + part.substring(1))
+        .join(' ');
   }
 
   Future<List<UserModel>> _searchPeople({

@@ -2,6 +2,9 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_feather_icons/flutter_feather_icons.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 import 'package:login/utils/geo_types.dart';
 import 'package:login/models/markers.dart';
@@ -46,7 +49,8 @@ class _MapScreenSearchAreaState extends State<MapScreenSearchArea> {
           ),
           onMapCreated: (controller) async {
             _mapController = controller;
-            _annotationManager = await controller.annotations.createPointAnnotationManager();
+            _annotationManager =
+                await controller.annotations.createPointAnnotationManager();
           },
           onCameraChangeListener: (mapbox.CameraChangedEventData data) {
             _areaChanged = true;
@@ -66,29 +70,66 @@ class _MapScreenSearchAreaState extends State<MapScreenSearchArea> {
               opacity: _areaChanged ? 1 : 0,
               child: IgnorePointer(
                 ignoring: !_areaChanged || _isSearching,
-                child: ElevatedButton(
-                  onPressed: _isSearching ? null : _searchThisArea,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).primaryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: pinit.PinitColors.cream,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: pinit.PinitColors.aubergine,
+                      width: 1.5,
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: pinit.PinitColors.aubergine,
+                        blurRadius: 0,
+                        offset: const Offset(3, 3),
+                      ),
+                    ],
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(999),
+                      onTap: _isSearching ? null : _searchThisArea,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 13,
+                              height: 13,
+                              child: _isSearching
+                                  ? CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: pinit.PinitColors.aubergine,
+                                    )
+                                  : const Icon(
+                                      FeatherIcons.search,
+                                      size: 13,
+                                      color: pinit.PinitColors.aubergine,
+                                    ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              _isSearching
+                                  ? 'Searching...'
+                                  : 'Search this area',
+                              style: GoogleFonts.dmSans(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: pinit.PinitColors.aubergine,
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
-                  child: _isSearching
-                      ? const SizedBox(
-                          height: 16,
-                          width: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text('Search this area'),
                 ),
               ),
             ),
@@ -130,7 +171,6 @@ class _MapScreenSearchAreaState extends State<MapScreenSearchArea> {
       for (var rec in response.recommendations) {
         print('Recommendation: ${rec.name}, Location ID: ${rec.locationId}');
       }
-
 
       final markers = await _buildMarkers(response.recommendations);
       if (!mounted) return;

@@ -30,6 +30,7 @@ import 'package:login/providers/navigation_provider.dart';
 import 'package:login/pages/profile/other_user_profile_page.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/widgets/home/bubble_mode_overlay.dart';
+import 'package:login/widgets/home/no_recommendations_popover.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:login/widgets/swipe_card_stack.dart';
 import 'package:login/widgets/wizard_completion_popover.dart';
@@ -60,6 +61,8 @@ class _HomePageState extends State<HomePage> {
   Set<String> _selectedCuisineTagIds = <String>{};
   bool _wizardPopoverScheduled = false;
   bool _wizardPopoverShown = false;
+  String? _lastHandledError;
+  bool _isNoRecommendationsPopoverVisible = false;
 
   @override
   void initState() {
@@ -105,14 +108,63 @@ class _HomePageState extends State<HomePage> {
 
   void _checkForErrors() {
     if (!mounted) return;
-    if (_locationListManager.error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_locationListManager.error!),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 4),
-        ),
-      );
+    final error = _locationListManager.error;
+    if (error == null) {
+      _lastHandledError = null;
+      return;
+    }
+    if (error == _lastHandledError) {
+      return;
+    }
+
+    _lastHandledError = error;
+
+    if (error == LocationListManager.noRecommendationsInAreaMessage) {
+      if (_isNoRecommendationsPopoverVisible) return;
+      _isNoRecommendationsPopoverVisible = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _showNoRecommendationsPopover();
+      });
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(error),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+
+  Future<void> _showNoRecommendationsPopover() async {
+    await showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Dismiss',
+      barrierColor: Colors.black.withValues(alpha: 0.18),
+      transitionDuration: const Duration(milliseconds: 260),
+      pageBuilder: (dialogContext, _, __) {
+        return const NoRecommendationsPopover();
+      },
+      transitionBuilder: (dialogContext, animation, _, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.94, end: 1.0).animate(curved),
+            child: child,
+          ),
+        );
+      },
+    );
+    if (mounted) {
+      _isNoRecommendationsPopoverVisible = false;
     }
   }
 
@@ -230,27 +282,6 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
 
-                // ─── Layer 4b: Shortlist pill (conditional) ────
-                if (viewModel.shortlistIsNotEmpty &&
-                    !viewModel.isHeaderSearchActive)
-                  AnimatedPositioned(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeOutQuint,
-                    bottom: carouselBottom + 225,
-                    left: 0,
-                    right: 0,
-                    child: Center(
-                      child: ShortlistPill(
-                        count: viewModel.shortlistCount,
-                        onTap: () => ShortlistCarouselSheet.show(
-                          context,
-                          currentMode: viewModel.homeMode,
-                          onReturnToMode: viewModel.setHomeMode,
-                        ),
-                      ),
-                    ),
-                  ),
-
                 // ─── Layer 5: Carousel + See All button ─────────
                 if (!viewModel.isHeaderSearchActive &&
                     !viewModel.isMagicSearchFieldFocused)
@@ -303,136 +334,167 @@ class _HomePageState extends State<HomePage> {
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(width: 10),
-                                  GestureDetector(
-                                    onTap: _openHomeFilters,
-                                    child: Stack(
-                                      clipBehavior: Clip.none,
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 8,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: pinit.PinitColors.cream,
-                                            borderRadius:
-                                                BorderRadius.circular(999),
-                                            border: Border.all(
-                                              color:
-                                                  pinit.PinitColors.aubergine,
-                                              width: 1.5,
+                                  if (viewModel.locations.isNotEmpty) ...[
+                                    const SizedBox(width: 10),
+                                    GestureDetector(
+                                      onTap: _openHomeFilters,
+                                      child: Stack(
+                                        clipBehavior: Clip.none,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 8,
                                             ),
-                                            boxShadow: [
-                                              BoxShadow(
+                                            decoration: BoxDecoration(
+                                              color: pinit.PinitColors.cream,
+                                              borderRadius:
+                                                  BorderRadius.circular(999),
+                                              border: Border.all(
                                                 color:
                                                     pinit.PinitColors.aubergine,
-                                                blurRadius: 0,
-                                                offset: const Offset(3, 3),
+                                                width: 1.5,
                                               ),
-                                            ],
-                                          ),
-                                          child: Icon(
-                                            FeatherIcons.sliders,
-                                            size: 15,
-                                            color: pinit.PinitColors.aubergine,
-                                          ),
-                                        ),
-                                        if (_selectedVibeTagIds.isNotEmpty ||
-                                            _selectedCuisineTagIds.isNotEmpty)
-                                          Positioned(
-                                            top: -4,
-                                            right: -2,
-                                            child: Container(
-                                              constraints: const BoxConstraints(
-                                                minWidth: 18,
-                                                minHeight: 18,
-                                              ),
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                horizontal: 5,
-                                                vertical: 2,
-                                              ),
-                                              decoration: BoxDecoration(
-                                                color: pinit.PinitColors.accent,
-                                                borderRadius:
-                                                    BorderRadius.circular(999),
-                                                border: Border.all(
-                                                  color:
-                                                      pinit.PinitColors.cream,
-                                                  width: 1.2,
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: pinit
+                                                      .PinitColors.aubergine,
+                                                  blurRadius: 0,
+                                                  offset: const Offset(3, 3),
                                                 ),
-                                              ),
-                                              child: Center(
-                                                child: Text(
-                                                  '${_selectedVibeTagIds.length + _selectedCuisineTagIds.length}',
-                                                  style: AppTypography.sans(
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.w800,
+                                              ],
+                                            ),
+                                            child: Icon(
+                                              FeatherIcons.sliders,
+                                              size: 15,
+                                              color:
+                                                  pinit.PinitColors.aubergine,
+                                            ),
+                                          ),
+                                          if (_selectedVibeTagIds.isNotEmpty ||
+                                              _selectedCuisineTagIds.isNotEmpty)
+                                            Positioned(
+                                              top: -4,
+                                              right: -2,
+                                              child: Container(
+                                                constraints:
+                                                    const BoxConstraints(
+                                                  minWidth: 18,
+                                                  minHeight: 18,
+                                                ),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                  horizontal: 5,
+                                                  vertical: 2,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color:
+                                                      pinit.PinitColors.accent,
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                          999),
+                                                  border: Border.all(
                                                     color:
                                                         pinit.PinitColors.cream,
-                                                    height: 1.0,
+                                                    width: 1.2,
+                                                  ),
+                                                ),
+                                                child: Center(
+                                                  child: Text(
+                                                    '${_selectedVibeTagIds.length + _selectedCuisineTagIds.length}',
+                                                    style: AppTypography.sans(
+                                                      fontSize: 10,
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                      color: pinit
+                                                          .PinitColors.cream,
+                                                      height: 1.0,
+                                                    ),
                                                   ),
                                                 ),
                                               ),
                                             ),
-                                          ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
-                                  ),
+                                  ],
                                 ],
                               ),
-                              // ── See All pill (right) ──
-                              GestureDetector(
-                                onTap: () => Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => CarouselListPage(
-                                      locations: viewModel.locations,
-                                      title: viewModel.homeMode == HomeMode.you
-                                          ? 'Your Saves'
-                                          : 'Top Picks',
-                                    ),
-                                  ),
-                                ),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    color: pinit.PinitColors.cream,
-                                    borderRadius: BorderRadius.circular(999),
-                                    border: Border.all(
-                                      color: pinit.PinitColors.aubergine,
-                                      width: 1.5,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: pinit.PinitColors.aubergine,
-                                        blurRadius: 0,
-                                        offset: const Offset(3, 3),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (viewModel.locations.isNotEmpty &&
+                                      viewModel.shortlistIsNotEmpty) ...[
+                                    ShortlistPill(
+                                      count: viewModel.shortlistCount,
+                                      onTap: () => ShortlistCarouselSheet.show(
+                                        context,
+                                        currentMode: viewModel.homeMode,
+                                        onReturnToMode: viewModel.setHomeMode,
                                       ),
-                                    ],
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        FeatherIcons.list,
-                                        size: 13,
-                                        color: pinit.PinitColors.aubergine,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        'See All',
-                                        style: GoogleFonts.dmSans(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                          color: pinit.PinitColors.aubergine,
-                                          letterSpacing: 0.4,
+                                    ),
+                                    const SizedBox(width: 10),
+                                  ],
+                                  if (viewModel.locations.isNotEmpty)
+                                    GestureDetector(
+                                      onTap: () => Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => CarouselListPage(
+                                            locations: viewModel.locations,
+                                            title: viewModel.homeMode ==
+                                                    HomeMode.you
+                                                ? 'Your Saves'
+                                                : 'Top Picks',
+                                          ),
                                         ),
                                       ),
-                                    ],
-                                  ),
-                                ),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 14,
+                                          vertical: 8,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: pinit.PinitColors.cream,
+                                          borderRadius:
+                                              BorderRadius.circular(999),
+                                          border: Border.all(
+                                            color: pinit.PinitColors.aubergine,
+                                            width: 1.5,
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color:
+                                                  pinit.PinitColors.aubergine,
+                                              blurRadius: 0,
+                                              offset: const Offset(3, 3),
+                                            ),
+                                          ],
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              FeatherIcons.list,
+                                              size: 13,
+                                              color:
+                                                  pinit.PinitColors.aubergine,
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              'See All',
+                                              style: GoogleFonts.dmSans(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w700,
+                                                color:
+                                                    pinit.PinitColors.aubergine,
+                                                letterSpacing: 0.4,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                             ],
                           ),
@@ -592,13 +654,13 @@ class _TopPanel extends StatelessWidget {
     BuildContext context,
     LocationModel location,
   ) async {
-    await showGeneralDialog(
+    await showGeneralDialog<void>(
       context: context,
       barrierDismissible: true,
       barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
       barrierColor: Colors.transparent,
       transitionDuration: const Duration(milliseconds: 300),
-      pageBuilder: (ctx, anim, secondAnim) => ExpandedLocationCard(
+      pageBuilder: (ctx, _, __) => ExpandedLocationCard(
         location: location,
         onClose: () => Navigator.of(ctx).pop(),
       ),
@@ -671,6 +733,15 @@ class _TopPanel extends StatelessWidget {
               onQueryChanged: viewModel.isMagicSearchActive
                   ? (_) {}
                   : viewModel.updateHeaderSearchQuery,
+              onPlaceActionTriggered: (item) {
+                unawaited(
+                  viewModel.rememberHeaderSearchQuery(
+                    viewModel.headerSearchState.query.isNotEmpty
+                        ? viewModel.headerSearchState.query
+                        : (item.queryValue ?? item.title),
+                  ),
+                );
+              },
               onSuggestionSelected: (item) {
                 unawaited(() async {
                   switch (item.kind) {
@@ -682,11 +753,7 @@ class _TopPanel extends StatelessWidget {
                       break;
                     case SearchSuggestionKind.place:
                     case SearchSuggestionKind.naturalLanguage:
-                      var resolved = item.location;
-                      if (resolved == null && item.mapboxId != null) {
-                        resolved =
-                            await viewModel.resolveMapboxHeaderSelection(item);
-                      }
+                      final resolved = item.location;
                       if (resolved == null) return;
                       await viewModel.rememberHeaderSearchQuery(
                         viewModel.headerSearchState.query.isNotEmpty

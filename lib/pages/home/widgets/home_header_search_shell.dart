@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -7,8 +8,11 @@ import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/pages/home/search/header_search_types.dart';
+import 'package:login/pages/home/widgets/search_result_action_sheet.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
+import 'package:login/providers/location_list_provider.dart';
 import 'package:login/themes/app_typography.dart';
+import 'package:provider/provider.dart';
 
 class HomeHeaderSearchShell extends StatelessWidget {
   final HeaderSearchState state;
@@ -19,6 +23,7 @@ class HomeHeaderSearchShell extends StatelessWidget {
   final VoidCallback onDismiss;
   final ValueChanged<String> onQueryChanged;
   final ValueChanged<SearchSuggestionItem> onSuggestionSelected;
+  final ValueChanged<SearchSuggestionItem>? onPlaceActionTriggered;
   final ValueChanged<LocationModel> onPreviewStart;
   final VoidCallback onPreviewEnd;
   final Widget? footer;
@@ -35,6 +40,7 @@ class HomeHeaderSearchShell extends StatelessWidget {
     required this.onDismiss,
     required this.onQueryChanged,
     required this.onSuggestionSelected,
+    this.onPlaceActionTriggered,
     required this.onPreviewStart,
     required this.onPreviewEnd,
     this.footer,
@@ -96,6 +102,7 @@ class HomeHeaderSearchShell extends StatelessWidget {
                 onDismiss: onDismiss,
                 onQueryChanged: onQueryChanged,
                 onSuggestionSelected: onSuggestionSelected,
+                onPlaceActionTriggered: onPlaceActionTriggered,
                 onPreviewStart: onPreviewStart,
                 onPreviewEnd: onPreviewEnd,
                 onSearchSubmitted: onSearchSubmitted,
@@ -216,7 +223,7 @@ class _CollapsedSearchEntry extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                'SEARCH PLACES',
+                'SEARCH FOR A SPECIFC RESTAURANT',
                 style: GoogleFonts.dmSans(
                   fontSize: 11,
                   color: pinit.PinitColors.aubergineSoft,
@@ -269,13 +276,15 @@ class _MagicSearchButton extends StatelessWidget {
               : pinit.PinitColors.cream,
           shape: BoxShape.circle,
           border: Border.all(
-            color: isMagicSearchActive ? pinit.PinitColors.aubergine
+            color: isMagicSearchActive
+                ? pinit.PinitColors.aubergine
                 : pinit.PinitColors.accent,
             width: 1.5,
           ),
           boxShadow: [
             BoxShadow(
-              color: isMagicSearchActive ? pinit.PinitColors.aubergine
+              color: isMagicSearchActive
+                  ? pinit.PinitColors.aubergine
                   : pinit.PinitColors.accent,
               blurRadius: 0,
               offset: Offset(3, 3),
@@ -301,6 +310,7 @@ class _SearchOverlay extends StatefulWidget {
   final VoidCallback onDismiss;
   final ValueChanged<String> onQueryChanged;
   final ValueChanged<SearchSuggestionItem> onSuggestionSelected;
+  final ValueChanged<SearchSuggestionItem>? onPlaceActionTriggered;
   final ValueChanged<LocationModel> onPreviewStart;
   final VoidCallback onPreviewEnd;
   final VoidCallback? onSearchSubmitted;
@@ -312,6 +322,7 @@ class _SearchOverlay extends StatefulWidget {
     required this.onDismiss,
     required this.onQueryChanged,
     required this.onSuggestionSelected,
+    required this.onPlaceActionTriggered,
     required this.onPreviewStart,
     required this.onPreviewEnd,
     required this.onSearchSubmitted,
@@ -414,6 +425,8 @@ class _SearchOverlayState extends State<_SearchOverlay>
                               query: widget.state.result.query,
                               pulse: pulse,
                               onSuggestionSelected: widget.onSuggestionSelected,
+                              onPlaceActionTriggered:
+                                  widget.onPlaceActionTriggered,
                               onPreviewStart: widget.onPreviewStart,
                               onPreviewEnd: widget.onPreviewEnd,
                             ),
@@ -711,11 +724,12 @@ class _SearchErrorBanner extends StatelessWidget {
   }
 }
 
-class _PlaceResultsList extends StatelessWidget {
+class _PlaceResultsList extends StatefulWidget {
   final HeaderSearchSectionModel? section;
   final String query;
   final double pulse;
   final ValueChanged<SearchSuggestionItem> onSuggestionSelected;
+  final ValueChanged<SearchSuggestionItem>? onPlaceActionTriggered;
   final ValueChanged<LocationModel> onPreviewStart;
   final VoidCallback onPreviewEnd;
 
@@ -724,23 +738,162 @@ class _PlaceResultsList extends StatelessWidget {
     required this.query,
     required this.pulse,
     required this.onSuggestionSelected,
+    required this.onPlaceActionTriggered,
     required this.onPreviewStart,
     required this.onPreviewEnd,
   });
 
   @override
+  State<_PlaceResultsList> createState() => _PlaceResultsListState();
+}
+
+class _PlaceResultsListState extends State<_PlaceResultsList> {
+  String? _expandedItemId;
+  String? _busyItemId;
+  _InlineSearchAction? _busyAction;
+  final Map<String, LocationModel> _resolvedLocationsByItemId =
+      <String, LocationModel>{};
+  final Set<String> _optimisticallySavedItemIds = <String>{};
+
+  LocationModel? _locationFor(SearchSuggestionItem item) {
+    return _resolvedLocationsByItemId[item.id] ?? item.location;
+  }
+
+  bool _isSaved(SearchSuggestionItem item) {
+    if (_optimisticallySavedItemIds.contains(item.id)) {
+      return true;
+    }
+
+    final location = _locationFor(item);
+    if (location == null || location.locationId <= 0) {
+      return false;
+    }
+
+    return context.read<LocationListManager>().isLocationSavedSync(
+          location.locationId,
+        );
+  }
+
+  void _toggleExpanded(SearchSuggestionItem item) {
+    if (item.location == null || !item.isGoogleResult) {
+      widget.onSuggestionSelected(item);
+      return;
+    }
+
+    setState(() {
+      _expandedItemId = _expandedItemId == item.id ? null : item.id;
+    });
+  }
+
+  Future<void> _handleAction(
+    BuildContext context,
+    SearchSuggestionItem item,
+    _InlineSearchAction action,
+  ) async {
+    if (action == _InlineSearchAction.save && _isSaved(item)) {
+      setState(() {
+        _expandedItemId = null;
+      });
+      return;
+    }
+
+    final location = _locationFor(item);
+    if (location == null) {
+      widget.onSuggestionSelected(item);
+      return;
+    }
+
+    setState(() {
+      _expandedItemId = action == _InlineSearchAction.add ? item.id : null;
+      if (action == _InlineSearchAction.save ||
+          action == _InlineSearchAction.add) {
+        _optimisticallySavedItemIds.add(item.id);
+      }
+      _busyItemId = action == _InlineSearchAction.add ? item.id : null;
+      _busyAction = action == _InlineSearchAction.add ? action : null;
+    });
+
+    widget.onPlaceActionTriggered?.call(item);
+
+    unawaited(_completeAction(context, item, location, action));
+  }
+
+  Future<void> _completeAction(
+    BuildContext context,
+    SearchSuggestionItem item,
+    LocationModel location,
+    _InlineSearchAction action,
+  ) async {
+    try {
+      final prepared = await SearchResultActionHandler.ensureLocationReady(
+        location,
+      );
+      if (!mounted) return;
+
+      if (prepared == null || prepared.locationId <= 0) {
+        _revertOptimisticSave(item.id);
+        _showActionError(context);
+        return;
+      }
+
+      _resolvedLocationsByItemId[item.id] = prepared;
+
+      final locationManager = context.read<LocationListManager>();
+      final alreadySaved =
+          locationManager.isLocationSavedSync(prepared.locationId);
+      if (!alreadySaved) {
+        await locationManager.saveLocation(prepared);
+      }
+
+      if (action == _InlineSearchAction.add) {
+        if (!mounted) return;
+        await SearchResultActionHandler.addToCollection(context, prepared);
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _expandedItemId = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      _revertOptimisticSave(item.id);
+      _showActionError(context);
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _busyItemId = null;
+        _busyAction = null;
+      });
+    }
+  }
+
+  void _revertOptimisticSave(String itemId) {
+    setState(() {
+      _optimisticallySavedItemIds.remove(itemId);
+    });
+  }
+
+  void _showActionError(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('We could not prepare that place just yet.'),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     final bottomPadding = MediaQuery.of(context).padding.bottom + 32;
-    final hasQuery = query.trim().isNotEmpty;
-    final items = section?.items ?? const <SearchSuggestionItem>[];
-    final isLoading = section?.isLoading ?? false;
+    final hasQuery = widget.query.trim().isNotEmpty;
+    final items = widget.section?.items ?? const <SearchSuggestionItem>[];
+    final isLoading = widget.section?.isLoading ?? false;
 
-    if (isLoading) {
+    if (isLoading && items.isEmpty) {
       return ListView.separated(
         padding: EdgeInsets.only(bottom: bottomPadding),
         itemCount: 4,
         separatorBuilder: (_, __) => const SizedBox(height: 12),
-        itemBuilder: (_, __) => _SearchResultListSkeleton(pulse: pulse),
+        itemBuilder: (_, __) => _SearchResultListSkeleton(pulse: widget.pulse),
       );
     }
 
@@ -775,19 +928,46 @@ class _PlaceResultsList extends StatelessWidget {
       );
     }
 
-    return ListView.separated(
-      padding: EdgeInsets.only(bottom: bottomPadding),
-      itemCount: items.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final item = items[index];
-        return _SearchResultListTile(
-          item: item,
-          onSelected: onSuggestionSelected,
-          onPreviewStart: onPreviewStart,
-          onPreviewEnd: onPreviewEnd,
-        );
+    return NotificationListener<ScrollStartNotification>(
+      onNotification: (_) {
+        if (_expandedItemId != null) {
+          setState(() {
+            _expandedItemId = null;
+          });
+        }
+        return false;
       },
+      child: ListView.separated(
+        padding: EdgeInsets.only(bottom: bottomPadding),
+        itemCount: items.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (context, index) {
+          final item = items[index];
+          final displayLocation = _locationFor(item);
+
+          return _SearchResultListTile(
+            item: item,
+            displayLocation: displayLocation,
+            isExpanded: _expandedItemId == item.id,
+            isSaved: _isSaved(item),
+            pendingAction: _busyItemId == item.id ? _busyAction : null,
+            onSelected: widget.onSuggestionSelected,
+            onCardTap: () => _toggleExpanded(item),
+            onSaveTap: () => _handleAction(
+              context,
+              item,
+              _InlineSearchAction.save,
+            ),
+            onAddTap: () => _handleAction(
+              context,
+              item,
+              _InlineSearchAction.add,
+            ),
+            onPreviewStart: widget.onPreviewStart,
+            onPreviewEnd: widget.onPreviewEnd,
+          );
+        },
+      ),
     );
   }
 }
@@ -891,208 +1071,270 @@ class _SearchResultListSkeleton extends StatelessWidget {
 
 class _SearchResultListTile extends StatelessWidget {
   final SearchSuggestionItem item;
+  final LocationModel? displayLocation;
+  final bool isExpanded;
+  final bool isSaved;
+  final _InlineSearchAction? pendingAction;
   final ValueChanged<SearchSuggestionItem> onSelected;
+  final VoidCallback onCardTap;
+  final VoidCallback onSaveTap;
+  final VoidCallback onAddTap;
   final ValueChanged<LocationModel> onPreviewStart;
   final VoidCallback onPreviewEnd;
 
   const _SearchResultListTile({
     required this.item,
+    required this.displayLocation,
+    required this.isExpanded,
+    required this.isSaved,
+    required this.pendingAction,
     required this.onSelected,
+    required this.onCardTap,
+    required this.onSaveTap,
+    required this.onAddTap,
     required this.onPreviewStart,
     required this.onPreviewEnd,
   });
 
   @override
   Widget build(BuildContext context) {
-    final location = item.location;
-    final canPreview = location != null;
+    final location = displayLocation ?? item.location;
+    final canPreview = location?.position != null;
     final keyValue = item.id.replaceAll(':', '-');
     final isWavy = (location?.vibe?.wavyScore ?? 0) > 0.45;
     final borderColor =
         isWavy ? pinit.PinitColors.accent : pinit.PinitColors.aubergine;
 
-    return GestureDetector(
-      key: Key('header_search_list_item_$keyValue'),
-      behavior: HitTestBehavior.opaque,
-      onTap: () => onSelected(item),
-      onLongPress: canPreview ? () => onPreviewStart(location) : null,
-      onLongPressEnd: canPreview ? (_) => onPreviewEnd() : null,
-      child: Container(
-        height: 110,
-        decoration: BoxDecoration(
-          color: pinit.PinitColors.cream,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: borderColor,
-            width: 1.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: borderColor,
-              blurRadius: 0,
-              offset: const Offset(4, 4),
+    return SizedBox(
+      height: 120,
+      child: Stack(
+        clipBehavior: Clip.hardEdge,
+        children: [
+          Positioned.fill(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: IgnorePointer(
+                ignoring: !isExpanded,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOut,
+                  opacity: isExpanded ? 1 : 0,
+                  child: AnimatedSlide(
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOutCubic,
+                    offset: isExpanded ? Offset.zero : const Offset(0.18, 0),
+                    child: _SearchResultActionRail(
+                      isSaved: isSaved,
+                      pendingAction: pendingAction,
+                      onSaveTap: onSaveTap,
+                      onAddTap: onAddTap,
+                    ),
+                  ),
+                ),
+              ),
             ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(8.5),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(
-                width: 120,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    _SearchResultImage(item: item),
-                    const Positioned.fill(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Color(0x00000000),
-                              Color(0x33000000),
-                            ],
-                            stops: [0.55, 1.0],
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (item.isMapboxResult)
-                      Positioned(
-                        top: 8,
-                        left: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: pinit.PinitColors.cream,
-                            borderRadius: BorderRadius.circular(999),
-                            border: Border.all(
-                              color: pinit.PinitColors.aubergine,
-                              width: 1.2,
-                            ),
-                          ),
-                          child: Text(
-                            'MAP',
-                            style: GoogleFonts.dmSans(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                              color: pinit.PinitColors.aubergine,
-                              letterSpacing: 0.8,
-                              height: 1.0,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              Container(
-                width: 1.5,
-                color: borderColor,
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Container(
-                      color: pinit.PinitColors.creamSunk,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            FeatherIcons.mapPin,
-                            size: 11,
-                            color: pinit.PinitColors.mute,
-                          ),
-                          const SizedBox(width: 5),
-                          Expanded(
-                            child: Text(
-                              _topStripLabel(item).toUpperCase(),
-                              style: GoogleFonts.dmSans(
-                                fontSize: 10,
-                                color: pinit.PinitColors.mute,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 1.0,
-                                height: 1.0,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (location?.rating != null) ...[
-                            _SearchListRating(
-                              rating: location!.rating!,
-                              reviewCount: location.userRatingsTotal,
-                            ),
-                            const SizedBox(width: 6),
-                          ],
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(14, 8, 12, 8),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              item.title,
-                              style: GoogleFonts.dmSans(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w800,
-                                color: pinit.PinitColors.aubergine,
-                                height: 1.15,
-                                letterSpacing: -0.3,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 3),
-                            if (_summaryText(item) != null)
-                              Text(
-                                _summaryText(item)!,
-                                style: GoogleFonts.dmSans(
-                                  fontSize: 11,
-                                  color: pinit.PinitColors.mute,
-                                  fontWeight: FontWeight.w500,
-                                  height: 1.3,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            const Spacer(),
-                            Wrap(
-                              spacing: 6,
-                              runSpacing: 6,
-                              children: _buildMetaPills(item),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
           ),
-        ),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            margin: EdgeInsets.only(right: isExpanded ? 72 : 0),
+            transform: Matrix4.translationValues(isExpanded ? -10 : 0, 0, 0),
+            child: GestureDetector(
+              key: Key('header_search_list_item_$keyValue'),
+              behavior: HitTestBehavior.opaque,
+              onTap: item.location != null ? onCardTap : () => onSelected(item),
+              onLongPress: canPreview ? () => onPreviewStart(location!) : null,
+              onLongPressEnd: canPreview ? (_) => onPreviewEnd() : null,
+              child: Container(
+                height: 110,
+                decoration: BoxDecoration(
+                  color: pinit.PinitColors.cream,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: borderColor,
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: borderColor,
+                      blurRadius: 0,
+                      offset: const Offset(4, 4),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8.5),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SizedBox(
+                        width: 120,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            _SearchResultImage(item: item),
+                            const Positioned.fill(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      Color(0x00000000),
+                                      Color(0x33000000),
+                                    ],
+                                    stops: [0.55, 1.0],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (item.isGoogleResult)
+                              Positioned(
+                                top: 8,
+                                left: 8,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: pinit.PinitColors.cream,
+                                    borderRadius: BorderRadius.circular(999),
+                                    border: Border.all(
+                                      color: pinit.PinitColors.aubergine,
+                                      width: 1.2,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'GOOGLE',
+                                    style: GoogleFonts.dmSans(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w800,
+                                      color: pinit.PinitColors.aubergine,
+                                      letterSpacing: 0.8,
+                                      height: 1.0,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        width: 1.5,
+                        color: borderColor,
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Container(
+                              color: pinit.PinitColors.creamSunk,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    FeatherIcons.mapPin,
+                                    size: 11,
+                                    color: pinit.PinitColors.mute,
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Expanded(
+                                    child: Text(
+                                      _topStripLabel(item, location)
+                                          .toUpperCase(),
+                                      style: GoogleFonts.dmSans(
+                                        fontSize: 10,
+                                        color: pinit.PinitColors.mute,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 1.0,
+                                        height: 1.0,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  if (location?.rating != null) ...[
+                                    _SearchListRating(
+                                      rating: location!.rating!,
+                                      reviewCount: location.userRatingsTotal,
+                                    ),
+                                    const SizedBox(width: 6),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            Expanded(
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(14, 8, 12, 8),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item.title,
+                                      style: GoogleFonts.dmSans(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w800,
+                                        color: pinit.PinitColors.aubergine,
+                                        height: 1.15,
+                                        letterSpacing: -0.3,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 3),
+                                    if (_summaryText(item, location) != null)
+                                      Text(
+                                        _summaryText(item, location)!,
+                                        style: GoogleFonts.dmSans(
+                                          fontSize: 11,
+                                          color: pinit.PinitColors.mute,
+                                          fontWeight: FontWeight.w500,
+                                          height: 1.3,
+                                        ),
+                                        maxLines: isExpanded ? 1 : 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    const Spacer(),
+                                    SizedBox(
+                                      height: 22,
+                                      child: SingleChildScrollView(
+                                        scrollDirection: Axis.horizontal,
+                                        physics: const BouncingScrollPhysics(),
+                                        child: Row(
+                                          children: _buildMetaPills(
+                                            item,
+                                            location,
+                                            maxCount: isExpanded ? 2 : 3,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  String _topStripLabel(SearchSuggestionItem item) {
-    final location = item.location;
-    if (item.isMapboxResult) {
-      return 'Map Result';
+  String _topStripLabel(SearchSuggestionItem item, LocationModel? location) {
+    if (item.isGoogleResult) {
+      return 'Google Result';
     }
     if (location?.savedCount != null && location!.savedCount! > 0) {
       return '${location.savedCount} Saves';
@@ -1103,8 +1345,7 @@ class _SearchResultListTile extends StatelessWidget {
     return 'Search Result';
   }
 
-  String? _summaryText(SearchSuggestionItem item) {
-    final location = item.location;
+  String? _summaryText(SearchSuggestionItem item, LocationModel? location) {
     if (location?.generatedSummary?.isNotEmpty == true) {
       return location!.generatedSummary!;
     }
@@ -1120,8 +1361,9 @@ class _SearchResultListTile extends StatelessWidget {
     return null;
   }
 
-  List<Widget> _buildMetaPills(SearchSuggestionItem item) {
-    final location = item.location;
+  List<Widget> _buildMetaPills(
+      SearchSuggestionItem item, LocationModel? location,
+      {int maxCount = 3}) {
     final pills = <Widget>[];
 
     if (location?.priceLevel != null && location!.priceLevel! > 0) {
@@ -1135,10 +1377,162 @@ class _SearchResultListTile extends StatelessWidget {
         _SearchMetaPill(label: location!.openNow! ? 'Open' : 'Closed'),
       );
     }
-    if (pills.isEmpty && item.isMapboxResult) {
-      pills.add(const _SearchMetaPill(label: 'Mapbox'));
+    if (item.distanceMeters != null) {
+      pills.add(_SearchMetaPill(label: _formatDistance(item.distanceMeters!)));
     }
-    return pills.take(3).toList(growable: false);
+    if (pills.isEmpty && item.isGoogleResult) {
+      pills.add(const _SearchMetaPill(label: 'Google'));
+    }
+    final limited = pills.take(maxCount).toList(growable: false);
+    return [
+      for (var index = 0; index < limited.length; index++) ...[
+        if (index > 0) const SizedBox(width: 6),
+        limited[index],
+      ],
+    ];
+  }
+
+  String _formatDistance(double meters) {
+    const metersPerMile = 1609.344;
+    final miles = meters / metersPerMile;
+    if (miles < 0.2) {
+      return '${meters.round()} m';
+    }
+    if (miles < 10) {
+      return '${miles.toStringAsFixed(1)} mi';
+    }
+    return '${miles.round()} mi';
+  }
+}
+
+enum _InlineSearchAction {
+  save,
+  add,
+}
+
+class _SearchResultActionRail extends StatelessWidget {
+  final bool isSaved;
+  final _InlineSearchAction? pendingAction;
+  final VoidCallback onSaveTap;
+  final VoidCallback onAddTap;
+
+  const _SearchResultActionRail({
+    required this.isSaved,
+    required this.pendingAction,
+    required this.onSaveTap,
+    required this.onAddTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 60,
+      margin: const EdgeInsets.only(right: 2),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+      decoration: BoxDecoration(
+        color: pinit.PinitColors.creamSunk,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: pinit.PinitColors.creamDeep,
+          width: 1.3,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: pinit.PinitColors.aubergine.withValues(alpha: 0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _SearchActionButton(
+            tooltip: 'Save',
+            icon: isSaved
+                ? Icons.bookmark_rounded
+                : Icons.bookmark_border_rounded,
+            isActive: isSaved,
+            isBusy: pendingAction == _InlineSearchAction.save,
+            onTap: onSaveTap,
+          ),
+          const SizedBox(height: 10),
+          _SearchActionButton(
+            tooltip: 'Add to collection',
+            icon: Icons.add_box_outlined,
+            isBusy: pendingAction == _InlineSearchAction.add,
+            onTap: onAddTap,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SearchActionButton extends StatelessWidget {
+  final String tooltip;
+  final IconData icon;
+  final bool isActive;
+  final bool isBusy;
+  final VoidCallback onTap;
+
+  const _SearchActionButton({
+    required this.tooltip,
+    required this.icon,
+    this.isActive = false,
+    required this.isBusy,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final backgroundColor =
+        isActive ? pinit.PinitColors.aubergine : pinit.PinitColors.cream;
+    final borderColor =
+        isActive ? pinit.PinitColors.aubergine : pinit.PinitColors.creamDeep;
+    final foregroundColor =
+        isActive ? pinit.PinitColors.cream : pinit.PinitColors.aubergine;
+
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isBusy ? null : onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Ink(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: backgroundColor,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: borderColor,
+                width: 1.2,
+              ),
+            ),
+            child: Center(
+              child: isBusy
+                  ? SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation(
+                          foregroundColor,
+                        ),
+                      ),
+                    )
+                  : Icon(
+                      icon,
+                      size: 18,
+                      color: foregroundColor,
+                    ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
