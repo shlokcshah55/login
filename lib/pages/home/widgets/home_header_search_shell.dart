@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
@@ -21,6 +22,8 @@ class HomeHeaderSearchShell extends StatelessWidget {
   final ValueChanged<LocationModel> onPreviewStart;
   final VoidCallback onPreviewEnd;
   final Widget? footer;
+  final bool isMagicSearchActive;
+  final VoidCallback? onSearchSubmitted;
 
   const HomeHeaderSearchShell({
     super.key,
@@ -35,15 +38,40 @@ class HomeHeaderSearchShell extends StatelessWidget {
     required this.onPreviewStart,
     required this.onPreviewEnd,
     this.footer,
+    this.isMagicSearchActive = false,
+    this.onSearchSubmitted,
   });
 
   @override
   Widget build(BuildContext context) {
     if (!state.isActive) {
-      return _CollapsedHeaderSearch(
-        onEntryTap: onEntryTap,
-        onMagicSearchTap: onMagicSearchTap,
-        footer: footer,
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _CollapsedSearchEntry(
+                  controller: controller,
+                  focusNode: focusNode,
+                  onTap: onEntryTap,
+                  isMagicSearchActive: isMagicSearchActive,
+                  onChanged: onQueryChanged,
+                  onSubmitted: onSearchSubmitted,
+                ),
+              ),
+              const SizedBox(width: 10),
+              _MagicSearchButton(
+                onTap: onMagicSearchTap,
+                isMagicSearchActive: isMagicSearchActive,
+              ),
+            ],
+          ),
+          if (footer != null) ...[
+            const SizedBox(height: 8),
+            footer!,
+          ],
+        ],
       );
     }
 
@@ -70,6 +98,7 @@ class HomeHeaderSearchShell extends StatelessWidget {
                 onSuggestionSelected: onSuggestionSelected,
                 onPreviewStart: onPreviewStart,
                 onPreviewEnd: onPreviewEnd,
+                onSearchSubmitted: onSearchSubmitted,
               ),
             ),
           ),
@@ -79,55 +108,84 @@ class HomeHeaderSearchShell extends StatelessWidget {
   }
 }
 
-class _CollapsedHeaderSearch extends StatelessWidget {
-  final VoidCallback onEntryTap;
-  final VoidCallback onMagicSearchTap;
-  final Widget? footer;
-
-  const _CollapsedHeaderSearch({
-    required this.onEntryTap,
-    required this.onMagicSearchTap,
-    required this.footer,
+class _CollapsedSearchEntry extends StatelessWidget {
+  const _CollapsedSearchEntry({
+    required this.controller,
+    required this.focusNode,
+    required this.onTap,
+    required this.isMagicSearchActive,
+    required this.onChanged,
+    required this.onSubmitted,
   });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final VoidCallback onTap;
+  final bool isMagicSearchActive;
+  final ValueChanged<String> onChanged;
+  final VoidCallback? onSubmitted;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _CollapsedSearchEntry(
-                onTap: onEntryTap,
-              ),
-            ),
-            const SizedBox(width: 10),
-            _MagicSearchButton(
-              onTap: onMagicSearchTap,
+    if (isMagicSearchActive) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        decoration: BoxDecoration(
+          color: pinit.PinitColors.accent,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: pinit.PinitColors.aubergine,
+            width: 1.5,
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: pinit.PinitColors.aubergine,
+              blurRadius: 0,
+              offset: Offset(3, 3),
             ),
           ],
         ),
-        if (footer != null) ...[
-          const SizedBox(height: 8),
-          footer!,
-        ],
-      ],
-    );
-  }
-}
+        child: Row(
+          children: [
+            const Icon(
+              FeatherIcons.zap,
+              color: pinit.PinitColors.cream,
+              size: 16,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TextField(
+                key: const Key('home_header_magic_search_field'),
+                controller: controller,
+                focusNode: focusNode,
+                cursorColor: pinit.PinitColors.cream,
+                scrollPadding: EdgeInsets.zero,
+                textInputAction: TextInputAction.search,
+                textCapitalization: TextCapitalization.sentences,
+                style: AppTypography.sans(
+                  fontSize: 15,
+                  color: pinit.PinitColors.cream,
+                  fontWeight: FontWeight.w600,
+                ),
+                decoration: InputDecoration(
+                  isCollapsed: true,
+                  hintText: 'Describe a vibe, place, or craving',
+                  hintStyle: AppTypography.sans(
+                    fontSize: 15,
+                    color: pinit.PinitColors.cream.withValues(alpha: 0.74),
+                    fontWeight: FontWeight.w500,
+                  ),
+                  border: InputBorder.none,
+                ),
+                onChanged: onChanged,
+                onSubmitted: onSubmitted != null ? (_) => onSubmitted!() : null,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
-/// Pinit-styled collapsed search entry — cream surface, chunky aubergine
-/// border, hard offset shadow. Matches the carousel card aesthetic.
-class _CollapsedSearchEntry extends StatelessWidget {
-  final VoidCallback onTap;
-
-  const _CollapsedSearchEntry({
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
     return GestureDetector(
       key: const Key('home_header_search_entry'),
       onTap: onTap,
@@ -158,7 +216,7 @@ class _CollapsedSearchEntry extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                'SEARCH PLACES, PROMPTS, OR PEOPLE',
+                'SEARCH PLACES',
                 style: GoogleFonts.dmSans(
                   fontSize: 11,
                   color: pinit.PinitColors.aubergineSoft,
@@ -172,24 +230,13 @@ class _CollapsedSearchEntry extends StatelessWidget {
             ),
             const SizedBox(width: 10),
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
               decoration: BoxDecoration(
                 color: pinit.PinitColors.creamSunk,
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(
                   color: pinit.PinitColors.creamDeep,
                   width: 1,
-                ),
-              ),
-              child: Text(
-                '⌘K',
-                style: GoogleFonts.dmSans(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w800,
-                  color: pinit.PinitColors.aubergineSoft,
-                  letterSpacing: 0.6,
-                  height: 1.0,
                 ),
               ),
             ),
@@ -200,14 +247,14 @@ class _CollapsedSearchEntry extends StatelessWidget {
   }
 }
 
-/// Pinit accent button — the single high-energy CTA in the header.
-/// Accent fill, cream sparkle, hard offset accent shadow.
 class _MagicSearchButton extends StatelessWidget {
-  final VoidCallback onTap;
-
   const _MagicSearchButton({
     required this.onTap,
+    required this.isMagicSearchActive,
   });
+
+  final VoidCallback onTap;
+  final bool isMagicSearchActive;
 
   @override
   Widget build(BuildContext context) {
@@ -217,23 +264,29 @@ class _MagicSearchButton extends StatelessWidget {
         width: 54,
         height: 54,
         decoration: BoxDecoration(
-          color: pinit.PinitColors.accent,
+          color: isMagicSearchActive
+              ? pinit.PinitColors.accent
+              : pinit.PinitColors.cream,
           shape: BoxShape.circle,
           border: Border.all(
-            color: pinit.PinitColors.aubergine,
+            color: isMagicSearchActive ? pinit.PinitColors.aubergine
+                : pinit.PinitColors.accent,
             width: 1.5,
           ),
-          boxShadow: const [
+          boxShadow: [
             BoxShadow(
-              color: pinit.PinitColors.aubergine,
+              color: isMagicSearchActive ? pinit.PinitColors.aubergine
+                  : pinit.PinitColors.accent,
               blurRadius: 0,
               offset: Offset(3, 3),
             ),
           ],
         ),
-        child: const Icon(
+        child: Icon(
           FeatherIcons.zap,
-          color: pinit.PinitColors.cream,
+          color: isMagicSearchActive
+              ? pinit.PinitColors.cream
+              : pinit.PinitColors.accent,
           size: 22,
         ),
       ),
@@ -250,6 +303,7 @@ class _SearchOverlay extends StatefulWidget {
   final ValueChanged<SearchSuggestionItem> onSuggestionSelected;
   final ValueChanged<LocationModel> onPreviewStart;
   final VoidCallback onPreviewEnd;
+  final VoidCallback? onSearchSubmitted;
 
   const _SearchOverlay({
     required this.state,
@@ -260,6 +314,7 @@ class _SearchOverlay extends StatefulWidget {
     required this.onSuggestionSelected,
     required this.onPreviewStart,
     required this.onPreviewEnd,
+    required this.onSearchSubmitted,
   });
 
   @override
@@ -270,7 +325,7 @@ class _SearchOverlayState extends State<_SearchOverlay>
     with SingleTickerProviderStateMixin {
   late final AnimationController _motionController = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 3600),
+    duration: const Duration(milliseconds: 2800),
   )..repeat(reverse: true);
 
   @override
@@ -304,18 +359,26 @@ class _SearchOverlayState extends State<_SearchOverlay>
       builder: (context, _) {
         final pulse =
             0.5 - 0.5 * math.cos(_motionController.value * math.pi * 2);
-        final drift = 18 * (pulse - 0.5);
+        final drift = 14 * (pulse - 0.5);
 
         return Material(
           color: Colors.transparent,
           child: DecoratedBox(
             key: const Key('header_search_fullscreen_layer'),
             decoration: const BoxDecoration(
-              color: _HeaderSearchPalette.canvasBase,
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  pinit.PinitColors.cream,
+                  pinit.PinitColors.cream,
+                  pinit.PinitColors.creamSunk,
+                ],
+              ),
             ),
             child: Stack(
               children: [
-                _MistBackground(
+                _SearchBackdrop(
                   pulse: pulse,
                   drift: drift,
                   isPreviewingMap: widget.state.isPreviewingMap,
@@ -325,15 +388,10 @@ class _SearchOverlayState extends State<_SearchOverlay>
                   child: SafeArea(
                     bottom: false,
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                      padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _OverlayStatusRow(
-                            pulse: pulse,
-                            isSearching: widget.state.result.isSearching,
-                          ),
-                          const SizedBox(height: 12),
                           _ExpandedSearchField(
                             controller: widget.controller,
                             focusNode: widget.focusNode,
@@ -341,45 +399,23 @@ class _SearchOverlayState extends State<_SearchOverlay>
                                 widget.state.result.inlineCompletion,
                             onChanged: widget.onQueryChanged,
                             onDismiss: widget.onDismiss,
-                            pulse: pulse,
+                            onSubmitted: widget.onSearchSubmitted,
                           ),
-                          if (widget
-                              .state.result.quickSuggestions.isNotEmpty) ...[
-                            const SizedBox(height: 14),
-                            _SuggestionChipRow(
-                              suggestions: widget.state.result.quickSuggestions,
-                              onSelected: widget.onSuggestionSelected,
+                          if (widget.state.result.errorMessage != null) ...[
+                            const SizedBox(height: 12),
+                            _SearchErrorBanner(
+                              message: widget.state.result.errorMessage!,
                             ),
                           ],
-                          if (widget
-                              .state.result.databaseMatches.isNotEmpty) ...[
-                            const SizedBox(height: 10),
-                            _SuggestionChipRow(
-                              suggestions: widget.state.result.databaseMatches,
-                              onSelected: widget.onSuggestionSelected,
-                            ),
-                          ],
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 18),
                           Expanded(
-                            child: ListView.separated(
-                              padding: EdgeInsets.only(
-                                bottom:
-                                    MediaQuery.of(context).padding.bottom + 28,
-                              ),
-                              itemCount: widget.state.result.sections.length,
-                              separatorBuilder: (_, __) =>
-                                  const SizedBox(height: 14),
-                              itemBuilder: (context, index) {
-                                return _SectionCarousel(
-                                  section: widget.state.result.sections[index],
-                                  onSuggestionSelected:
-                                      widget.onSuggestionSelected,
-                                  onPreviewStart: widget.onPreviewStart,
-                                  onPreviewEnd: widget.onPreviewEnd,
-                                  pulse: pulse,
-                                  emphasize: index == 0,
-                                );
-                              },
+                            child: _PlaceResultsList(
+                              section: _placeSection,
+                              query: widget.state.result.query,
+                              pulse: pulse,
+                              onSuggestionSelected: widget.onSuggestionSelected,
+                              onPreviewStart: widget.onPreviewStart,
+                              onPreviewEnd: widget.onPreviewEnd,
                             ),
                           ),
                         ],
@@ -394,14 +430,23 @@ class _SearchOverlayState extends State<_SearchOverlay>
       },
     );
   }
+
+  HeaderSearchSectionModel? get _placeSection {
+    for (final section in widget.state.result.sections) {
+      if (section.type == SearchSectionType.places) {
+        return section;
+      }
+    }
+    return null;
+  }
 }
 
-class _MistBackground extends StatelessWidget {
+class _SearchBackdrop extends StatelessWidget {
   final double pulse;
   final double drift;
   final bool isPreviewingMap;
 
-  const _MistBackground({
+  const _SearchBackdrop({
     required this.pulse,
     required this.drift,
     required this.isPreviewingMap,
@@ -409,69 +454,55 @@ class _MistBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final overlayOpacity = isPreviewingMap ? 0.95 : 1.0;
+    final overlayOpacity = isPreviewingMap ? 0.96 : 1.0;
 
     return Opacity(
       opacity: overlayOpacity,
       child: Stack(
         children: [
-          Positioned.fill(
-            child: DecoratedBox(
-              key: const Key('header_search_mist_background'),
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    _HeaderSearchPalette.canvasTop,
-                    _HeaderSearchPalette.canvasMiddle,
-                    _HeaderSearchPalette.canvasBottom,
-                  ],
-                ),
+          Positioned(
+            top: -80 + drift,
+            right: -60,
+            child: _BackdropOrb(
+              size: 220,
+              color: pinit.PinitColors.creamDeep.withValues(alpha: 0.72),
+            ),
+          ),
+          Positioned(
+            top: 140 - drift,
+            left: -48,
+            child: _BackdropOrb(
+              size: 200,
+              color: pinit.PinitColors.creamDeep.withValues(alpha: 0.54),
+            ),
+          ),
+          Positioned(
+            bottom: 110 + (drift * 0.6),
+            right: 12,
+            child: _BackdropOrb(
+              size: 132,
+              color: pinit.PinitColors.accent.withValues(
+                alpha: 0.05 + (pulse * 0.03),
               ),
             ),
           ),
           Positioned(
-            top: -42 + drift,
-            right: -26 - (drift * 0.4),
-            child: _MistOrb(
-              size: 228,
-              color: _HeaderSearchPalette.roseMist.withValues(alpha: 0.3),
-            ),
-          ),
-          Positioned(
-            top: 168 - (drift * 0.5),
-            left: -54,
-            child: _MistOrb(
-              size: 208,
-              color: _HeaderSearchPalette.mintMist.withValues(alpha: 0.34),
-            ),
-          ),
-          Positioned(
-            bottom: 112 + (drift * 0.4),
-            right: 28,
-            child: _MistOrb(
-              size: 144,
-              color: _HeaderSearchPalette.apricotMist.withValues(alpha: 0.22),
-            ),
-          ),
-          Positioned(
-            top: 132,
-            left: 20,
-            right: 20,
+            top: 120,
+            left: 24,
+            right: 24,
             child: Opacity(
-              opacity: 0.4 + (pulse * 0.22),
-              child: const DecoratedBox(
+              opacity: 0.22 + (pulse * 0.1),
+              child: Container(
+                height: 1,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      Colors.transparent,
-                      Color(0xBFFFFFFF),
-                      Colors.transparent,
+                      pinit.PinitColors.cream.withValues(alpha: 0),
+                      pinit.PinitColors.aubergine.withValues(alpha: 0.12),
+                      pinit.PinitColors.cream.withValues(alpha: 0),
                     ],
                   ),
                 ),
-                child: SizedBox(height: 1),
               ),
             ),
           ),
@@ -481,11 +512,11 @@ class _MistBackground extends StatelessWidget {
   }
 }
 
-class _MistOrb extends StatelessWidget {
+class _BackdropOrb extends StatelessWidget {
   final double size;
   final Color color;
 
-  const _MistOrb({
+  const _BackdropOrb({
     required this.size,
     required this.color,
   });
@@ -510,75 +541,13 @@ class _MistOrb extends StatelessWidget {
   }
 }
 
-class _OverlayStatusRow extends StatelessWidget {
-  final double pulse;
-  final bool isSearching;
-
-  const _OverlayStatusRow({
-    required this.pulse,
-    required this.isSearching,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Text(
-          'Search',
-          style: AppTypography.brand(
-            fontSize: 12,
-            letterSpacing: 1.8,
-            color: _HeaderSearchPalette.labelText,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const Spacer(),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.6),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: _HeaderSearchPalette.panelBorder.withValues(alpha: 0.85),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 7,
-                height: 7,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _HeaderSearchPalette.roseAccent.withValues(
-                    alpha: 0.45 + (pulse * 0.45),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                isSearching ? 'Live' : 'Ready',
-                style: AppTypography.brand(
-                  fontSize: 11,
-                  color: _HeaderSearchPalette.secondaryText,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _ExpandedSearchField extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final String? inlineCompletion;
   final ValueChanged<String> onChanged;
   final VoidCallback onDismiss;
-  final double pulse;
+  final VoidCallback? onSubmitted;
 
   const _ExpandedSearchField({
     required this.controller,
@@ -586,305 +555,109 @@ class _ExpandedSearchField extends StatelessWidget {
     required this.inlineCompletion,
     required this.onChanged,
     required this.onDismiss,
-    required this.pulse,
+    required this.onSubmitted,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Transform.scale(
-      scale: 0.998 + (pulse * 0.004),
-      alignment: Alignment.centerLeft,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.74),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: _HeaderSearchPalette.panelBorder.withValues(
-              alpha: 0.8 + (pulse * 0.15),
-            ),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: _HeaderSearchPalette.depthShadow.withValues(
-                alpha: 0.08 + (pulse * 0.05),
-              ),
-              blurRadius: 24 + (pulse * 8),
-              offset: const Offset(0, 14),
-            ),
-          ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: pinit.PinitColors.creamSunk,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: pinit.PinitColors.creamDeep,
+          width: 1.5,
         ),
-        child: Row(
-          children: [
-            const Icon(
+        boxShadow: pinit.PinitColors.cardShadow,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: pinit.PinitColors.cream,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: pinit.PinitColors.creamDeep,
+                width: 1.25,
+              ),
+            ),
+            alignment: Alignment.center,
+            child: const Icon(
               CupertinoIcons.search,
-              color: _HeaderSearchPalette.roseAccent,
+              color: pinit.PinitColors.aubergine,
               size: 18,
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Stack(
-                alignment: Alignment.centerLeft,
-                children: [
-                  if (inlineCompletion != null &&
-                      inlineCompletion!.isNotEmpty &&
-                      controller.text.isNotEmpty)
-                    IgnorePointer(
-                      child: Text(
-                        inlineCompletion!,
-                        key: const Key('header_search_inline_completion'),
-                        style: AppTypography.sans(
-                          fontSize: 15,
-                          color: _HeaderSearchPalette.mutedText.withValues(
-                            alpha: 0.48,
-                          ),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  TextField(
-                    key: const Key('header_search_text_field'),
-                    controller: controller,
-                    focusNode: focusNode,
-                    cursorColor: _HeaderSearchPalette.roseAccent,
-                    style: AppTypography.sans(
-                      fontSize: 15,
-                      color: _HeaderSearchPalette.primaryText,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'Search places, prompts, or people',
-                      hintStyle: AppTypography.sans(
-                        fontSize: 15,
-                        color: _HeaderSearchPalette.mutedText,
-                      ),
-                      border: InputBorder.none,
-                    ),
-                    onChanged: onChanged,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: onDismiss,
-              child: Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.7),
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                alignment: Alignment.center,
-                child: const Icon(
-                  CupertinoIcons.xmark,
-                  color: _HeaderSearchPalette.secondaryText,
-                  size: 16,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SuggestionChipRow extends StatelessWidget {
-  final List<SearchSuggestionItem> suggestions;
-  final ValueChanged<SearchSuggestionItem> onSelected;
-
-  const _SuggestionChipRow({
-    required this.suggestions,
-    required this.onSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 40,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: suggestions.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final suggestion = suggestions[index];
-          return GestureDetector(
-            onTap: () => onSelected(suggestion),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.54),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: _HeaderSearchPalette.panelBorder,
-                ),
-              ),
-              child: Text(
-                suggestion.title,
-                style: AppTypography.brand(
-                  fontSize: 12.5,
-                  color: _HeaderSearchPalette.primaryText,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _SectionCarousel extends StatelessWidget {
-  final HeaderSearchSectionModel section;
-  final ValueChanged<SearchSuggestionItem> onSuggestionSelected;
-  final ValueChanged<LocationModel> onPreviewStart;
-  final VoidCallback onPreviewEnd;
-  final double pulse;
-  final bool emphasize;
-
-  const _SectionCarousel({
-    required this.section,
-    required this.onSuggestionSelected,
-    required this.onPreviewStart,
-    required this.onPreviewEnd,
-    required this.pulse,
-    required this.emphasize,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final glowAlpha = emphasize ? 0.1 + (pulse * 0.06) : 0.06;
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 14, 0, 14),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.48),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: _HeaderSearchPalette.panelBorder,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color:
-                _HeaderSearchPalette.depthShadow.withValues(alpha: glowAlpha),
-            blurRadius: emphasize ? 28 : 20,
-            offset: const Offset(0, 14),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(right: 14),
-            child: Row(
+          const SizedBox(width: 12),
+          Expanded(
+            child: Stack(
+              alignment: Alignment.centerLeft,
               children: [
-                Expanded(
-                  child: Text(
-                    section.title,
-                    key: ValueKey<String>(section.title),
-                    style: AppTypography.brand(
-                      fontSize: 12,
-                      letterSpacing: 1.4,
-                      color: _HeaderSearchPalette.labelText,
-                      fontWeight: FontWeight.w600,
+                if (inlineCompletion != null &&
+                    inlineCompletion!.isNotEmpty &&
+                    controller.text.isNotEmpty)
+                  IgnorePointer(
+                    child: Text(
+                      inlineCompletion!,
+                      key: const Key('header_search_inline_completion'),
+                      style: AppTypography.sans(
+                        fontSize: 15,
+                        color: pinit.PinitColors.mute.withValues(alpha: 0.56),
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-                ),
-                Container(
-                  width: 7,
-                  height: 7,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: (emphasize
-                            ? _HeaderSearchPalette.roseAccent
-                            : _HeaderSearchPalette.mintAccent)
-                        .withValues(alpha: 0.4 + (pulse * 0.4)),
+                TextField(
+                  key: const Key('header_search_text_field'),
+                  controller: controller,
+                  focusNode: focusNode,
+                  cursorColor: pinit.PinitColors.aubergine,
+                  textInputAction: TextInputAction.search,
+                  style: AppTypography.sans(
+                    fontSize: 15,
+                    color: pinit.PinitColors.aubergine,
+                    fontWeight: FontWeight.w700,
                   ),
+                  decoration: InputDecoration(
+                    hintText: 'Search places',
+                    hintStyle: AppTypography.sans(
+                      fontSize: 15,
+                      color: pinit.PinitColors.mute,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    border: InputBorder.none,
+                  ),
+                  onChanged: onChanged,
+                  onSubmitted:
+                      onSubmitted != null ? (_) => onSubmitted!() : null,
                 ),
               ],
             ),
           ),
-          if (section.isLoading && section.loadingMessage != null) ...[
-            const SizedBox(height: 6),
-            Padding(
-              padding: const EdgeInsets.only(right: 14),
-              child: Row(
-                children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: _HeaderSearchPalette.roseAccent.withValues(
-                        alpha: 0.4 + (pulse * 0.5),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      section.loadingMessage!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.sans(
-                        fontSize: 12,
-                        color: _HeaderSearchPalette.secondaryText,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: onDismiss,
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: pinit.PinitColors.cream,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: pinit.PinitColors.creamDeep,
+                  width: 1.25,
+                ),
+              ),
+              alignment: Alignment.center,
+              child: const Icon(
+                CupertinoIcons.xmark,
+                color: pinit.PinitColors.aubergineSoft,
+                size: 16,
               ),
             ),
-          ],
-          const SizedBox(height: 10),
-          SizedBox(
-            height: 136,
-            child: section.isLoading
-                ? ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: 3,
-                    separatorBuilder: (_, __) => const SizedBox(width: 12),
-                    itemBuilder: (_, __) => _LoadingCard(
-                      pulse: pulse,
-                    ),
-                  )
-                : section.items.isEmpty
-                    ? Padding(
-                        padding: const EdgeInsets.only(right: 14),
-                        child: Container(
-                          alignment: Alignment.centerLeft,
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.32),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            'No matches yet',
-                            style: AppTypography.sans(
-                              fontSize: 13,
-                              color: _HeaderSearchPalette.mutedText,
-                            ),
-                          ),
-                        ),
-                      )
-                    : ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: section.items.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: 12),
-                        itemBuilder: (context, index) {
-                          final item = section.items[index];
-                          return _SearchResultCard(
-                            item: item,
-                            onSelected: onSuggestionSelected,
-                            onPreviewStart: onPreviewStart,
-                            onPreviewEnd: onPreviewEnd,
-                          );
-                        },
-                      ),
           ),
         ],
       ),
@@ -892,49 +665,222 @@ class _SectionCarousel extends StatelessWidget {
   }
 }
 
-class _LoadingCard extends StatelessWidget {
+class _SearchErrorBanner extends StatelessWidget {
+  final String message;
+
+  const _SearchErrorBanner({
+    required this.message,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: pinit.PinitColors.creamSunk,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: pinit.PinitColors.creamDeep,
+          width: 1.5,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: pinit.PinitColors.accent,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: AppTypography.sans(
+                fontSize: 13,
+                color: pinit.PinitColors.aubergine,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlaceResultsList extends StatelessWidget {
+  final HeaderSearchSectionModel? section;
+  final String query;
+  final double pulse;
+  final ValueChanged<SearchSuggestionItem> onSuggestionSelected;
+  final ValueChanged<LocationModel> onPreviewStart;
+  final VoidCallback onPreviewEnd;
+
+  const _PlaceResultsList({
+    required this.section,
+    required this.query,
+    required this.pulse,
+    required this.onSuggestionSelected,
+    required this.onPreviewStart,
+    required this.onPreviewEnd,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomPadding = MediaQuery.of(context).padding.bottom + 32;
+    final hasQuery = query.trim().isNotEmpty;
+    final items = section?.items ?? const <SearchSuggestionItem>[];
+    final isLoading = section?.isLoading ?? false;
+
+    if (isLoading) {
+      return ListView.separated(
+        padding: EdgeInsets.only(bottom: bottomPadding),
+        itemCount: 4,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (_, __) => _SearchResultListSkeleton(pulse: pulse),
+      );
+    }
+
+    if (items.isEmpty) {
+      return ListView(
+        padding: EdgeInsets.only(bottom: bottomPadding),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: pinit.PinitColors.creamSunk,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: pinit.PinitColors.creamDeep,
+                width: 1.5,
+              ),
+              boxShadow: pinit.PinitColors.cardShadow,
+            ),
+            child: Text(
+              hasQuery
+                  ? 'No places found for that search yet.'
+                  : 'Start with a place, area, or venue name.',
+              style: AppTypography.sans(
+                fontSize: 14,
+                color: pinit.PinitColors.mute,
+                fontWeight: FontWeight.w600,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return ListView.separated(
+      padding: EdgeInsets.only(bottom: bottomPadding),
+      itemCount: items.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final item = items[index];
+        return _SearchResultListTile(
+          item: item,
+          onSelected: onSuggestionSelected,
+          onPreviewStart: onPreviewStart,
+          onPreviewEnd: onPreviewEnd,
+        );
+      },
+    );
+  }
+}
+
+class _SearchResultListSkeleton extends StatelessWidget {
   final double pulse;
 
-  const _LoadingCard({
+  const _SearchResultListSkeleton({
     required this.pulse,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 186,
-      padding: const EdgeInsets.all(14),
+      height: 110,
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.52 + (pulse * 0.08)),
+        color: pinit.PinitColors.cream,
         borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: pinit.PinitColors.aubergine,
+          width: 1.5,
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: pinit.PinitColors.aubergine,
+            blurRadius: 0,
+            offset: Offset(4, 4),
+          ),
+        ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
-            width: 56,
-            height: 24,
+            width: 120,
             decoration: BoxDecoration(
-              color: _HeaderSearchPalette.roseMist.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(6),
+              color: pinit.PinitColors.creamDeep.withValues(
+                alpha: 0.78 + (pulse * 0.1),
+              ),
+              borderRadius: const BorderRadius.horizontal(
+                left: Radius.circular(8.5),
+              ),
             ),
           ),
-          const Spacer(),
           Container(
-            width: 108,
-            height: 12,
-            decoration: BoxDecoration(
-              color: _HeaderSearchPalette.labelText.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(999),
-            ),
+            width: 1.5,
+            color: pinit.PinitColors.aubergine,
           ),
-          const SizedBox(height: 8),
-          Container(
-            width: 136,
-            height: 10,
-            decoration: BoxDecoration(
-              color: _HeaderSearchPalette.labelText.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(999),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 12, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 88,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: pinit.PinitColors.creamDeep,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    width: 150,
+                    height: 16,
+                    decoration: BoxDecoration(
+                      color:
+                          pinit.PinitColors.aubergine.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: 180,
+                    height: 11,
+                    decoration: BoxDecoration(
+                      color:
+                          pinit.PinitColors.aubergine.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    width: 74,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: pinit.PinitColors.creamDeep,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -943,13 +889,13 @@ class _LoadingCard extends StatelessWidget {
   }
 }
 
-class _SearchResultCard extends StatelessWidget {
+class _SearchResultListTile extends StatelessWidget {
   final SearchSuggestionItem item;
   final ValueChanged<SearchSuggestionItem> onSelected;
   final ValueChanged<LocationModel> onPreviewStart;
   final VoidCallback onPreviewEnd;
 
-  const _SearchResultCard({
+  const _SearchResultListTile({
     required this.item,
     required this.onSelected,
     required this.onPreviewStart,
@@ -958,124 +904,386 @@ class _SearchResultCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final location = item.location;
+    final canPreview = location != null;
     final keyValue = item.id.replaceAll(':', '-');
-    final canPreview = item.location != null;
+    final isWavy = (location?.vibe?.wavyScore ?? 0) > 0.45;
+    final borderColor =
+        isWavy ? pinit.PinitColors.accent : pinit.PinitColors.aubergine;
 
     return GestureDetector(
-      key: Key('header_search_card_$keyValue'),
+      key: Key('header_search_list_item_$keyValue'),
       behavior: HitTestBehavior.opaque,
       onTap: () => onSelected(item),
-      onLongPress: canPreview ? () => onPreviewStart(item.location!) : null,
+      onLongPress: canPreview ? () => onPreviewStart(location) : null,
       onLongPressEnd: canPreview ? (_) => onPreviewEnd() : null,
       child: Container(
-        width: 186,
-        padding: const EdgeInsets.all(14),
+        height: 110,
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              _HeaderSearchPalette.cardTop,
-              _HeaderSearchPalette.cardBottom,
-            ],
-          ),
+          color: pinit.PinitColors.cream,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: item.isMapboxResult
-                ? _HeaderSearchPalette.roseAccent.withValues(alpha: 0.28)
-                : _HeaderSearchPalette.panelBorder,
+            color: borderColor,
+            width: 1.5,
           ),
-          boxShadow: const [
+          boxShadow: [
             BoxShadow(
-              color: Color(0x141A0D14),
-              blurRadius: 22,
-              offset: Offset(0, 14),
+              color: borderColor,
+              blurRadius: 0,
+              offset: const Offset(4, 4),
             ),
           ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.56),
-                borderRadius: BorderRadius.circular(7),
-              ),
-              child: Text(
-                _labelForItem(item),
-                style: AppTypography.brand(
-                  fontSize: 10.5,
-                  color: _HeaderSearchPalette.secondaryText,
-                  fontWeight: FontWeight.w600,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8.5),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                width: 120,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _SearchResultImage(item: item),
+                    const Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Color(0x00000000),
+                              Color(0x33000000),
+                            ],
+                            stops: [0.55, 1.0],
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (item.isMapboxResult)
+                      Positioned(
+                        top: 8,
+                        left: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: pinit.PinitColors.cream,
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: pinit.PinitColors.aubergine,
+                              width: 1.2,
+                            ),
+                          ),
+                          child: Text(
+                            'MAP',
+                            style: GoogleFonts.dmSans(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              color: pinit.PinitColors.aubergine,
+                              letterSpacing: 0.8,
+                              height: 1.0,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
-            ),
-            const Spacer(),
-            Text(
-              item.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: AppTypography.brand(
-                fontSize: 16,
-                color: _HeaderSearchPalette.primaryText,
-                fontWeight: FontWeight.w600,
+              Container(
+                width: 1.5,
+                color: borderColor,
               ),
-            ),
-            if (item.subtitle != null) ...[
-              const SizedBox(height: 6),
-              Text(
-                item.subtitle!,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.sans(
-                  fontSize: 12,
-                  color: _HeaderSearchPalette.secondaryText,
-                  height: 1.35,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      color: pinit.PinitColors.creamSunk,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            FeatherIcons.mapPin,
+                            size: 11,
+                            color: pinit.PinitColors.mute,
+                          ),
+                          const SizedBox(width: 5),
+                          Expanded(
+                            child: Text(
+                              _topStripLabel(item).toUpperCase(),
+                              style: GoogleFonts.dmSans(
+                                fontSize: 10,
+                                color: pinit.PinitColors.mute,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.0,
+                                height: 1.0,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (location?.rating != null) ...[
+                            _SearchListRating(
+                              rating: location!.rating!,
+                              reviewCount: location.userRatingsTotal,
+                            ),
+                            const SizedBox(width: 6),
+                          ],
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 8, 12, 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.title,
+                              style: GoogleFonts.dmSans(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: pinit.PinitColors.aubergine,
+                                height: 1.15,
+                                letterSpacing: -0.3,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 3),
+                            if (_summaryText(item) != null)
+                              Text(
+                                _summaryText(item)!,
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 11,
+                                  color: pinit.PinitColors.mute,
+                                  fontWeight: FontWeight.w500,
+                                  height: 1.3,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            const Spacer(),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: _buildMetaPills(item),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
-          ],
+          ),
         ),
       ),
     );
   }
 
-  String _labelForItem(SearchSuggestionItem item) {
-    switch (item.kind) {
-      case SearchSuggestionKind.recentQuery:
-        return 'Recent';
-      case SearchSuggestionKind.personalPrompt:
-        return 'Prompt';
-      case SearchSuggestionKind.place:
-        return item.isMapboxResult ? 'Mapbox' : 'Place';
-      case SearchSuggestionKind.naturalLanguage:
-        return 'Recommended';
-      case SearchSuggestionKind.person:
-        return 'Person';
+  String _topStripLabel(SearchSuggestionItem item) {
+    final location = item.location;
+    if (item.isMapboxResult) {
+      return 'Map Result';
     }
+    if (location?.savedCount != null && location!.savedCount! > 0) {
+      return '${location.savedCount} Saves';
+    }
+    if (location?.preference == LocationPreference.search) {
+      return 'Match';
+    }
+    return 'Search Result';
+  }
+
+  String? _summaryText(SearchSuggestionItem item) {
+    final location = item.location;
+    if (location?.generatedSummary?.isNotEmpty == true) {
+      return location!.generatedSummary!;
+    }
+    if (location?.editorialSummary?.isNotEmpty == true) {
+      return location!.editorialSummary!;
+    }
+    if (location?.vicinity?.isNotEmpty == true) {
+      return location!.vicinity!;
+    }
+    if (item.subtitle?.isNotEmpty == true) {
+      return item.subtitle!;
+    }
+    return null;
+  }
+
+  List<Widget> _buildMetaPills(SearchSuggestionItem item) {
+    final location = item.location;
+    final pills = <Widget>[];
+
+    if (location?.priceLevel != null && location!.priceLevel! > 0) {
+      pills.add(_SearchMetaPill(label: '£' * location.priceLevel!));
+    }
+    if (location?.cuisine?.isNotEmpty == true) {
+      pills.add(_SearchMetaPill(label: location!.cuisine!));
+    }
+    if (location?.openNow != null) {
+      pills.add(
+        _SearchMetaPill(label: location!.openNow! ? 'Open' : 'Closed'),
+      );
+    }
+    if (pills.isEmpty && item.isMapboxResult) {
+      pills.add(const _SearchMetaPill(label: 'Mapbox'));
+    }
+    return pills.take(3).toList(growable: false);
   }
 }
 
-class _HeaderSearchPalette {
-  static const canvasBase = Color(0xFFFFFAF7);
-  static const canvasTop = Color(0xFFFFF1F4);
-  static const canvasMiddle = Color(0xFFF1FAF6);
-  static const canvasBottom = Color(0xFFFFFAF7);
+class _SearchResultImage extends StatelessWidget {
+  final SearchSuggestionItem item;
 
-  static const roseAccent = Color(0xFFD95D85);
-  static const roseMist = Color(0xFFF6C7D5);
-  static const mintAccent = Color(0xFF7CCAB4);
-  static const mintMist = Color(0xFFD6F0E7);
-  static const apricotMist = Color(0xFFFFD9C0);
+  const _SearchResultImage({
+    required this.item,
+  });
 
-  static const cardTop = Color(0xF7FFFFFF);
-  static const cardBottom = Color(0xFFFDF4F2);
-  static const panelBorder = Color(0x26A8687F);
-  static const depthShadow = Color(0x261F1118);
+  @override
+  Widget build(BuildContext context) {
+    final location = item.location;
+    final url = location?.imageUrl ?? location?.photoReference;
 
-  static const primaryText = Color(0xFF5F3948);
-  static const secondaryText = Color(0xFF8B6673);
-  static const mutedText = Color(0xFFA38791);
-  static const labelText = Color(0xAA6E4857);
+    if (url != null && url.trim().isNotEmpty) {
+      return CachedNetworkImage(
+        imageUrl: url,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        placeholder: (_, __) => _imagePlaceholder(),
+        errorWidget: (_, __, ___) => _imageFallback(),
+      );
+    }
+
+    return _imageFallback();
+  }
+
+  Widget _imagePlaceholder() {
+    return Container(
+      color: pinit.PinitColors.creamSunk,
+      child: const Center(
+        child: SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation(pinit.PinitColors.aubergineSoft),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _imageFallback() {
+    final emoji = item.location?.emoji;
+    return Container(
+      color: pinit.PinitColors.creamSunk,
+      alignment: Alignment.center,
+      child: emoji != null && emoji.isNotEmpty
+          ? Text(
+              emoji,
+              style: const TextStyle(fontSize: 40),
+            )
+          : const Icon(
+              FeatherIcons.mapPin,
+              color: pinit.PinitColors.aubergineSoft,
+              size: 32,
+            ),
+    );
+  }
+}
+
+class _SearchListRating extends StatelessWidget {
+  final double rating;
+  final int? reviewCount;
+
+  const _SearchListRating({
+    required this.rating,
+    this.reviewCount,
+  });
+
+  String _formatCount(int n) {
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}k';
+    return n.toString();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(
+          FeatherIcons.star,
+          size: 11,
+          color: pinit.PinitColors.aubergine,
+        ),
+        const SizedBox(width: 3),
+        Text(
+          rating.toStringAsFixed(1),
+          style: GoogleFonts.dmSans(
+            color: pinit.PinitColors.aubergine,
+            fontWeight: FontWeight.w800,
+            fontSize: 11,
+            height: 1.0,
+            letterSpacing: 0.2,
+          ),
+        ),
+        if (reviewCount != null && reviewCount! > 0) ...[
+          const SizedBox(width: 3),
+          Text(
+            '(${_formatCount(reviewCount!)})',
+            style: GoogleFonts.dmSans(
+              color: pinit.PinitColors.mute,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              height: 1.0,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _SearchMetaPill extends StatelessWidget {
+  final String label;
+
+  const _SearchMetaPill({
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: pinit.PinitColors.creamSunk,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: pinit.PinitColors.creamDeep,
+          width: 1,
+        ),
+      ),
+      child: Text(
+        label,
+        style: GoogleFonts.dmSans(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: pinit.PinitColors.aubergine,
+          letterSpacing: 0.4,
+          height: 1.0,
+        ),
+      ),
+    );
+  }
 }

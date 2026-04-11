@@ -7,7 +7,8 @@ import 'package:login/supabase/constants.dart';
 
 class PushNotificationService {
   final String? apiSecretKey = dotenv.env["API_SECRET_KEY"];
-  final String apiEndpoint = 'https://europe-west1-pinit-a97eb.cloudfunctions.net/send_push_notification';
+  final String apiEndpoint =
+      'https://europe-west1-project-add4b0f5-0080-47ef-80f.cloudfunctions.net/send-push-notifications';
 
   /// Send notification when someone requests to follow a user
   Future<bool> sendFollowRequestNotification({
@@ -19,7 +20,8 @@ class PushNotificationService {
       final fcmToken = await _getFCMToken(recipientUserId);
       if (fcmToken == null || fcmToken.isEmpty) {
         if (kDebugMode) {
-          print('PushNotificationService: Recipient has no FCM token, skipping notification');
+          print(
+              'PushNotificationService: Recipient has no FCM token, skipping notification');
         }
         return false;
       }
@@ -33,7 +35,8 @@ class PushNotificationService {
         return false;
       }
 
-      final String requesterName = requesterProfile['name'] ?? requesterProfile['username'] ?? 'Someone';
+      final String requesterName =
+          requesterProfile['name'] ?? requesterProfile['username'] ?? 'Someone';
 
       if (kDebugMode) {
         print('PushNotificationService: Sending follow request notification');
@@ -47,12 +50,13 @@ class PushNotificationService {
         fcmToken: fcmToken,
         title: 'New Follow Request',
         body: '$requesterName requested to follow you',
-        userId: requesterUserId,
+        recipientUserId: recipientUserId,
         type: 'follow_request',
       );
     } catch (e) {
       if (kDebugMode) {
-        print('PushNotificationService: Error sending follow request notification: $e');
+        print(
+            'PushNotificationService: Error sending follow request notification: $e');
       }
       return false;
     }
@@ -68,7 +72,8 @@ class PushNotificationService {
       final fcmToken = await _getFCMToken(recipientUserId);
       if (fcmToken == null || fcmToken.isEmpty) {
         if (kDebugMode) {
-          print('PushNotificationService: Recipient has no FCM token, skipping notification');
+          print(
+              'PushNotificationService: Recipient has no FCM token, skipping notification');
         }
         return false;
       }
@@ -82,20 +87,58 @@ class PushNotificationService {
         return false;
       }
 
-      final String accepterName = accepterProfile['name'] ?? accepterProfile['username'] ?? 'Someone';
-
+      final String accepterName =
+          accepterProfile['name'] ?? accepterProfile['username'] ?? 'Someone';
 
       // Send notification (all data values must be strings)
       return await _sendNotification(
         fcmToken: fcmToken,
         title: 'Follow Request Accepted',
         body: '$accepterName accepted your follow request',
-        userId: accepterUserId,
+        recipientUserId: recipientUserId,
         type: 'follow_accepted',
       );
     } catch (e) {
       if (kDebugMode) {
-        print('PushNotificationService: Error sending follow accepted notification: $e');
+        print(
+            'PushNotificationService: Error sending follow accepted notification: $e');
+      }
+      return false;
+    }
+  }
+
+  Future<bool> sendProximityLocationNotification({
+    required String recipientUserId,
+    required String locationId,
+    required String locationName,
+    required int distanceMeters,
+  }) async {
+    try {
+      final fcmToken = await _getFCMToken(recipientUserId);
+      if (fcmToken == null || fcmToken.isEmpty) {
+        if (kDebugMode) {
+          print(
+              'PushNotificationService: Recipient has no FCM token, skipping proximity notification');
+        }
+        return false;
+      }
+
+      return await _sendNotification(
+        fcmToken: fcmToken,
+        title: 'Saved place nearby',
+        body: '$locationName is ${distanceMeters}m away',
+        recipientUserId: recipientUserId,
+        type: 'proximity_location',
+        additionalData: {
+          'locationId': locationId,
+          'locationName': locationName,
+          'distanceMeters': distanceMeters.toString(),
+        },
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        print(
+            'PushNotificationService: Error sending proximity notification: $e');
       }
       return false;
     }
@@ -113,7 +156,8 @@ class PushNotificationService {
       final fcmToken = await _getFCMToken(recipientUserId);
       if (fcmToken == null || fcmToken.isEmpty) {
         if (kDebugMode) {
-          print('PushNotificationService: Recipient has no FCM token, skipping notification');
+          print(
+              'PushNotificationService: Recipient has no FCM token, skipping notification');
         }
         return false;
       }
@@ -127,11 +171,13 @@ class PushNotificationService {
         return false;
       }
 
-      final String inviterName = inviterProfile['name'] ?? inviterProfile['username'] ?? 'Someone';
+      final String inviterName =
+          inviterProfile['name'] ?? inviterProfile['username'] ?? 'Someone';
       final String inviterAvatar = inviterProfile['profile_image_url'] ?? '';
 
       if (kDebugMode) {
-        print('PushNotificationService: Sending user added to bubble notification');
+        print(
+            'PushNotificationService: Sending user added to bubble notification');
         print('  Recipient FCM token length: ${fcmToken.length}');
         print('  Inviter name: $inviterName');
         print('  Bubble name: $bubbleName');
@@ -142,7 +188,7 @@ class PushNotificationService {
         fcmToken: fcmToken,
         title: 'New Bubble Invitation',
         body: '$inviterName added you to $bubbleName',
-        userId: inviterUserId,
+        recipientUserId: recipientUserId,
         type: 'user_added_to_bubble',
         additionalData: {
           'inviterUsername': inviterName,
@@ -154,7 +200,8 @@ class PushNotificationService {
       );
     } catch (e) {
       if (kDebugMode) {
-        print('PushNotificationService: Error sending user added to bubble notification: $e');
+        print(
+            'PushNotificationService: Error sending user added to bubble notification: $e');
       }
       return false;
     }
@@ -168,7 +215,8 @@ class PushNotificationService {
   }) async {
     try {
       if (kDebugMode) {
-        print('PushNotificationService: Sending bubble message notifications for bubble: $bubbleId');
+        print(
+            'PushNotificationService: Sending bubble message notifications for bubble: $bubbleId');
       }
 
       // Fetch sender's profile data
@@ -180,7 +228,8 @@ class PushNotificationService {
         return;
       }
 
-      final String senderName = senderProfile['name'] ?? senderProfile['username'] ?? 'Someone';
+      final String senderName =
+          senderProfile['name'] ?? senderProfile['username'] ?? 'Someone';
       final String senderAvatar = senderProfile['profile_image_url'] ?? '';
 
       // Fetch bubble info to get bubble name
@@ -191,7 +240,8 @@ class PushNotificationService {
           .eq(SupabaseConstants.columnBubbleId, bubbleId)
           .single();
 
-      final String bubbleName = bubbleResponse[SupabaseConstants.columnName] ?? 'Group Chat';
+      final String bubbleName =
+          bubbleResponse[SupabaseConstants.columnName] ?? 'Group Chat';
 
       // Fetch all bubble members except the sender
       final membersResponse = await SupabaseClientManager()
@@ -204,7 +254,8 @@ class PushNotificationService {
       final members = membersResponse as List<dynamic>;
 
       if (kDebugMode) {
-        print('PushNotificationService: Found ${members.length} members to notify');
+        print(
+            'PushNotificationService: Found ${members.length} members to notify');
       }
 
       // Create a preview of the message (truncate if too long)
@@ -220,7 +271,8 @@ class PushNotificationService {
         final fcmToken = await _getFCMToken(memberId);
         if (fcmToken == null || fcmToken.isEmpty) {
           if (kDebugMode) {
-            print('PushNotificationService: Member $memberId has no FCM token, skipping');
+            print(
+                'PushNotificationService: Member $memberId has no FCM token, skipping');
           }
           continue;
         }
@@ -230,7 +282,7 @@ class PushNotificationService {
           fcmToken: fcmToken,
           title: 'New message in $bubbleName',
           body: '$senderName: $messagePreview',
-          userId: senderId,
+          recipientUserId: memberId,
           type: 'new_message',
           additionalData: {
             'senderUsername': senderName,
@@ -243,11 +295,13 @@ class PushNotificationService {
       }
 
       if (kDebugMode) {
-        print('PushNotificationService: ✅ Sent notifications to ${members.length} members');
+        print(
+            'PushNotificationService: ✅ Sent notifications to ${members.length} members');
       }
     } catch (e) {
       if (kDebugMode) {
-        print('PushNotificationService: Error sending bubble message notifications: $e');
+        print(
+            'PushNotificationService: Error sending bubble message notifications: $e');
       }
     }
   }
@@ -277,7 +331,8 @@ class PushNotificationService {
       final response = await SupabaseClientManager()
           .client
           .from(SupabaseConstants.tableUsers)
-          .select('${SupabaseConstants.name}, ${SupabaseConstants.columnUsername}, ${SupabaseConstants.columnProfileImageUrl}')
+          .select(
+              '${SupabaseConstants.name}, ${SupabaseConstants.columnUsername}, ${SupabaseConstants.columnProfileImageUrl}')
           .eq(SupabaseConstants.columnSupabaseId, userId)
           .single();
 
@@ -299,36 +354,30 @@ class PushNotificationService {
     required String fcmToken,
     required String title,
     required String body,
-    required String userId,
+    required String recipientUserId,
     required String type,
     Map<String, dynamic>? additionalData,
   }) async {
     try {
-
-      final dataPayload = {
-        'type': type,
-        'id': 'notif_${DateTime.now().millisecondsSinceEpoch}',
-        'timestamp': DateTime.now().toUtc().toIso8601String(),
-        'userId': userId,
-        ...(additionalData ?? {}),
-      };
-
       final payload = {
         'fcm_token': fcmToken,
+        'user_id': recipientUserId,
+        'type': type,
         'title': title,
         'body': body,
-        'data': dataPayload,
+        'metadata': additionalData ?? <String, dynamic>{},
       };
 
-
-      final response = await http.post(
+      final response = await http
+          .post(
         Uri.parse(apiEndpoint),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $apiSecretKey',
         },
         body: jsonEncode(payload),
-      ).timeout(
+      )
+          .timeout(
         const Duration(seconds: 10),
         onTimeout: () {
           throw Exception('Request timeout');
@@ -336,7 +385,8 @@ class PushNotificationService {
       );
 
       if (kDebugMode) {
-        print('PushNotificationService: Response status code: ${response.statusCode}');
+        print(
+            'PushNotificationService: Response status code: ${response.statusCode}');
         print('PushNotificationService: Response body: ${response.body}');
       }
 

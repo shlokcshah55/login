@@ -1,4 +1,3 @@
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -125,8 +124,6 @@ class _HiddenGemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
     return GestureDetector(
       onTap: () => showGeneralDialog(
         context: context,
@@ -143,221 +140,195 @@ class _HiddenGemCard extends StatelessWidget {
             FadeTransition(opacity: anim, child: child),
       ),
       child: Container(
-        width: 210,
+        width: 280,
         margin: const EdgeInsets.only(right: 12, bottom: 4),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(22),
+          color: PinitColors.cream,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: PinitColors.aubergine,
+            width: 1.5,
+          ),
           boxShadow: [
             BoxShadow(
-              color: cs.shadow.withValues(alpha: 0.12),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+              color: PinitColors.aubergine,
+              blurRadius: 0,
+              offset: const Offset(4, 4),
             ),
           ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: Stack(
-            fit: StackFit.expand,
+          borderRadius: BorderRadius.circular(8.5),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // ── 1. Full-bleed image ──
-              _buildImage(context),
-
-              // ── 2. Gradient scrim ──
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.black.withValues(alpha: 0.05),
-                        Colors.black.withValues(alpha: 0.18),
-                        Colors.black.withValues(alpha: 0.78),
-                      ],
-                      stops: const [0.0, 0.35, 1.0],
-                    ),
-                  ),
-                ),
-              ),
-
-              // ── 3. Top-left: early badge + optional emoji ──
-              Positioned(
-                top: 10,
-                left: 10,
-                child: Row(
+              // ── Left: Image column ──
+              SizedBox(
+                width: 100,
+                child: Stack(
+                  fit: StackFit.expand,
                   children: [
-                    // Minimal frosted-glass badge — same language as the card
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: BackdropFilter(
-                        filter: ui.ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
-                          color: Colors.black.withValues(alpha: 0.30),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(FeatherIcons.key,
-                                  size: 10, color: Colors.white),
-                              SizedBox(width: 4),
-                              Text(
-                                'early save',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 10,
-                                  letterSpacing: 0.2,
-                                ),
-                              ),
+                    _buildImage(context),
+                    // Subtle bottom-up scrim
+                    const Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Color(0x00000000),
+                              Color(0x33000000),
                             ],
+                            stops: [0.55, 1.0],
                           ),
                         ),
                       ),
                     ),
-                    // Emoji bubble if present
-                    if (location.emoji != null &&
-                        location.emoji!.isNotEmpty) ...[
-                      const SizedBox(width: 5),
-                      Container(
-                        width: 28,
-                        height: 28,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.9),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.15),
-                              blurRadius: 5,
-                              offset: const Offset(0, 2),
+                    // Emoji circle (top-left)
+                    if (location.emoji != null && location.emoji!.isNotEmpty)
+                      Positioned(
+                        top: 8,
+                        left: 8,
+                        child: Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: PinitColors.cream,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: PinitColors.aubergine,
+                              width: 1.4,
                             ),
-                          ],
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          location.emoji!,
-                          style: const TextStyle(fontSize: 14),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            location.emoji!,
+                            style: const TextStyle(fontSize: 14),
+                          ),
                         ),
                       ),
-                    ],
                   ],
                 ),
               ),
 
-              // ── 4. Bottom glass overlay ──
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(
-                      bottom: Radius.circular(20)),
-                  child: BackdropFilter(
-                    filter: ui.ImageFilter.blur(sigmaX: 2, sigmaY: 2),
-                    child: Container(
-                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.black.withValues(alpha: 0.30),
-                            Colors.black.withValues(alpha: 0.65),
-                          ],
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Name + rating
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  location.name,
-                                  style: GoogleFonts.dmSans(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
-                                    color: PinitColors.aubergine,
-                                    letterSpacing: -0.3,
-                                    height: 1.2,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              if (location.rating != null) ...[
-                                const SizedBox(width: 6),
-                                _RatingChip(rating: location.rating!),
-                              ],
-                            ],
-                          ),
+              // ── Vertical divider ──
+              Container(
+                width: 1.5,
+                color: PinitColors.aubergine,
+              ),
 
-                          // Summary
-                          if (_summaryText != null) ...[
-                            const SizedBox(height: 5),
-                            Text(
-                              _summaryText!,
+              // ── Right: Info column ──
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.max,
+                  children: [
+                    // Top label strip
+                    Container(
+                      color: PinitColors.creamSunk,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            FeatherIcons.key,
+                            size: 11,
+                            color: PinitColors.mute,
+                          ),
+                          const SizedBox(width: 5),
+                          Expanded(
+                            child: Text(
+                              'EARLY SAVE',
                               style: GoogleFonts.dmSans(
-                                color: Colors.white.withValues(alpha: 0.82),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w400,
-                                height: 1.3,
+                                fontSize: 9,
+                                color: PinitColors.mute,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.9,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                          ],
-
-                          const SizedBox(height: 7),
-
-                          // Tags row
-                          SizedBox(
-                            height: 22,
-                            child: ListView(
-                              scrollDirection: Axis.horizontal,
-                              physics: const BouncingScrollPhysics(),
-                              children: [
-                                if (location.priceLevel != null &&
-                                    location.priceLevel! > 0)
-                                  _InfoPill(
-                                    text: '£' * location.priceLevel!,
-                                    bgColor: const Color(0xFF00B894)
-                                        .withValues(alpha: 0.25),
-                                    textColor: const Color(0xFF55EFC4),
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                if (location.cuisine != null &&
-                                    location.cuisine!.isNotEmpty)
-                                  _InfoPill(
-                                    text: location.cuisine!,
-                                    bgColor:
-                                        Colors.white.withValues(alpha: 0.15),
-                                    textColor: Colors.white,
-                                  ),
-                                ..._topVibeTags.map((entry) {
-                                  final style = _vibeStyles[entry.key];
-                                  if (style == null) {
-                                    return const SizedBox.shrink();
-                                  }
-                                  return _InfoPill(
-                                    text: style.label,
-                                    icon: style.icon,
-                                    bgColor:
-                                        style.color.withValues(alpha: 0.25),
-                                    textColor: Color.lerp(
-                                        style.color, Colors.white, 0.5)!,
-                                  );
-                                }),
-                              ],
-                            ),
                           ),
+                          if (location.rating != null) ...[
+                            _CompactRating(
+                              rating: location.rating!,
+                              reviewCount: location.userRatingsTotal,
+                            ),
+                          ],
                         ],
                       ),
                     ),
-                  ),
+
+                    // Body
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.max,
+                          children: [
+                            // Name
+                            Text(
+                              location.name,
+                              style: GoogleFonts.dmSans(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: PinitColors.aubergine,
+                                height: 1.15,
+                                letterSpacing: -0.3,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 3),
+                            if (_summaryText != null)
+                              Text(
+                                _summaryText!,
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 10,
+                                  color: PinitColors.mute,
+                                  fontWeight: FontWeight.w500,
+                                  height: 1.2,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            const Spacer(),
+                            // Tags row
+                            SizedBox(
+                              height: 20,
+                              child: ListView(
+                                scrollDirection: Axis.horizontal,
+                                physics: const BouncingScrollPhysics(),
+                                children: [
+                                  if (location.priceLevel != null &&
+                                      location.priceLevel! > 0)
+                                    _PinitPill(
+                                      label: '£' * location.priceLevel!,
+                                      filled: true,
+                                    ),
+                                  if (location.cuisine != null &&
+                                      location.cuisine!.isNotEmpty)
+                                    _PinitPill(label: location.cuisine!),
+                                  ..._topVibeTags.map((entry) {
+                                    final style = _vibeStyles[entry.key];
+                                    if (style == null) {
+                                      return const SizedBox.shrink();
+                                    }
+                                    return _PinitPill(
+                                      label: style.label,
+                                      icon: style.icon,
+                                    );
+                                  }),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -440,82 +411,109 @@ class _HiddenGemCard extends StatelessWidget {
 //  Micro-widgets – identical to location_carousel.dart equivalents
 // ─────────────────────────────────────────────────────────────
 
-class _RatingChip extends StatelessWidget {
+/// Compact rating used inside the top label strip
+class _CompactRating extends StatelessWidget {
   final double rating;
-  const _RatingChip({required this.rating});
+  final int? reviewCount;
+  const _CompactRating({required this.rating, this.reviewCount});
+
+  String _formatCount(int n) {
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}k';
+    return n.toString();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(
-        color: Colors.amber.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-            color: Colors.amber.withValues(alpha: 0.3), width: 0.5),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(FeatherIcons.star, size: 11, color: PinitColors.aubergine),
+        const SizedBox(width: 3),
+        Text(
+          rating.toStringAsFixed(1),
+          style: GoogleFonts.dmSans(
+            color: PinitColors.aubergine,
+            fontWeight: FontWeight.w800,
+            fontSize: 11,
+            height: 1.0,
+            letterSpacing: 0.2,
+          ),
+        ),
+        if (reviewCount != null && reviewCount! > 0) ...[
+          const SizedBox(width: 3),
           Text(
-            rating.toStringAsFixed(1),
-            style: const TextStyle(
-              color: Colors.amber,
-              fontWeight: FontWeight.w800,
-              fontSize: 11,
+            '(${_formatCount(reviewCount!)})',
+            style: GoogleFonts.dmSans(
+              color: PinitColors.mute,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              height: 1.0,
             ),
           ),
-          const SizedBox(width: 2),
-          const Icon(FeatherIcons.star, size: 9, color: Colors.amber),
         ],
-      ),
+      ],
     );
   }
 }
 
-class _InfoPill extends StatelessWidget {
-  final String text;
+/// Universal pinit pill – used for tags, status, vibes.
+/// - default: cream-sunk fill, aubergine ink, cream-deep border
+/// - filled : aubergine fill, cream ink (active state)
+class _PinitPill extends StatelessWidget {
+  final String label;
   final IconData? icon;
-  final Color bgColor;
-  final Color textColor;
-  final FontWeight fontWeight;
+  final bool filled;
 
-  const _InfoPill({
-    required this.text,
+  const _PinitPill({
+    required this.label,
     this.icon,
-    required this.bgColor,
-    required this.textColor,
-    this.fontWeight = FontWeight.w600,
+    this.filled = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    late final Color bg;
+    late final Color fg;
+    late final Color border;
+
+    if (filled) {
+      bg = PinitColors.aubergine;
+      fg = PinitColors.cream;
+      border = PinitColors.aubergine;
+    } else {
+      bg = PinitColors.creamSunk;
+      fg = PinitColors.aubergine;
+      border = PinitColors.creamDeep;
+    }
+
     return Container(
       margin: const EdgeInsets.only(right: 5),
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(7),
-        border:
-            Border.all(color: textColor.withValues(alpha: 0.15), width: 0.5),
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: border, width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 9, color: textColor),
-            const SizedBox(width: 3),
+            Icon(icon, size: 10, color: fg),
+            const SizedBox(width: 4),
           ],
-          Text(
-            text,
-            style: TextStyle(
-              color: textColor,
-              fontWeight: fontWeight,
-              fontSize: 10,
-              letterSpacing: 0.1,
+          Flexible(
+            child: Text(
+              label,
+              style: GoogleFonts.dmSans(
+                color: fg,
+                fontWeight: FontWeight.w700,
+                fontSize: 10,
+                letterSpacing: 0.4,
+                height: 1.0,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),

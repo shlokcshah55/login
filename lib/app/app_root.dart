@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:login/app/app_providers.dart';
@@ -12,7 +10,6 @@ import 'package:login/pages/signup_wizard/wizard_completion_page.dart';
 import 'package:login/pages/splash_screen.dart';
 import 'package:login/supabase/supabase_client.dart';
 import 'package:login/themes/pinit_theme.dart';
-import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
 class AppRoot extends StatelessWidget {
   final AppDependencies dependencies;
@@ -35,10 +32,8 @@ class MyApp extends StatefulWidget {
   _MyAppState createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
-  static const platform = MethodChannel('com.srishlok.pinit/share');
-  late StreamSubscription _intentSub;
-  final _sharedFiles = <SharedMediaFile>[];
+class _MyAppState extends State<MyApp> {
+  static const platform = MethodChannel('com.example.srishlok.pinit/share');
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
   @override
@@ -57,35 +52,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     if (SupabaseClientManager().currentUser != null) {
       _saveUserIdToAppGroup();
     }
-
-    _intentSub = ReceiveSharingIntent.instance.getMediaStream().listen((value) {
-      setState(() {
-        _sharedFiles.clear();
-        _sharedFiles.addAll(value);
-        print("found shared files while app is open");
-        print(_sharedFiles.map((f) => f.toMap()));
-      });
-    }, onError: (err) {
-      print("getIntentDataStream error: $err");
-    });
-
-    ReceiveSharingIntent.instance
-        .getInitialMedia()
-        .then((List<SharedMediaFile> value) {
-      setState(() {
-        _sharedFiles.clear();
-        _sharedFiles.addAll(value);
-
-        print("found shared files when app was closed: ${_sharedFiles.length}");
-        print("files: ${_sharedFiles.map((f) => (
-              f.message,
-              f.mimeType,
-              f.path
-            ))}");
-
-        ReceiveSharingIntent.instance.reset();
-      });
-    });
   }
 
   Future<void> _saveUserIdToAppGroup() async {
@@ -110,12 +76,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     } catch (e) {
       print("❌ Error clearing user ID from App Group: $e");
     }
-  }
-
-  @override
-  void dispose() {
-    _intentSub.cancel();
-    super.dispose();
   }
 
   @override

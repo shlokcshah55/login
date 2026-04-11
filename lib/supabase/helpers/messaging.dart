@@ -3,11 +3,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/message.dart';
 import '../../services/push_notification_service.dart';
+import 'location.dart';
 import '../constants.dart';
 import '../supabase_client.dart';
 
 class MessagingHelper {
   final SupabaseClient _client = SupabaseClientManager().client;
+  final LocationHelper _locationHelper = LocationHelper();
   RealtimeChannel? _realtimeChannel;
 
   /// Initialize chat state for a bubble
@@ -31,6 +33,7 @@ class MessagingHelper {
     String messageType = 'text',
     Map<String, dynamic>? metadata,
     String? repliedToMessageId,
+    int? locationId,
   }) async {
     try {
       final result = await _client.rpc('send_message', params: {
@@ -39,6 +42,7 @@ class MessagingHelper {
         'p_message_type': messageType,
         'p_metadata': metadata,
         'p_replied_to': repliedToMessageId,
+        'p_location_id': locationId,
       });
 
       if (kDebugMode) {
@@ -48,12 +52,18 @@ class MessagingHelper {
       // Send push notifications to all bubble members except sender
       final user = SupabaseClientManager().currentUser;
       if (user != null) {
+        final notificationPreview = content.trim().isNotEmpty
+            ? content
+            : (locationId != null ? 'Shared a location' : content);
+
         // Fire and forget - don't wait for notifications to complete
-        PushNotificationService().sendBubbleMessageNotification(
+        PushNotificationService()
+            .sendBubbleMessageNotification(
           bubbleId: bubbleId,
           senderId: user.id,
-          messageContent: content,
-        ).catchError((error) {
+          messageContent: notificationPreview,
+        )
+            .catchError((error) {
           if (kDebugMode) {
             print('MessagingHelper: Error sending push notifications: $error');
           }
@@ -90,6 +100,27 @@ class MessagingHelper {
       final messages = (result as List)
           .map((json) => MessageModel.fromJson(json, bubbleId: bubbleId))
           .toList();
+
+      final locationIds = messages
+          .map((message) => message.locationId)
+          .whereType<int>()
+          .toSet()
+          .toList();
+
+      if (locationIds.isNotEmpty) {
+        final locations = await _locationHelper.getLocationsByIds(locationIds);
+        final locationsById = {
+          for (final location in locations) location.locationId: location,
+        };
+
+        for (var i = 0; i < messages.length; i++) {
+          final locationId = messages[i].locationId;
+          if (locationId == null) continue;
+          messages[i] = messages[i].copyWith(
+            location: locationsById[locationId],
+          );
+        }
+      }
 
       if (kDebugMode) {
         print('MessagingHelper: Loaded ${messages.length} messages');

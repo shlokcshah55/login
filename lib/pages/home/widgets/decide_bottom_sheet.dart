@@ -1,201 +1,245 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/themes/app_typography.dart';
 
-/// Polished bottom sheet with decision shortcuts.
-///
-/// Consolidates the old Quick Actions (Magic Search, Just Decide, Sweet Treat)
-/// into one refined decision tool.
+/// Bottom sheet shown when the user taps the Decide chip.
 class DecideBottomSheet extends StatelessWidget {
   final VoidCallback onQuickPicks;
   final VoidCallback onSweetTreat;
-  final VoidCallback onSurpriseMe;
 
   const DecideBottomSheet({
     Key? key,
     required this.onQuickPicks,
     required this.onSweetTreat,
-    required this.onSurpriseMe,
   }) : super(key: key);
 
-  /// Show this sheet using the standard [showModalBottomSheet].
   static Future<void> show(
     BuildContext context, {
     required VoidCallback onQuickPicks,
     required VoidCallback onSweetTreat,
-    required VoidCallback onSurpriseMe,
   }) {
     return showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
+      barrierColor: PinitColors.aubergine.withValues(alpha: 0.18),
       isScrollControlled: true,
       builder: (_) => DecideBottomSheet(
         onQuickPicks: onQuickPicks,
         onSweetTreat: onSweetTreat,
-        onSurpriseMe: onSurpriseMe,
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final colorScheme = theme.colorScheme;
+    final bottomInset = MediaQuery.of(context).padding.bottom;
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(12, 0, 12, 24),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 20,
-            offset: const Offset(0, -4),
-          ),
-        ],
+        color: PinitColors.cream,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        border: Border.all(
+          color: PinitColors.creamDeep,
+          width: 1.5,
+        ),
+        boxShadow: PinitColors.elevatedShadow,
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // ── Handle ──
-          const SizedBox(height: 12),
-          Container(
-            width: 36,
-            height: 4,
-            decoration: BoxDecoration(
-              color: isDark ? Colors.white24 : Colors.black12,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // ── Title ──
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.auto_awesome_rounded,
-                  color: colorScheme.primary,
-                  size: 22,
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  'Decide',
-                  style: AppTypography.brand(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? Colors.white : Colors.black87,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 10, 18, 14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: PinitColors.creamDeep,
+                    borderRadius: BorderRadius.circular(999),
                   ),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 6),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Text(
-              'Let us help you decide where to go',
-              style: AppTypography.sans(
-                fontSize: 13,
-                color: isDark ? Colors.white38 : Colors.black38,
               ),
-            ),
+              const SizedBox(height: 14),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Text(
+                  'Just decide',
+                  style: AppTypography.brand(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w100,
+                    color: PinitColors.aubergine,
+                    letterSpacing: 0.3,
+                    height: 1.0,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Text(
+                  'Sometimes in life, you just cba and want somewhere quickly. That doesnt mean you should compromise',
+                  style: AppTypography.sans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: PinitColors.aubergineSoft,
+                    height: 1.3,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: _DecideOption(
+                        eyebrow: 'GAVEL',
+                        label: 'Deal a deck',
+                        subtitle: 'We give you 5 of the best nearby options. Just pick one and go!',
+                        illustrationPath:
+                            'lib/assets/illustrations/hot_dog_stand.svg',
+                        onTap: () {
+                          Navigator.pop(context);
+                          onQuickPicks();
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _DecideOption(
+                        eyebrow: 'SWEET TREAT',
+                        label: 'Find dessert first',
+                        subtitle: 'Show all sweet treats near you right now.',
+                        illustrationPath:
+                            'lib/assets/illustrations/Beep Beep - Food Van.svg',
+                        filled: true,
+                        onTap: () {
+                          Navigator.pop(context);
+                          onSweetTreat();
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: bottomInset + 4),
+            ],
           ),
-          const SizedBox(height: 20),
-
-          // ── Actions ──
-          _DecideOption(
-            emoji: '⚡',
-            label: 'Quick picks',
-            subtitle: 'Swipe through nearby recommendations',
-            onTap: () {
-              Navigator.pop(context);
-              onQuickPicks();
-            },
-          ),
-          _DecideOption(
-            emoji: '🍰',
-            label: 'Sweet treat',
-            subtitle: 'Find desserts and sweets near you',
-            onTap: () {
-              Navigator.pop(context);
-              onSweetTreat();
-            },
-          ),
-          _DecideOption(
-            emoji: '🎲',
-            label: 'Surprise me',
-            subtitle: 'We\'ll pick something great for you',
-            onTap: () {
-              Navigator.pop(context);
-              onSurpriseMe();
-            },
-          ),
-
-          SizedBox(height: MediaQuery.of(context).padding.bottom + 12),
-        ],
+        ),
       ),
     );
   }
 }
 
 class _DecideOption extends StatelessWidget {
-  final String emoji;
+  final String eyebrow;
   final String label;
   final String subtitle;
+  final String illustrationPath;
+  final bool filled;
   final VoidCallback onTap;
 
   const _DecideOption({
-    required this.emoji,
+    required this.eyebrow,
     required this.label,
     required this.subtitle,
+    required this.illustrationPath,
+    this.filled = false,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final shadowColor = filled ? PinitColors.black : PinitColors.aubergine;
+    final backgroundColor = filled ? PinitColors.aubergine : PinitColors.cream;
+    final borderColor = filled ? PinitColors.cream : PinitColors.aubergine;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-          child: Row(
-            children: [
-              Text(emoji, style: const TextStyle(fontSize: 24)),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      label,
-                      style: AppTypography.brand(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.white : Colors.black87,
-                      ),
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: shadowColor,
+            blurRadius: 0,
+            offset: const Offset(3, 3),
+          ),
+        ],
+      ),
+      child: Material(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          splashColor: filled
+              ? PinitColors.cream.withValues(alpha: 0.08)
+              : PinitColors.aubergine.withValues(alpha: 0.06),
+          highlightColor: filled
+              ? PinitColors.cream.withValues(alpha: 0.05)
+              : PinitColors.aubergine.withValues(alpha: 0.04),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: borderColor,
+                width: 1.5,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Align(
+                  alignment: Alignment.topRight,
+                  child: SizedBox(
+                    height: 92,
+                    child: SvgPicture.asset(
+                      illustrationPath,
+                      fit: BoxFit.contain,
                     ),
-                    Text(
-                      subtitle,
-                      style: AppTypography.sans(
-                        fontSize: 12,
-                        color: isDark ? Colors.white38 : Colors.black38,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-              Icon(
-                Icons.chevron_right_rounded,
-                size: 20,
-                color: isDark ? Colors.white24 : Colors.black26,
-              ),
-            ],
+                const SizedBox(height: 8),
+                Text(
+                  eyebrow,
+                  style: AppTypography.sans(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: filled
+                        ? PinitColors.cream.withValues(alpha: 0.8)
+                        : PinitColors.aubergineSoft,
+                    letterSpacing: 1.2,
+                    height: 1.0,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  label,
+                  style: AppTypography.brand(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w100,
+                    color: filled ? PinitColors.cream : PinitColors.aubergine,
+                    height: 1.0,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  subtitle,
+                  style: AppTypography.sans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: filled
+                        ? PinitColors.cream.withValues(alpha: 0.9)
+                        : PinitColors.mute,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

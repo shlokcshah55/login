@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../supabase_client.dart';
+import '../constants.dart';
 import '../../models/locations.dart';
 import 'location.dart';
 
@@ -145,6 +147,31 @@ class CollectionsHelper {
 
   Future<GenerateCollectionsResult> autoUpdateCollections(String userId) =>
       _callGenerationEndpoint('auto-update-collections', userId);
+
+  /// Upload a cover photo and return its public URL.
+  Future<String> uploadCollectionCover(String collectionId, File file) async {
+    final ext = file.path.split('.').last;
+    final path = '$collectionId/cover.$ext';
+    await _client.storage
+        .from(SupabaseConstants.supabaseStorageBucketCollectionCovers)
+        .upload(path, file, fileOptions: const FileOptions(upsert: true));
+    return _client.storage
+        .from(SupabaseConstants.supabaseStorageBucketCollectionCovers)
+        .getPublicUrl(path);
+  }
+
+  /// Update a collection's name and cover_color (stores photo URL).
+  Future<void> updateCollection({
+    required String collectionId,
+    required String name,
+    String? coverColor,
+  }) async {
+    await _client.rpc('update_collection', params: {
+      'p_collection_id': collectionId,
+      'p_name': name,
+      'p_cover_color': coverColor,
+    });
+  }
 
   /// Load public collections from friends (people the current user follows).
   Future<List<CollectionItem>> getFriendsCollections(String userId) async {

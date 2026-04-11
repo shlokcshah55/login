@@ -1,4 +1,4 @@
-gcloud functions deploy send_push_notification \
+gcloud functions deploy send-push-notifications \
   --gen2 \
   --runtime=python312 \
   --region=europe-west1 \
@@ -6,7 +6,9 @@ gcloud functions deploy send_push_notification \
   --entry-point=send_push_notification \
   --trigger-http \
   --allow-unauthenticated \
-  --set-env-vars SUPABASE_URL="https://xxxxx.supabase.co" \
-  --set-env-vars SUPABASE_SERVICE_KEY="YOUR_SERVICE_ROLE_KEY" \
-  --set-env-vars API_SECRET_KEY="YOUR_API_AUTH_KEY"
-
+  --memory=256Mi \
+  --timeout=60s \
+  --set-env-vars SUPABASE_URL="https://umjoqvsfqhirysdjxnaf.supabase.co" \
+  --set-env-vars SUPABASE_SERVICE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtam9xdnNmcWhpcnlzZGp4bmFmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NTY3ODE2MCwiZXhwIjoyMDYxMjU0MTYwfQ.wnmNALWVY2kNHhg_lxFsrhis1xDxgWAKIoNmCHzlD-w" \
+  --set-env-vars API_SECRET_KEY="RnP9BGrHqnMLpWcvwFFnxDmTf+ES21Yd15pIFz5CjGg=" \
+  --set-env-vars GOOGLE_APPLICATION_CREDENTIALS="pinit-a97eb-8f62b614bdc2.json"

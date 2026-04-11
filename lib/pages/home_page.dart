@@ -1,23 +1,25 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_feather_icons/flutter_feather_icons.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:login/models/locations.dart';
 import 'package:login/pages/home/home_view_model.dart';
 import 'package:login/pages/home/quick_picks/quick_picks_distance_page.dart';
 import 'package:login/pages/home/search/header_search_types.dart';
 import 'package:login/pages/home/widgets/home_carousel.dart';
+import 'package:login/pages/home/widgets/home_filter_sheet.dart';
 import 'package:login/pages/home/widgets/home_header_search_shell.dart';
 import 'package:login/pages/home/widgets/home_map_layer.dart';
-import 'package:login/pages/home/widgets/magic_search_overlay.dart';
 import 'package:login/pages/home/widgets/gavel_overlay.dart';
-import 'package:login/pages/home/widgets/sweet_treat_overlay.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
 import 'package:login/themes/app_typography.dart';
 import 'package:login/themes/pinit_colors.dart';
 import 'package:login/pages/home/widgets/mode_toggle.dart';
+import 'package:login/pages/home/carousel_list_page.dart';
 import 'package:login/pages/home/widgets/decide_bottom_sheet.dart';
 import 'package:login/pages/home/widgets/shortlist_pill.dart';
 import 'package:login/pages/home/widgets/shortlist_carousel_sheet.dart';
-import 'package:login/pages/home/widgets/my_location_button.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:login/providers/nav_bar/visibility_provider.dart';
@@ -28,6 +30,7 @@ import 'package:login/providers/navigation_provider.dart';
 import 'package:login/pages/profile/other_user_profile_page.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/widgets/home/bubble_mode_overlay.dart';
+import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:login/widgets/swipe_card_stack.dart';
 import 'package:login/widgets/wizard_completion_popover.dart';
 import 'package:provider/provider.dart';
@@ -53,6 +56,8 @@ class _HomePageState extends State<HomePage> {
   late final BubbleModeProvider _bubbleModeProvider;
   late final SupabaseService _supabaseService;
   late final UserDataProvider _userDataProvider;
+  Set<String> _selectedVibeTagIds = <String>{};
+  Set<String> _selectedCuisineTagIds = <String>{};
   bool _wizardPopoverScheduled = false;
   bool _wizardPopoverShown = false;
 
@@ -167,6 +172,19 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Future<void> _openHomeFilters() async {
+    final result = await HomeFilterSheet.show(
+      context,
+      initialVibeTagIds: _selectedVibeTagIds,
+      initialCuisineTagIds: _selectedCuisineTagIds,
+    );
+    if (!mounted || result == null) return;
+    setState(() {
+      _selectedVibeTagIds = result.vibeTagIds;
+      _selectedCuisineTagIds = result.cuisineTagIds;
+    });
+  }
+
   @override
   void dispose() {
     _locationListManager.removeListener(_checkForErrors);
@@ -212,19 +230,6 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
 
-                // ─── Layer 4a: Location FAB ────────────────────
-                //     Only visible floating button on the map
-                if (!viewModel.isHeaderSearchActive)
-                  AnimatedPositioned(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeOutQuint,
-                    bottom: carouselBottom + 225,
-                    left: 16,
-                    child: MyLocationButton(
-                      onTap: () => _viewModel.locateUser(),
-                    ),
-                  ),
-
                 // ─── Layer 4b: Shortlist pill (conditional) ────
                 if (viewModel.shortlistIsNotEmpty &&
                     !viewModel.isHeaderSearchActive)
@@ -246,34 +251,208 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
 
-                // ─── Layer 5: Carousel (untouched) ─────────────
-                if (!viewModel.isHeaderSearchActive)
+                // ─── Layer 5: Carousel + See All button ─────────
+                if (!viewModel.isHeaderSearchActive &&
+                    !viewModel.isMagicSearchFieldFocused)
                   AnimatedPositioned(
                     duration: const Duration(milliseconds: 300),
                     curve: Curves.easeOutQuint,
                     bottom: carouselBottom,
                     left: 0,
                     right: 0,
-                    child: HomeCarousel(
-                      pageController: viewModel.pageController,
-                      locations: viewModel.locations,
-                      selectedMarkerId: viewModel.selectedMarkerId,
-                      bottomNavVisible: viewModel.bottomNavVisible,
-                      onPageChanged: viewModel.onCarouselPageChanged,
-                      onScrollStart: viewModel.onCarouselScrollStart,
-                      onLocationSelected: viewModel.onLocationSelected,
-                      onSwipeUp: viewModel.onCarouselSwipeUp,
-                      onSwipeDown: viewModel.onCarouselSwipeDown,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(
+                              left: 16, right: 16, bottom: 8),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  // ── Location pill ──
+                                  GestureDetector(
+                                    onTap: () => _viewModel.locateUser(),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: pinit.PinitColors.cream,
+                                        borderRadius:
+                                            BorderRadius.circular(999),
+                                        border: Border.all(
+                                          color: pinit.PinitColors.aubergine,
+                                          width: 1.5,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: pinit.PinitColors.aubergine,
+                                            blurRadius: 0,
+                                            offset: const Offset(3, 3),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Icon(
+                                        Icons.my_location_rounded,
+                                        size: 15,
+                                        color: pinit.PinitColors.aubergine,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  GestureDetector(
+                                    onTap: _openHomeFilters,
+                                    child: Stack(
+                                      clipBehavior: Clip.none,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 8,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: pinit.PinitColors.cream,
+                                            borderRadius:
+                                                BorderRadius.circular(999),
+                                            border: Border.all(
+                                              color:
+                                                  pinit.PinitColors.aubergine,
+                                              width: 1.5,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color:
+                                                    pinit.PinitColors.aubergine,
+                                                blurRadius: 0,
+                                                offset: const Offset(3, 3),
+                                              ),
+                                            ],
+                                          ),
+                                          child: Icon(
+                                            FeatherIcons.sliders,
+                                            size: 15,
+                                            color: pinit.PinitColors.aubergine,
+                                          ),
+                                        ),
+                                        if (_selectedVibeTagIds.isNotEmpty ||
+                                            _selectedCuisineTagIds.isNotEmpty)
+                                          Positioned(
+                                            top: -4,
+                                            right: -2,
+                                            child: Container(
+                                              constraints: const BoxConstraints(
+                                                minWidth: 18,
+                                                minHeight: 18,
+                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                horizontal: 5,
+                                                vertical: 2,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: pinit.PinitColors.accent,
+                                                borderRadius:
+                                                    BorderRadius.circular(999),
+                                                border: Border.all(
+                                                  color:
+                                                      pinit.PinitColors.cream,
+                                                  width: 1.2,
+                                                ),
+                                              ),
+                                              child: Center(
+                                                child: Text(
+                                                  '${_selectedVibeTagIds.length + _selectedCuisineTagIds.length}',
+                                                  style: AppTypography.sans(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.w800,
+                                                    color:
+                                                        pinit.PinitColors.cream,
+                                                    height: 1.0,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              // ── See All pill (right) ──
+                              GestureDetector(
+                                onTap: () => Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => CarouselListPage(
+                                      locations: viewModel.locations,
+                                      title: viewModel.homeMode == HomeMode.you
+                                          ? 'Your Saves'
+                                          : 'Top Picks',
+                                    ),
+                                  ),
+                                ),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 14, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: pinit.PinitColors.cream,
+                                    borderRadius: BorderRadius.circular(999),
+                                    border: Border.all(
+                                      color: pinit.PinitColors.aubergine,
+                                      width: 1.5,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: pinit.PinitColors.aubergine,
+                                        blurRadius: 0,
+                                        offset: const Offset(3, 3),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        FeatherIcons.list,
+                                        size: 13,
+                                        color: pinit.PinitColors.aubergine,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'See All',
+                                        style: GoogleFonts.dmSans(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: pinit.PinitColors.aubergine,
+                                          letterSpacing: 0.4,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        HomeCarousel(
+                          pageController: viewModel.pageController,
+                          locations: viewModel.locations,
+                          selectedMarkerId: viewModel.selectedMarkerId,
+                          bottomNavVisible: viewModel.bottomNavVisible,
+                          onPageChanged: viewModel.onCarouselPageChanged,
+                          onScrollStart: viewModel.onCarouselScrollStart,
+                          onLocationSelected: viewModel.onLocationSelected,
+                          onSwipeUp: viewModel.onCarouselSwipeUp,
+                          onSwipeDown: viewModel.onCarouselSwipeDown,
+                        ),
+                      ],
                     ),
                   ),
 
                 // ─── Overlays (unchanged) ──────────────────────
-                if (viewModel.showSearchOverlay)
-                  MagicSearchOverlay(
-                    controller: viewModel.magicSearchController,
-                    onClose: () => viewModel.toggleSearchOverlay(false),
-                    onSubmit: viewModel.submitMagicSearch,
-                  ),
                 if (viewModel.showGavelOverlay)
                   GavelOverlay(
                     selectedMinutes: viewModel.justDecideMinutes,
@@ -281,18 +460,28 @@ class _HomePageState extends State<HomePage> {
                     onClose: () => viewModel.toggleJustDecideOverlay(false),
                     onSubmit: viewModel.submitJustDecide,
                   ),
-                if (viewModel.showSweetTreatOverlay)
-                  SweetTreatOverlay(
-                    onClose: () => viewModel.toggleSweetTreatOverlay(false),
-                    onSubmit: viewModel.submitSweetTreatSearch,
-                  ),
-
                 // ─── Bubble mode overlay ───────────────────────
                 if (viewModel.isBubbleModeActive &&
                     viewModel.activeBubble != null)
                   BubbleModeOverlay(
                     bubble: viewModel.activeBubble!,
                     onDeactivate: viewModel.deactivateBubbleMode,
+                  ),
+
+                // ─── Magic search activated toast ──────────────
+                if (viewModel.showMagicSearchActivated)
+                  Positioned.fill(
+                    child: Listener(
+                      behavior: HitTestBehavior.translucent,
+                      onPointerDown: (_) {
+                        viewModel.dismissMagicSearchActivated();
+                      },
+                      child: const Center(
+                        child: IgnorePointer(
+                          child: _MagicSearchActivatedToast(),
+                        ),
+                      ),
+                    ),
                   ),
 
                 // ─── Just Decide swipe mode ────────────────────
@@ -399,6 +588,25 @@ class _TopPanel extends StatelessWidget {
     required this.viewModel,
   });
 
+  Future<void> _openExpandedSearchLocation(
+    BuildContext context,
+    LocationModel location,
+  ) async {
+    await showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+      barrierColor: Colors.transparent,
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (ctx, anim, secondAnim) => ExpandedLocationCard(
+        location: location,
+        onClose: () => Navigator.of(ctx).pop(),
+      ),
+      transitionBuilder: (ctx, anim, _, child) =>
+          FadeTransition(opacity: anim, child: child),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Cream fade — lets the map breathe through the bottom edge.
@@ -446,10 +654,23 @@ class _TopPanel extends StatelessWidget {
               },
               onMagicSearchTap: () {
                 viewModel.closeHeaderSearch();
-                viewModel.toggleSearchOverlay(true);
+                viewModel.toggleMagicSearch();
+                if (!viewModel.isMagicSearchActive) {
+                  viewModel.headerSearchFocusNode.unfocus();
+                }
               },
+              isMagicSearchActive: viewModel.isMagicSearchActive,
+              onSearchSubmitted: viewModel.isMagicSearchActive
+                  ? () {
+                      final query = viewModel.headerSearchController.text;
+                      viewModel.closeHeaderSearch();
+                      unawaited(viewModel.submitMagicSearch(query));
+                    }
+                  : null,
               onDismiss: viewModel.closeHeaderSearch,
-              onQueryChanged: viewModel.updateHeaderSearchQuery,
+              onQueryChanged: viewModel.isMagicSearchActive
+                  ? (_) {}
+                  : viewModel.updateHeaderSearchQuery,
               onSuggestionSelected: (item) {
                 unawaited(() async {
                   switch (item.kind) {
@@ -467,12 +688,14 @@ class _TopPanel extends StatelessWidget {
                             await viewModel.resolveMapboxHeaderSelection(item);
                       }
                       if (resolved == null) return;
-                      await viewModel.selectHeaderSearchLocation(
-                        resolved,
-                        query: viewModel.headerSearchState.query.isNotEmpty
+                      await viewModel.rememberHeaderSearchQuery(
+                        viewModel.headerSearchState.query.isNotEmpty
                             ? viewModel.headerSearchState.query
-                            : item.queryValue,
+                            : (item.queryValue ?? item.title),
                       );
+                      viewModel.closeHeaderSearch();
+                      if (!context.mounted) return;
+                      await _openExpandedSearchLocation(context, resolved);
                       break;
                     case SearchSuggestionKind.person:
                       if (item.user == null) return;
@@ -502,20 +725,40 @@ class _TopPanel extends StatelessWidget {
               footer: HomeChipRow(
                 currentMode: viewModel.homeMode,
                 onModeChanged: viewModel.setHomeMode,
+                collections: viewModel.collections,
+                isLoadingCollections: viewModel.isLoadingCollections,
+                activeCollectionId: viewModel.activeCollectionId,
+                onCollectionMenuOpened: () {
+                  unawaited(viewModel.loadCollections());
+                },
+                onCollectionSelected: (collection) {
+                  unawaited(() async {
+                    final shown = await viewModel.showCollectionOnMap(
+                      collection,
+                    );
+                    if (!context.mounted || shown) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'No places found in ${collection.name}',
+                        ),
+                        backgroundColor: pinit.PinitColors.aubergine,
+                      ),
+                    );
+                  }());
+                },
                 onDecideTap: () {
                   DecideBottomSheet.show(
                     context,
                     onQuickPicks: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => QuickPicksDistancePage(
-                            viewModel: viewModel,
-                          ),
-                        ),
+                      QuickPicksDistancePage.show(
+                        context,
+                        viewModel: viewModel,
                       );
                     },
-                    onSweetTreat: () => viewModel.toggleSweetTreatOverlay(true),
-                    onSurpriseMe: viewModel.submitSurpriseMe,
+                    onSweetTreat: () {
+                      unawaited(viewModel.submitDefaultSweetTreatSearch());
+                    },
                   );
                 },
               ),
@@ -523,6 +766,183 @@ class _TopPanel extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _MagicSearchActivatedToast extends StatefulWidget {
+  const _MagicSearchActivatedToast();
+
+  @override
+  State<_MagicSearchActivatedToast> createState() =>
+      _MagicSearchActivatedToastState();
+}
+
+class _MagicSearchActivatedToastState extends State<_MagicSearchActivatedToast>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..forward();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final entrance = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutBack,
+    );
+
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        final safeEntrance = entrance.value.clamp(0.0, 1.0);
+        final glow = Curves.easeOut.transform(
+          (_controller.value * 1.2).clamp(0.0, 1.0),
+        );
+        final shimmer = Curves.easeInOut.transform(
+          (_controller.value * 1.35).clamp(0.0, 1.0),
+        );
+
+        return Transform.translate(
+          offset: Offset(0, (1 - safeEntrance) * -20),
+          child: Transform.scale(
+            scale: 0.92 + (safeEntrance * 0.08),
+            child: Opacity(
+              opacity: safeEntrance,
+              child: Stack(
+                alignment: Alignment.center,
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 268 + (glow * 18),
+                    height: 122 + (glow * 10),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          pinit.PinitColors.accent.withValues(
+                            alpha: 0.26 - (glow * 0.08),
+                          ),
+                          pinit.PinitColors.accent.withValues(alpha: 0),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Container(
+                    constraints: const BoxConstraints(maxWidth: 320),
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+                    decoration: BoxDecoration(
+                      color: pinit.PinitColors.accent,
+                      borderRadius: BorderRadius.circular(28),
+                      border: Border.all(
+                        color: pinit.PinitColors.aubergine,
+                        width: 1.5,
+                      ),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: pinit.PinitColors.aubergine,
+                          blurRadius: 0,
+                          offset: Offset(4, 4),
+                        ),
+                      ],
+                    ),
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          top: 4,
+                          right: 2,
+                          child: Opacity(
+                            opacity: 0.18 + (shimmer * 0.16),
+                            child: Container(
+                              width: 84,
+                              height: 84,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: pinit.PinitColors.cream,
+                              ),
+                            ),
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: pinit.PinitColors.cream
+                                    .withValues(alpha: 0.18),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: pinit.PinitColors.cream
+                                      .withValues(alpha: 0.3),
+                                  width: 1.2,
+                                ),
+                              ),
+                              child: const Icon(
+                                FeatherIcons.zap,
+                                color: pinit.PinitColors.cream,
+                                size: 18,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'MAGIC SEARCH',
+                                    style: GoogleFonts.dmSans(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: pinit.PinitColors.cream
+                                          .withValues(alpha: 0.78),
+                                      letterSpacing: 1.6,
+                                      height: 1,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Activated',
+                                    style: AppTypography.brand(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w100,
+                                      color: pinit.PinitColors.cream,
+                                      letterSpacing: 0.3,
+                                      height: 1.0,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Welcome to magic search, Search a vibe, a really specific dish or anything you are really craving and we will find it for you.',
+                                    style: AppTypography.sans(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: pinit.PinitColors.cream
+                                          .withValues(alpha: 0.9),
+                                      height: 1.2,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

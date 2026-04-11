@@ -7,6 +7,7 @@ import logging
 import asyncio
 import threading
 import httpx
+from urllib.parse import urlparse
 from flask import Flask, request, jsonify
 from processor import TikTokProcessor
 from supabase import create_client, Client
@@ -29,6 +30,30 @@ SUPABASE_URL = os.environ.get('SUPABASE_URL')
 SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY')
 APPIFY_KEY = os.environ.get('APPIFY_KEY')
 SEND_PUSH_NOTIF_SECRET = os.environ.get('SEND_PUSH_NOTIF_SECRET')
+DEFAULT_PUSH_NOTIFICATION_URL = (
+    'https://europe-west1-project-add4b0f5-0080-47ef-80f.cloudfunctions.net/send-push-notifications'
+)
+
+
+def _normalize_url(value: str | None, default: str) -> str:
+    """Return a usable absolute URL for outbound HTTP calls."""
+    candidate = (value or '').strip().strip('"').strip("'")
+    if not candidate:
+        return default
+    if not candidate.startswith(('http://', 'https://')):
+        candidate = f'https://{candidate}'
+
+    parsed = urlparse(candidate)
+    if not parsed.scheme or not parsed.netloc:
+        logger.warning("Invalid PUSH_NOTIFICATION_URL %r, falling back to default", value)
+        return default
+    return candidate
+
+
+PUSH_NOTIFICATION_URL = _normalize_url(
+    os.environ.get('PUSH_NOTIFICATION_URL'),
+    DEFAULT_PUSH_NOTIFICATION_URL,
+)
 
 # Validate environment variables
 if not OPENAI_API_KEY or not GOOGLE_PLACES_API_KEY:
@@ -97,18 +122,24 @@ def send_error_notification(user_id: str, error_type: str = "generic"):
             title = "Oops something went wrong"
             body = "sorry we couldn't process that tiktok. please try again later"
 
-        # Send push notification
-        notification_url = "https://us-central1-pinit-a97eb.cloudfunctions.net/send-push-notification"
+        # Send push notification through the currently deployed notification function
+        notification_url = PUSH_NOTIFICATION_URL
         headers = {
             "Authorization": f"Bearer {SEND_PUSH_NOTIF_SECRET}",
             "Content-Type": "application/json"
         }
         payload = {
             "fcm_token": fcm_token,
+            "user_id": user_id,
+            "type": "processing_error",
             "title": title,
-            "body": body
+            "body": body,
+            "metadata": {
+                "errorType": error_type,
+            },
         }
 
+        logger.info(f"Sending error notification to {notification_url} for user {user_id}")
         with httpx.Client(timeout=10.0) as client:
             response = client.post(notification_url, headers=headers, json=payload)
             response.raise_for_status()

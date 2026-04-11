@@ -215,6 +215,7 @@ class SupabaseConstants {
   static const String actionSave = 'save';
   static const String actionSharedVideo = 'shared_video';
   static const String actionDislike = 'dislike';
+  static const String actionBeenTo = 'been_to';
 
   // Enum values - saved_method
   static const String savedMethodTikTok = 'tiktok';
@@ -233,6 +234,6 @@ class SupabaseConstants {
   static const String supabaseStorageBucketProfileImages =
       'profile_photos';
 
-
-
+  static const String supabaseStorageBucketCollectionCovers =
+      'collection_covers';
 }

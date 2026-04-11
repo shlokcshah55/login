@@ -1,4 +1,7 @@
-CREATE OR REPLACE FUNCTION public.send_message(p_bubble_id uuid, p_content text, p_message_type text DEFAULT 'text'::text, p_metadata jsonb DEFAULT NULL::jsonb, p_replied_to uuid DEFAULT NULL::uuid)
+DROP FUNCTION IF EXISTS public.send_message(uuid, text, text, jsonb, uuid);
+DROP FUNCTION IF EXISTS public.send_message(uuid, text, text, jsonb, uuid, bigint);
+
+CREATE FUNCTION public.send_message(p_bubble_id uuid, p_content text, p_message_type text DEFAULT 'text'::text, p_metadata jsonb DEFAULT NULL::jsonb, p_replied_to uuid DEFAULT NULL::uuid, p_location_id bigint DEFAULT NULL::bigint)
  RETURNS uuid
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -22,7 +25,8 @@ BEGIN
         content, 
         message_type, 
         metadata,
-        replied_to_message_id
+        replied_to_message_id,
+        location_id
     )
     VALUES (
         p_bubble_id, 
@@ -30,7 +34,8 @@ BEGIN
         p_content, 
         p_message_type, 
         p_metadata,
-        p_replied_to
+        p_replied_to,
+        p_location_id
     )
     RETURNING id INTO v_message_id;
     

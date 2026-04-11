@@ -1,3 +1,5 @@
+import 'locations.dart';
+
 class MessageModel {
   final String id;
   final String bubbleId;
@@ -10,6 +12,8 @@ class MessageModel {
   final DateTime createdAt;
   final DateTime? updatedAt;
   final String? repliedToMessageId;
+  final int? locationId;
+  final LocationModel? location;
 
   MessageModel({
     required this.id,
@@ -23,6 +27,8 @@ class MessageModel {
     required this.createdAt,
     this.updatedAt,
     this.repliedToMessageId,
+    this.locationId,
+    this.location,
   });
 
   factory MessageModel.fromJson(Map<String, dynamic> json, {String? bubbleId}) {
@@ -42,6 +48,7 @@ class MessageModel {
           ? DateTime.parse(json['updated_at'])
           : null,
       repliedToMessageId: json['replied_to_message_id'],
+      locationId: (json['location_id'] as num?)?.toInt(),
     );
   }
 
@@ -58,6 +65,7 @@ class MessageModel {
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
       'replied_to_message_id': repliedToMessageId,
+      'location_id': locationId,
     };
   }
 
@@ -73,6 +81,8 @@ class MessageModel {
     DateTime? createdAt,
     DateTime? updatedAt,
     String? repliedToMessageId,
+    int? locationId,
+    LocationModel? location,
   }) {
     return MessageModel(
       id: id ?? this.id,
@@ -86,6 +96,8 @@ class MessageModel {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       repliedToMessageId: repliedToMessageId ?? this.repliedToMessageId,
+      locationId: locationId ?? this.locationId,
+      location: location ?? this.location,
     );
   }
 }

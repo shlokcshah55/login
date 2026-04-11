@@ -16,9 +16,8 @@ class BubbleHelper {
   Future<List<Bubble>> getUserBubbles(String userId) async {
     try {
       // Get bubbles where user is a member
-      final response = await _client
-          .from(SupabaseConstants.tableBubbleMembers)
-          .select('''
+      final response =
+          await _client.from(SupabaseConstants.tableBubbleMembers).select('''
             ${SupabaseConstants.columnBubbleId},
             ${SupabaseConstants.tableBubbles}!inner(
               ${SupabaseConstants.columnBubbleId},
@@ -27,8 +26,7 @@ class BubbleHelper {
               ${SupabaseConstants.columnCreatedAt},
               ${SupabaseConstants.columnIsPrivate}
             )
-          ''')
-          .eq(SupabaseConstants.columnUserId, userId);
+          ''').eq(SupabaseConstants.columnUserId, userId);
 
       if ((response as List).isEmpty) {
         return [];
@@ -55,16 +53,28 @@ class BubbleHelper {
           id: bubbleId,
           name: bubble[SupabaseConstants.columnName] ?? 'Unnamed Bubble',
           lastMessage: 'Tap to view locations',
-          lastMessageTime: _getTimeAgo(DateTime.parse(bubble[SupabaseConstants.columnCreatedAt])),
+          lastMessageTime: _getTimeAgo(
+              DateTime.parse(bubble[SupabaseConstants.columnCreatedAt])),
           memberCount: members.length,
-          memberAvatars: members.map((m) => (m[SupabaseConstants.columnProfileImageUrl] ?? '') as String).toList(),
-          groupAvatar: members.isNotEmpty ? (members.first[SupabaseConstants.columnProfileImageUrl] ?? '') : '',
+          memberAvatars: members
+              .map((m) =>
+                  (m[SupabaseConstants.columnProfileImageUrl] ?? '') as String)
+              .toList(),
+          groupAvatar: members.isNotEmpty
+              ? (members.first[SupabaseConstants.columnProfileImageUrl] ?? '')
+              : '',
           isOnline: true,
           unreadCount: 0,
           groupLocations: locations,
-          description: 'Created ${_getTimeAgo(DateTime.parse(bubble[SupabaseConstants.columnCreatedAt]))}',
-          memberIds: members.map((m) => m[SupabaseConstants.columnSupabaseId].toString()).toList(),
-          memberNames: members.map((m) => (m[SupabaseConstants.name] ?? '').toString()).where((n) => n.isNotEmpty).toList(),
+          description:
+              'Created ${_getTimeAgo(DateTime.parse(bubble[SupabaseConstants.columnCreatedAt]))}',
+          memberIds: members
+              .map((m) => m[SupabaseConstants.columnSupabaseId].toString())
+              .toList(),
+          memberNames: members
+              .map((m) => (m[SupabaseConstants.name] ?? '').toString())
+              .where((n) => n.isNotEmpty)
+              .toList(),
           compatibilityScore: score,
         ));
       }
@@ -77,8 +87,6 @@ class BubbleHelper {
       rethrow;
     }
   }
-
-  
 
   /// Get compatibility score for a bubble via RPC
   Future<int?> _getCompatibilityScore(String bubbleId) async {
@@ -99,25 +107,16 @@ class BubbleHelper {
   /// Get all members of a bubble
   Future<List<Map<String, dynamic>>> _getBubbleMembers(String bubbleId) async {
     try {
-      final response = await _client
-          .from(SupabaseConstants.tableBubbleMembers)
-          .select('''
-            ${SupabaseConstants.columnUserId},
-            ${SupabaseConstants.tableUsers}!inner(
-              ${SupabaseConstants.columnSupabaseId},
-              ${SupabaseConstants.name},
-              ${SupabaseConstants.columnProfileImageUrl}
-            )
-          ''')
-          .eq(SupabaseConstants.columnBubbleId, bubbleId);
+      final response = List<Map<String, dynamic>>.from(await _client.rpc(
+        'get_bubble_members',
+        params: {'p_bubble_id': bubbleId},
+      ));
 
-      if ((response as List).isEmpty) {
+      if (response.isEmpty) {
         return [];
       }
 
-      return (response as List)
-          .map((item) => item[SupabaseConstants.tableUsers] as Map<String, dynamic>)
-          .toList();
+      return response;
     } catch (e) {
       if (kDebugMode) {
         print('Error fetching bubble members: $e');
@@ -129,30 +128,17 @@ class BubbleHelper {
   /// Get all locations for a bubble
   Future<List<LocationModel>> _getBubbleLocations(String bubbleId) async {
     try {
-      final response = await _client
-          .from(SupabaseConstants.tableBubbleLocations)
-          .select('''
-            ${SupabaseConstants.columnLocationId},
+      final response =
+          await _client.from(SupabaseConstants.tableBubbleLocations).select('''
             ${SupabaseConstants.tableLocations}!inner(*)
-          ''')
-          .eq(SupabaseConstants.columnBubbleId, bubbleId);
-            List<LocationModel> locations = [];
-      for (var item in response as List) {
-        var locationImage;
-        if (item[SupabaseConstants.columnImageUrl]) {
-          locationImage = 'https://umjoqvsfqhirysdjxnaf.supabase.co/storage/v1/object/public/location_photos/${item[SupabaseConstants.columnLocationId]}.jpg';
-        } else {
-        // Then make a call to get the location image from google places API 
-        locationImage = await _locationService.getLocationImage(
-            item[SupabaseConstants.columnLocationId],
-            item[SupabaseConstants.columnGooglePlaceId],
-            item[SupabaseConstants.columnPhotoReference],
-          );
-        }
-        locations.add(LocationModel.fromJson(item, locationImage));
-      }
-      return locations;
+          ''').eq(SupabaseConstants.columnBubbleId, bubbleId);
 
+      final locationRows = (response as List)
+          .map((item) => item[SupabaseConstants.tableLocations])
+          .whereType<Map<String, dynamic>>()
+          .toList();
+
+      return await _locationService.processLocationsWithImages(locationRows);
     } catch (e) {
       if (kDebugMode) {
         print('Error fetching bubble locations: $e');
@@ -168,12 +154,11 @@ class BubbleHelper {
     bool isPrivate = false,
   }) async {
     try {
-
       final bubbleId = await _client.rpc('create_bubble_with_member', params: {
-      'p_name': name,
-      'p_created_by': createdBy,
-      'p_is_private': isPrivate,
-    });
+        'p_name': name,
+        'p_created_by': createdBy,
+        'p_is_private': isPrivate,
+      });
       return bubbleId;
     } catch (e) {
       if (kDebugMode) {
@@ -192,11 +177,11 @@ class BubbleHelper {
   }) async {
     try {
       await _client.rpc('add_bubble_location', params: {
-      'p_bubble_id': bubbleId,
-      'p_location_id': locationId,
-      'p_added_by': addedBy,
-      'p_note': note,
-    });
+        'p_bubble_id': bubbleId,
+        'p_location_id': locationId,
+        'p_added_by': addedBy,
+        'p_note': note,
+      });
       return true;
     } catch (e) {
       if (kDebugMode) {
@@ -230,16 +215,28 @@ class BubbleHelper {
         id: bubbleId,
         name: bubbleResponse[SupabaseConstants.columnName] ?? 'Unnamed Bubble',
         lastMessage: 'Tap to view locations',
-        lastMessageTime: _getTimeAgo(DateTime.parse(bubbleResponse[SupabaseConstants.columnCreatedAt])),
+        lastMessageTime: _getTimeAgo(
+            DateTime.parse(bubbleResponse[SupabaseConstants.columnCreatedAt])),
         memberCount: members.length,
-        memberAvatars: members.map((m) => (m[SupabaseConstants.columnProfileImageUrl] ?? '') as String).toList(),
-        groupAvatar: members.isNotEmpty ? (members.first[SupabaseConstants.columnProfileImageUrl] ?? '') : '',
+        memberAvatars: members
+            .map((m) =>
+                (m[SupabaseConstants.columnProfileImageUrl] ?? '') as String)
+            .toList(),
+        groupAvatar: members.isNotEmpty
+            ? (members.first[SupabaseConstants.columnProfileImageUrl] ?? '')
+            : '',
         isOnline: true,
         unreadCount: 0,
         groupLocations: locations,
-        description: 'Created ${_getTimeAgo(DateTime.parse(bubbleResponse[SupabaseConstants.columnCreatedAt]))}',
-        memberIds: members.map((m) => m[SupabaseConstants.columnSupabaseId].toString()).toList(),
-        memberNames: members.map((m) => (m[SupabaseConstants.name] ?? '').toString()).where((n) => n.isNotEmpty).toList(),
+        description:
+            'Created ${_getTimeAgo(DateTime.parse(bubbleResponse[SupabaseConstants.columnCreatedAt]))}',
+        memberIds: members
+            .map((m) => m[SupabaseConstants.columnSupabaseId].toString())
+            .toList(),
+        memberNames: members
+            .map((m) => (m[SupabaseConstants.name] ?? '').toString())
+            .where((n) => n.isNotEmpty)
+            .toList(),
         compatibilityScore: score,
       );
     } catch (e) {
@@ -257,9 +254,9 @@ class BubbleHelper {
   }) async {
     try {
       await _client.rpc('add_bubble_member', params: {
-      'p_bubble_id': bubbleId,
-      'p_user_id': userId,
-    });
+        'p_bubble_id': bubbleId,
+        'p_user_id': userId,
+      });
 
       // Send notification to the user about being added to the bubble
       final currentUser = SupabaseClientManager().currentUser;
@@ -268,14 +265,17 @@ class BubbleHelper {
         final bubble = await getBubbleById(bubbleId);
         if (bubble != null) {
           // Fire and forget - don't wait for notification to complete
-          PushNotificationService().sendUserAddedToBubbleNotification(
+          PushNotificationService()
+              .sendUserAddedToBubbleNotification(
             recipientUserId: userId,
             inviterUserId: currentUser.id,
             bubbleId: bubbleId,
             bubbleName: bubble.name,
-          ).catchError((error) {
+          )
+              .catchError((error) {
             if (kDebugMode) {
-              print('BubbleHelper: Error sending user added notification: $error');
+              print(
+                  'BubbleHelper: Error sending user added notification: $error');
             }
             return false;
           });
@@ -357,7 +357,8 @@ class BubbleHelper {
   }
 
   /// Get user location actions for a bubble
-  Future<List<UserLocationActionModel>> getBubbleActivity(String bubbleId) async {
+  Future<List<UserLocationActionModel>> getBubbleActivity(
+      String bubbleId) async {
     try {
       final result = await _client.rpc('get_bubble_activity', params: {
         'p_bubble_id': bubbleId,
@@ -372,7 +373,8 @@ class BubbleHelper {
           .toList();
 
       if (kDebugMode) {
-        print('BubbleHelper: Loaded ${activities.length} activities for bubble $bubbleId');
+        print(
+            'BubbleHelper: Loaded ${activities.length} activities for bubble $bubbleId');
       }
 
       return activities;
@@ -389,16 +391,14 @@ class BubbleHelper {
   Future<Map<String, num?>> getBubbleActivityModifiers(String userId) async {
     try {
       // Get all bubbles for the user with their activity modifiers
-      final response = await _client
-          .from(SupabaseConstants.tableBubbleMembers)
-          .select('''
+      final response =
+          await _client.from(SupabaseConstants.tableBubbleMembers).select('''
             ${SupabaseConstants.columnBubbleId},
             ${SupabaseConstants.tableBubbles}!inner(
               ${SupabaseConstants.columnBubbleId},
               ${SupabaseConstants.columnActivity}
             )
-          ''')
-          .eq(SupabaseConstants.columnUserId, userId);
+          ''').eq(SupabaseConstants.columnUserId, userId);
 
       if ((response as List).isEmpty) {
         return {};

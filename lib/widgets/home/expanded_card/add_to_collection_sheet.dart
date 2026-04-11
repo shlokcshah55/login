@@ -1,20 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
+import 'package:login/supabase/helpers/collections.dart';
 import 'package:login/supabase/supabase_client.dart';
-
-class _CollectionItem {
-  final String id;
-  final String name;
-  final String? emoji;
-  final int placeCount;
-  const _CollectionItem({
-    required this.id,
-    required this.name,
-    this.emoji,
-    required this.placeCount,
-  });
-}
 
 /// Bottom sheet that lists the user's collections and lets them add the
 /// current location to one. Mirrors the styling of the rest of the
@@ -34,9 +22,10 @@ class AddToCollectionSheet extends StatefulWidget {
 }
 
 class _AddToCollectionSheetState extends State<AddToCollectionSheet> {
-  List<_CollectionItem> _collections = [];
+  List<CollectionItem> _collections = [];
+  Set<String> _alreadyAdded = {};
   bool _loading = true;
-  String? _addingId; // id of collection currently being added to
+  String? _addingId;
 
   @override
   void initState() {
@@ -45,17 +34,13 @@ class _AddToCollectionSheetState extends State<AddToCollectionSheet> {
   }
 
   Future<void> _fetchCollections() async {
+    final userId = SupabaseClientManager().currentUser?.id;
+    if (userId == null) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
     try {
-      final response =
-          await SupabaseClientManager().client.rpc('get_user_collections');
-      final items = (response as List)
-          .map((row) => _CollectionItem(
-                id: row['collection_id'] as String,
-                name: row['name'] as String,
-                emoji: row['emoji'] as String?,
-                placeCount: (row['place_count'] as num).toInt(),
-              ))
-          .toList();
+      final items = await CollectionsHelper().getUserCollections(userId);
       if (mounted) {
         setState(() {
           _collections = items;
@@ -64,6 +49,20 @@ class _AddToCollectionSheetState extends State<AddToCollectionSheet> {
       }
     } catch (_) {
       if (mounted) setState(() => _loading = false);
+      return;
+    }
+
+    // Fetch which collections already contain this location.
+    // Runs after collections are shown — failure is silent.
+    try {
+      final addedRaw = await SupabaseClientManager().client.rpc(
+        'get_location_collection_ids',
+        params: {'p_location_id': widget.locationId},
+      ) as List;
+      final addedIds = addedRaw.map((row) => row['collection_id'] as String).toSet();
+      if (mounted) setState(() => _alreadyAdded = addedIds);
+    } catch (_) {
+      // RPC not yet deployed — collections still show, just without greying out
     }
   }
 
@@ -240,77 +239,89 @@ class _AddToCollectionSheetState extends State<AddToCollectionSheet> {
                 ),
                 itemBuilder: (context, i) {
                   final c = _collections[i];
-                  final isAdding = _addingId == c.id;
-                  return GestureDetector(
-                    onTap: isAdding ? null : () => _addToCollection(c.id),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      child: Row(
-                        children: [
-                          // Icon/emoji
-                          Container(
-                            width: 48,
-                            height: 48,
-                            decoration: BoxDecoration(
-                              color: PinitColors.creamSunk,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                  color: PinitColors.creamDeep, width: 1.5),
-                            ),
-                            child: Center(
-                              child: c.emoji != null && c.emoji!.isNotEmpty
-                                  ? Text(c.emoji!,
-                                      style: const TextStyle(fontSize: 20))
-                                  : const Icon(
-                                      Icons.collections_bookmark_rounded,
-                                      size: 20,
-                                      color: PinitColors.aubergineSoft,
-                                    ),
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  c.name,
-                                  style: GoogleFonts.dmSans(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
-                                    color: PinitColors.aubergine,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 3),
-                                Text(
-                                  '${c.placeCount} ${c.placeCount == 1 ? 'place' : 'places'}',
-                                  style: GoogleFonts.dmSans(
-                                    fontSize: 12,
-                                    color: PinitColors.mute,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (isAdding)
-                            const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                    PinitColors.aubergine),
+                  final isAdding = _addingId == c.collectionId;
+                  final alreadyIn = _alreadyAdded.contains(c.collectionId);
+                  final disabled = isAdding || alreadyIn;
+                  return Opacity(
+                    opacity: alreadyIn ? 0.45 : 1.0,
+                    child: GestureDetector(
+                      onTap: disabled ? null : () => _addToCollection(c.collectionId),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: PinitColors.creamSunk,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                    color: PinitColors.creamDeep, width: 1.5),
                               ),
-                            )
-                          else
-                            const Icon(
-                              Icons.add_circle_outline_rounded,
-                              size: 22,
-                              color: PinitColors.aubergineSoft,
+                              child: Center(
+                                child: c.emoji != null && c.emoji!.isNotEmpty
+                                    ? Text(c.emoji!,
+                                        style: const TextStyle(fontSize: 20))
+                                    : const Icon(
+                                        Icons.collections_bookmark_rounded,
+                                        size: 20,
+                                        color: PinitColors.aubergineSoft,
+                                      ),
+                              ),
                             ),
-                        ],
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    c.name,
+                                    style: GoogleFonts.dmSans(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      color: PinitColors.aubergine,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    alreadyIn
+                                        ? 'Already added'
+                                        : '${c.placeCount} ${c.placeCount == 1 ? 'place' : 'places'}',
+                                    style: GoogleFonts.dmSans(
+                                      fontSize: 12,
+                                      color: PinitColors.mute,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (isAdding)
+                              const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      PinitColors.aubergine),
+                                ),
+                              )
+                            else if (alreadyIn)
+                              const Icon(
+                                Icons.check_circle_rounded,
+                                size: 22,
+                                color: PinitColors.aubergineSoft,
+                              )
+                            else
+                              const Icon(
+                                Icons.add_circle_outline_rounded,
+                                size: 22,
+                                color: PinitColors.aubergineSoft,
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   );

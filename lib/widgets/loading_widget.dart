@@ -15,7 +15,7 @@ class LoadingWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Lottie.asset(
-        'lib/assets/loaderSpinner.json',
+        'lib/assets/splashscren.json',
         width: width,
         height: height,
       ),

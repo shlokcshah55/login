@@ -5,6 +5,7 @@ import 'package:login/models/notifications/follow_request_notification.dart';
 import 'package:login/models/notifications/follow_accepted_notification.dart';
 import 'package:login/models/notifications/friend_visited_location_notification.dart';
 import 'package:login/models/notifications/bubble_message_notification.dart';
+import 'package:login/models/notifications/proximity_location_notification.dart';
 import 'package:login/models/notifications/user_added_to_bubble_notification.dart';
 
 abstract class BaseNotification {
@@ -74,6 +75,8 @@ abstract class BaseNotification {
           return FollowAcceptedNotification.fromFCMData(data);
         case 'friend_visited_location':
           return FriendVisitedLocationNotification.fromFCMData(data);
+        case 'proximity_location':
+          return ProximityLocationNotification.fromFCMData(data);
         case 'user_added_to_bubble':
           return UserAddedToBubbleNotification.fromFCMData(data);
         default:
@@ -116,6 +119,8 @@ abstract class BaseNotification {
           return FollowAcceptedNotification.fromFCMData(data);
         case 'friend_visited_location':
           return FriendVisitedLocationNotification.fromFCMData(data);
+        case 'proximity_location':
+          return ProximityLocationNotification.fromFCMData(data);
         case 'new_message':
           return BubbleMessageNotification.fromFCMData(data);
         case 'user_added_to_bubble':

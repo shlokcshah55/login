@@ -1,29 +1,26 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/models/markers.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
+import 'package:login/supabase/helpers/location_reviews.dart';
+import 'package:login/supabase/supabase_client.dart';
+import 'package:login/widgets/home/been_to_review_sheet.dart';
+import 'package:login/widgets/home/been_to_swipe_ranker.dart';
+import 'package:login/widgets/home/expanded_card/add_to_bubble_sheet.dart';
 import 'package:login/widgets/home/expanded_card/add_to_collection_sheet.dart';
 import 'package:login/widgets/home/expanded_card/helpers/match_result.dart';
 import 'package:login/widgets/home/expanded_card/helpers/similar_place.dart';
-import 'package:login/widgets/home/expanded_card/sections/about_section.dart';
-import 'package:login/widgets/home/expanded_card/sections/actions_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/details_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/hero_section.dart';
-import 'package:login/widgets/home/expanded_card/sections/match_banner_section.dart';
-import 'package:login/widgets/home/expanded_card/sections/name_location_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/persistent_action_dock.dart';
-import 'package:login/widgets/home/expanded_card/sections/quick_stats_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/recommended_dishes_section.dart';
-import 'package:login/widgets/home/expanded_card/sections/review_section.dart';
-import 'package:login/widgets/home/expanded_card/sections/saved_from_badge.dart';
-import 'package:login/widgets/home/expanded_card/sections/similar_places_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/social_proof_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/summary_slab_section.dart';
-import 'package:login/widgets/home/expanded_card/sections/vibe_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/why_go_section.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -57,6 +54,15 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   bool _isSaved = false;
   bool _isSaving = false;
   bool _isDisliking = false;
+
+  // ── Been to state ──
+  bool _isBeenTo = false;
+  bool _isBeenToLoading = false;
+  final LocationReviewsHelper _reviewsHelper = LocationReviewsHelper();
+
+  // ── Pinit avg rating state ──
+  double? _pinitAvgRating;
+  int _pinitReviewCount = 0;
 
   // ── Hero photo state ──
   int _currentPhotoIndex = 0;
@@ -119,6 +125,8 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     });
 
     _checkSavedStatus();
+    _checkBeenToStatus();
+    _fetchPinitAvgRating();
     _findSimilarPlaces();
   }
 
@@ -138,6 +146,114 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     setState(() {
       _isSaved = mgr.isLocationSavedSync(widget.location.locationId);
     });
+  }
+
+  void _fetchPinitAvgRating() async {
+    final result = await _reviewsHelper.getLocationAvgRating(
+      locationId: widget.location.locationId,
+    );
+    if (mounted && result != null) {
+      setState(() {
+        _pinitAvgRating = result.avg;
+        _pinitReviewCount = result.count;
+      });
+    }
+  }
+
+  void _checkBeenToStatus() async {
+    final user = SupabaseClientManager().currentUser;
+    if (user == null) return;
+    try {
+      final review = await _reviewsHelper.getUserReview(
+        locationId: widget.location.locationId,
+        userId: user.id,
+      );
+      if (mounted) setState(() => _isBeenTo = review != null);
+    } catch (_) {}
+  }
+
+  /// Submit review and add location to "Been To" collection.
+  /// Collection creation/update is non-fatal; review is already saved even if collection fails.
+  Future<void> _submitReviewAndAddToCollection({
+    required int locationId,
+    double? rating,
+    String? notes,
+    bool gatekeep = false,
+  }) async {
+    await _reviewsHelper.submitBeenTo(
+      locationId: locationId,
+      rating: rating,
+      content: notes,
+      gatekeep: gatekeep,
+    );
+    try {
+      final collectionId = await _reviewsHelper.getOrCreateBeenToCollection();
+      if (collectionId != null) {
+        await _reviewsHelper.addLocationToBeenToCollection(
+          collectionId: collectionId,
+          locationId: locationId,
+        );
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('ExpandedLocationCard: failed to add to Been To collection: $e');
+      }
+    }
+  }
+
+  Future<void> _onBeenToTap() async {
+    if (_isBeenTo || _isBeenToLoading) return;
+    final user = SupabaseClientManager().currentUser;
+    if (user == null) return;
+    setState(() => _isBeenToLoading = true);
+    try {
+      final count = await _reviewsHelper.getUserBeenToCount(userId: user.id);
+      if (!mounted) return;
+
+      if (count > 5) {
+        final reviews =
+            await _reviewsHelper.getUserBeenToReviews(userId: user.id);
+        if (!mounted) return;
+        await showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => BeenToSwipeRanker(
+            newLocation: widget.location,
+            existingReviews: reviews,
+            onSubmitted: (rating, notes, gatekeep) async {
+              await _submitReviewAndAddToCollection(
+                locationId: widget.location.locationId,
+                rating: rating,
+                notes: notes,
+                gatekeep: gatekeep,
+              );
+              if (mounted) setState(() => _isBeenTo = true);
+            },
+          ),
+        );
+      } else {
+        await showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => BeenToReviewSheet(
+            locationName: widget.location.name,
+            onSubmit: (rating, notes, gatekeep) async {
+              await _submitReviewAndAddToCollection(
+                locationId: widget.location.locationId,
+                rating: rating,
+                notes: notes,
+                gatekeep: gatekeep,
+              );
+              if (mounted) setState(() => _isBeenTo = true);
+            },
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isBeenToLoading = false);
+    }
   }
 
   Future<void> _toggleSave() async {
@@ -198,6 +314,29 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
       builder: (_) => AddToCollectionSheet(
         locationId: widget.location.locationId,
         locationName: widget.location.name,
+      ),
+    );
+  }
+
+  Future<void> _showAddToBubbleSheet() async {
+    final sentCount = await showModalBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => AddToBubbleSheet(
+        location: widget.location,
+      ),
+    );
+
+    if (!mounted || sentCount == null) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          sentCount > 0
+              ? 'Sent to $sentCount ${sentCount == 1 ? 'bubble' : 'bubbles'}'
+              : 'Could not send to bubble',
+        ),
       ),
     );
   }
@@ -354,16 +493,6 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     return '£' * (level.clamp(0, 4) + 1);
   }
 
-  /// Heuristic for whether to apply the 2026-04-08 restaurant-only
-  /// structural redesign. Mirrors the same check used inside
-  /// [ReviewSection] so the gating stays consistent across the card.
-  bool _isRestaurant() {
-    final types = widget.location.types?.toLowerCase() ?? '';
-    if (types.contains('restaurant')) return true;
-    if ((widget.location.cuisine ?? '').trim().isNotEmpty) return true;
-    return false;
-  }
-
   // ══════════════════════════════════════════════════════════════
   //  BUILD
   // ══════════════════════════════════════════════════════════════
@@ -372,9 +501,8 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final topPad = MediaQuery.of(context).padding.top;
-    final isWavy = widget.location.vibe != null &&
-        widget.location.vibe!.wavyScore >= 0.35;
-    final isRestaurant = _isRestaurant();
+    final isWavy =
+        widget.location.vibe != null && widget.location.vibe!.wavyScore >= 0.35;
 
     return Material(
       color: Colors.transparent,
@@ -386,8 +514,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
             AnimatedBuilder(
               animation: _sheetSlide,
               builder: (_, __) => Container(
-                color: Colors.black
-                    .withValues(alpha: 0.5 * _sheetSlide.value),
+                color: Colors.black.withValues(alpha: 0.5 * _sheetSlide.value),
               ),
             ),
 
@@ -397,8 +524,8 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
               builder: (_, child) => Align(
                 alignment: Alignment.bottomCenter,
                 child: Transform.translate(
-                  offset: Offset(
-                      0, (1 - _sheetSlide.value) * size.height * 0.4),
+                  offset:
+                      Offset(0, (1 - _sheetSlide.value) * size.height * 0.4),
                   child: child,
                 ),
               ),
@@ -419,22 +546,16 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                       child: Container(
                         decoration: const BoxDecoration(
                           color: PinitColors.cream,
-                          borderRadius: BorderRadius.vertical(
-                              top: Radius.circular(28)),
+                          borderRadius:
+                              BorderRadius.vertical(top: Radius.circular(28)),
                         ),
                         child: Stack(
                           children: [
-                            isRestaurant
-                                ? _buildRestaurantBody(
-                                    scrollCtrl: scrollCtrl,
-                                    heroHeight: size.height * 0.34,
-                                    isWavy: isWavy,
-                                  )
-                                : _buildLegacyBody(
-                                    scrollCtrl: scrollCtrl,
-                                    heroHeight: size.height * 0.34,
-                                    isWavy: isWavy,
-                                  ),
+                            _buildRestaurantBody(
+                              scrollCtrl: scrollCtrl,
+                              heroHeight: size.height * 0.34,
+                              isWavy: isWavy,
+                            ),
 
                             // Drag handle
                             Positioned(
@@ -453,26 +574,24 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                               ),
                             ),
 
-                            // Persistent action dock — restaurant-only.
+                            // Persistent action dock
                             // Anchored to the bottom of the sheet so the
                             // primary actions stay visible while the
                             // editorial body scrolls behind.
-                            if (isRestaurant)
-                              Positioned(
-                                left: 0,
-                                right: 0,
-                                bottom: 0,
-                                child: PersistentActionDock(
-                                  isSaved: _isSaved,
-                                  isSaving: _isSaving,
-                                  isDisliking: _isDisliking,
-                                  onAddToBubble: () {},
-                                  onToggleSave: _toggleSave,
-                                  onAddToCollection:
-                                      _showAddToCollectionSheet,
-                                  onDislike: _dislikeLocation,
-                                ),
+                            Positioned(
+                              left: 0,
+                              right: 0,
+                              bottom: 0,
+                              child: PersistentActionDock(
+                                isSaved: _isSaved,
+                                isSaving: _isSaving,
+                                isDisliking: _isDisliking,
+                                onAddToBubble: _showAddToBubbleSheet,
+                                onToggleSave: _toggleSave,
+                                onAddToCollection: _showAddToCollectionSheet,
+                                onDislike: _dislikeLocation,
                               ),
+                            ),
                           ],
                         ),
                       ),
@@ -541,6 +660,11 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                 matchAnim: _matchAnim,
                 onAddressTap: _openInGoogleMaps,
                 onSavedFromTap: _openSavedFromUrl,
+                isBeenTo: _isBeenTo,
+                isBeenToLoading: _isBeenToLoading,
+                onBeenTo: _onBeenToTap,
+                pinitAvgRating: _pinitAvgRating,
+                pinitReviewCount: _pinitReviewCount,
               ),
 
               // Layer 3 — editorial body.
@@ -569,112 +693,6 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                 onOpenWebsite: _openWebsite,
               ),
               SizedBox(height: dockBottomInset),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Legacy composition for non-restaurant locations. The 2026-04-08
-  /// redesign is intentionally restaurant-only — other place types
-  /// continue to use the previous structure unchanged.
-  Widget _buildLegacyBody({
-    required ScrollController scrollCtrl,
-    required double heroHeight,
-    required bool isWavy,
-  }) {
-    return ListView(
-      controller: scrollCtrl,
-      padding: EdgeInsets.zero,
-      children: [
-        HeroSection(
-          height: heroHeight,
-          photos: _photos,
-          currentPhotoIndex: _currentPhotoIndex,
-          onPhotoChanged: (i) => setState(() => _currentPhotoIndex = i),
-          accentColor: _accentColor,
-          openStatusLabel: _openStatusLabel(),
-          openStatusColor: _openStatusColor(),
-          priceLabel: _priceLabel(),
-          isWavy: isWavy,
-        ),
-        MatchBannerSection(
-          match: _match,
-          matchAnim: _matchAnim,
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 20),
-              // Provenance — "Saved from this TikTok" flash badge.
-              // Mirrors the placement used in SummarySlabSection so the
-              // signal is consistent across both card compositions.
-              if ((widget.location.savedMethod ?? '').toLowerCase() ==
-                      'tiktok' &&
-                  (widget.location.savedFrom ?? '').trim().isNotEmpty) ...[
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: SavedFromBadge(
-                    savedMethod: widget.location.savedMethod,
-                    sourceUrl: widget.location.savedFrom,
-                    onTap: _openSavedFromUrl,
-                  ),
-                ),
-                const SizedBox(height: 14),
-              ],
-              NameLocationSection(
-                name: widget.location.name,
-                vicinity: widget.location.vicinity,
-                onAddressTap: _openInGoogleMaps,
-              ),
-              const SizedBox(height: 16),
-              QuickStatsSection(location: widget.location),
-              const SizedBox(height: 20),
-              ActionsSection(
-                isSaved: _isSaved,
-                isSaving: _isSaving,
-                isDisliking: _isDisliking,
-                onAddToBubble: () {},
-                onToggleSave: _toggleSave,
-                onDislike: _dislikeLocation,
-                onShare: () {},
-                onAddToCollection: _showAddToCollectionSheet,
-              ),
-              if (widget.location.generatedSummary != null ||
-                  widget.location.editorialSummary != null) ...[
-                const SizedBox(height: 28),
-                AboutSection(
-                  generatedSummary: widget.location.generatedSummary,
-                  editorialSummary: widget.location.editorialSummary,
-                ),
-              ],
-              const SizedBox(height: 28),
-              VibeSection(vibe: widget.location.vibe),
-              if (widget.location.recommendedDishes != null) ...[
-                const SizedBox(height: 28),
-                RecommendedDishesSection(
-                  recommendedDishes: widget.location.recommendedDishes,
-                ),
-              ],
-              const SizedBox(height: 28),
-              ReviewSection(location: widget.location),
-              const SizedBox(height: 28),
-              DetailsSection(
-                location: widget.location,
-                onOpenInMaps: _openInGoogleMaps,
-                onOpenWebsite: _openWebsite,
-              ),
-              if (_similarPlaces.isNotEmpty) ...[
-                const SizedBox(height: 32),
-                SimilarPlacesSection(
-                  similarPlaces: _similarPlaces,
-                  onPlaceTap: (_) => _handleClose(),
-                ),
-              ],
-              const SizedBox(height: 120),
             ],
           ),
         ),

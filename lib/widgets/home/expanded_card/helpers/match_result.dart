@@ -53,7 +53,7 @@ MatchResult buildMatchResult({
   required List<int>? locationDietary,
   required List<int>? userDietary,
 }) {
-  final score = matchScore ?? 0.0;
+  final score = (matchScore ?? 0.0).clamp(0.0, 1.0);
 
   final contributors = <MapEntry<String, double>>[];
   double? dietaryMatch;

@@ -7,6 +7,7 @@ import 'package:login/models/notifications/video_processed_notification.dart';
 import 'package:login/models/notifications/follow_request_notification.dart';
 import 'package:login/models/notifications/follow_accepted_notification.dart';
 import 'package:login/models/notifications/friend_visited_location_notification.dart';
+import 'package:login/models/notifications/proximity_location_notification.dart';
 
 class SmartNotificationListItem extends StatelessWidget {
   final BaseNotification notification;
@@ -31,9 +32,8 @@ class SmartNotificationListItem extends StatelessWidget {
           color: notification.isRead ? Colors.grey[100] : Colors.white,
           border: Border(
             left: BorderSide(
-              color: notification.isRead
-                  ? Colors.transparent
-                  : theme.primaryColor,
+              color:
+                  notification.isRead ? Colors.transparent : theme.primaryColor,
               width: 3,
             ),
           ),
@@ -68,7 +68,8 @@ class SmartNotificationListItem extends StatelessWidget {
             ),
 
             // Optional Action Button
-            if (notification.hasAction() && notification.getActionLabel() != null) ...[
+            if (notification.hasAction() &&
+                notification.getActionLabel() != null) ...[
               const SizedBox(width: 12),
               _buildActionButton(theme),
             ],
@@ -81,6 +82,23 @@ class SmartNotificationListItem extends StatelessWidget {
   Widget _buildAvatar() {
     // Use app logo for video processed notifications
     if (notification.type == NotificationType.videoProcessed) {
+      return Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: Colors.grey[300]!,
+            width: 1,
+          ),
+        ),
+        child: CircleAvatar(
+          radius: 20,
+          backgroundImage: const AssetImage('lib/assets/default_avatar.png'),
+          backgroundColor: Colors.grey[200],
+        ),
+      );
+    }
+
+    if (notification.type == NotificationType.proximityLocation) {
       return Container(
         decoration: BoxDecoration(
           shape: BoxShape.circle,
@@ -217,6 +235,31 @@ class SmartNotificationListItem extends StatelessWidget {
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                 ),
+              ),
+            ],
+          ),
+        );
+      case NotificationType.proximityLocation:
+        final proximityNotif = notification as ProximityLocationNotification;
+        return RichText(
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          text: TextSpan(
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: Colors.black87,
+              height: 1.3,
+            ),
+            children: [
+              TextSpan(
+                text: proximityNotif.locationName,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              TextSpan(
+                text: proximityNotif.distanceMeters == null
+                    ? ' is within walking distance'
+                    : ' is ${proximityNotif.distanceMeters}m away',
               ),
             ],
           ),

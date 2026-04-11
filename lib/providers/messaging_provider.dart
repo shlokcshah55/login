@@ -116,7 +116,11 @@ class MessagingProvider with ChangeNotifier {
   }
 
   /// Send a message
-  Future<bool> sendMessage(String content, {String? replyToId}) async {
+  Future<bool> sendMessage(
+    String content, {
+    String? replyToId,
+    int? locationId,
+  }) async {
     if (_isSending || content.trim().isEmpty) return false;
 
     _isSending = true;
@@ -127,6 +131,7 @@ class MessagingProvider with ChangeNotifier {
         bubbleId: bubbleId,
         content: content.trim(),
         repliedToMessageId: replyToId,
+        locationId: locationId,
       );
 
       if (kDebugMode) {

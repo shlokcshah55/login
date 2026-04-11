@@ -10,6 +10,7 @@ import 'package:login/services/recommendations_api.dart';
 import 'package:login/services/google_place_service.dart';
 import 'package:login/services/location_service.dart';
 import 'package:login/services/natural_language_search_service.dart';
+import 'package:login/services/proximity_notification_service.dart';
 import 'package:login/supabase/constants.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/providers/map_state_provider.dart';
@@ -23,6 +24,8 @@ class LocationListManager with ChangeNotifier {
   final GooglePlacesService _googlePlacesService;
   final SupabaseService _supabaseService = SupabaseService();
   final LocationService _locationService = LocationService();
+  final ProximityNotificationService _proximityNotificationService =
+      ProximityNotificationService();
   final NaturalLanguageSearchService _naturalLanguageSearchService =
       NaturalLanguageSearchService();
 
@@ -152,6 +155,8 @@ class LocationListManager with ChangeNotifier {
       _currentItems = {};
       notifyListeners();
     } else {
+      unawaited(_proximityNotificationService.initializeForUser(_userId!));
+
       // Fetch initial data ONCE when user logs in
       fetchSavedLocations();
       fetchPopularLocations();
@@ -194,7 +199,7 @@ class LocationListManager with ChangeNotifier {
     switch (payload.eventType) {
       case PostgresChangeEvent.insert:
         // New location saved
-        if (record['action'] == 'saved' && record['acked'] == true) {
+        if (record['action'] == 'save' && record['acked'] == true) {
           print('Location saved realtime: ${record['location_id']}');
           await _addLocationToSaved(record['location_id']);
         }
@@ -208,7 +213,7 @@ class LocationListManager with ChangeNotifier {
 
       case PostgresChangeEvent.update:
         // Handle acked status change
-        if (record['action'] == 'saved') {
+        if (record['action'] == 'save') {
           if (record['acked'] == true && oldRecord['acked'] == false) {
             print('Location acknowledged: ${record['location_id']}');
             await _addLocationToSaved(record['location_id']);
@@ -289,6 +294,8 @@ class LocationListManager with ChangeNotifier {
 
       notifyListeners();
       print('Added location to saved: ${location.name}');
+      await _proximityNotificationService
+          .syncSavedLocations(_savedLocations.keys);
     } catch (e) {
       print('Error adding location realtime: $e');
     }
@@ -312,6 +319,8 @@ class LocationListManager with ChangeNotifier {
 
       notifyListeners();
       print('Removed location from saved: ${locationToRemove.name}');
+      await _proximityNotificationService
+          .syncSavedLocations(_savedLocations.keys);
     } catch (e) {
       print('Error removing location realtime: $e');
     }
@@ -647,6 +656,8 @@ class LocationListManager with ChangeNotifier {
       if (_currentListType == LocationListType.saved) {
         _currentItems = _savedLocations;
       }
+      await _proximityNotificationService
+          .syncSavedLocations(_savedLocations.keys);
       notifyListeners();
     } catch (e, st) {
       log('[fetchSavedLocations] ERROR: $e\n$st');
@@ -678,6 +689,63 @@ class LocationListManager with ChangeNotifier {
       imageBytes: const [],
     );
     _searchLocations = {location: markerData};
+    await setCurrentListType(LocationListType.search);
+  }
+
+  Future<void> showLocationsOnMap(List<LocationModel> locations) async {
+    final validLocations = locations
+        .where((location) => location.lat != null && location.lng != null)
+        .toList();
+
+    if (validLocations.isEmpty) {
+      _searchLocations = {};
+      await setCurrentListType(LocationListType.search);
+      return;
+    }
+
+    final tempMap = Map.fromEntries(
+      validLocations.map(
+        (location) => MapEntry(
+          location,
+          MapMarkerData(
+            id: location.locationId.toString(),
+            position: LatLng(location.lat!, location.lng!),
+            imageBytes: const [],
+          ),
+        ),
+      ),
+    );
+
+    final selectedForNames = _selectLocationsForNameDisplay(
+      tempMap,
+      viewportBounds: _currentViewportBounds,
+    );
+
+    final markers = await Future.wait(
+      validLocations.map((location) async {
+        final marker = await location
+            .setPreference(LocationPreference.search)
+            .toMarker(
+              _devicePixelRatio,
+              shouldShowName: selectedForNames.contains(location.locationId),
+            );
+
+        return MapEntry(
+          location,
+          marker ??
+              MapMarkerData(
+                id: location.locationId.toString(),
+                position: LatLng(location.lat!, location.lng!),
+                imageBytes: const [],
+                title: location.name,
+                snippet: location.vicinity ?? '',
+              ),
+        );
+      }),
+    );
+
+    _searchLocations = Map.fromEntries(markers);
+    _error = null;
     await setCurrentListType(LocationListType.search);
   }
 
@@ -1474,6 +1542,7 @@ class LocationListManager with ChangeNotifier {
     _searchLocations.clear();
     _currentItems.clear();
     _currentListType = LocationListType.saved;
+    _proximityNotificationService.clear();
     _locationService.stopLocationUpdates(); // Stop tracking when clearing data
     print("LocationListManager: Cleared all location data");
     notifyListeners();
@@ -1530,6 +1599,7 @@ class LocationListManager with ChangeNotifier {
   void dispose() {
     _locationService.removeListener(_onLocationServiceChanged);
     _locationService.stopLocationUpdates();
+    _proximityNotificationService.clear();
     log('Unsubscribing from realtime updates on dispose');
     _supabaseService.locations.unsubscribeFromUserLocationActions();
     _isSubscribed = false;

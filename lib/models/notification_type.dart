@@ -3,6 +3,7 @@ enum NotificationType {
   followRequest,
   followAccepted,
   friendVisitedLocation,
+  proximityLocation,
   newMessage,
   userAddedToBubble,
 }

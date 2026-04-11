@@ -5,21 +5,11 @@ import 'package:login/pages/profile/widgets/pinit_colors.dart';
 /// Persistent bottom action dock introduced by the 2026-04-08
 /// restaurant expanded card structural redesign.
 ///
-/// Replaces the inline [ActionsSection] for restaurant locations: the
-/// primary actions stay anchored at the bottom of the sheet while the
-/// editorial body scrolls behind. The dock is the *only* surface for
-/// these actions in the new layout — they should not also appear in
-/// the scroll body.
-///
 /// Contents (left → right):
-///   • Add to Bubble       (primary CTA — wide pill)
-///   • Save                (toggles between outlined and active)
-///   • Add to Collection   (opens the AddToCollectionSheet)
-///   • Dislike             (icon-only)
-///
-/// The dock is safe-area aware. The parent must add bottom padding
-/// inside the scrollable body equal to [dockHeight] + breathing room
-/// so the final section remains fully readable above the dock.
+///   • Share to Bubble  (icon-only)
+///   • Save             (medium, text + icon, toggles active)
+///   • Add to Collection (medium, text + icon)
+///   • Dislike          (icon-only)
 class PersistentActionDock extends StatelessWidget {
   const PersistentActionDock({
     super.key,
@@ -40,9 +30,6 @@ class PersistentActionDock extends StatelessWidget {
   final VoidCallback onAddToCollection;
   final VoidCallback? onDislike;
 
-  /// Visual height of the dock chrome itself, excluding the bottom
-  /// safe-area inset. The parent uses this + safe area to compute the
-  /// scroll body's bottom padding.
   static const double dockHeight = 76.0;
 
   @override
@@ -67,34 +54,36 @@ class PersistentActionDock extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: _DockPrimaryButton(
-              label: 'Add to Bubble',
-              icon: Icons.group_add_rounded,
-              onTap: onAddToBubble,
+            child: _DockMediumButton(
+              label: isSaved ? 'Saved' : 'Save',
+              icon: isSaved
+                  ? Icons.bookmark_rounded
+                  : Icons.bookmark_border_rounded,
+              isActive: isSaved,
+              isLoading: isSaving,
+              onTap: isSaving ? null : onToggleSave,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _DockMediumButton(
+              label: 'Collection',
+              icon: Icons.collections_bookmark_rounded,
+              onTap: onAddToCollection,
             ),
           ),
           const SizedBox(width: 10),
-          _DockIconButton(
-            icon: isSaved
-                ? Icons.bookmark_rounded
-                : Icons.bookmark_border_rounded,
-            tooltip: isSaved ? 'Saved' : 'Save',
-            isActive: isSaved,
-            isLoading: isSaving,
-            onTap: isSaving ? null : onToggleSave,
-          ),
-          const SizedBox(width: 8),
-          _DockIconButton(
-            icon: Icons.collections_bookmark_rounded,
-            tooltip: 'Add to Collection',
-            onTap: onAddToCollection,
-          ),
-          const SizedBox(width: 8),
           _DockIconButton(
             icon: Icons.thumb_down_off_alt_rounded,
             tooltip: 'Hide',
             isLoading: isDisliking,
             onTap: isDisliking ? null : onDislike,
+          ),
+          const SizedBox(width: 10),
+          _DockIconButton(
+            icon: Icons.send_rounded,
+            tooltip: 'Share to Bubble',
+            onTap: onAddToBubble,
           ),
         ],
       ),
@@ -102,43 +91,60 @@ class PersistentActionDock extends StatelessWidget {
   }
 }
 
-class _DockPrimaryButton extends StatelessWidget {
-  const _DockPrimaryButton({
+class _DockMediumButton extends StatelessWidget {
+  const _DockMediumButton({
     required this.label,
     required this.icon,
-    required this.onTap,
+    this.onTap,
+    this.isActive = false,
+    this.isLoading = false,
   });
 
   final String label;
   final IconData icon;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final bool isActive;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
+    final bg = isActive ? PinitColors.aubergine : PinitColors.creamSunk;
+    final fg = isActive ? PinitColors.cream : PinitColors.aubergine;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        height: 52,
+        height: 48,
         decoration: BoxDecoration(
-          color: PinitColors.aubergine,
+          color: bg,
           borderRadius: BorderRadius.circular(999),
-          boxShadow: PinitColors.cardShadow,
+          border: isActive
+              ? null
+              : Border.all(color: PinitColors.creamDeep, width: 1.5),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 19, color: PinitColors.cream),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: GoogleFonts.dmSans(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: PinitColors.cream,
+        child: isLoading
+            ? Center(
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: fg),
+                ),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, size: 16, color: fg),
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: fg,
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -149,33 +155,27 @@ class _DockIconButton extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     this.onTap,
-    this.isActive = false,
     this.isLoading = false,
   });
 
   final IconData icon;
   final String tooltip;
   final VoidCallback? onTap;
-  final bool isActive;
   final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
-    final bg = isActive ? PinitColors.aubergine : PinitColors.creamSunk;
-    final fg = isActive ? PinitColors.cream : PinitColors.aubergine;
     return Tooltip(
       message: tooltip,
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          width: 52,
-          height: 52,
+          width: 48,
+          height: 48,
           decoration: BoxDecoration(
-            color: bg,
+            color: PinitColors.creamSunk,
             borderRadius: BorderRadius.circular(999),
-            border: isActive
-                ? null
-                : Border.all(color: PinitColors.creamDeep, width: 1.5),
+            border: Border.all(color: PinitColors.creamDeep, width: 1.5),
           ),
           child: isLoading
               ? Center(
@@ -184,11 +184,11 @@ class _DockIconButton extends StatelessWidget {
                     height: 18,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: fg,
+                      color: PinitColors.aubergine,
                     ),
                   ),
                 )
-              : Icon(icon, size: 20, color: fg),
+              : Icon(icon, size: 20, color: PinitColors.aubergine),
         ),
       ),
     );

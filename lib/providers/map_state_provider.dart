@@ -319,6 +319,57 @@ class MapStateProvider with ChangeNotifier {
     log("MapStateProvider: Camera focused on bounds containing $point1 and $point2");
   }
 
+  Future<void> focusOnLocations(
+    List<LocationModel> locations, {
+    double padding = 84.0,
+  }) async {
+    final points = locations
+        .map((location) => location.position)
+        .whereType<LatLng>()
+        .toList();
+
+    if (points.isEmpty) return;
+    if (points.length == 1) {
+      await animateCamera(points.first, zoom: 15.2);
+      return;
+    }
+
+    final map = _mapboxMap;
+    if (map == null) return;
+
+    var minLat = points.first.latitude;
+    var maxLat = points.first.latitude;
+    var minLng = points.first.longitude;
+    var maxLng = points.first.longitude;
+
+    for (final point in points.skip(1)) {
+      minLat = min(minLat, point.latitude);
+      maxLat = max(maxLat, point.latitude);
+      minLng = min(minLng, point.longitude);
+      maxLng = max(maxLng, point.longitude);
+    }
+
+    final camera = await map.cameraForCoordinateBounds(
+      LatLngBounds(
+        southwest: LatLng(minLat, minLng),
+        northeast: LatLng(maxLat, maxLng),
+      ).toCoordinateBounds(),
+      mapbox.MbxEdgeInsets(
+        top: padding,
+        left: padding,
+        bottom: padding + 180,
+        right: padding,
+      ),
+      null,
+      null,
+      null,
+      null,
+    );
+
+    await map.flyTo(camera, mapbox.MapAnimationOptions(duration: 650));
+    log('MapStateProvider: Camera focused on ${points.length} collection locations');
+  }
+
   /// Sets the currently selected marker ID and notifies listeners.
   void setSelectedMarkerId(String? markerId,
       {bool triggeredByCarousel = false}) {

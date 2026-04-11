@@ -29,6 +29,11 @@ class SummarySlabSection extends StatelessWidget {
     required this.matchAnim,
     required this.onAddressTap,
     required this.onSavedFromTap,
+    required this.isBeenTo,
+    required this.isBeenToLoading,
+    required this.onBeenTo,
+    this.pinitAvgRating,
+    this.pinitReviewCount = 0,
   });
 
   final LocationModel location;
@@ -36,6 +41,11 @@ class SummarySlabSection extends StatelessWidget {
   final Animation<double> matchAnim;
   final VoidCallback onAddressTap;
   final VoidCallback onSavedFromTap;
+  final bool isBeenTo;
+  final bool isBeenToLoading;
+  final VoidCallback onBeenTo;
+  final double? pinitAvgRating;
+  final int pinitReviewCount;
 
   String _formatCount(int count) {
     if (count < 1000) return count.toString();
@@ -71,17 +81,59 @@ class SummarySlabSection extends StatelessWidget {
           const SizedBox(height: 14),
         ],
 
-        // Identity — name first, big and unmistakable.
-        Text(
-          location.name,
-          style: const TextStyle(
-            fontFamily: 'Rova',
-            fontSize: 36,
-            fontWeight: FontWeight.w100,
-            color: PinitColors.aubergine,
-            height: 1.05,
-            letterSpacing: 1.4,
-          ),
+        // Identity — name first, big and unmistakable, with been-to badge
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                location.name,
+                style: const TextStyle(
+                  fontFamily: 'Rova',
+                  fontSize: 36,
+                  fontWeight: FontWeight.w100,
+                  color: PinitColors.aubergine,
+                  height: 1.05,
+                  letterSpacing: 1.4,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            GestureDetector(
+              onTap: (isBeenTo || isBeenToLoading) ? null : onBeenTo,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isBeenTo ? PinitColors.accent : Colors.transparent,
+                  border: Border.all(
+                    color: PinitColors.accent,
+                    width: 1.5,
+                  ),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: isBeenToLoading
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 1.5,
+                          valueColor:
+                              AlwaysStoppedAnimation(PinitColors.accent),
+                        ),
+                      )
+                    : Text(
+                        isBeenTo ? "I've been" : 'Been here?',
+                        style: GoogleFonts.dmSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: isBeenTo
+                              ? PinitColors.cream
+                              : PinitColors.accent,
+                        ),
+                      ),
+              ),
+            ),
+          ],
         ),
         if (hasVicinity) ...[
           const SizedBox(height: 10),
@@ -113,7 +165,12 @@ class SummarySlabSection extends StatelessWidget {
         const SizedBox(height: 18),
 
         // Compact key-fact cluster.
-        _KeyFactsCluster(location: location, formatCount: _formatCount),
+        _KeyFactsCluster(
+          location: location,
+          formatCount: _formatCount,
+          pinitAvgRating: pinitAvgRating,
+          pinitReviewCount: pinitReviewCount,
+        ),
 
         // Match copy — supporting block, not a floating overlap card.
         // If there is no match data the slab still works with identity
@@ -134,10 +191,20 @@ class _KeyFactsCluster extends StatelessWidget {
   const _KeyFactsCluster({
     required this.location,
     required this.formatCount,
+    this.pinitAvgRating,
+    this.pinitReviewCount = 0,
   });
 
   final LocationModel location;
   final String Function(int) formatCount;
+  final double? pinitAvgRating;
+  final int pinitReviewCount;
+
+  bool get _showDisagree {
+    if (pinitAvgRating == null || pinitReviewCount < 3) return false;
+    if (location.rating == null) return false;
+    return ((pinitAvgRating! / 2.0) - location.rating!).abs() >= 1.0;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -153,6 +220,13 @@ class _KeyFactsCluster extends StatelessWidget {
               label: location.rating!.toStringAsFixed(1),
               icon: Icons.star_rounded,
               variant: _FactVariant.filled,
+            ),
+          if (_showDisagree)
+            _FactChip(
+              label:
+                  'But our pinit users disagree · ${(pinitAvgRating! / 2.0).toStringAsFixed(1)}★',
+              icon: Icons.people_rounded,
+              variant: _FactVariant.orange,
             ),
           if (location.userRatingsTotal != null)
             _FactChip(
@@ -198,7 +272,7 @@ class _KeyFactsCluster extends StatelessWidget {
   }
 }
 
-enum _FactVariant { outlined, filled, accent }
+enum _FactVariant { outlined, filled, accent, orange }
 
 class _FactChip extends StatelessWidget {
   const _FactChip({
@@ -229,6 +303,11 @@ class _FactChip extends StatelessWidget {
         bg = PinitColors.accent;
         fg = PinitColors.cream;
         border = null;
+      case _FactVariant.orange:
+        bg = const Color(0xFFFFF3CD);
+        fg = const Color(0xFF92620A);
+        border = Border.all(
+            color: const Color(0xFFFFB800).withValues(alpha: 0.5), width: 1.5);
     }
 
     return Container(

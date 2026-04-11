@@ -6,7 +6,7 @@ import json
 import logging
 import asyncio
 from typing import Dict, Optional, List
-import googlemaps
+import httpx
 from openai import OpenAI
 from apify_client import ApifyClient
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 class TikTokProcessor:
     def __init__(self, openaiKey: str, gmaps_key: str, appify_client:str):
-        self.gmaps = googlemaps.Client(key=gmaps_key)
+        self.gmaps_key = gmaps_key
         self.openai_client = OpenAI(api_key=openaiKey)
         self.appify_client = ApifyClient(appify_client)
 
@@ -279,19 +279,49 @@ Format Pattern:
 
 
     def _search_google_place(self, query: str) -> Optional[Dict]:
-        """Search for a place using Google Places API"""
+        """Search for a place using Places API (New) text search."""
         try:
-            # Use Places Text Search
-            result = self.gmaps.places(query=query)
+            url = "https://places.googleapis.com/v1/places:searchText"
+            headers = {
+                "Content-Type": "application/json",
+                "X-Goog-Api-Key": self.gmaps_key,
+                "X-Goog-FieldMask": (
+                    "places.id,"
+                    "places.displayName,"
+                    "places.formattedAddress,"
+                    "places.location,"
+                    "places.types,"
+                    "places.rating"
+                ),
+            }
+            payload = {
+                "textQuery": query,
+                "pageSize": 1,
+            }
 
-            if result.get("results"):
-                # Return the top result
-                top_result = result["results"][0]
-                logger.info(f"Found place: {top_result.get('name')}")
-                return top_result
-            else:
+            with httpx.Client(timeout=10.0) as client:
+                response = client.post(url, headers=headers, json=payload)
+                response.raise_for_status()
+                result = response.json()
+
+            places = result.get("places", [])
+            if not places:
                 logger.warning(f"No results found for query: {query}")
                 return None
+
+            top_result = places[0]
+            normalized_result = {
+                "place_id": top_result.get("id"),
+                "name": top_result.get("displayName", {}).get("text"),
+                "formatted_address": top_result.get("formattedAddress"),
+                "geometry": {
+                    "location": top_result.get("location"),
+                },
+                "types": top_result.get("types", []),
+                "rating": top_result.get("rating"),
+            }
+            logger.info(f"Found place: {normalized_result.get('name')}")
+            return normalized_result
 
         except Exception as e:
             logger.error(f"Error searching Google Places: {e}")

@@ -1,12 +1,19 @@
+import 'dart:io';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:login/models/locations.dart';
+import 'package:login/providers/location_list_provider.dart';
+import 'package:login/providers/map_state_provider.dart';
+import 'package:login/providers/navigation_provider.dart';
 import 'package:login/supabase/helpers/collections.dart';
 import 'package:login/supabase/supabase_client.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
+import 'package:provider/provider.dart';
 import 'pinit_colors.dart';
 
 // Maps auto-generated collection labels to their bundled asset paths.
@@ -129,6 +136,18 @@ class _CollectionsGridState extends State<CollectionsGrid>
     }
   }
 
+  void _openEditSheet(CollectionModel collection) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _EditCollectionSheet(
+        collection: collection,
+        onSaved: _loadCollections,
+      ),
+    );
+  }
+
   void _openCreateCollectionSheet() {
     showModalBottomSheet(
       context: context,
@@ -201,6 +220,7 @@ class _CollectionsGridState extends State<CollectionsGrid>
         itemBuilder: (context, index) => _CollectionCard(
           collection: collections[index],
           showOwner: showOwner,
+          onEdit: showOwner ? null : () => _openEditSheet(collections[index]),
         ),
       ),
     );
@@ -643,20 +663,24 @@ class _CreateCollectionSheetState extends State<_CreateCollectionSheet> {
 class _CollectionCard extends StatelessWidget {
   final CollectionModel collection;
   final bool showOwner;
+  final VoidCallback? onEdit;
 
-  const _CollectionCard({required this.collection, this.showOwner = false});
+  const _CollectionCard({
+    required this.collection,
+    this.showOwner = false,
+    this.onEdit,
+  });
 
   @override
   Widget build(BuildContext context) {
     final assetPath = _kCollectionAssets[collection.name];
-    final networkPhoto = collection.photo;
 
     return GestureDetector(
       onTap: () => showModalBottomSheet(
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
-        builder: (_) => _CollectionDetailSheet(collection: collection),
+        builder: (_) => _CollectionDetailSheet(collection: collection, onEdit: onEdit),
       ),
       child: Container(
         decoration: BoxDecoration(
@@ -679,7 +703,33 @@ class _CollectionCard extends StatelessWidget {
           children: [
             // ── Image (top ~65%) ──
             Expanded(
-              child: _buildImage(assetPath, networkPhoto),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  _buildImage(assetPath, collection.coverColor, collection.photo),
+                  if (onEdit != null)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: GestureDetector(
+                        onTap: onEdit,
+                        behavior: HitTestBehavior.opaque,
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.45),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            FeatherIcons.edit2,
+                            size: 13,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
 
             // ── Solid label area (bottom) ──
@@ -762,18 +812,20 @@ class _CollectionCard extends StatelessWidget {
     );
   }
 
-  Widget _buildImage(String? assetPath, String? networkPhoto) {
+  Widget _buildImage(String? assetPath, String? coverColor, String? networkPhoto) {
     if (assetPath != null) {
       return Image.asset(assetPath, fit: BoxFit.cover, width: double.infinity);
     }
-    if (networkPhoto != null) {
+    // coverColor may hold a user-uploaded photo URL
+    final photoUrl = coverColor ?? networkPhoto;
+    if (photoUrl != null) {
       return CachedNetworkImage(
-        imageUrl: networkPhoto,
+        imageUrl: photoUrl,
         fit: BoxFit.cover,
         width: double.infinity,
       );
     }
-    // Fallback: aubergine-tinted placeholder
+    // Fallback: placeholder
     return Container(
       color: PinitColors.creamDeep,
       child: const Center(
@@ -852,7 +904,8 @@ class _EmptyCollections extends StatelessWidget {
 
 class _CollectionDetailSheet extends StatefulWidget {
   final CollectionModel collection;
-  const _CollectionDetailSheet({required this.collection});
+  final VoidCallback? onEdit;
+  const _CollectionDetailSheet({required this.collection, this.onEdit});
 
   @override
   State<_CollectionDetailSheet> createState() => _CollectionDetailSheetState();
@@ -862,6 +915,7 @@ class _CollectionDetailSheetState extends State<_CollectionDetailSheet> {
   final CollectionsHelper _helper = CollectionsHelper();
   List<LocationModel> _locations = [];
   bool _isLoading = true;
+  bool _showingOnMap = false;
   String? _error;
 
   @override
@@ -876,6 +930,44 @@ class _CollectionDetailSheetState extends State<_CollectionDetailSheet> {
       if (mounted) setState(() { _locations = locs; _isLoading = false; });
     } catch (e) {
       if (mounted) setState(() { _error = e.toString(); _isLoading = false; });
+    }
+  }
+
+  Future<void> _showInMap() async {
+    if (_showingOnMap || _isLoading) return;
+
+    final validLocations = _locations
+        .where((location) => location.position != null)
+        .toList();
+
+    if (validLocations.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No mappable places in this collection yet.'),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _showingOnMap = true);
+    try {
+      final locationListManager = context.read<LocationListManager>();
+      final mapStateProvider = context.read<MapStateProvider>();
+      final navigationProvider = context.read<NavigationProvider>();
+
+      await locationListManager.showLocationsOnMap(validLocations);
+      mapStateProvider.setSelectedMarkerId(
+        validLocations.first.locationId.toString(),
+      );
+      await mapStateProvider.focusOnLocations(validLocations);
+
+      if (!mounted) return;
+      navigationProvider.navigateToTab(0);
+      Navigator.of(context).pop();
+    } finally {
+      if (mounted) {
+        setState(() => _showingOnMap = false);
+      }
     }
   }
 
@@ -940,6 +1032,82 @@ class _CollectionDetailSheetState extends State<_CollectionDetailSheet> {
                               ),
                             ),
                           ],
+                        ),
+                      ),
+                      if (widget.onEdit != null)
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.pop(context);
+                            widget.onEdit!();
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: PinitColors.creamSunk,
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: PinitColors.aubergine.withValues(alpha: 0.2),
+                              ),
+                            ),
+                            child: const Icon(
+                              FeatherIcons.edit2,
+                              size: 15,
+                              color: PinitColors.aubergine,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: _showInMap,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: PinitColors.aubergine,
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: PinitColors.aubergine,
+                                width: 1.5,
+                              ),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: PinitColors.aubergine,
+                                  blurRadius: 0,
+                                  offset: Offset(3, 3),
+                                ),
+                              ],
+                            ),
+                            child: Center(
+                              child: _showingOnMap
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                          PinitColors.cream,
+                                        ),
+                                      ),
+                                    )
+                                  : Text(
+                                      'SHOW IN MAP',
+                                      style: GoogleFonts.dmSans(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800,
+                                        color: PinitColors.cream,
+                                        letterSpacing: 1.2,
+                                      ),
+                                    ),
+                            ),
+                          ),
                         ),
                       ),
                     ],
@@ -1228,6 +1396,305 @@ class _Pill extends StatelessWidget {
         ),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Edit collection bottom sheet
+// ─────────────────────────────────────────────────────────────
+
+class _EditCollectionSheet extends StatefulWidget {
+  final CollectionModel collection;
+  final Future<void> Function() onSaved;
+
+  const _EditCollectionSheet({required this.collection, required this.onSaved});
+
+  @override
+  State<_EditCollectionSheet> createState() => _EditCollectionSheetState();
+}
+
+class _EditCollectionSheetState extends State<_EditCollectionSheet> {
+  late final TextEditingController _nameController;
+  final CollectionsHelper _helper = CollectionsHelper();
+  final ImagePicker _picker = ImagePicker();
+
+  File? _pendingPhoto;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.collection.name);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickFromGallery() async {
+    try {
+      final XFile? picked = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 85,
+      );
+      if (picked != null && mounted) {
+        setState(() {
+          _pendingPhoto = File(picked.path);
+          _error = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Could not load image.');
+    }
+  }
+
+  Future<void> _save() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) return;
+
+    setState(() { _saving = true; _error = null; });
+    try {
+      String? coverUrl = widget.collection.coverColor;
+
+      if (_pendingPhoto != null) {
+        coverUrl = await _helper.uploadCollectionCover(
+          widget.collection.id,
+          _pendingPhoto!,
+        );
+      }
+
+      await _helper.updateCollection(
+        collectionId: widget.collection.id,
+        name: name,
+        coverColor: coverUrl,
+      );
+
+      if (mounted) {
+        Navigator.pop(context);
+        await widget.onSaved();
+      }
+    } catch (e) {
+      debugPrint('[EditCollectionSheet] error: $e');
+      if (mounted) setState(() { _saving = false; _error = 'Something went wrong. Please try again.'; });
+    }
+  }
+
+  Widget _buildCoverPreview() {
+    final assetPath = _kCollectionAssets[widget.collection.name];
+
+    Widget image;
+    if (_pendingPhoto != null) {
+      image = Image.file(_pendingPhoto!, fit: BoxFit.cover);
+    } else if (assetPath != null) {
+      image = Image.asset(assetPath, fit: BoxFit.cover);
+    } else {
+      final photoUrl = widget.collection.coverColor ?? widget.collection.photo;
+      if (photoUrl != null) {
+        image = CachedNetworkImage(imageUrl: photoUrl, fit: BoxFit.cover);
+      } else {
+        image = Container(
+          color: PinitColors.creamDeep,
+          child: const Center(
+            child: Icon(FeatherIcons.image, size: 32, color: PinitColors.mute),
+          ),
+        );
+      }
+    }
+
+    return GestureDetector(
+      onTap: _saving ? null : _pickFromGallery,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: SizedBox(
+          height: 160,
+          width: double.infinity,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              image,
+              Container(
+                color: Colors.black.withValues(alpha: 0.3),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(FeatherIcons.camera, color: Colors.white, size: 24),
+                    const SizedBox(height: 6),
+                    Text(
+                      _pendingPhoto != null ? 'Change Photo' : 'Add Cover Photo',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final canSave = _nameController.text.trim().isNotEmpty && !_saving;
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: PinitColors.background,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + bottomInset),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Handle
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: PinitColors.textMuted.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Title
+            const Text(
+              'Edit Collection',
+              style: TextStyle(
+                fontFamily: 'Rova',
+                fontSize: 28,
+                fontWeight: FontWeight.w200,
+                color: PinitColors.aubergine,
+                letterSpacing: 1.5,
+                height: 1.05,
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Cover photo
+            const Text(
+              'Cover Photo',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: PinitColors.textSecondary,
+                letterSpacing: 0.2,
+              ),
+            ),
+            const SizedBox(height: 8),
+            _buildCoverPreview(),
+            const SizedBox(height: 20),
+
+            // Name field
+            const Text(
+              'Name',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: PinitColors.textSecondary,
+                letterSpacing: 0.2,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _nameController,
+              textCapitalization: TextCapitalization.sentences,
+              style: const TextStyle(
+                fontSize: 16,
+                color: PinitColors.textPrimary,
+                fontWeight: FontWeight.w500,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Collection name',
+                hintStyle: TextStyle(
+                  color: PinitColors.textMuted.withValues(alpha: 0.6),
+                  fontWeight: FontWeight.normal,
+                ),
+                filled: true,
+                fillColor: PinitColors.surfaceLight,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(
+                    color: PinitColors.primary.withValues(alpha: 0.5),
+                    width: 1.5,
+                  ),
+                ),
+              ),
+              onChanged: (_) => setState(() {}),
+              onSubmitted: (_) => _save(),
+            ),
+
+            if (_error != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                _error!,
+                style: const TextStyle(fontSize: 13, color: Colors.red),
+              ),
+            ],
+
+            const SizedBox(height: 24),
+
+            // Save button
+            SizedBox(
+              width: double.infinity,
+              child: GestureDetector(
+                onTap: canSave ? _save : null,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  decoration: BoxDecoration(
+                    color: canSave ? PinitColors.aubergine : PinitColors.creamDeep,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Center(
+                    child: _saving
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: PinitColors.cream,
+                            ),
+                          )
+                        : Text(
+                            'Save',
+                            style: GoogleFonts.dmSans(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: canSave ? PinitColors.cream : PinitColors.mute,
+                            ),
+                          ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

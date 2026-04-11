@@ -75,21 +75,36 @@ class VibeVector {
 
   const VibeVector(this.values);
 
+  static List<double> _normalizeValues(List<double> rawValues) {
+    return rawValues.map(_normalizeValue).toList(growable: false);
+  }
+
+  static double _normalizeValue(double raw) {
+    if (!raw.isFinite) return 0.0;
+    if (raw <= 0) return 0.0;
+    if (raw <= 1.0) return raw;
+    if (raw <= 100.0) return raw / 100.0;
+    return 1.0;
+  }
+
   factory VibeVector.fromDynamic(dynamic raw) {
     if (raw == null) return const VibeVector([]);
     if (raw is List) {
-      return VibeVector(
+      return VibeVector(_normalizeValues(
         raw
             .map((e) =>
                 e is num ? e.toDouble() : double.tryParse(e.toString()) ?? 0.0)
             .toList(),
-      );
+      ));
     }
     // Postgres text form: {0.1,0.2,...}
     final s = raw.toString().replaceAll(RegExp(r'^\{|\}$'), '').trim();
     if (s.isEmpty) return const VibeVector([]);
     return VibeVector(
-        s.split(',').map((e) => double.tryParse(e.trim()) ?? 0.0).toList());
+      _normalizeValues(
+        s.split(',').map((e) => double.tryParse(e.trim()) ?? 0.0).toList(),
+      ),
+    );
   }
 
   double scoreFor(String tag) {

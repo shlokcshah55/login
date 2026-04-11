@@ -15,7 +15,9 @@ import 'package:login/providers/map_state_provider.dart';
 import 'package:login/providers/nav_bar/visibility_provider.dart';
 import 'package:login/providers/shortlist_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
+import 'package:login/supabase/helpers/collections.dart';
 import 'package:login/supabase/service.dart';
+import 'package:login/supabase/supabase_client.dart';
 
 class HomeViewModel extends ChangeNotifier {
   final LocationListManager locationListManager;
@@ -26,6 +28,7 @@ class HomeViewModel extends ChangeNotifier {
   final UserDataProvider userDataProvider;
   late final HomeController _homeController;
   late final HeaderSearchCoordinator _headerSearchCoordinator;
+  final CollectionsHelper _collectionsHelper = CollectionsHelper();
 
   final TextEditingController magicSearchController = TextEditingController();
   final TextEditingController headerSearchController = TextEditingController();
@@ -35,10 +38,14 @@ class HomeViewModel extends ChangeNotifier {
   // ── Overlay state ─────────────────────────────────────────────
   bool _showSearchOverlay = false;
   bool _showGavelOverlay = false;
-  bool _showSweetTreatOverlay = false;
+  bool _isMagicSearchActive = false;
+  bool _showMagicSearchActivated = false;
   double _justDecideMinutes = 15.0;
   bool _showJustDecideSwipeMode = false;
   List<LocationModel> _justDecideLocations = [];
+  List<CollectionItem> _collections = [];
+  bool _isLoadingCollections = false;
+  String? _activeCollectionId;
 
   // ── Mode toggle state ─────────────────────────────────────────
   HomeMode _homeMode = HomeMode.you;
@@ -72,16 +79,21 @@ class HomeViewModel extends ChangeNotifier {
       ),
     );
     _headerSearchCoordinator.addListener(_onHeaderSearchChanged);
+    headerSearchFocusNode.addListener(_onHeaderSearchFocusChanged);
   }
 
   // ── Getters ───────────────────────────────────────────────────
 
   bool get showSearchOverlay => _showSearchOverlay;
   bool get showGavelOverlay => _showGavelOverlay;
-  bool get showSweetTreatOverlay => _showSweetTreatOverlay;
+  bool get isMagicSearchActive => _isMagicSearchActive;
+  bool get showMagicSearchActivated => _showMagicSearchActivated;
   double get justDecideMinutes => _justDecideMinutes;
   bool get showJustDecideSwipeMode => _showJustDecideSwipeMode;
   List<LocationModel> get justDecideLocations => _justDecideLocations;
+  List<CollectionItem> get collections => List.unmodifiable(_collections);
+  bool get isLoadingCollections => _isLoadingCollections;
+  String? get activeCollectionId => _activeCollectionId;
   bool get bottomNavVisible => bottomNavVisibilityProvider.isVisible;
   LocationListType get currentListType => locationListManager.currentListType;
   String? get selectedMarkerId => mapStateProvider.selectedMarkerId;
@@ -95,6 +107,8 @@ class HomeViewModel extends ChangeNotifier {
   HeaderSearchState get headerSearchState => _headerSearchCoordinator.state;
   bool get isHeaderSearchActive => headerSearchState.isActive;
   bool get isHeaderSearchPreviewing => headerSearchState.isPreviewingMap;
+  bool get isMagicSearchFieldFocused =>
+      _isMagicSearchActive && headerSearchFocusNode.hasFocus;
 
   // ── Mode toggle ───────────────────────────────────────────────
   HomeMode get homeMode => _homeMode;
@@ -102,6 +116,7 @@ class HomeViewModel extends ChangeNotifier {
   void setHomeMode(HomeMode mode) {
     if (_homeMode == mode) return;
     _homeMode = mode;
+    _activeCollectionId = null;
 
     // Map the mode to LocationListType
     switch (mode) {
@@ -180,6 +195,7 @@ class HomeViewModel extends ChangeNotifier {
     shortlistProvider.addListener(_onExternalStateChanged);
 
     _lastSelectedMarkerId = mapStateProvider.selectedMarkerId;
+    unawaited(loadCollections());
   }
 
   void _onExternalStateChanged() {
@@ -220,6 +236,10 @@ class HomeViewModel extends ChangeNotifier {
   }
 
   void _onHeaderSearchChanged() {
+    notifyListeners();
+  }
+
+  void _onHeaderSearchFocusChanged() {
     notifyListeners();
   }
 
@@ -353,20 +373,72 @@ class HomeViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  void toggleMagicSearch() {
+    _isMagicSearchActive = !_isMagicSearchActive;
+    if (_isMagicSearchActive) {
+      _showMagicSearchActivated = true;
+    } else {
+      _showMagicSearchActivated = false;
+    }
+    notifyListeners();
+  }
+
+  void dismissMagicSearchActivated() {
+    if (!_showMagicSearchActivated) return;
+    _showMagicSearchActivated = false;
+    notifyListeners();
+  }
+
   Future<void> submitMagicSearch(String query) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return;
 
     log("HomeViewModel: Triggering magic search for: $trimmed");
 
-    magicSearchController.clear();
-    toggleSearchOverlay(false);
-
     await locationListManager.magicSearch(trimmed);
 
     if (locationListManager.error != null) {
       log("HomeViewModel: Magic search error: ${locationListManager.error}");
     }
+  }
+
+  Future<void> loadCollections({bool force = false}) async {
+    final user = SupabaseClientManager().currentUser;
+    if (user == null) return;
+    if (_isLoadingCollections) return;
+    if (!force && _collections.isNotEmpty) return;
+
+    _isLoadingCollections = true;
+    notifyListeners();
+
+    try {
+      final collections = await _collectionsHelper.getUserCollections(user.id);
+      collections.sort(
+        (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+      );
+      _collections = collections;
+    } catch (_) {
+      _collections = [];
+    } finally {
+      _isLoadingCollections = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> showCollectionOnMap(CollectionItem collection) async {
+    final locations =
+        await _collectionsHelper.getLocationsForCollection(collection.collectionId);
+    if (locations.isEmpty) {
+      return false;
+    }
+
+    _activeCollectionId = collection.collectionId;
+    await locationListManager.showLocationsOnMap(locations);
+    mapStateProvider.setSelectedMarkerId(locations.first.locationId.toString());
+    await mapStateProvider.focusOnLocations(locations);
+    bottomNavVisibilityProvider.showTemporarily();
+    notifyListeners();
+    return true;
   }
 
   // ── Just Decide (Gavel) overlay ───────────────────────────────
@@ -469,11 +541,11 @@ class HomeViewModel extends ChangeNotifier {
   }
 
   // ── Sweet Treat overlay ───────────────────────────────────────
+  static const String _defaultSweetTreatQuery =
+      'Places with desserts or sweets that are currently open';
 
-  void toggleSweetTreatOverlay(bool visible) {
-    if (_showSweetTreatOverlay == visible) return;
-    _showSweetTreatOverlay = visible;
-    notifyListeners();
+  Future<void> submitDefaultSweetTreatSearch() async {
+    await submitSweetTreatSearch(_defaultSweetTreatQuery);
   }
 
   Future<void> submitSweetTreatSearch(String query) async {
@@ -482,28 +554,11 @@ class HomeViewModel extends ChangeNotifier {
 
     log("HomeViewModel: Triggering sweet treat search for: $trimmed");
 
-    toggleSweetTreatOverlay(false);
-
     await locationListManager.magicSearch(trimmed);
 
     if (locationListManager.error != null) {
       log("HomeViewModel: Sweet treat search error: ${locationListManager.error}");
     }
-  }
-
-  // ── Surprise Me (random vibe search) ──────────────────────────
-
-  Future<void> submitSurpriseMe() async {
-    const vibePrompts = [
-      'Something fun and different near me',
-      'A hidden gem I haven\'t tried',
-      'Best vibes near me right now',
-      'Somewhere cozy and interesting',
-      'A wavy spot with great food',
-    ];
-    final prompt = (vibePrompts..shuffle()).first;
-    log("HomeViewModel: Surprise me with: $prompt");
-    await locationListManager.magicSearch(prompt);
   }
 
   // ── Search this area ──────────────────────────────────────────
@@ -608,6 +663,7 @@ class HomeViewModel extends ChangeNotifier {
     pageController.dispose();
     magicSearchController.dispose();
     headerSearchController.dispose();
+    headerSearchFocusNode.removeListener(_onHeaderSearchFocusChanged);
     headerSearchFocusNode.dispose();
     _headerSearchCoordinator.dispose();
     _debounce?.cancel();

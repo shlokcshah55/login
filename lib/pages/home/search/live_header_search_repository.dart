@@ -131,6 +131,7 @@ class LiveHeaderSearchRepository implements HeaderSearchRepository {
         .where((value) => value.toLowerCase().contains(normalized))
         .take(3)
         .map(SearchSuggestionItem.recentQuery);
+
     final filteredPrompts = personalPrompts
         .where((value) => value.toLowerCase().contains(normalized))
         .take(3)
@@ -185,10 +186,6 @@ class LiveHeaderSearchRepository implements HeaderSearchRepository {
       };
     }
 
-    // Natural-language results are loaded by a separate stage
-    // (loadNaturalLanguageSection) so the magic-search endpoint only fires
-    // when intent detection asks for it. Keep this stage limited to the
-    // fast Supabase queries.
     final placeFuture = _searchPlacesFromDatabase(query: query, limit: 10);
     final peopleFuture = _searchPeople(query: query, limit: 10);
 
@@ -293,6 +290,11 @@ class LiveHeaderSearchRepository implements HeaderSearchRepository {
     }
   }
 
+  Future<LatLng?> _currentLocation() async {
+    return _locationListManager.currentPosition ??
+        await _locationListManager.getCurrentLocation();
+  }
+
   Future<List<UserModel>> _searchPeople({
     required String query,
     required int limit,
@@ -345,11 +347,6 @@ class LiveHeaderSearchRepository implements HeaderSearchRepository {
     } catch (_) {
       return const [];
     }
-  }
-
-  Future<LatLng?> _currentLocation() async {
-    return _locationListManager.currentPosition ??
-        await _locationListManager.getCurrentLocation();
   }
 
   Future<List<UserModel>> _loadSuggestedUsers() async {

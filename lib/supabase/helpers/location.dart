@@ -77,8 +77,10 @@ class LocationHelper {
     final photoReference = locationData[SupabaseConstants.columnPhotoReference];
     final googlePlaceId = locationData[SupabaseConstants.columnGooglePlaceId];
 
-    final hasPhotoRef = photoReference != null && photoReference.toString().isNotEmpty;
-    final hasPlaceId = googlePlaceId != null && googlePlaceId.toString().isNotEmpty;
+    final hasPhotoRef =
+        photoReference != null && photoReference.toString().isNotEmpty;
+    final hasPlaceId =
+        googlePlaceId != null && googlePlaceId.toString().isNotEmpty;
     if (hasPhotoRef || hasPlaceId) {
       _ensureImageUploaded(locationId, googlePlaceId?.toString() ?? '',
           photoReference?.toString() ?? '');
@@ -107,9 +109,9 @@ class LocationHelper {
   /// row does not kill the entire batch.
   /// Optionally calculates match scores using user affinity vectors.
   Future<List<LocationModel>> processLocationsWithImages(
-      List<dynamic> locationsData, {
-      List<int>? userVibeAffinity,
-      List<int>? userDietaryAffinity,
+    List<dynamic> locationsData, {
+    List<int>? userVibeAffinity,
+    List<int>? userDietaryAffinity,
   }) async {
     if (locationsData.isEmpty) return [];
 
@@ -140,7 +142,7 @@ class LocationHelper {
         );
 
         var location = LocationModel.fromJson(item, imageUrl);
-        
+
         // Calculate match score if user affinity data is available
         if (userVibeAffinity != null || userDietaryAffinity != null) {
           final score = LocationModel.calculateMatchScore(
@@ -151,7 +153,7 @@ class LocationHelper {
           );
           location = location.copyWith(matchScore: score);
         }
-        
+
         _cacheLocation(location);
         return location;
       } catch (e, st) {
@@ -242,20 +244,25 @@ class LocationHelper {
         if (userProf != null) {
           final vibeRaw = userProf[SupabaseConstants.columnVibeTagAffinity];
           if (vibeRaw is List) {
-            userVibeAffinity = List<int>.from(vibeRaw.map((e) => (e as num).toInt()));
+            userVibeAffinity =
+                List<int>.from(vibeRaw.map((e) => (e as num).toInt()));
           }
-          
-          final dietaryRaw = userProf[SupabaseConstants.columnDietaryRequirementTagAffinity];
+
+          final dietaryRaw =
+              userProf[SupabaseConstants.columnDietaryRequirementTagAffinity];
           if (dietaryRaw is List) {
-            userDietaryAffinity = List<int>.from(dietaryRaw.map((e) => (e as num).toInt()));
+            userDietaryAffinity =
+                List<int>.from(dietaryRaw.map((e) => (e as num).toInt()));
           }
         }
       } catch (e) {
-        developer.log('[Saved] Could not fetch user affinity data: $e', name: 'LocationHelper');
+        developer.log('[Saved] Could not fetch user affinity data: $e',
+            name: 'LocationHelper');
       }
 
       // First get all user_location_actions with 'save' action for this user
-      developer.log('[Saved] Querying saved actions for user ${user.id}', name: 'LocationHelper');
+      developer.log('[Saved] Querying saved actions for user ${user.id}',
+          name: 'LocationHelper');
       final savedActions = await _client
           .from(SupabaseConstants.tableUserLocationActions)
           .select(
@@ -268,7 +275,9 @@ class LocationHelper {
           .eq(SupabaseConstants.columnAcked, true);
 
       if (savedActions.isEmpty) {
-        developer.log('[Saved] No saved actions found (${stopwatch.elapsedMilliseconds}ms)', name: 'LocationHelper');
+        developer.log(
+            '[Saved] No saved actions found (${stopwatch.elapsedMilliseconds}ms)',
+            name: 'LocationHelper');
         return [];
       }
 
@@ -276,7 +285,8 @@ class LocationHelper {
       // each LocationModel after the batch processor returns. If a user has
       // multiple save actions for the same location, the most recently seen
       // entry wins.
-      final actionMetaByLocationId = <int, ({String? savedFrom, String? savedMethod})>{};
+      final actionMetaByLocationId =
+          <int, ({String? savedFrom, String? savedMethod})>{};
       final locationIds = <int>[];
       for (final action in (savedActions as List)) {
         final id = action[SupabaseConstants.columnLocationId] as int;
@@ -288,7 +298,9 @@ class LocationHelper {
           savedMethod: action[SupabaseConstants.columnSavedMethod] as String?,
         );
       }
-      developer.log('[Saved] Found ${locationIds.length} saved IDs: $locationIds', name: 'LocationHelper');
+      developer.log(
+          '[Saved] Found ${locationIds.length} saved IDs: $locationIds',
+          name: 'LocationHelper');
 
       if (locationIds.isEmpty) {
         return [];
@@ -371,7 +383,8 @@ class LocationHelper {
 
       // Build a per-locationId map of (savedFrom, savedMethod) so we can stamp
       // each LocationModel after the batch processor returns.
-      final actionMetaByLocationId = <int, ({String? savedFrom, String? savedMethod})>{};
+      final actionMetaByLocationId =
+          <int, ({String? savedFrom, String? savedMethod})>{};
       final locationIds = <int>[];
       for (final action in (savedActions as List)) {
         final id = action[SupabaseConstants.columnLocationId] as int;
@@ -446,6 +459,26 @@ class LocationHelper {
     }
   }
 
+  Future<List<LocationModel>> getLocationsByIds(List<int> locationIds) async {
+    try {
+      if (locationIds.isEmpty) {
+        return [];
+      }
+
+      final response = await _client
+          .from(SupabaseConstants.tableLocations)
+          .select()
+          .inFilter(SupabaseConstants.columnLocationId, locationIds);
+
+      return await processLocationsWithImages(response as List);
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error getting locations by ids: $e');
+      }
+      return [];
+    }
+  }
+
   Future<List<LocationModel>> getHiddenGems({
     required double latitude,
     required double longitude,
@@ -466,7 +499,8 @@ class LocationHelper {
 
       if (kDebugMode) print('[HiddenGems] Requesting: $uri');
 
-      final httpResponse = await http.get(uri).timeout(const Duration(seconds: 30));
+      final httpResponse =
+          await http.get(uri).timeout(const Duration(seconds: 30));
 
       if (kDebugMode) print('[HiddenGems] Status: ${httpResponse.statusCode}');
 
@@ -479,13 +513,16 @@ class LocationHelper {
 
       final decoded = jsonDecode(httpResponse.body);
       final recommendations = decoded['recommendations'] as List;
-      if (kDebugMode) print('[HiddenGems] Recommendations count: ${recommendations.length}');
+      if (kDebugMode)
+        print('[HiddenGems] Recommendations count: ${recommendations.length}');
 
-      final locationIds = recommendations.map((r) => r['location_id'] as int).toList();
+      final locationIds =
+          recommendations.map((r) => r['location_id'] as int).toList();
       if (kDebugMode) print('[HiddenGems] Location IDs: $locationIds');
 
       if (locationIds.isEmpty) {
-        if (kDebugMode) print('[HiddenGems] No location IDs returned — empty result');
+        if (kDebugMode)
+          print('[HiddenGems] No location IDs returned — empty result');
         return [];
       }
 
@@ -494,7 +531,8 @@ class LocationHelper {
           .select()
           .inFilter(SupabaseConstants.columnLocationId, locationIds);
 
-      if (kDebugMode) print('[HiddenGems] DB rows fetched: ${(response as List).length}');
+      if (kDebugMode)
+        print('[HiddenGems] DB rows fetched: ${(response as List).length}');
 
       return await processLocationsWithImages(response);
     } catch (e, stack) {
@@ -580,8 +618,6 @@ class LocationHelper {
     }
   }
 
-
-
   /// Save a location for the current user via the
   /// `save_location_with_tags` RPC.
   ///
@@ -605,7 +641,8 @@ class LocationHelper {
         throw Exception('User not authenticated');
       }
 
-      print('[LocationHelper] Saving location $locationId for user ${user.id} with method $savedMethod and sourceVideoUrl $sourceVideoUrl');
+      print(
+          '[LocationHelper] Saving location $locationId for user ${user.id} with method $savedMethod and sourceVideoUrl $sourceVideoUrl');
       final result = await _client.rpc('save_location_with_tags', params: {
         'p_user_id': user.id,
         'p_location_id': locationId,
@@ -632,7 +669,8 @@ class LocationHelper {
         throw Exception('User not authenticated');
       }
 
-      print('[LocationHelper] Disliking location $locationId for user ${user.id}');
+      print(
+          '[LocationHelper] Disliking location $locationId for user ${user.id}');
       final result = await _client.rpc('dislike_location_with_tags', params: {
         'p_user_id': user.id,
         'p_location_id': locationId,
@@ -794,8 +832,10 @@ class LocationHelper {
       int locationId, String? photoReference, String placeId) async {
     // Step 3: Try the stored photo reference first if we have one
     if (photoReference != null && photoReference.isNotEmpty) {
-      if (kDebugMode) print('[Image] [$locationId] Step 3: Trying stored photo_reference...');
-      final permanentUrl = await _downloadAndUploadImage(photoReference, locationId);
+      if (kDebugMode)
+        print('[Image] [$locationId] Step 3: Trying stored photo_reference...');
+      final permanentUrl =
+          await _downloadAndUploadImage(photoReference, locationId);
       if (permanentUrl != null) {
         try {
           await _client.rpc('update_location_image_url', params: {
@@ -805,32 +845,48 @@ class LocationHelper {
         } catch (e) {
           // best-effort DB update
         }
-        if (kDebugMode) print('[Image] [$locationId] Step 3: Stored photo_reference succeeded.');
+        if (kDebugMode)
+          print(
+              '[Image] [$locationId] Step 3: Stored photo_reference succeeded.');
         return permanentUrl;
       }
-      if (kDebugMode) print('[Image] [$locationId] Step 3: Stored photo_reference failed — falling back to google_place_id.');
+      if (kDebugMode)
+        print(
+            '[Image] [$locationId] Step 3: Stored photo_reference failed — falling back to google_place_id.');
     } else {
-      if (kDebugMode) print('[Image] [$locationId] Step 3: No stored photo_reference — will use google_place_id.');
+      if (kDebugMode)
+        print(
+            '[Image] [$locationId] Step 3: No stored photo_reference — will use google_place_id.');
     }
 
     // Step 4: Fetch fresh photo references from Google Places API using place ID
     if (placeId.isEmpty) {
-      if (kDebugMode) print('[Image] [$locationId] Step 4: No google_place_id available — cannot fetch image.');
+      if (kDebugMode)
+        print(
+            '[Image] [$locationId] Step 4: No google_place_id available — cannot fetch image.');
       return null;
     }
 
-    if (kDebugMode) print('[Image] [$locationId] Step 4: Fetching photo references from Google Places API for place $placeId...');
+    if (kDebugMode)
+      print(
+          '[Image] [$locationId] Step 4: Fetching photo references from Google Places API for place $placeId...');
     final freshPhotos = await _fetchPlacePhotos(placeId);
     if (freshPhotos == null || freshPhotos.isEmpty) {
-      if (kDebugMode) print('[Image] [$locationId] Step 4: Google Places API returned no photos.');
+      if (kDebugMode)
+        print(
+            '[Image] [$locationId] Step 4: Google Places API returned no photos.');
       return null;
     }
 
     final freshReference = freshPhotos[0]['name'] as String;
-    if (kDebugMode) print('[Image] [$locationId] Step 4: Got ${freshPhotos.length} photo reference(s). Using first: $freshReference');
+    if (kDebugMode)
+      print(
+          '[Image] [$locationId] Step 4: Got ${freshPhotos.length} photo reference(s). Using first: $freshReference');
 
     // Step 5: Save fresh references back to DB for future use
-    if (kDebugMode) print('[Image] [$locationId] Step 5: Saving fresh photo reference and photos array to DB...');
+    if (kDebugMode)
+      print(
+          '[Image] [$locationId] Step 5: Saving fresh photo reference and photos array to DB...');
     try {
       await _client.rpc('update_location_photo_reference', params: {
         'p_location_id': locationId,
@@ -840,12 +896,16 @@ class LocationHelper {
         'p_location_id': locationId,
         'p_photos': jsonEncode(freshPhotos),
       });
-      if (kDebugMode) print('[Image] [$locationId] Step 5: DB updated successfully.');
+      if (kDebugMode)
+        print('[Image] [$locationId] Step 5: DB updated successfully.');
     } catch (e) {
-      if (kDebugMode) print('[Image] [$locationId] Step 5: Failed to save to DB (non-fatal): $e');
+      if (kDebugMode)
+        print(
+            '[Image] [$locationId] Step 5: Failed to save to DB (non-fatal): $e');
     }
 
-    final permanentUrl = await _downloadAndUploadImage(freshReference, locationId);
+    final permanentUrl =
+        await _downloadAndUploadImage(freshReference, locationId);
     if (permanentUrl != null) {
       try {
         await _client.rpc('update_location_image_url', params: {

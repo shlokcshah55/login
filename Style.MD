@@ -1,6 +1,6 @@
 # pinit — Design System
 
-A reference for refactoring pinit's UI to a sleek, playful, art-directed aesthetic. This document defines the visual language only — typography, colour, spacing, shape, and component primitives. Personality elements (illustrations, mascots, micro-interactions) are intentionally out of scope for this pass.
+A reference for pinit's UI. The **profile page** is the canonical style reference — all screens should feel consistent with it. This document defines the visual language: typography, colour, spacing, shape, shadows, and component patterns.
 
 The guiding principle: **commit to extremes**. Vibe-coded UIs hedge with medium weights, medium radii, medium spacing, and medium contrast. This system commits — heavy display type, generous whitespace, fully rounded shapes, and a tightly restricted palette.
 
@@ -38,30 +38,74 @@ The guiding principle: **commit to extremes**. Vibe-coded UIs hedge with medium 
 
 ### Fonts
 
-Two fonts only. No exceptions.
+Three fonts, with strict role separation:
 
-- **Display:** Rova.
-- **Body:** Geist.
+| Family | Role | Source |
+|---|---|---|
+| **Rova** | Display, headings, titles, labels | `assets/rova-font/RovaRegular-5yV0a.ttf` |
+| **Manrope** | Body copy, reading text | `assets/fonts/Manrope-VF.ttf` |
+| **DM Sans** | Accent labels, tags, badges, captions | Google Fonts |
+
+Rova is used for anything that needs editorial weight. Manrope for readable prose. DM Sans for compact functional text (chips, counts, all-caps labels). Never swap their roles.
 
 ### Type scale
 
-| Token | Size | Line height | Weight | Tracking | Use |
-|---|---|---|---|---|---|
-| `display-xl` | 48 | 1.0 | Display 800 | -0.03em | Hero screens, restaurant detail page titles. Should feel like a poster. |
-| `display-lg` | 36 | 1.05 | Display 800 | -0.02em | Section heroes, onboarding headlines. |
-| `display-md` | 28 | 1.1 | Display 800 | -0.02em | Card headlines, modal titles. |
-| `title` | 20 | 1.2 | Body 600 | -0.01em | List item titles, restaurant names in cards. |
-| `body` | 15 | 1.45 | Body 400 | 0 | All paragraph text. |
-| `body-sm` | 13 | 1.4 | Body 400 | 0 | Metadata, captions, secondary info. |
-| `label` | 11 | 1.0 | Body 600 | +0.12em (UPPERCASE) | Section headers ("NEARBY", "WAVY SPOTS", "YOUR BUBBLES"). The signature move. |
-| `micro` | 10 | 1.0 | Body 600 | +0.15em (UPPERCASE) | Corner labels, tag text, badge text. |
+| Token | Font | Size | Line height | Weight | Tracking | Use |
+|---|---|---|---|---|---|---|
+| `display-xl` | Rova | 48 | 1.0 | w800 | -0.03em | Hero screens, poster-style titles |
+| `display-lg` | Rova | 36 | 1.05 | w800 | -0.02em | Section heroes, onboarding headlines |
+| `display-md` | Rova | 28 | 1.1 | w800 | -0.02em | Card headlines, modal titles. Profile section headers. |
+| `title` | Rova | 20 | 1.2 | w400 | -0.01em | List item titles, restaurant names in cards |
+| `body` | Manrope | 15 | 1.45 | w500 | 0 | All paragraph text |
+| `body-sm` | Manrope | 13 | 1.4 | w500 | 0 | Metadata, captions, secondary info |
+| `label` | DM Sans | 11 | 1.0 | w600 | +`fontSize × 0.12` (UPPERCASE) | Section headers ("NEARBY", "YOUR BUBBLES"). The signature move. |
+| `micro` | DM Sans | 10 | 1.0 | w700 | +0.4 (UPPERCASE) | Tag text, badge text, chip labels |
+
+### In-code examples
+
+```dart
+// Profile/section header — large, heavy Rova
+TextStyle(
+  fontFamily: 'Rova',
+  fontSize: 28,
+  fontWeight: FontWeight.w800,
+  color: PinitColors.aubergine,
+  letterSpacing: 1.0,
+  height: 1.05,
+)
+
+// Hero name — large, ultra-light Rova on dark background
+TextStyle(
+  fontFamily: 'Rova',
+  fontSize: 28,
+  fontWeight: FontWeight.w100,
+  color: PinitColors.cream,
+  letterSpacing: 1.7,
+  height: 1.05,
+)
+
+// All-caps section label
+GoogleFonts.dmSans(
+  fontSize: 11,
+  fontWeight: FontWeight.w600,
+  color: PinitColors.aubergineSoft,
+  letterSpacing: 11 * 0.12,  // fontSize × 0.12
+)
+
+// Body / description copy
+GoogleFonts.dmSans(
+  fontSize: 15,
+  color: PinitColors.aubergine.withValues(alpha: 0.7),
+  height: 1.45,
+)
+```
 
 ### Rules
 
 - Display type should feel oversized. If it looks "right", make it bigger. Headlines should dominate their containers.
 - Body text is always aubergine (`#41133d`), never black.
 - Labels are always uppercase, always tracked, always 11px or smaller. They are the cheapest way to make a screen look art-directed instead of defaulted.
-- Never use italic. Never use underline (except for inline links in body copy, and even then prefer a colour change).
+- Never use italic. Never use underline except for inline links in body copy.
 - Numerals should be tabular wherever they appear in lists or tables (`font-feature-settings: "tnum"`).
 
 ---
@@ -112,73 +156,223 @@ Commit to **fully rounded**. The aesthetic is friendly, not brutalist.
 
 ---
 
-## 5. Elevation
+## 5. Elevation & Shadows
 
-Avoid drop shadows where possible. The aesthetic is flat-with-warmth, not material design.
+All shadows use **aubergine-tinted colors — never pure black or grey**. This keeps the depth system within the warm palette.
 
-When elevation is necessary (sheets, modals, floating action elements), use a **warm, soft, low-opacity shadow** rather than a neutral grey one:
+```dart
+// subtleShadow — small buttons, icon containers
+BoxShadow(
+  color: Color(0x0F41133D),  // aubergine ~6% opacity
+  blurRadius: 8,
+  offset: Offset(0, 2),
+)
 
+// cardShadow — default for cards and containers (USE THIS BY DEFAULT)
+BoxShadow(
+  color: Color(0x1441133D),  // aubergine ~8% opacity
+  blurRadius: 16,
+  offset: Offset(0, 4),
+)
+
+// elevatedShadow — bottom sheets and modals
+BoxShadow(
+  color: Color(0x1F41133D),  // aubergine ~12% opacity
+  blurRadius: 32,
+  offset: Offset(0, 12),
+)
+
+// stampedShadow — editorially featured cards only (Hidden Gems, Trending tiles)
+BoxShadow(
+  color: PinitColors.aubergine,  // solid, full opacity
+  blurRadius: 0,                 // hard edge — no blur
+  offset: Offset(4, 4),          // down + right = printed/stamped look
+)
 ```
-shadow-soft:  0 2px 8px rgba(65, 19, 61, 0.06)
-shadow-card:  0 4px 16px rgba(65, 19, 61, 0.08)
-shadow-lift:  0 12px 32px rgba(65, 19, 61, 0.12)
-```
 
-Prefer separation by **colour contrast** (cream → cream-sunk) over separation by shadow.
+Use `cardShadow` as the default for all cards. Reserve `stampedShadow` for featured or hero cards where a graphic, editorial look is intentional. Do not use `stampedShadow` on generic list items.
+
+Prefer separation by **colour contrast** (cream → cream-sunk → cream-deep) over shadow where possible. Less shadow = more premium.
 
 ---
 
 ## 6. Component primitives
 
+### Cards (canonical pattern)
+
+Every card or box follows this exact pattern. This is the universal styling rule.
+
+```dart
+Container(
+  padding: const EdgeInsets.all(18),  // or 20 for larger cards
+  decoration: BoxDecoration(
+    color: PinitColors.creamSunk,      // cream for elevated white variant
+    borderRadius: BorderRadius.circular(20),
+    border: Border.all(               // ALWAYS include border before shadow
+      color: PinitColors.creamDeep,
+      width: 1.5,
+    ),
+    boxShadow: PinitColors.cardShadow,
+  ),
+)
+```
+
+**Rule: every card has a 1.5pt `creamDeep` border. Shadow always accompanies a border, never alone.**
+
+Icon container inside a card:
+
+```dart
+Container(
+  width: 42,
+  height: 42,
+  decoration: BoxDecoration(
+    color: PinitColors.creamDeep,
+    borderRadius: BorderRadius.circular(12),
+  ),
+  child: Icon(icon, color: PinitColors.aubergine, size: 20),
+)
+```
+
 ### Buttons
 
-- **Primary:** aubergine background, cream text, pill shape, `body` weight 600, 16px vertical / 28px horizontal padding minimum. No shadow. No gradient. No border.
-- **Secondary:** transparent background, aubergine text, 1.5px aubergine border, pill shape, same padding.
-- **Accent:** accent (`#ec3d2c`) background, cream text. Reserved for one CTA per screen maximum.
-- **Ghost:** transparent, aubergine text, no border. For tertiary actions only.
-- Buttons span their content plus padding — they do not stretch full-width except in bottom sheets and forms.
+- **Primary:** aubergine fill, cream text, pill (`r:999`), `body` w600, 16px vertical / 28px horizontal padding. No shadow. No gradient.
+- **Secondary:** transparent, aubergine text, 1.5px aubergine border, pill, same padding.
+- **CTA (gradient):** warm red-orange gradient (`#E85D4C` → `#FF7A6B`), cream text, `r:14`, with `cardShadow` in accent colour at 30% opacity. Used for one primary action per screen maximum.
+- **Ghost:** transparent, aubergine text, no border. Tertiary actions only.
+- Buttons span content + padding only — full-width only inside bottom sheets and forms.
 
-### Cards
+```dart
+// Gradient CTA button
+Container(
+  padding: const EdgeInsets.symmetric(vertical: 14),
+  decoration: BoxDecoration(
+    gradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Color(0xFFE85D4C), Color(0xFFFF7A6B)],
+    ),
+    borderRadius: BorderRadius.circular(14),
+    boxShadow: [
+      BoxShadow(
+        color: PinitColors.accent.withOpacity(0.3),
+        blurRadius: 12,
+        offset: const Offset(0, 4),
+      ),
+    ],
+  ),
+)
+```
 
-- Background: `cream-sunk`.
-- Radius: `radius-md` (20).
-- Padding: 20px minimum, 24px preferred.
-- No border. No shadow (unless floating).
-- Title uses `title` token. Metadata uses `body-sm` in `aubergine-soft`.
+### Tab / toggle buttons (animated)
+
+```dart
+AnimatedContainer(
+  duration: const Duration(milliseconds: 280),
+  curve: Curves.easeOutCubic,
+  height: 40,
+  padding: EdgeInsets.symmetric(horizontal: isSelected ? 16 : 11),
+  decoration: BoxDecoration(
+    color: isSelected ? PinitColors.aubergine : PinitColors.creamSunk,
+    borderRadius: BorderRadius.circular(999),
+    border: Border.all(
+      color: isSelected ? PinitColors.aubergine : PinitColors.creamDeep,
+      width: 1.5,
+    ),
+    boxShadow: isSelected ? PinitColors.subtleShadow : null,
+  ),
+)
+```
 
 ### Tags / chips
 
-- Pill shape, always.
-- 8px vertical / 14px horizontal padding.
-- `micro` token (10px uppercase tracked).
-- Default: aubergine border + aubergine text on transparent.
-- Active/selected: aubergine fill + cream text.
-- The "wavy" tag specifically uses the accent colour as fill.
+- Pill shape (`r:999`), always.
+- 4px vertical / 9px horizontal padding.
+- `micro` token (10px, DM Sans w700, tracked).
+- Default: `creamSunk` fill, `creamDeep` border, aubergine text.
+- Active/selected: aubergine fill + aubergine border + cream text.
+- The "wavy"/"accent" tag uses `accent` fill.
+
+```dart
+Container(
+  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+  decoration: BoxDecoration(
+    color: filled ? PinitColors.aubergine : PinitColors.creamSunk,
+    borderRadius: BorderRadius.circular(999),
+    border: Border.all(
+      color: filled ? PinitColors.aubergine : PinitColors.creamDeep,
+      width: 1,
+    ),
+  ),
+  child: Text(label, style: GoogleFonts.dmSans(
+    fontSize: 10,
+    fontWeight: FontWeight.w700,
+    letterSpacing: 0.4,
+    color: filled ? PinitColors.cream : PinitColors.aubergine,
+  )),
+)
+```
 
 ### Inputs
 
-- Background: `cream-sunk`.
-- Radius: `radius-sm` (12).
+- Background: `creamSunk`.
+- Radius: 16 (`radius-sm` = 12 for compact, 16 for standard).
 - 16px padding all sides.
-- No border by default. On focus, 1.5px aubergine border.
+- No border by default. On focus: 1.5px aubergine border.
 - Placeholder text in `mute`.
+
+### Bottom sheets
+
+```dart
+Container(
+  decoration: BoxDecoration(
+    color: PinitColors.cream,
+    borderRadius: BorderRadius.circular(28),
+    border: Border.all(color: PinitColors.creamDeep, width: 1.5),
+    boxShadow: PinitColors.elevatedShadow,
+  ),
+  child: SafeArea(
+    top: false,
+    child: Padding(padding: const EdgeInsets.fromLTRB(18, 12, 18, 18), ...),
+  ),
+)
+```
+
+Drag handle: `Container(width: 36, height: 4, decoration: BoxDecoration(color: PinitColors.creamDeep, borderRadius: BorderRadius.circular(999)))`.
 
 ### Section headers
 
-The signature pattern. Every list section in the app should be preceded by:
+The signature pattern. Every list section should be preceded by:
 
 ```
-[label token, uppercase, tracked, aubergine-soft]
+[DM Sans, 11px, w600, uppercase, tracked at fontSize × 0.12, aubergine-soft]
 NEARBY
 [24px space]
 [content]
 ```
 
-No icons next to section headers. No "see all" buttons inline with them — put those underneath.
+No icons next to section headers. No "see all" buttons inline — put those underneath.
 
 ---
 
-## 7. Layout patterns
+## 7. Motion
+
+```dart
+// From lib/themes/pinit_theme.dart
+class PinitMotion {
+  static const fast     = Duration(milliseconds: 120);
+  static const standard = Duration(milliseconds: 220);
+  static const slow     = Duration(milliseconds: 350);
+
+  static const curve     = Curves.easeOutCubic;
+  static const curveFast = Curves.fastOutSlowIn;
+}
+```
+
+Default for state transitions: **280ms, `easeOutCubic`**. Use `AnimatedContainer`, `AnimatedOpacity`, `AnimatedSize` by default. Use `AnimationController` only when multi-step choreography is needed.
+
+---
+
+## 8. Layout patterns
 
 ### Screen structure
 
@@ -192,38 +386,60 @@ No icons next to section headers. No "see all" buttons inline with them — put 
 [48px space between major sections]
 ```
 
+Page horizontal margin is **24px** (20px acceptable where density is required). Card margins from screen edge are 20–24px horizontal.
+
 ### Lists
 
 - Vertical spacing between list items: 16px minimum.
 - Dividers are optional and discouraged. Use whitespace instead. If a divider is necessary, use `cream-deep` at 1px, never grey.
 
-### Bottom sheets
+### Grid spacing
 
-- Radius `radius-lg` (28) on the top corners only.
-- Background `cream` (not `cream-sunk` — sheets sit above the world).
-- 32px top padding, 24px horizontal, 32px bottom padding (above safe area).
-- A 4px wide, 36px long, fully rounded `cream-deep` handle centred at the top.
+```dart
+// Collections grid
+SliverGridDelegateWithFixedCrossAxisCount(
+  crossAxisCount: 2,
+  crossAxisSpacing: 12,
+  mainAxisSpacing: 12,
+  childAspectRatio: 0.78,
+)
+
+// Mosaic / tight grid
+const gap = 6.0;
+```
+
+### Image clipping inside bordered containers
+
+When an image fills a bordered card or tile, clip the image at `borderRadius - 1.5` to prevent corner bleed:
+
+```dart
+// Card with border r:10 → clip image at r:8.5
+ClipRRect(
+  borderRadius: BorderRadius.circular(8.5),
+  child: image,
+)
+```
 
 ---
 
-## 8. What to delete
+## 9. What to delete
 
 Things that signal "vibe-coded" and should be removed during refactor:
 
-- Any drop shadow with grey or black. Replace with warm soft shadow or remove entirely.
-- Any radius between 4 and 11 px. Round up to 12 or down to 0.
+- Any shadow with grey or black. Replace with the warm aubergine-tinted shadow system.
+- Any radius between 4 and 11px on a card or container. Round up to 12 or down to 0.
 - Any use of pure black for text. Replace with aubergine.
 - Any use of pure grey. Replace with `mute` or `aubergine-soft`.
 - Any rectangular button. Make it a pill.
-- Any section header that is not a tracked uppercase label.
-- Any screen with less than 24px horizontal padding.
-- Any use of more than two fonts.
-- Any gradient. (Possible exception: a single subtle cream → cream-sunk gradient on a hero background. Nowhere else.)
-- Any icon set that ships by default (Material Icons, Lucide outline, Feather). Swap for Phosphor Duotone, Iconoir, or a custom set.
+- Any section header that is not a tracked uppercase DM Sans label.
+- Any screen with less than 20px horizontal padding.
+- Any card missing its 1.5pt `creamDeep` border.
+- Any gradient other than: the warm CTA gradient (`#E85D4C → #FF7A6B`) or a cream → cream-sunk background gradient. Nothing else.
+- Any use of a font other than Rova, Manrope, or DM Sans.
 
 ---
 
-## 9. Flutter token mapping
+## 10. Flutter token mapping
 
 For direct use in `PinitTheme` / `PinitColors`:
 
@@ -260,18 +476,20 @@ class PinitSpace {
 
 ---
 
-## 10. The one-screen checklist
+## 11. The one-screen checklist
 
 Before shipping any screen, verify:
 
-- [ ] Two fonts maximum, one of them heavy display used at large size.
-- [ ] Background is cream. Cards are cream-sunk. No pure white anywhere.
-- [ ] All text is aubergine, aubergine-soft, or mute. No black, no grey.
-- [ ] Accent colour appears on zero, one, or at most two elements.
-- [ ] Every button is a pill.
+- [ ] Fonts: Rova for display/headings, Manrope for body, DM Sans for labels/chips. No other fonts.
+- [ ] Background is `cream`. Cards are `creamSunk`. No pure white anywhere.
+- [ ] All text is `aubergine`, `aubergineSoft`, or `mute`. No black, no grey.
+- [ ] Accent colour appears on at most two elements per screen.
+- [ ] Every button is a pill (`r:999`).
+- [ ] Every card has a 1.5pt `creamDeep` border AND `cardShadow`.
 - [ ] Every card uses `radius-md` (20) or larger.
-- [ ] Every section has a tracked uppercase label header.
-- [ ] Horizontal screen padding is at least 24px.
+- [ ] Every section has a tracked DM Sans uppercase label header.
+- [ ] Horizontal screen padding is at least 20px (24px preferred).
 - [ ] The headline feels too big. (If it feels right, it's too small.)
-- [ ] Vertical space between sections is at least 48px.
-- [ ] No drop shadows except warm soft ones on floating elements.
+- [ ] Vertical space between major sections is at least 48px.
+- [ ] All shadows use aubergine-tinted colors, never black or grey.
+- [ ] Image clips inside bordered containers use `borderRadius - 1.5`.

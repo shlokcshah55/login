@@ -41,7 +41,6 @@ class HeaderSearchCoordinator extends ChangeNotifier {
       return SearchIntentType.mixed;
     }
 
-    // ── People ──────────────────────────────────────────────
     const peopleMarkers = [
       '@',
       'friend',
@@ -63,9 +62,6 @@ class HeaderSearchCoordinator extends ChangeNotifier {
         .toList();
     final wordCount = words.length;
 
-    // ── Strong natural-language signals ─────────────────────
-    // Question / sentence starters that almost always mean the user is
-    // describing a vibe rather than naming a place.
     const naturalLanguageStarters = [
       'where',
       'what',
@@ -96,7 +92,6 @@ class HeaderSearchCoordinator extends ChangeNotifier {
     );
     final hasQuestionMark = normalized.contains('?');
 
-    // Vibe / descriptive markers that signal a natural-language search.
     const naturalLanguageMarkers = [
       'somewhere',
       'something',
@@ -127,9 +122,6 @@ class HeaderSearchCoordinator extends ChangeNotifier {
     final containsNaturalLanguageCue =
         naturalLanguageMarkers.any(normalized.contains);
 
-    // ── Place signals ───────────────────────────────────────
-    // Concrete cuisine / venue keywords. A query that's mostly one of
-    // these is a place lookup, not a vibe search.
     const placeMarkers = [
       'near me',
       'pizza',
@@ -163,15 +155,9 @@ class HeaderSearchCoordinator extends ChangeNotifier {
     ];
     final containsPlaceCue = placeMarkers.any(normalized.contains);
 
-    // ── Decision tree ───────────────────────────────────────
-    // Strong NL beats anything else.
     if (startsLikeAQuestion || hasQuestionMark) {
       return SearchIntentType.naturalLanguage;
     }
-
-    // Long, sentence-shaped queries are almost always natural language
-    // even without an explicit vibe word ("a place to take my parents
-    // when they visit next month").
     if (wordCount >= 6) {
       return SearchIntentType.naturalLanguage;
     }
@@ -181,16 +167,9 @@ class HeaderSearchCoordinator extends ChangeNotifier {
     if (containsNaturalLanguageCue && !containsPlaceCue) {
       return SearchIntentType.naturalLanguage;
     }
-
-    // Place wins for short, concrete queries like "pizza" or
-    // "best ramen near me".
     if (containsPlaceCue) {
       return SearchIntentType.place;
     }
-
-    // 1-2 word queries with no cues are almost always a name lookup
-    // ("Jamun", "Padella"). Treat them as place searches so Mapbox runs
-    // and we don't waste a magic-search call.
     if (wordCount <= 2) {
       return SearchIntentType.place;
     }
@@ -201,8 +180,6 @@ class HeaderSearchCoordinator extends ChangeNotifier {
   static List<SearchSectionType> sectionOrderForIntent(SearchIntentType intent) {
     switch (intent) {
       case SearchIntentType.place:
-        // Place lookup: no Recommended row at all — Mapbox + DB fill
-        // Places, magic search is skipped to save API calls.
         return const [
           SearchSectionType.places,
           SearchSectionType.people,

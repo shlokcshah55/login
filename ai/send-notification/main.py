@@ -1,21 +1,30 @@
 import functions_framework
-from firebase_admin import credentials, messaging, initialize_app
+from firebase_admin import credentials, messaging, initialize_app, get_app
 from supabase import create_client, Client
 import json
 import os
 
-# 1. Initialize Firebase Admin SDK
+# 1. Initialize Firebase Admin SDK using the bundled service account JSON
+_CRED_PATH = os.environ.get(
+    'GOOGLE_APPLICATION_CREDENTIALS',
+    'pinit-a97eb-8f62b614bdc2.json',
+)
 try:
-    initialize_app()
+    get_app()
 except ValueError:
-    # Already initialized
-    pass
+    initialize_app(credentials.Certificate(_CRED_PATH))
 
-# 2. Initialize Supabase Client
-# These must be set in your Google Cloud Function Environment Variables
-SUPABASE_URL = os.environ.get('SUPABASE_URL')
-SUPABASE_KEY = os.environ.get('SUPABASE_SERVICE_KEY') 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+# 2. Lazy Supabase client — initialised on first request so that missing
+#    env vars at container start don't crash the healthcheck.
+_supabase: Client | None = None
+
+def _get_supabase() -> Client:
+    global _supabase
+    if _supabase is None:
+        url = os.environ['SUPABASE_URL']
+        key = os.environ['SUPABASE_SERVICE_KEY']
+        _supabase = create_client(url, key)
+    return _supabase
 
 @functions_framework.http
 def send_push_notification(request):
@@ -90,7 +99,7 @@ def send_push_notification(request):
             "is_read": False
         }
         
-        db_response = supabase.table("notifications").insert(db_record).execute()
+        db_response = _get_supabase().table("notifications").insert(db_record).execute()
         
         if not db_response.data:
             raise Exception("Failed to insert notification into database")

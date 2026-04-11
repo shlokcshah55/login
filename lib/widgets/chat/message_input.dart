@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_feather_icons/flutter_feather_icons.dart';
+import 'package:login/pages/profile/widgets/pinit_colors.dart';
+import 'package:login/themes/app_typography.dart';
 
 class MessageInput extends StatelessWidget {
   final TextEditingController controller;
@@ -16,32 +19,35 @@ class MessageInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Container(
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 8,
-        top: 8,
-        bottom: MediaQuery.of(context).padding.bottom + 8,
+      padding: EdgeInsets.fromLTRB(
+        16,
+        14,
+        16,
+        MediaQuery.of(context).padding.bottom + 12,
       ),
       decoration: BoxDecoration(
-        color: theme.scaffoldBackgroundColor,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
+        color: PinitColors.cream.withValues(alpha: 0.96),
+        border: Border(
+          top: BorderSide(
+            color: PinitColors.creamDeep,
+            width: 1.5,
           ),
-        ],
+        ),
+        boxShadow: PinitColors.elevatedShadow,
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Expanded(
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.grey[100],
+                color: PinitColors.creamSunk,
                 borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: PinitColors.creamDeep,
+                  width: 1.5,
+                ),
               ),
               child: TextField(
                 controller: controller,
@@ -49,45 +55,79 @@ class MessageInput extends StatelessWidget {
                 textCapitalization: TextCapitalization.sentences,
                 maxLines: 4,
                 minLines: 1,
+                style: AppTypography.sans(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: PinitColors.aubergine,
+                  height: 1.35,
+                ),
                 decoration: InputDecoration(
-                  hintText: 'Type a message...',
-                  hintStyle: TextStyle(color: Colors.grey[500]),
+                  hintText: 'Add a message',
+                  hintStyle: AppTypography.sans(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: PinitColors.mute,
+                  ),
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
+                    horizontal: 18,
+                    vertical: 14,
                   ),
                 ),
                 onSubmitted: (_) => _handleSend(),
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            child: isSending
-                ? Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: theme.primaryColor,
-                      ),
-                    ),
-                  )
-                : IconButton(
-                    onPressed: _handleSend,
-                    icon: Icon(
-                      Icons.send_rounded,
-                      color: theme.primaryColor,
-                    ),
-                    style: IconButton.styleFrom(
-                      backgroundColor: theme.primaryColor.withOpacity(0.1),
+          const SizedBox(width: 10),
+          isSending
+              ? Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: PinitColors.creamSunk,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: PinitColors.creamDeep,
+                      width: 1.5,
                     ),
                   ),
-          ),
+                  child: const Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                            PinitColors.aubergine),
+                      ),
+                    ),
+                  ),
+                )
+              : DecoratedBox(
+                  decoration: const BoxDecoration(
+                    color: PinitColors.aubergine,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: PinitColors.aubergine,
+                        blurRadius: 0,
+                        offset: Offset(3, 3),
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    onPressed: _handleSend,
+                    icon: const Icon(
+                      FeatherIcons.arrowUp,
+                      color: PinitColors.cream,
+                      size: 18,
+                    ),
+                    style: IconButton.styleFrom(
+                      minimumSize: const Size(52, 52),
+                      padding: EdgeInsets.zero,
+                    ),
+                  ),
+                ),
         ],
       ),
     );

@@ -1,59 +1,203 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
+import 'package:login/supabase/helpers/collections.dart';
 
 /// Mode toggle enum.
 enum HomeMode { you, explore }
 
-/// Unified chip row: You, Explore, Decide — Style.MD pinit pills.
-///
-/// • Default chip → cream-sunk fill, cream-deep border, aubergine ink
-/// • Active chip  → aubergine fill, cream ink (the "filled" pinit pill)
-/// • Decide chip  → accent fill, cream ink (the single high-energy CTA)
-///
-/// All chips are fully rounded pills with tracked uppercase labels — the
-/// signature pinit move that matches the carousel cards and profile chips.
-class HomeChipRow extends StatelessWidget {
-  final HomeMode currentMode;
-  final ValueChanged<HomeMode> onModeChanged;
-  final VoidCallback onDecideTap;
-
+/// Unified home chip row with an inline collections dropdown.
+class HomeChipRow extends StatefulWidget {
   const HomeChipRow({
-    Key? key,
+    super.key,
     required this.currentMode,
     required this.onModeChanged,
     required this.onDecideTap,
-  }) : super(key: key);
+    required this.collections,
+    required this.isLoadingCollections,
+    required this.onCollectionMenuOpened,
+    required this.onCollectionSelected,
+    this.activeCollectionId,
+  });
+
+  final HomeMode currentMode;
+  final ValueChanged<HomeMode> onModeChanged;
+  final VoidCallback onDecideTap;
+  final List<CollectionItem> collections;
+  final bool isLoadingCollections;
+  final VoidCallback onCollectionMenuOpened;
+  final ValueChanged<CollectionItem> onCollectionSelected;
+  final String? activeCollectionId;
+
+  @override
+  State<HomeChipRow> createState() => _HomeChipRowState();
+}
+
+class _HomeChipRowState extends State<HomeChipRow> {
+  bool _showCollections = false;
+
+  void _toggleCollections() {
+    setState(() {
+      _showCollections = !_showCollections;
+    });
+    if (_showCollections) {
+      widget.onCollectionMenuOpened();
+    }
+  }
+
+  void _closeCollections() {
+    if (!_showCollections) return;
+    setState(() {
+      _showCollections = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final collectionActive =
+        _showCollections || widget.activeCollectionId != null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _Chip(
-          label: 'YOU',
-          icon: FeatherIcons.user,
-          state: currentMode == HomeMode.you
-              ? _ChipState.filled
-              : _ChipState.normal,
-          onTap: () => onModeChanged(HomeMode.you),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _Chip(
+                label: 'YOU',
+                icon: FeatherIcons.user,
+                state: widget.currentMode == HomeMode.you && !collectionActive
+                    ? _ChipState.filled
+                    : _ChipState.normal,
+                onTap: () {
+                  _closeCollections();
+                  widget.onModeChanged(HomeMode.you);
+                },
+              ),
+              const SizedBox(width: 8),
+              _Chip(
+                label: 'EXPLORE',
+                icon: FeatherIcons.compass,
+                state:
+                    widget.currentMode == HomeMode.explore && !collectionActive
+                    ? _ChipState.filled
+                    : _ChipState.normal,
+                onTap: () {
+                  _closeCollections();
+                  widget.onModeChanged(HomeMode.explore);
+                },
+              ),
+              const SizedBox(width: 8),
+              _Chip(
+                label: 'DECIDE',
+                icon: FeatherIcons.zap,
+                state: _ChipState.accent,
+                onTap: () {
+                  _closeCollections();
+                  widget.onDecideTap();
+                },
+              ),
+              const SizedBox(width: 8),
+                _Chip(
+                label: 'COLLECTION',
+                icon: FeatherIcons.bookmark,
+                state: collectionActive ? _ChipState.filled : _ChipState.normal,
+                trailing: Icon(
+                  _showCollections
+                      ? FeatherIcons.chevronUp
+                      : FeatherIcons.chevronDown,
+                  size: 11,
+                  color: collectionActive
+                      ? PinitColors.cream
+                      : PinitColors.aubergine,
+                ),
+                onTap: _toggleCollections,
+              ),
+              const SizedBox(width: 8),
+            ],
+          ),
         ),
-        const SizedBox(width: 8),
-        _Chip(
-          label: 'EXPLORE',
-          icon: FeatherIcons.compass,
-          state: currentMode == HomeMode.explore
-              ? _ChipState.filled
-              : _ChipState.normal,
-          onTap: () => onModeChanged(HomeMode.explore),
-        ),
-        const Spacer(),
-        _Chip(
-          label: 'DECIDE',
-          icon: FeatherIcons.zap,
-          state: _ChipState.accent,
-          onTap: onDecideTap,
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeOutCubic,
+          child: !_showCollections
+              ? const SizedBox.shrink()
+              : Padding(
+                  key: const ValueKey('collections_dropdown'),
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+                    decoration: BoxDecoration(
+                      color: PinitColors.cream,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: PinitColors.aubergine,
+                        width: 1.5,
+                      ),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: PinitColors.aubergine,
+                          blurRadius: 0,
+                          offset: Offset(3, 3),
+                        ),
+                      ],
+                    ),
+                    child: widget.isLoadingCollections
+                        ? const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 18),
+                            child: Center(
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    PinitColors.aubergine,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          )
+                        : widget.collections.isEmpty
+                            ? Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(4, 8, 4, 10),
+                                child: Text(
+                                  'No collections yet.',
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: PinitColors.aubergineSoft,
+                                  ),
+                                ),
+                              )
+                            : Column(
+                                children: widget.collections
+                                    .map(
+                                      (collection) => Padding(
+                                        padding:
+                                            const EdgeInsets.only(bottom: 8),
+                                        child: _CollectionDropdownRow(
+                                          collection: collection,
+                                          isActive: widget.activeCollectionId ==
+                                              collection.collectionId,
+                                          onTap: () {
+                                            widget.onCollectionSelected(
+                                              collection,
+                                            );
+                                            _closeCollections();
+                                          },
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                              ),
+                  ),
+                ),
         ),
       ],
     );
@@ -62,20 +206,20 @@ class HomeChipRow extends StatelessWidget {
 
 enum _ChipState { normal, filled, accent }
 
-/// Pinit pill chip — matches the `_PinitPill` style used in the carousel.
-/// Adds a hard offset shadow on the active state for the carousel-card vibe.
 class _Chip extends StatefulWidget {
-  final String label;
-  final IconData icon;
-  final _ChipState state;
-  final VoidCallback onTap;
-
   const _Chip({
     required this.label,
     required this.icon,
     required this.state,
     required this.onTap,
+    this.trailing,
   });
+
+  final String label;
+  final IconData icon;
+  final _ChipState state;
+  final VoidCallback onTap;
+  final Widget? trailing;
 
   @override
   State<_Chip> createState() => _ChipStateState();
@@ -132,7 +276,7 @@ class _ChipStateState extends State<_Chip> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
           decoration: BoxDecoration(
             color: bg,
             borderRadius: BorderRadius.circular(999),
@@ -162,8 +306,109 @@ class _ChipStateState extends State<_Chip> {
                   height: 1.0,
                 ),
               ),
+              if (widget.trailing != null) ...[
+                const SizedBox(width: 6),
+                widget.trailing!,
+              ],
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CollectionDropdownRow extends StatelessWidget {
+  const _CollectionDropdownRow({
+    required this.collection,
+    required this.onTap,
+    required this.isActive,
+  });
+
+  final CollectionItem collection;
+  final VoidCallback onTap;
+  final bool isActive;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isActive ? PinitColors.creamSunk : PinitColors.cream,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isActive ? PinitColors.aubergine : PinitColors.creamDeep,
+          width: 1.5,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    collection.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: PinitColors.aubergine,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${collection.placeCount} place${collection.placeCount == 1 ? '' : 's'}',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: PinitColors.aubergineSoft,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(999),
+                onTap: onTap,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: PinitColors.aubergine,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: PinitColors.aubergine,
+                      width: 1.5,
+                    ),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: PinitColors.aubergine,
+                        blurRadius: 0,
+                        offset: Offset(2, 2),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    'SHOW IN MAP',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: PinitColors.cream,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
