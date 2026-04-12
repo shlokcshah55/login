@@ -467,7 +467,10 @@ class _CarouselCard extends StatelessWidget {
                                 : location.preference ==
                                         LocationPreference.recommended
                                     ? FeatherIcons.award
-                                    : FeatherIcons.mapPin,
+                                    : location.preference ==
+                                            LocationPreference.bubble
+                                        ? FeatherIcons.users
+                                        : FeatherIcons.mapPin,
                             size: 11,
                             color: PinitColors.mute,
                           ),
@@ -592,6 +595,9 @@ class _CarouselCard extends StatelessWidget {
     if (location.preference == LocationPreference.saved) return 'SAVED';
     if (location.preference == LocationPreference.recommended) {
       return 'TOP PICK';
+    }
+    if (location.preference == LocationPreference.bubble) {
+      return 'BUBBLE PICK';
     }
     if (location.preference == LocationPreference.search) return 'MATCH';
     if (location.savedCount != null && location.savedCount! > 0) {

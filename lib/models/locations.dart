@@ -134,7 +134,7 @@ class VibeVector {
 
 enum LocationType { restaurant, hotel, museum, park, other }
 
-enum LocationPreference { saved, recommended, search }
+enum LocationPreference { saved, recommended, search, bubble }
 
 /// Model class for location data from Supabase
 class LocationModel {

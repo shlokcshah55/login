@@ -49,6 +49,7 @@ class HomeViewModel extends ChangeNotifier {
 
   // ── Mode toggle state ─────────────────────────────────────────
   HomeMode _homeMode = HomeMode.you;
+  HomeMode _lastNonBubbleMode = HomeMode.you;
 
   // ── Internal state ────────────────────────────────────────────
   String? _lastSelectedMarkerId;
@@ -112,9 +113,13 @@ class HomeViewModel extends ChangeNotifier {
 
   // ── Mode toggle ───────────────────────────────────────────────
   HomeMode get homeMode => _homeMode;
+  String? get activeBubbleName => _activeBubble?.name;
 
   void setHomeMode(HomeMode mode) {
     if (_homeMode == mode) return;
+    if (mode != HomeMode.bubble) {
+      _lastNonBubbleMode = mode;
+    }
     _homeMode = mode;
     _activeCollectionId = null;
 
@@ -127,6 +132,9 @@ class HomeViewModel extends ChangeNotifier {
         locationListManager.setCurrentListType(LocationListType.recommended);
         // Lazy-load recommendations the first time Explore is opened.
         _maybeFetchInitialRecommendations();
+        break;
+      case HomeMode.bubble:
+        locationListManager.setCurrentListType(LocationListType.bubble);
         break;
     }
     notifyListeners();
@@ -568,6 +576,20 @@ class HomeViewModel extends ChangeNotifier {
     final center = viewData['center'] as LatLng;
     final radiusKm = viewData['radius'] as double;
 
+    if (_isBubbleModeActive &&
+        _homeMode == HomeMode.bubble &&
+        _activeBubble != null) {
+      await locationListManager.fetchBubbleRecommendations(
+        memberIds: _activeBubble!.memberIds,
+        bubbleId: _activeBubble!.id,
+        latitude: center.latitude,
+        longitude: center.longitude,
+        radiusKm: radiusKm,
+      );
+      mapStateProvider.setLastSearchedArea(center, radiusKm);
+      return;
+    }
+
     final didSearch = await locationListManager.searchThisArea(
       center: center,
       radiusKm: radiusKm,
@@ -589,6 +611,11 @@ class HomeViewModel extends ChangeNotifier {
   Future<void> activateBubbleMode(Bubble chatGroup) async {
     _isBubbleModeActive = true;
     _activeBubble = chatGroup;
+    if (_homeMode != HomeMode.bubble) {
+      _lastNonBubbleMode = _homeMode;
+    }
+    _homeMode = HomeMode.bubble;
+    _activeCollectionId = null;
     print('activated bubble mode for bubble: ${chatGroup.name}');
 
     final currentLocation = locationListManager.currentPosition ??
@@ -602,6 +629,7 @@ class HomeViewModel extends ChangeNotifier {
 
     await locationListManager.fetchBubbleRecommendations(
       memberIds: chatGroup.memberIds,
+      bubbleId: chatGroup.id,
       latitude: currentLocation.latitude,
       longitude: currentLocation.longitude,
     );
@@ -612,7 +640,7 @@ class HomeViewModel extends ChangeNotifier {
       mapStateProvider.setLastSearchedArea(lastCenter, lastRadius);
     }
 
-    await locationListManager.setCurrentListType(LocationListType.recommended);
+    await locationListManager.setCurrentListType(LocationListType.bubble);
 
     notifyListeners();
   }
@@ -620,11 +648,14 @@ class HomeViewModel extends ChangeNotifier {
   Future<void> deactivateBubbleMode() async {
     _isBubbleModeActive = false;
     _activeBubble = null;
+    final fallbackMode =
+        _homeMode == HomeMode.bubble ? _lastNonBubbleMode : _homeMode;
+    _homeMode = fallbackMode;
 
     final currentLocation = locationListManager.currentPosition ??
         await locationListManager.getCurrentLocation();
 
-    if (currentLocation != null) {
+    if (fallbackMode == HomeMode.explore && currentLocation != null) {
       const double defaultRadius = 5.0;
       await locationListManager.fetchRecommendedLocations(
         latitude: currentLocation.latitude,
@@ -642,6 +673,22 @@ class HomeViewModel extends ChangeNotifier {
       if (lastCenter != null && lastRadius != null) {
         mapStateProvider.setLastSearchedArea(lastCenter, lastRadius);
       }
+    }
+
+    switch (fallbackMode) {
+      case HomeMode.you:
+        await locationListManager.setCurrentListType(LocationListType.saved);
+        break;
+      case HomeMode.explore:
+        await locationListManager.setCurrentListType(
+          LocationListType.recommended,
+        );
+        break;
+      case HomeMode.bubble:
+        _homeMode = HomeMode.you;
+        _lastNonBubbleMode = HomeMode.you;
+        await locationListManager.setCurrentListType(LocationListType.saved);
+        break;
     }
 
     notifyListeners();

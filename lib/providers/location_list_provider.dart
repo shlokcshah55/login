@@ -18,7 +18,7 @@ import 'package:login/utils/marker_clustering.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // Enum to represent the different types of location lists
-enum LocationListType { saved, recommended, search }
+enum LocationListType { saved, recommended, search, bubble }
 
 class LocationListManager with ChangeNotifier {
   static const String noRecommendationsInAreaMessage =
@@ -75,6 +75,7 @@ class LocationListManager with ChangeNotifier {
   Map<LocationModel, MapMarkerData> _savedLocations = {};
   Map<LocationModel, MapMarkerData> _recommendedLocations = {};
   Map<LocationModel, MapMarkerData> _searchLocations = {};
+  Map<LocationModel, MapMarkerData> _bubbleLocations = {};
   Map<LocationModel, MapMarkerData> _currentItems = {};
   List<LocationModel> _justDecideLocations = [];
   List<LocationModel> _popularLocations = [];
@@ -89,6 +90,7 @@ class LocationListManager with ChangeNotifier {
   Map<LocationModel, MapMarkerData> get recommendedLocations =>
       _recommendedLocations;
   Map<LocationModel, MapMarkerData> get searchLocations => _searchLocations;
+  Map<LocationModel, MapMarkerData> get bubbleLocations => _bubbleLocations;
   Map<LocationModel, MapMarkerData> get currentItems => _currentItems;
   List<LocationModel> get justDecideLocations => _justDecideLocations;
   LocationListType get currentListType => _currentListType;
@@ -142,6 +144,12 @@ class LocationListManager with ChangeNotifier {
     }
   }
 
+  void _syncBubbleItemsIfActive() {
+    if (_currentListType == LocationListType.bubble) {
+      _currentItems = _bubbleLocations;
+    }
+  }
+
   // Method to update the user ID when the user logs in
   void setUserId(String? userId) {
     // Prevent redundant calls if userId hasn't changed
@@ -166,6 +174,7 @@ class LocationListManager with ChangeNotifier {
       _savedLocations = {};
       _recommendedLocations = {};
       _searchLocations = {};
+      _bubbleLocations = {};
       _currentItems = {};
       notifyListeners();
     } else {
@@ -586,6 +595,9 @@ class LocationListManager with ChangeNotifier {
       case LocationListType.search:
         _currentItems = _searchLocations;
         break;
+      case LocationListType.bubble:
+        _currentItems = _bubbleLocations;
+        break;
     }
     print(
         "Set current list type to: $type, item count: ${_currentItems.length}");
@@ -942,19 +954,24 @@ class LocationListManager with ChangeNotifier {
   /// Fetches bubble (group) recommendations using the Recommendations API
   Future<void> fetchBubbleRecommendations({
     required List<String> memberIds,
+    String? bubbleId,
     required double latitude,
     required double longitude,
-    double radiusKm = 5.0,
+    double radiusKm = 2.0,
     int maxResults = 20,
-    double tasteWeight = 0.3,
-    double proximityWeight = 0.5,
-    double qualityWeight = 0.2,
+    double vibeWeight = 0.34,
+    double dietaryWeight = 0.33,
+    double qualityWeight = 0.33,
+    bool includeIndividualScores = false,
+    bool includeVibeBreakdown = false,
+    Map<String, dynamic>? filters,
   }) async {
     // Guard: check if memberIds is empty
     if (memberIds.isEmpty) {
       log("Cannot fetch bubble recommendations: memberIds is empty.");
       _error = "No members in this bubble";
-      _recommendedLocations = {};
+      _bubbleLocations = {};
+      _syncBubbleItemsIfActive();
       notifyListeners();
       return;
     }
@@ -972,13 +989,17 @@ class LocationListManager with ChangeNotifier {
       // Call bubble recommendations API
       final response = await _recommendationsApi.fetchProximalBubble(
         userIds: memberIds,
+        bubbleId: bubbleId,
         latitude: latitude,
         longitude: longitude,
         radiusKm: radiusKm,
         maxResults: maxResults,
-        tasteWeight: tasteWeight,
-        proximityWeight: proximityWeight,
+        vibeWeight: vibeWeight,
+        dietaryWeight: dietaryWeight,
         qualityWeight: qualityWeight,
+        includeIndividualScores: includeIndividualScores,
+        includeVibeBreakdown: includeVibeBreakdown,
+        filters: filters,
       );
 
       // Extract IDs (preserves ranking!)
@@ -989,8 +1010,11 @@ class LocationListManager with ChangeNotifier {
 
       if (locationIds.isEmpty) {
         log("Bubble recommendations API returned no results");
-        _error = "No group recommendations found in this area";
-        _recommendedLocations = {};
+        _error = noRecommendationsInAreaMessage;
+        _bubbleLocations = {};
+        _updateLastSearchedArea(searchCenter, searchRadius);
+        _areaChanged = false;
+        _syncBubbleItemsIfActive();
         notifyListeners();
         return;
       }
@@ -1018,24 +1042,26 @@ class LocationListManager with ChangeNotifier {
         locations.map((location) async {
           final shouldShowName = selectedForNames.contains(location.locationId);
           final marker = await location
-              .setPreference(LocationPreference.recommended)
+              .setPreference(LocationPreference.bubble)
               .toMarker(_devicePixelRatio, shouldShowName: shouldShowName);
           return MapEntry(location, marker!);
         }),
       );
 
-      _recommendedLocations = Map.fromEntries(markers);
-      _syncRecommendedItemsIfActive();
+      _bubbleLocations = Map.fromEntries(markers);
+      _syncBubbleItemsIfActive();
       _error = null; // Clear any previous errors
 
       // Update last searched area
       _updateLastSearchedArea(searchCenter, searchRadius);
+      _areaChanged = false;
 
       log("Fetched ${locations.length} bubble recommendations");
     } catch (e) {
       log('Error fetching bubble recommendations: $e');
       _error = "Failed to load group recommendations: ${e.toString()}";
-      _recommendedLocations = {};
+      _bubbleLocations = {};
+      _syncBubbleItemsIfActive();
     } finally {
       _isLoadingRecommendations = false;
       notifyListeners();
@@ -1271,6 +1297,14 @@ class LocationListManager with ChangeNotifier {
       }
     }
 
+    if (_currentListType == LocationListType.bubble) {
+      if (_bubbleLocations.containsKey(location)) {
+        _bubbleLocations.remove(location);
+        removed = true;
+        log("Removed bubble location: ${location.name}");
+      }
+    }
+
     // Update currentItems if the removed item was in the currently displayed list
     if (removed && _currentItems.containsKey(location)) {
       _currentItems.remove(location);
@@ -1311,6 +1345,9 @@ class LocationListManager with ChangeNotifier {
       (existing, _) => existing.locationId == savedLocation.locationId,
     );
     _searchLocations.removeWhere(
+      (existing, _) => existing.locationId == savedLocation.locationId,
+    );
+    _bubbleLocations.removeWhere(
       (existing, _) => existing.locationId == savedLocation.locationId,
     );
     _mapStateProvider?.bounceRecentlySaved(savedLocation.locationId);
@@ -1572,12 +1609,15 @@ class LocationListManager with ChangeNotifier {
         // Remove from recommended/search lists since user doesn't want to see it
         _recommendedLocations.remove(location);
         _searchLocations.remove(location);
+        _bubbleLocations.remove(location);
 
         // Update current items based on current list type
         if (_currentListType == LocationListType.recommended) {
           _currentItems = Map.from(_recommendedLocations);
         } else if (_currentListType == LocationListType.search) {
           _currentItems = Map.from(_searchLocations);
+        } else if (_currentListType == LocationListType.bubble) {
+          _currentItems = Map.from(_bubbleLocations);
         }
 
         notifyListeners();
@@ -1606,6 +1646,7 @@ class LocationListManager with ChangeNotifier {
     _savedLocations.clear();
     _recommendedLocations.clear();
     _searchLocations.clear();
+    _bubbleLocations.clear();
     _currentItems.clear();
     _currentListType = LocationListType.saved;
     _proximityNotificationService.clear();

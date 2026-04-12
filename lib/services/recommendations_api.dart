@@ -120,23 +120,31 @@ class RecommendationsApi {
 
   Future<ProximalResponse> fetchProximalBubble({
     required List<String> userIds,
+    String? bubbleId,
     required double latitude,
     required double longitude,
-    double radiusKm = 5.0,
+    double radiusKm = 2.0,
     int maxResults = 20,
-    double tasteWeight = 0.3,
-    double proximityWeight = 0.5,
-    double qualityWeight = 0.2,
+    double vibeWeight = 0.34,
+    double dietaryWeight = 0.33,
+    double qualityWeight = 0.33,
+    bool includeIndividualScores = false,
+    bool includeVibeBreakdown = false,
+    Map<String, dynamic>? filters,
   }) async {
-    final requestBody = {
+    final requestBody = <String, dynamic>{
       'user_ids': userIds,
+      if (bubbleId != null && bubbleId.isNotEmpty) 'bubble_id': bubbleId,
       'latitude': latitude,
       'longitude': longitude,
       'radius_km': radiusKm,
       'max_results': maxResults,
-      'taste_weight': tasteWeight,
-      'proximity_weight': proximityWeight,
+      'vibe_weight': vibeWeight,
+      'dietary_weight': dietaryWeight,
       'quality_weight': qualityWeight,
+      'include_individual_scores': includeIndividualScores,
+      'include_vibe_breakdown': includeVibeBreakdown,
+      if (filters != null && filters.isNotEmpty) 'filters': filters,
     };
 
     final uri = Uri.parse('$_baseUrl/recommendations/bubble');
