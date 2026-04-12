@@ -100,8 +100,7 @@ class _NotificationsPopoverState extends State<NotificationsPopover> {
   Future<void> _handleFollowRequestAccept(
       FollowRequestNotification notification) async {
     try {
-      final auth =
-          Provider.of<SupabaseService>(context, listen: false).users;
+      final auth = Provider.of<SupabaseService>(context, listen: false).users;
       await auth.acceptFollowRequest(notification.userId);
       await FCMService().markAsRead(notification.id);
       await FCMService().refreshFromDB();
@@ -131,13 +130,11 @@ class _NotificationsPopoverState extends State<NotificationsPopover> {
       if (!mounted) return;
       setState(() => _notifications = FCMService().notifications);
 
-      final service =
-          Provider.of<SupabaseService>(context, listen: false);
+      final service = Provider.of<SupabaseService>(context, listen: false);
       final locationId = int.tryParse(notification.locationId);
       if (locationId == null) return;
 
-      final locations =
-          await service.locations.getLocationsByIds([locationId]);
+      final locations = await service.locations.getLocationsByIds([locationId]);
       if (!mounted || locations.isEmpty) return;
 
       Navigator.of(context).push(
@@ -495,6 +492,11 @@ class _NotificationCard extends StatelessWidget {
         return const _NotificationMeta(
           label: 'BUBBLE INVITE',
           accentColor: Color(0xFF5B4DC7),
+        );
+      case NotificationType.notesImportComplete:
+        return const _NotificationMeta(
+          label: 'IMPORT COMPLETE',
+          accentColor: Color(0xFF34A853),
         );
     }
   }

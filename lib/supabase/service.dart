@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:login/models/users.dart';
+import 'package:login/services/apple_auth_service.dart';
 import 'package:login/supabase/helpers/auth.dart';
 import 'package:login/supabase/helpers/collections.dart';
 import 'package:login/supabase/helpers/location.dart';
@@ -245,6 +246,29 @@ class SupabaseService extends ChangeNotifier {
     } catch (e) {
       _setError('Google sign in failed: $e');
       return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  Future<bool> signInWithApple() async {
+    _setLoading(true);
+    try {
+      final success = await _authService.signInWithApple();
+      _setError(null);
+      return success;
+    } on AppleSignInCancelledException {
+      _setError(null);
+      rethrow;
+    } on AppleSignInNetworkException catch (e) {
+      _setError(e.message);
+      rethrow;
+    } on AuthException catch (e) {
+      _setError(e.message);
+      rethrow;
+    } catch (e) {
+      _setError('Apple sign in failed: $e');
+      rethrow;
     } finally {
       _setLoading(false);
     }

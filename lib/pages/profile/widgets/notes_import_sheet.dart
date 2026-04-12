@@ -64,7 +64,15 @@ class _NotesImportSheetState extends State<NotesImportSheet> {
 
   Future<void> _submit() async {
     if (_selectedFile == null) {
-      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Choose a file to import first.'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+      );
       return;
     }
 
@@ -83,16 +91,13 @@ class _NotesImportSheetState extends State<NotesImportSheet> {
 
       if (!mounted) return;
 
-      setState(() {
-        _result = response;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.showSnackBar(
         SnackBar(
           content: Text(
-            response.savedCount > 0
-                ? 'Imported ${response.savedCount} places'
-                : 'Import finished with no new saves',
+            response.message.isNotEmpty
+                ? response.message
+                : 'Import started. We will notify you when it is done.',
           ),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
@@ -100,6 +105,15 @@ class _NotesImportSheetState extends State<NotesImportSheet> {
           ),
         ),
       );
+
+      if (response.queued) {
+        Navigator.of(context).pop();
+        return;
+      }
+
+      setState(() {
+        _result = response;
+      });
     } on NotesImportException catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -123,6 +137,7 @@ class _NotesImportSheetState extends State<NotesImportSheet> {
   @override
   Widget build(BuildContext context) {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final maxHeight = MediaQuery.of(context).size.height * 0.9;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
@@ -134,6 +149,7 @@ class _NotesImportSheetState extends State<NotesImportSheet> {
       child: Material(
         color: Colors.transparent,
         child: Container(
+          constraints: BoxConstraints(maxHeight: maxHeight),
           decoration: BoxDecoration(
             color: PinitColors.cream,
             borderRadius: BorderRadius.circular(28),
@@ -142,7 +158,7 @@ class _NotesImportSheetState extends State<NotesImportSheet> {
           ),
           child: SafeArea(
             top: false,
-            child: Padding(
+            child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -203,7 +219,7 @@ class _NotesImportSheetState extends State<NotesImportSheet> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Import an Apple Notes or Notion export and Pinit will pull out every likely place, match it, and save what it can.',
+            'Import an Apple Notes or Notion export and Pinit will queue it in the background. We will send you a notification when your saves are ready.',
             style: GoogleFonts.dmSans(
               fontSize: 14,
               color: PinitColors.aubergineSoft,
@@ -398,7 +414,7 @@ class _NotesImportSheetState extends State<NotesImportSheet> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Import summary',
+            result.queued ? 'Import queued' : 'Import summary',
             style: GoogleFonts.dmSans(
               fontSize: 14,
               fontWeight: FontWeight.w700,
@@ -406,21 +422,34 @@ class _NotesImportSheetState extends State<NotesImportSheet> {
             ),
           ),
           const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _SummaryChip(label: '${result.extractedCount} found'),
-              _SummaryChip(label: '${result.matchedCount} matched'),
-              _SummaryChip(label: '${result.savedCount} saved'),
-              if (result.alreadySavedCount > 0)
-                _SummaryChip(
-                    label: '${result.alreadySavedCount} already saved'),
-              if (result.unmatchedLocations.isNotEmpty)
-                _SummaryChip(
-                    label: '${result.unmatchedLocations.length} unmatched'),
-            ],
+          Text(
+            result.message.isNotEmpty
+                ? result.message
+                : 'We will let you know once we have finished importing your places.',
+            style: GoogleFonts.dmSans(
+              fontSize: 13,
+              color: PinitColors.aubergineSoft,
+              height: 1.4,
+            ),
           ),
+          if (!result.queued) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _SummaryChip(label: '${result.extractedCount} found'),
+                _SummaryChip(label: '${result.matchedCount} matched'),
+                _SummaryChip(label: '${result.savedCount} saved'),
+                if (result.alreadySavedCount > 0)
+                  _SummaryChip(
+                      label: '${result.alreadySavedCount} already saved'),
+                if (result.unmatchedLocations.isNotEmpty)
+                  _SummaryChip(
+                      label: '${result.unmatchedLocations.length} unmatched'),
+              ],
+            ),
+          ],
           if (result.truncatedInput) ...[
             const SizedBox(height: 12),
             Text(

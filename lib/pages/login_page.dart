@@ -117,18 +117,16 @@ class _LoginPageState extends State<LoginPage> {
         ),
       ),
       body: SafeArea(
-                  child: SingleChildScrollView(
-                    padding: EdgeInsets.only(
-                      left: 28.0,
-                      right: 28.0,
-                      bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
+        child: SingleChildScrollView(
+          padding: EdgeInsets.only(
+            left: 28.0,
+            right: 28.0,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               const SizedBox(height: 12),
-
-            
 
               // Heading
               const Text(
@@ -143,7 +141,6 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
               const SizedBox(height: 8),
-       
 
               // Email field
               _buildTextField(
@@ -190,7 +187,8 @@ class _LoginPageState extends State<LoginPage> {
                     backgroundColor: PinitColors.accent,
                     foregroundColor: Colors.white,
                     elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 10),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
                     ),
@@ -208,7 +206,6 @@ class _LoginPageState extends State<LoginPage> {
 
               const SizedBox(height: 14),
 
-              
               Center(
                 child: SvgPicture.asset(
                   'lib/assets/illustrations/login_svg2.svg',
@@ -219,7 +216,8 @@ class _LoginPageState extends State<LoginPage> {
 
               // Sign in button
               Container(
-                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                margin:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
                   border: Border(
@@ -234,14 +232,13 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   boxShadow: PinitColors.cardShadow,
                 ),
-
-                
                 child: SizedBox(
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
                     onPressed: () {
-                      signInUser(context, emailController.text, passwordController.text);
+                      signInUser(context, emailController.text,
+                          passwordController.text);
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: PinitColors.aubergine,
@@ -252,8 +249,6 @@ class _LoginPageState extends State<LoginPage> {
                         borderRadius: BorderRadius.circular(18),
                       ),
                     ),
-
-        
                     child: Text(
                       'Sign in',
                       style: GoogleFonts.dmSans(

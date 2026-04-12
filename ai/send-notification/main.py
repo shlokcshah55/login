@@ -113,7 +113,9 @@ def send_push_notification(request):
         fcm_data = {
             "id": str(notification_id),
             "type": str(notif_type),
-            "timestamp": db_response.data[0]['created_at']
+            "timestamp": db_response.data[0]['created_at'],
+            "title": title,
+            "body": body,
         }
         
         # Flatten metadata into the top-level data object for the Flutter factory

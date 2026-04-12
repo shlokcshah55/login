@@ -105,10 +105,12 @@ class GeoJsonMapLayerService {
   List<LocationModel> _currentLocations = const [];
   Set<int> _compactLocationIds = const <int>{};
   ui.Rect? _usableScreenRect;
+  final Map<int, double> _compactFadeByLocationId = {};
   final Map<int, int> _bouncePhaseByLocationId = {};
   final Map<int, double> _bounceScaleByLocationId = {};
   final Map<int, Timer> _bounceTimersByLocationId = {};
   final Set<int> _pendingRecentSaveIds = {};
+  Timer? _compactFadeTimer;
   bool _sourceUpdateInFlight = false;
   bool _sourceUpdateQueued = false;
 
@@ -127,6 +129,8 @@ class GeoJsonMapLayerService {
   static const String _clusterIconPrefix = 'pinit-cluster-';
   static const Duration _bounceDuration = Duration(milliseconds: 1120);
   static const Duration _bounceFrameInterval = Duration(milliseconds: 16);
+  static const Duration _compactFadeDuration = Duration(milliseconds: 220);
+  static const Duration _compactFadeFrameInterval = Duration(milliseconds: 16);
   static const List<double> _bounceScaleStops = [1.0, 1.45, 1.0, 1.18, 1.0];
   static const List<int> _clusterIconPointCounts = [2, 3, 4, 5];
   static const int _segmentRows = 2;
@@ -136,6 +140,7 @@ class GeoJsonMapLayerService {
   static const int _segmentExpandedPinCount = 2;
   static const double _criticalOverlapEnterRatio = 0.50;
   static const double _criticalOverlapExitRatio = 0.38;
+  static const double _viewportOverscanFactor = 0.45;
   static const double _densePinWidth = 52.0;
   static const double _densePinHeight = 58.0;
   static const double _denseSelectedPinWidth = 82.0;
@@ -324,6 +329,9 @@ class GeoJsonMapLayerService {
       _bouncePhaseByLocationId.clear();
       _bounceScaleByLocationId.clear();
       _pendingRecentSaveIds.clear();
+      _compactFadeTimer?.cancel();
+      _compactFadeTimer = null;
+      _compactFadeByLocationId.clear();
       _compactLocationIds = const <int>{};
       _usableScreenRect = null;
 
@@ -688,11 +696,6 @@ class GeoJsonMapLayerService {
             '!',
             ['has', 'point_count']
           ],
-          [
-            '==',
-            ['get', 'useCompactMarker'],
-            true
-          ],
         ],
         'layout': {
           'icon-image': _compactDotIconId,
@@ -709,7 +712,9 @@ class GeoJsonMapLayerService {
           'icon-allow-overlap': true,
           'symbol-sort-key': ['get', 'savedCount'],
         },
-        'paint': <String, dynamic>{},
+        'paint': {
+          'icon-opacity': ['get', 'compactOpacity'],
+        },
       }),
       null,
     );
@@ -779,21 +784,20 @@ class GeoJsonMapLayerService {
           [
             '!',
             ['has', 'point_count']
-          ],
-          [
-            '!=',
-            ['get', 'useCompactMarker'],
-            true
           ]
         ],
         'layout': layoutProps,
         'paint': config.showTextLabels
             ? {
+                'icon-opacity': ['get', 'pinOpacity'],
+                'text-opacity': ['get', 'labelOpacity'],
                 'text-color': '#1A1A2E',
                 'text-halo-color': '#ffffff',
                 'text-halo-width': 1.75,
               }
-            : <String, dynamic>{},
+            : {
+                'icon-opacity': ['get', 'pinOpacity'],
+              },
       }),
       null,
     );
@@ -946,6 +950,10 @@ class GeoJsonMapLayerService {
       final hasInfoLine = infoSubtitle.isNotEmpty || openStatusLabel.isNotEmpty;
       final locationId = location.locationId;
       final isSelected = _selectedLocationId == locationId.toString();
+      final compactBlend = _compactBlendForLocation(
+        locationId,
+        isSelected: isSelected,
+      );
 
       features.add({
         'type': 'Feature',
@@ -967,8 +975,10 @@ class GeoJsonMapLayerService {
           'hasInfoLine': hasInfoLine,
           'bouncePhase': _bouncePhaseByLocationId[locationId] ?? 0,
           'bounceScale': _bounceScaleByLocationId[locationId] ?? 1.0,
-          'useCompactMarker':
-              _compactLocationIds.contains(locationId) && !isSelected,
+          'useCompactMarker': compactBlend >= 0.5,
+          'compactOpacity': compactBlend,
+          'pinOpacity': 1.0 - compactBlend,
+          'labelOpacity': 1.0 - compactBlend,
           'iconKey': _buildLocationIconKey(location),
           'symbolSortKey': isSelected ? 100000 : (location.savedCount ?? 0),
           // Color as hex string (no '#') for icon-image expression
@@ -1063,135 +1073,130 @@ class GeoJsonMapLayerService {
   List<Object> _buildTextFieldExpression() {
     return [
       'case',
-      ['get', 'useCompactMarker'],
-      '',
+      ['get', 'hasInfoLine'],
       [
-        'case',
-        ['get', 'hasInfoLine'],
+        'format',
+        ['get', 'name'],
+        {
+          'font-scale': 1.0,
+          'text-font': [
+            'literal',
+            ['Open Sans Semibold', 'Arial Unicode MS Bold']
+          ],
+        },
+        '\n',
+        {},
         [
-          'format',
-          ['get', 'name'],
-          {
-            'font-scale': 1.0,
-            'text-font': [
-              'literal',
-              ['Open Sans Semibold', 'Arial Unicode MS Bold']
-            ],
-          },
-          '\n',
-          {},
+          'coalesce',
+          ['get', 'infoSubtitle'],
+          ''
+        ],
+        {
+          'font-scale': 0.82,
+          'text-font': [
+            'literal',
+            ['Open Sans Regular', 'Arial Unicode MS Regular']
+          ],
+          'text-color': '#707785',
+        },
+        [
+          'case',
           [
-            'coalesce',
-            ['get', 'infoSubtitle'],
+            'all',
+            [
+              '!=',
+              [
+                'coalesce',
+                ['get', 'infoSubtitle'],
+                ''
+              ],
+              ''
+            ],
+            [
+              '!=',
+              [
+                'coalesce',
+                ['get', 'openStatusLabel'],
+                ''
+              ],
+              ''
+            ],
+          ],
+          ' · ',
+          '',
+        ],
+        {
+          'font-scale': 0.82,
+          'text-font': [
+            'literal',
+            ['Open Sans Regular', 'Arial Unicode MS Regular']
+          ],
+          'text-color': '#707785',
+        },
+        [
+          'case',
+          [
+            '!=',
+            [
+              'coalesce',
+              ['get', 'openStatusLabel'],
+              ''
+            ],
             ''
           ],
-          {
-            'font-scale': 0.82,
-            'text-font': [
-              'literal',
-              ['Open Sans Regular', 'Arial Unicode MS Regular']
-            ],
-            'text-color': '#707785',
-          },
-          [
-            'case',
-            [
-              'all',
-              [
-                '!=',
-                [
-                  'coalesce',
-                  ['get', 'infoSubtitle'],
-                  ''
-                ],
-                ''
-              ],
-              [
-                '!=',
-                [
-                  'coalesce',
-                  ['get', 'openStatusLabel'],
-                  ''
-                ],
-                ''
-              ],
-            ],
-            ' · ',
-            '',
-          ],
-          {
-            'font-scale': 0.82,
-            'text-font': [
-              'literal',
-              ['Open Sans Regular', 'Arial Unicode MS Regular']
-            ],
-            'text-color': '#707785',
-          },
-          [
-            'case',
-            [
-              '!=',
-              [
-                'coalesce',
-                ['get', 'openStatusLabel'],
-                ''
-              ],
-              ''
-            ],
-            '●',
-            '',
-          ],
-          {
-            'font-scale': 0.80,
-            'text-color': [
-              'case',
-              [
-                '==',
-                ['get', 'openNow'],
-                true
-              ],
-              '#34C759',
-              '#FF3B30',
-            ],
-          },
-          [
-            'case',
-            [
-              '!=',
-              [
-                'coalesce',
-                ['get', 'openStatusLabel'],
-                ''
-              ],
-              ''
-            ],
-            [
-              'concat',
-              ' ',
-              ['get', 'openStatusLabel']
-            ],
-            '',
-          ],
-          {
-            'font-scale': 0.82,
-            'text-font': [
-              'literal',
-              ['Open Sans Regular', 'Arial Unicode MS Regular']
-            ],
-            'text-color': '#707785',
-          },
+          '●',
+          '',
         ],
+        {
+          'font-scale': 0.80,
+          'text-color': [
+            'case',
+            [
+              '==',
+              ['get', 'openNow'],
+              true
+            ],
+            '#34C759',
+            '#FF3B30',
+          ],
+        },
         [
-          'format',
-          ['get', 'name'],
-          {
-            'font-scale': 1.0,
-            'text-font': [
-              'literal',
-              ['Open Sans Semibold', 'Arial Unicode MS Bold']
+          'case',
+          [
+            '!=',
+            [
+              'coalesce',
+              ['get', 'openStatusLabel'],
+              ''
             ],
-          },
+            ''
+          ],
+          [
+            'concat',
+            ' ',
+            ['get', 'openStatusLabel']
+          ],
+          '',
         ],
+        {
+          'font-scale': 0.82,
+          'text-font': [
+            'literal',
+            ['Open Sans Regular', 'Arial Unicode MS Regular']
+          ],
+          'text-color': '#707785',
+        },
+      ],
+      [
+        'format',
+        ['get', 'name'],
+        {
+          'font-scale': 1.0,
+          'text-font': [
+            'literal',
+            ['Open Sans Semibold', 'Arial Unicode MS Bold']
+          ],
+        },
       ],
     ];
   }
@@ -1204,8 +1209,11 @@ class GeoJsonMapLayerService {
     final visibleLocationIds = <int>{};
     final screenPositionsByLocationId = <int, ui.Offset>{};
     final effectiveUsableScreenRect = usableScreenRect ?? _usableScreenRect;
+    final evaluationScreenRect = effectiveUsableScreenRect == null
+        ? null
+        : _expandScreenRect(effectiveUsableScreenRect);
 
-    if (effectiveUsableScreenRect != null) {
+    if (evaluationScreenRect != null) {
       final visibleLocations = _currentLocations
           .where((location) => location.lat != null && location.lng != null)
           .toList(growable: false);
@@ -1223,7 +1231,7 @@ class GeoJsonMapLayerService {
 
       for (final item in screenPoints) {
         final offset = ui.Offset(item.point.x, item.point.y);
-        if (effectiveUsableScreenRect.contains(offset)) {
+        if (evaluationScreenRect.contains(offset)) {
           visibleLocationIds.add(item.locationId);
           screenPositionsByLocationId[item.locationId] = offset;
         }
@@ -1256,12 +1264,12 @@ class GeoJsonMapLayerService {
 
       int segmentIndex;
       if (screenPositionsByLocationId.isNotEmpty &&
-          effectiveUsableScreenRect != null) {
+          evaluationScreenRect != null) {
         final offset = screenPositionsByLocationId[location.locationId];
         if (offset == null) continue;
         segmentIndex = _segmentIndexForScreenOffset(
           offset: offset,
-          usableScreenRect: effectiveUsableScreenRect,
+          usableScreenRect: evaluationScreenRect,
         );
       } else {
         final bounds = fallbackBounds;
@@ -1347,11 +1355,89 @@ class GeoJsonMapLayerService {
       return;
     }
 
+    await _transitionCompactMarkers(
+      nextCompactLocationIds,
+      updateSource: updateSource,
+    );
+  }
+
+  Future<void> _transitionCompactMarkers(
+    Set<int> nextCompactLocationIds, {
+    required bool updateSource,
+  }) async {
+    final previousCompactLocationIds = Set<int>.from(_compactLocationIds);
+    if (_setsEqual(previousCompactLocationIds, nextCompactLocationIds)) {
+      return;
+    }
+
+    _compactFadeTimer?.cancel();
+    _compactFadeTimer = null;
+
+    if (!updateSource) {
+      _compactLocationIds = nextCompactLocationIds;
+      _compactFadeByLocationId.clear();
+      return;
+    }
+
+    final affectedLocationIds = <int>{
+      ...previousCompactLocationIds,
+      ...nextCompactLocationIds,
+      ..._compactFadeByLocationId.keys,
+    };
+
+    final startBlendByLocationId = <int, double>{
+      for (final locationId in affectedLocationIds)
+        locationId: _compactFadeByLocationId[locationId] ??
+            (previousCompactLocationIds.contains(locationId) ? 1.0 : 0.0),
+    };
+    final endBlendByLocationId = <int, double>{
+      for (final locationId in affectedLocationIds)
+        locationId: nextCompactLocationIds.contains(locationId) ? 1.0 : 0.0,
+    };
+
     _compactLocationIds = nextCompactLocationIds;
 
-    if (updateSource) {
-      await _updateSourceData();
-    }
+    final stopwatch = Stopwatch()..start();
+    _compactFadeTimer = Timer.periodic(
+      _compactFadeFrameInterval,
+      (timer) {
+        final progress = (stopwatch.elapsedMilliseconds /
+                _compactFadeDuration.inMilliseconds)
+            .clamp(0.0, 1.0);
+        final easedProgress = Curves.easeOutCubic.transform(progress);
+
+        for (final locationId in affectedLocationIds) {
+          final start = startBlendByLocationId[locationId] ?? 0.0;
+          final end = endBlendByLocationId[locationId] ?? 0.0;
+          final blend = ui.lerpDouble(start, end, easedProgress) ?? end;
+          _compactFadeByLocationId[locationId] = blend;
+        }
+
+        unawaited(_updateSourceData());
+
+        if (progress >= 1.0) {
+          timer.cancel();
+          _compactFadeTimer = null;
+          _compactFadeByLocationId
+            ..removeWhere((locationId, _) {
+              final endBlend = endBlendByLocationId[locationId] ?? 0.0;
+              return endBlend <= 0.0;
+            })
+            ..updateAll(
+                (locationId, _) => endBlendByLocationId[locationId] ?? 0.0);
+          unawaited(_updateSourceData());
+        }
+      },
+    );
+  }
+
+  double _compactBlendForLocation(
+    int locationId, {
+    required bool isSelected,
+  }) {
+    if (isSelected) return 0.0;
+    return _compactFadeByLocationId[locationId] ??
+        (_compactLocationIds.contains(locationId) ? 1.0 : 0.0);
   }
 
   Future<LatLngBounds?> _getVisibleBounds() async {
@@ -1433,6 +1519,17 @@ class GeoJsonMapLayerService {
         .clamp(0, _segmentRows - 1);
 
     return rawRow * _segmentColumns + rawColumn;
+  }
+
+  ui.Rect _expandScreenRect(ui.Rect rect) {
+    final horizontalInset = rect.width * _viewportOverscanFactor;
+    final verticalInset = rect.height * _viewportOverscanFactor;
+    return ui.Rect.fromLTRB(
+      rect.left - horizontalInset,
+      rect.top - verticalInset,
+      rect.right + horizontalInset,
+      rect.bottom + verticalInset,
+    );
   }
 
   double _longitudeSpan(double west, double east) {

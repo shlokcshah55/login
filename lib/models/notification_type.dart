@@ -6,4 +6,5 @@ enum NotificationType {
   proximityLocation,
   newMessage,
   userAddedToBubble,
+  notesImportComplete,
 }

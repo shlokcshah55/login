@@ -17,6 +17,8 @@ class NotesImportException implements Exception {
 
 class NotesImportResult {
   final bool success;
+  final bool queued;
+  final String message;
   final int extractedCount;
   final int matchedCount;
   final int savedCount;
@@ -30,6 +32,8 @@ class NotesImportResult {
 
   const NotesImportResult({
     required this.success,
+    required this.queued,
+    required this.message,
     required this.extractedCount,
     required this.matchedCount,
     required this.savedCount,
@@ -54,6 +58,8 @@ class NotesImportResult {
 
     return NotesImportResult(
       success: json['success'] == true,
+      queued: json['queued'] == true,
+      message: (json['message'] as String?) ?? '',
       extractedCount: (json['extracted_count'] as num?)?.toInt() ?? 0,
       matchedCount: (json['matched_count'] as num?)?.toInt() ?? 0,
       savedCount: (json['saved_count'] as num?)?.toInt() ?? 0,
