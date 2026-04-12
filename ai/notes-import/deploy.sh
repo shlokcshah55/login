@@ -52,6 +52,7 @@ require_env "OPENAI_API_KEY"
 require_env "GOOGLE_PLACES_API_KEY"
 require_env "SUPABASE_URL"
 require_env "SUPABASE_SERVICE_KEY"
+require_env "API_SECRET_KEY"
 
 if ! command -v gcloud &> /dev/null; then
     echo "Error: gcloud CLI is not installed"
@@ -94,7 +95,7 @@ gcloud run deploy "$SERVICE_NAME" \
   --timeout 300 \
   --concurrency 10 \
   --max-instances 10 \
-  --set-env-vars "OPENAI_API_KEY=${OPENAI_API_KEY},GOOGLE_PLACES_API_KEY=${GOOGLE_PLACES_API_KEY},SUPABASE_URL=${SUPABASE_URL},SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY},LOCATION_ADD_API_URL=${LOCATION_ADD_API_URL}"
+  --set-env-vars "OPENAI_API_KEY=${OPENAI_API_KEY},GOOGLE_PLACES_API_KEY=${GOOGLE_PLACES_API_KEY},SUPABASE_URL=${SUPABASE_URL},SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY},LOCATION_ADD_API_URL=${LOCATION_ADD_API_URL},API_SECRET_KEY=${API_SECRET_KEY},PUSH_NOTIFICATION_URL=${PUSH_NOTIFICATION_URL:-}"
 
 SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" --region "$REGION" --format 'value(status.url)')
 

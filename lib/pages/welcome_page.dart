@@ -1,11 +1,22 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'login_page.dart';
 import 'signup_wizard/signup_wizard_page.dart';
 import '../supabase/service.dart';
+import '../services/apple_auth_service.dart';
+import 'auth_handler.dart';
 
-class WelcomePage extends StatelessWidget {
+class WelcomePage extends StatefulWidget {
   const WelcomePage({super.key});
+
+  @override
+  State<WelcomePage> createState() => _WelcomePageState();
+}
+
+class _WelcomePageState extends State<WelcomePage> {
+  bool _isAppleSigningIn = false;
 
   Future<void> _signInWithGoogle(BuildContext context) async {
     try {
@@ -37,6 +48,79 @@ class WelcomePage extends StatelessWidget {
             backgroundColor: Colors.red,
           ),
         );
+      }
+    }
+  }
+
+  bool get _supportsAppleSignIn {
+    if (kIsWeb) {
+      return false;
+    }
+
+    return defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.macOS;
+  }
+
+  Future<void> _signInWithApple(BuildContext context) async {
+    if (_isAppleSigningIn) {
+      return;
+    }
+
+    setState(() {
+      _isAppleSigningIn = true;
+    });
+
+    try {
+      final supabaseProvider =
+          Provider.of<SupabaseService>(context, listen: false);
+      final success = await supabaseProvider.signInWithApple();
+
+      if (!mounted) {
+        return;
+      }
+
+      if (success) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const AuthHandler()),
+        );
+      }
+    } on AppleSignInCancelledException {
+      // Intentionally noop when the user dismisses the Apple sheet.
+    } on AppleSignInNetworkException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.message),
+          action: SnackBarAction(
+            label: 'Retry',
+            onPressed: () => _signInWithApple(context),
+          ),
+        ),
+      );
+    } on AuthException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Apple sign in failed: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isAppleSigningIn = false;
+        });
       }
     }
   }
@@ -179,33 +263,81 @@ class WelcomePage extends StatelessWidget {
 
                   const SizedBox(height: 32),
 
-                  // Continue with Google Button
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: ElevatedButton.icon(
-                      onPressed: () => _signInWithGoogle(context),
-                      icon: const Icon(Icons.g_mobiledata, size: 32),
-                      label: const Text(
-                        'Continue with Google',
-                        style: TextStyle(
-                          fontFamily: 'Lato',
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
+                  if (_supportsAppleSignIn)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SizedBox(
+                            height: 56,
+                            child: ElevatedButton.icon(
+                              onPressed: () => _signInWithGoogle(context),
+                              icon: const Icon(Icons.g_mobiledata, size: 30),
+                              label: const Text(
+                                'Google',
+                                style: TextStyle(
+                                  fontFamily: 'Lato',
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                foregroundColor: Colors.black87,
+                                elevation: 4,
+                                shadowColor: Colors.black.withOpacity(0.3),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: Colors.black87,
-                        elevation: 4,
-                        shadowColor: Colors.black.withOpacity(0.3),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: SizedBox(
+                            height: 56,
+                            child: _SocialAuthButton(
+                              onPressed: () {
+                                if (_isAppleSigningIn) {
+                                  return;
+                                }
+                                _signInWithApple(context);
+                              },
+                              icon: Icons.apple,
+                              label: _isAppleSigningIn ? 'Apple...' : 'Apple',
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton.icon(
+                        onPressed: () => _signInWithGoogle(context),
+                        icon: const Icon(Icons.g_mobiledata, size: 32),
+                        label: const Text(
+                          'Continue with Google',
+                          style: TextStyle(
+                            fontFamily: 'Lato',
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: Colors.black87,
+                          elevation: 4,
+                          shadowColor: Colors.black.withOpacity(0.3),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
                         ),
                       ),
                     ),
-                  ),
 
                   const Spacer(flex: 2),
                 ],
@@ -213,6 +345,44 @@ class WelcomePage extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SocialAuthButton extends StatelessWidget {
+  const _SocialAuthButton({
+    required this.onPressed,
+    required this.icon,
+    required this.label,
+  });
+
+  final VoidCallback onPressed;
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 22),
+      label: Text(
+        label,
+        style: const TextStyle(
+          fontFamily: 'Lato',
+          fontSize: 16,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.5,
+        ),
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
+        elevation: 4,
+        shadowColor: Colors.black.withOpacity(0.3),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
       ),
     );
   }

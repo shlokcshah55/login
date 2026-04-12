@@ -3,8 +3,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
-import 'package:googleapis/mybusinessbusinessinformation/v1.dart';
-import 'package:login/models/locations.dart';
+import 'package:login/services/apple_auth_service.dart';
 import 'package:login/services/push_notification_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -15,17 +14,16 @@ import '../constants.dart';
 /// Service for handling Supabase authentication operations
 class AuthHelper {
   final SupabaseClient _client = SupabaseClientManager().client;
+  final AppleAuthService _appleAuthService = AppleAuthService();
   User? get currentUser => _client.auth.currentUser;
   bool get isAuthenticated => currentUser != null;
   Stream<AuthState> get onAuthStateChange => _client.auth.onAuthStateChange;
 
-
- 
-
   /// Resend the signup confirmation OTP to the given email
   Future<void> resendSignUpOtp(String email) async {
     try {
-      print('📤 [RESEND_OTP] Calling Supabase resend() with email: $email, type: signup');
+      print(
+          '📤 [RESEND_OTP] Calling Supabase resend() with email: $email, type: signup');
       await _client.auth.resend(type: OtpType.signup, email: email);
       print('✅ [RESEND_OTP] Successfully sent OTP to $email');
     } catch (e) {
@@ -44,7 +42,8 @@ class AuthHelper {
         token: token,
         type: OtpType.signup,
       );
-      print('✅ [VERIFY_OTP] OTP verified successfully. User: ${response.user?.id}');
+      print(
+          '✅ [VERIFY_OTP] OTP verified successfully. User: ${response.user?.id}');
       return response.user != null;
     } catch (e) {
       print('❌ [VERIFY_OTP] Error verifying signup OTP for $email: $e');
@@ -53,12 +52,11 @@ class AuthHelper {
   }
 
   /// Sign up a new user with email and password
-  Future<UserModel> signUp({
-    required String email,
-    required String password,
-    String? name,
-    String? username
-  }) async {
+  Future<UserModel> signUp(
+      {required String email,
+      required String password,
+      String? name,
+      String? username}) async {
     try {
       print('📝 [SIGNUP] Starting signup for email: $email');
 
@@ -154,7 +152,7 @@ class AuthHelper {
       // The client ID and secret are configured in Supabase Dashboard
       final result = await _client.auth.signInWithOAuth(
         OAuthProvider.google,
-        redirectTo: 'com.example.srishlok.pinit://login-callback/',
+        redirectTo: 'com.srishlok.pinit://login-callback/',
         authScreenLaunchMode: LaunchMode.externalApplication,
       );
 
@@ -175,6 +173,24 @@ class AuthHelper {
         print('Error initiating Google sign in: $e');
       }
       return false;
+    }
+  }
+
+  Future<bool> signInWithApple() async {
+    try {
+      await _appleAuthService.signInWithApple();
+      return true;
+    } on AppleSignInCancelledException {
+      rethrow;
+    } on AppleSignInNetworkException {
+      rethrow;
+    } on AuthException {
+      rethrow;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error signing in with Apple: $e');
+      }
+      throw AuthException('Apple sign in failed: $e');
     }
   }
 
@@ -199,7 +215,8 @@ class AuthHelper {
           print('Creating database record for new OAuth user: ${user.email}');
         }
 
-        final name = user.userMetadata?['name'] ?? user.userMetadata?['full_name'] ?? '';
+        final name =
+            user.userMetadata?['name'] ?? user.userMetadata?['full_name'] ?? '';
         final username = await _generateUniqueUsername(name);
 
         await _client.rpc('ensure_user_record_exists', params: {
@@ -311,12 +328,14 @@ class AuthHelper {
       }
 
       // Check if token is expired
-      final expiresAt = DateTime.fromMillisecondsSinceEpoch(session.expiresAt! * 1000);
+      final expiresAt =
+          DateTime.fromMillisecondsSinceEpoch(session.expiresAt! * 1000);
       final now = DateTime.now();
 
       if (expiresAt.isBefore(now)) {
         if (kDebugMode) {
-          print('AuthHelper.validateSession: Session expired, attempting refresh');
+          print(
+              'AuthHelper.validateSession: Session expired, attempting refresh');
         }
 
         // Try to refresh the session
@@ -408,7 +427,8 @@ class AuthHelper {
         if (userData.containsKey(SupabaseConstants.columnBio))
           'p_bio': userData[SupabaseConstants.columnBio],
         if (userData.containsKey(SupabaseConstants.columnProfileImageUrl))
-          'p_profile_image_url': userData[SupabaseConstants.columnProfileImageUrl],
+          'p_profile_image_url':
+              userData[SupabaseConstants.columnProfileImageUrl],
       };
 
       final response = await _client.rpc('update_user_profile', params: params);
@@ -437,7 +457,8 @@ class AuthHelper {
           .limit(10);
 
       final futures = (response as List)
-          .map((e) => getUserProfileById(e[SupabaseConstants.columnSupabaseId] as String))
+          .map((e) => getUserProfileById(
+              e[SupabaseConstants.columnSupabaseId] as String))
           .toList();
 
       final users = await Future.wait(futures);
@@ -624,8 +645,8 @@ class AuthHelper {
       final user = currentUser;
       if (user == null) return [];
 
-      final response = await _client.rpc('get_incoming_follow_requests',
-          params: {'p_user_id': user.id});
+      final response = await _client
+          .rpc('get_incoming_follow_requests', params: {'p_user_id': user.id});
 
       return (response as List)
           .map((row) => UserModel.fromJson(row as Map<String, dynamic>))
@@ -644,8 +665,8 @@ class AuthHelper {
       final targetId = userId ?? currentUser?.id;
       if (targetId == null) return [];
 
-      final response = await _client
-          .rpc('get_followers', params: {'p_user_id': targetId});
+      final response =
+          await _client.rpc('get_followers', params: {'p_user_id': targetId});
 
       return (response as List)
           .map((row) => UserModel.fromJson(row as Map<String, dynamic>))
@@ -664,8 +685,8 @@ class AuthHelper {
       final targetId = userId ?? currentUser?.id;
       if (targetId == null) return [];
 
-      final response = await _client
-          .rpc('get_following', params: {'p_user_id': targetId});
+      final response =
+          await _client.rpc('get_following', params: {'p_user_id': targetId});
 
       return (response as List)
           .map((row) => UserModel.fromJson(row as Map<String, dynamic>))
@@ -784,7 +805,8 @@ class AuthHelper {
             )
           ''')
           .eq(SupabaseConstants.columnUserId, user.id)
-          .eq('${SupabaseConstants.tableTags}.${SupabaseConstants.columnTagType}', 'dietary_requirement');
+          .eq('${SupabaseConstants.tableTags}.${SupabaseConstants.columnTagType}',
+              'dietary_requirement');
 
       if ((response as List).isEmpty) {
         return [];
@@ -827,7 +849,8 @@ class AuthHelper {
             )
           ''')
           .eq(SupabaseConstants.columnUserId, user.id)
-          .eq('${SupabaseConstants.tableTags}.${SupabaseConstants.columnTagType}', 'preference');
+          .eq('${SupabaseConstants.tableTags}.${SupabaseConstants.columnTagType}',
+              'preference');
 
       if ((response as List).isEmpty) {
         return [];
@@ -863,7 +886,8 @@ class AuthHelper {
           .select(SupabaseConstants.columnInfluence)
           .eq(SupabaseConstants.columnFollowerId, user.id)
           .eq(SupabaseConstants.columnFolloweeId, followeeId)
-          .eq(SupabaseConstants.columnStatus, SupabaseConstants.relationshipStatusAccepted)
+          .eq(SupabaseConstants.columnStatus,
+              SupabaseConstants.relationshipStatusAccepted)
           .maybeSingle();
 
       if (response == null) return null;
@@ -891,7 +915,8 @@ class AuthHelper {
             ${SupabaseConstants.columnInfluence}
           ''')
           .eq(SupabaseConstants.columnFollowerId, user.id)
-          .eq(SupabaseConstants.columnStatus, SupabaseConstants.relationshipStatusAccepted);
+          .eq(SupabaseConstants.columnStatus,
+              SupabaseConstants.relationshipStatusAccepted);
 
       if ((response as List).isEmpty) {
         return {};
@@ -980,7 +1005,8 @@ class AuthHelper {
           .eq(SupabaseConstants.columnSupabaseId, userId)
           .single();
 
-      return response[SupabaseConstants.columnWizardCompleted] as bool? ?? false;
+      return response[SupabaseConstants.columnWizardCompleted] as bool? ??
+          false;
     } catch (e) {
       if (kDebugMode) {
         print('Error checking wizard completion: $e');
@@ -1025,13 +1051,12 @@ class AuthHelper {
 
   /// Replaces the user's full vibe-tag affinity vector with [affinity].
   /// Writes directly to the users row (no RPC needed).
-  Future<bool> updateVibeTagAffinity(
-      String userId, List<int> affinity) async {
+  Future<bool> updateVibeTagAffinity(String userId, List<int> affinity) async {
     try {
       await _client
           .from(SupabaseConstants.tableUsers)
-          .update({SupabaseConstants.columnVibeTagAffinity: affinity})
-          .eq(SupabaseConstants.columnSupabaseId, userId);
+          .update({SupabaseConstants.columnVibeTagAffinity: affinity}).eq(
+              SupabaseConstants.columnSupabaseId, userId);
       return true;
     } catch (e) {
       if (kDebugMode) {
@@ -1043,12 +1068,12 @@ class AuthHelper {
 
   Future<String> uploadImage(File file, String filePath, String userId) async {
     try {
-    final user = _client.auth.currentUser;
-    print(user);
-    if (user == null) {
-      if (kDebugMode) print('Upload failed: No authenticated user found.');
-      throw Exception('You must be logged in to upload a profile picture.');
-    }
+      final user = _client.auth.currentUser;
+      print(user);
+      if (user == null) {
+        if (kDebugMode) print('Upload failed: No authenticated user found.');
+        throw Exception('You must be logged in to upload a profile picture.');
+      }
       // Upload file to Supabase storage
       final response = await _client.storage
           .from(SupabaseConstants.supabaseStorageBucketProfileImages)
@@ -1060,13 +1085,11 @@ class AuthHelper {
           .from(SupabaseConstants.supabaseStorageBucketProfileImages)
           .getPublicUrl(filePath);
 
-
       await _client.rpc('update_user_profile', params: {
         'p_user_id': userId,
         'p_profile_image_url': publicUrl,
       });
 
-    
       if (kDebugMode) {
         print('Image uploaded successfully: $publicUrl');
       }
@@ -1079,5 +1102,4 @@ class AuthHelper {
       rethrow;
     }
   }
-
 }
