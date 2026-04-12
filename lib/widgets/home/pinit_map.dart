@@ -105,20 +105,7 @@ class _PinitMapState extends State<PinitMap> {
                 print(
                     '🎨 [PinitMap] Vibe filter applied - selected: $selected');
                 _selectedVibeTagIds = selected;
-                // Apply filters to location manager
-                await _locationListManager?.applyFilters(
-                  vibeTagIds: _selectedVibeTagIds.toList(),
-                  cuisineTagIds: _selectedCuisineTagIds.toList(),
-                );
-                // Update MapStateProvider with the last searched area
-                if (mounted) {
-                  final mapState = context.read<MapStateProvider>();
-                  final lastCenter = _locationListManager?.lastSearchedCenter;
-                  final lastRadius = _locationListManager?.lastSearchedRadius;
-                  if (lastCenter != null && lastRadius != null) {
-                    mapState.setLastSearchedArea(lastCenter, lastRadius);
-                  }
-                }
+                await _applyCurrentFilters();
                 print('🎨 [PinitMap] Filter application complete');
               },
             );
@@ -135,20 +122,7 @@ class _PinitMapState extends State<PinitMap> {
                 print(
                     '🍽️ [PinitMap] Cuisine filter applied - selected: $selected');
                 _selectedCuisineTagIds = selected;
-                // Apply filters to location manager
-                await _locationListManager?.applyFilters(
-                  vibeTagIds: _selectedVibeTagIds.toList(),
-                  cuisineTagIds: _selectedCuisineTagIds.toList(),
-                );
-                // Update MapStateProvider with the last searched area
-                if (mounted) {
-                  final mapState = context.read<MapStateProvider>();
-                  final lastCenter = _locationListManager?.lastSearchedCenter;
-                  final lastRadius = _locationListManager?.lastSearchedRadius;
-                  if (lastCenter != null && lastRadius != null) {
-                    mapState.setLastSearchedArea(lastCenter, lastRadius);
-                  }
-                }
+                await _applyCurrentFilters();
                 print('🍽️ [PinitMap] Filter application complete');
               },
             );
@@ -183,6 +157,45 @@ class _PinitMapState extends State<PinitMap> {
         },
       ),
     );
+  }
+
+  /// Resolves selected tag IDs to text names and calls applyFilters on the location manager.
+  Future<void> _applyCurrentFilters() async {
+    final vibeNames = _resolveTagNames(_selectedVibeTagIds, _vibeTags);
+    final cuisineNames = _resolveTagNames(_selectedCuisineTagIds, _cuisineTags);
+
+    print('🔍 [PinitMap] Resolved vibe names: $vibeNames');
+    print('🔍 [PinitMap] Resolved cuisine names: $cuisineNames');
+
+    await _locationListManager?.applyFilters(
+      vibeTagIds: _selectedVibeTagIds.toList(),
+      cuisineTagIds: _selectedCuisineTagIds.toList(),
+      vibeTagNames: vibeNames,
+      cuisineTagNames: cuisineNames,
+    );
+
+    if (mounted) {
+      final mapState = context.read<MapStateProvider>();
+      final lastCenter = _locationListManager?.lastSearchedCenter;
+      final lastRadius = _locationListManager?.lastSearchedRadius;
+      if (lastCenter != null && lastRadius != null) {
+        mapState.setLastSearchedArea(lastCenter, lastRadius);
+      }
+    }
+  }
+
+  /// Looks up tag text names from the loaded tag list for a set of selected tag IDs.
+  List<String> _resolveTagNames(Set<String> selectedIds, List<Map<String, dynamic>>? tags) {
+    if (tags == null || selectedIds.isEmpty) return [];
+    final names = <String>[];
+    for (final tag in tags) {
+      final id = (tag['tag_id'] ?? tag['id'])?.toString();
+      if (id != null && selectedIds.contains(id)) {
+        final text = (tag['text'] ?? tag['name'])?.toString();
+        if (text != null) names.add(text);
+      }
+    }
+    return names;
   }
 
   /// Update locations using GeoJSON source (new approach).

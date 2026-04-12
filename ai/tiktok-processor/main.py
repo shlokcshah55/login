@@ -160,40 +160,33 @@ def save_location_to_supabase(user_id: str, place_data: dict, url: str):
             return None
 
         place_id = place_data['place_id']
- 
-        # 1. Check if location exists
-        response = supabase_client.table('locations').select('location_id').eq('google_place_id', place_id).execute()
 
-        if response and hasattr(response, 'data') and response.data and len(response.data) > 0:
-            location_id = response.data[0]['location_id']
-            logger.info(f"Location already exists: {location_id}")
-        else:
-            # Create location
-            try:
-                api_url = "https://pinit-recommendations-api-1070859807237.europe-west2.run.app/locations/add"
-                payload = {
-                    'google_place_id': place_id,
-                    'classify_photo': True
-                }
+        # Always call locations/add to ensure vibe tags and data are populated
+        try:
+            api_url = "https://pinit-recommendations-api-1070859807237.europe-west2.run.app/locations/add"
+            payload = {
+                'google_place_id': place_id,
+                'classify_photo': True
+            }
 
-                with httpx.Client(timeout=30.0) as client:
-                    response = client.post(api_url, json=payload)
-                    response.raise_for_status()
+            with httpx.Client(timeout=30.0) as client:
+                response = client.post(api_url, json=payload)
+                response.raise_for_status()
 
-                api_result = response.json()
-                location_id = api_result.get('location_id')
+            api_result = response.json()
+            location_id = api_result.get('location_id')
 
-                if not location_id:
-                    logger.error(f"API response missing location_id: {api_result}")
-                    return None
-
-                logger.info(f"Created new location via API: {location_id}")
-            except httpx.HTTPStatusError as e:
-                logger.error(f"API request failed with status {e.response.status_code}: {e.response.text}")
+            if not location_id:
+                logger.error(f"API response missing location_id: {api_result}")
                 return None
-            except Exception as e:
-                logger.error(f"Error calling location API: {e}", exc_info=True)
-                return None
+
+            logger.info(f"Location via /locations/add API: {location_id}")
+        except httpx.HTTPStatusError as e:
+            logger.error(f"API request failed with status {e.response.status_code}: {e.response.text}")
+            return None
+        except Exception as e:
+            logger.error(f"Error calling location API: {e}", exc_info=True)
+            return None
             
         logger.info(f"Using location tiktok url: {str(url)}")
         logger.info(f"All parameters to rpc: 'user_id': {user_id}, 'location_id': {location_id}, 'saved_method': 'tiktok', 'acked': True, 'source_video_url': {str(url)}")
@@ -248,6 +241,21 @@ def process_and_save_async(url: str, user_id: str):
                 saved_locations = []
                 for location_id in location_ids:
                     try:
+                        # Call locations/add to ensure vibe tags and data are populated
+                        loc_row = supabase_client.table('locations').select('google_place_id').eq('location_id', location_id).maybe_single().execute()
+                        if loc_row and loc_row.data and loc_row.data.get('google_place_id'):
+                            try:
+                                api_url = "https://pinit-recommendations-api-1070859807237.europe-west2.run.app/locations/add"
+                                with httpx.Client(timeout=30.0) as client:
+                                    resp = client.post(api_url, json={
+                                        'google_place_id': loc_row.data['google_place_id'],
+                                        'classify_photo': True
+                                    })
+                                    resp.raise_for_status()
+                                logger.info(f"Ensured location {location_id} has vibe tags via /locations/add")
+                            except Exception as e:
+                                logger.warning(f"locations/add call failed for {location_id}, continuing: {e}")
+
                         result = supabase_client.rpc('save_location_with_tags', {
                             'p_user_id': user_id,
                             'p_location_id': location_id,

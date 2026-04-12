@@ -53,12 +53,6 @@ class HomeController {
           latitude: currentLocation.latitude,
           longitude: currentLocation.longitude,
           radiusKm: defaultRadius,
-          vibeTagIds: locationListManager.vibeTagIds.isNotEmpty
-              ? locationListManager.vibeTagIds
-              : null,
-          cuisineTagIds: locationListManager.cuisineTagIds.isNotEmpty
-              ? locationListManager.cuisineTagIds
-              : null,
         );
         // Update last searched area in MapStateProvider using values from locationListManager
         final lastCenter = locationListManager.lastSearchedCenter;
@@ -77,12 +71,6 @@ class HomeController {
         latitude: location.latitude,
         longitude: location.longitude,
         radiusKm: defaultRadius,
-        vibeTagIds: locationListManager.vibeTagIds.isNotEmpty
-            ? locationListManager.vibeTagIds
-            : null,
-        cuisineTagIds: locationListManager.cuisineTagIds.isNotEmpty
-            ? locationListManager.cuisineTagIds
-            : null,
       );
       // Update last searched area in MapStateProvider using values from locationListManager
       final lastCenter = locationListManager.lastSearchedCenter;

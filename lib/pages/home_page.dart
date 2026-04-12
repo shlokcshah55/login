@@ -500,17 +500,20 @@ class _HomePageState extends State<HomePage> {
                             ],
                           ),
                         ),
-                        HomeCarousel(
-                          pageController: viewModel.pageController,
-                          locations: viewModel.locations,
-                          selectedMarkerId: viewModel.selectedMarkerId,
-                          bottomNavVisible: viewModel.bottomNavVisible,
-                          onPageChanged: viewModel.onCarouselPageChanged,
-                          onScrollStart: viewModel.onCarouselScrollStart,
-                          onLocationSelected: viewModel.onLocationSelected,
-                          onSwipeUp: viewModel.onCarouselSwipeUp,
-                          onSwipeDown: viewModel.onCarouselSwipeDown,
-                        ),
+                        if (viewModel.isMagicSearching)
+                          const _MagicSearchGeneratingCard()
+                        else
+                          HomeCarousel(
+                            pageController: viewModel.pageController,
+                            locations: viewModel.locations,
+                            selectedMarkerId: viewModel.selectedMarkerId,
+                            bottomNavVisible: viewModel.bottomNavVisible,
+                            onPageChanged: viewModel.onCarouselPageChanged,
+                            onScrollStart: viewModel.onCarouselScrollStart,
+                            onLocationSelected: viewModel.onLocationSelected,
+                            onSwipeUp: viewModel.onCarouselSwipeUp,
+                            onSwipeDown: viewModel.onCarouselSwipeDown,
+                          ),
                       ],
                     ),
                   ),
@@ -833,6 +836,119 @@ class _TopPanel extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MagicSearchGeneratingCard extends StatefulWidget {
+  const _MagicSearchGeneratingCard();
+
+  @override
+  State<_MagicSearchGeneratingCard> createState() =>
+      _MagicSearchGeneratingCardState();
+}
+
+class _MagicSearchGeneratingCardState extends State<_MagicSearchGeneratingCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _shimmer = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _shimmer.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 160,
+      child: Center(
+        child: AnimatedBuilder(
+          animation: _shimmer,
+          builder: (context, child) {
+            final pulse = (0.5 + 0.5 * Curves.easeInOut.transform(
+              (_shimmer.value * 2.0 % 1.0),
+            ));
+            return Opacity(
+              opacity: 0.6 + 0.4 * pulse,
+              child: child,
+            );
+          },
+          child: Container(
+            width: MediaQuery.of(context).size.width * 0.78,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: pinit.PinitColors.accent,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: pinit.PinitColors.aubergine,
+                width: 1.5,
+              ),
+              boxShadow: const [
+                BoxShadow(
+                  color: pinit.PinitColors.aubergine,
+                  blurRadius: 0,
+                  offset: Offset(4, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: pinit.PinitColors.cream.withValues(alpha: 0.18),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: pinit.PinitColors.cream.withValues(alpha: 0.3),
+                      width: 1.2,
+                    ),
+                  ),
+                  child: const Icon(
+                    FeatherIcons.zap,
+                    color: pinit.PinitColors.cream,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'MAGIC SEARCH',
+                        style: GoogleFonts.dmSans(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: pinit.PinitColors.cream
+                              .withValues(alpha: 0.78),
+                          letterSpacing: 1.6,
+                          height: 1,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Finding your spots...',
+                        style: GoogleFonts.dmSans(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: pinit.PinitColors.cream,
+                          height: 1.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

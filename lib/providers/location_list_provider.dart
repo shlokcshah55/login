@@ -44,11 +44,17 @@ class LocationListManager with ChangeNotifier {
   bool _areaChanged = false;
   bool _isSearchingArea = false;
   bool _isLoadingRecommendations = false;
+  bool _isMagicSearching = false;
   String? _error; // Local error for non-location errors
 
   // Filter state
   List<String> _vibeTagIds = [];
   List<String> _cuisineTagIds = [];
+  List<String> _vibeTagNames = []; // resolved text values for vibe tags
+  List<String> _cuisineTagNames = []; // resolved text values for cuisine tags
+
+  // Cached unfiltered recommendations for client-side filtering
+  List<LocationModel> _allRecommendedLocations = [];
 
   // Viewport-aware name selection state
   LatLngBounds? _currentViewportBounds;
@@ -130,6 +136,7 @@ class LocationListManager with ChangeNotifier {
   bool get areaChanged => _areaChanged;
   bool get isSearchingArea => _isSearchingArea;
   bool get isLoadingRecommendations => _isLoadingRecommendations;
+  bool get isMagicSearching => _isMagicSearching;
   LatLng? get lastSearchedCenter => _lastSearchedCenter;
   double? get lastSearchedRadius => _lastSearchedRadius;
 
@@ -800,12 +807,10 @@ class LocationListManager with ChangeNotifier {
     required double latitude,
     required double longitude,
     double radiusKm = 5.0,
-    int maxResults = 20,
+    int maxResults = 100,
     double tasteWeight = 0.2,
     double proximityWeight = 0.6,
     double qualityWeight = 0.2,
-    List<String>? vibeTagIds,
-    List<String>? cuisineTagIds,
   }) async {
     // Guard: check if userId is null
     if (_userId == null) {
@@ -828,10 +833,9 @@ class LocationListManager with ChangeNotifier {
       log("📍 [LocationListManager] fetchRecommendedLocations called");
       log("   User ID: $_userId");
       log("   Location: $latitude, $longitude (radius: ${radiusKm}km)");
-      log("   Filters - Vibes: ${vibeTagIds ?? 'none'}, Cuisines: ${cuisineTagIds ?? 'none'}");
       log("   Weights - Taste: $tasteWeight, Proximity: $proximityWeight, Quality: $qualityWeight");
 
-      // Call recommendations API
+      // Fetch 100 unfiltered recommendations from API
       final response = await _recommendationsApi.fetchProximal(
         userId: _userId!,
         latitude: latitude,
@@ -841,8 +845,6 @@ class LocationListManager with ChangeNotifier {
         tasteWeight: tasteWeight,
         proximityWeight: proximityWeight,
         qualityWeight: qualityWeight,
-        vibeTagIds: vibeTagIds,
-        cuisineTagIds: cuisineTagIds,
       );
 
       // Extract IDs (preserves ranking!)
@@ -854,6 +856,7 @@ class LocationListManager with ChangeNotifier {
       if (locationIds.isEmpty) {
         log("Recommendations API returned no results");
         _error = noRecommendationsInAreaMessage;
+        _allRecommendedLocations = [];
         _recommendedLocations = {};
         _updateLastSearchedArea(searchCenter, searchRadius);
         _syncRecommendedItemsIfActive();
@@ -866,38 +869,20 @@ class LocationListManager with ChangeNotifier {
       // Fetch full location data
       final locations = await _fetchLocationsByIdsInOrder(locationIds);
 
-      // Select which locations should show names
-      final tempMap = Map.fromEntries(locations.map((loc) => MapEntry(
-          loc,
-          MapMarkerData(
-              id: loc.locationId.toString(),
-              position: const LatLng(0, 0),
-              imageBytes: const []))));
-      final selectedForNames = _selectLocationsForNameDisplay(
-        tempMap,
-        viewportBounds: _currentViewportBounds,
-        zoom: _currentZoom,
-      );
+      // Cache the full unfiltered list
+      _allRecommendedLocations = locations;
 
-      // Generate markers with name selection applied
-      final markers = await Future.wait(
-        locations.map((location) async {
-          final shouldShowName = selectedForNames.contains(location.locationId);
-          final marker = await location
-              .setPreference(LocationPreference.recommended)
-              .toMarker(_devicePixelRatio, shouldShowName: shouldShowName);
-          return MapEntry(location, marker!);
-        }),
-      );
+      // Build markers for all locations
+      await _buildMarkersAndSync(locations);
+      _error = null;
 
-      _recommendedLocations = Map.fromEntries(markers);
-      _syncRecommendedItemsIfActive();
-      _error = null; // Clear any previous errors
+      // Reorder by active filters if any
+      _reorderByFilters();
 
       // Update last searched area
       _updateLastSearchedArea(searchCenter, searchRadius);
 
-      log("Fetched ${locations.length} personalized recommendations");
+      log("Fetched ${locations.length} recommendations");
     } catch (e) {
       log('Error fetching personalized recommendations: $e');
       _error = "Failed to load recommendations: ${e.toString()}";
@@ -908,36 +893,138 @@ class LocationListManager with ChangeNotifier {
     }
   }
 
-  /// Updates filter tags and refetches recommendations if on recommended tab
+  /// Reorders the current recommended locations, placing filter matches first.
+  /// Does NOT remove any locations — just moves matches to the front.
+  void _reorderByFilters() {
+    if (!hasActiveFilters) return;
+    if (_currentListType != LocationListType.recommended) return;
+    if (_recommendedLocations.isEmpty) return;
+
+    final entries = _recommendedLocations.entries.toList();
+
+    // Build vibe lookup keys from tag names (snake_case to match vibeTagOrder)
+    final vibeKeys = _vibeTagNames
+        .map((name) => name.toLowerCase().replaceAll(' ', '_'))
+        .toList();
+    final cuisineLower = _cuisineTagNames
+        .map((name) => name.toLowerCase())
+        .toList();
+
+    log("🔍 [Reorder] Vibe keys: $vibeKeys, Cuisine names: $cuisineLower");
+
+    entries.sort((a, b) {
+      final scoreA = _locationFilterScore(a.key, vibeKeys, cuisineLower);
+      final scoreB = _locationFilterScore(b.key, vibeKeys, cuisineLower);
+      return scoreB.compareTo(scoreA); // Higher score first
+    });
+
+    _recommendedLocations = Map.fromEntries(entries);
+    _syncRecommendedItemsIfActive();
+    notifyListeners();
+
+    // Jump carousel to the front so the user sees the top-ranked results
+    _mapStateProvider?.animateToCarouselItem(0);
+
+    log("🔍 [Reorder] Done. Top 3: ${entries.take(3).map((e) => '${e.key.name} (${_locationFilterScore(e.key, vibeKeys, cuisineLower).toStringAsFixed(2)})').join(', ')}");
+  }
+
+  /// Scores a location based on how well it matches the active filters.
+  /// Cuisine match = 1.0 bonus, vibe = sum of vibeVector scores for selected tags.
+  double _locationFilterScore(
+      LocationModel loc, List<String> vibeKeys, List<String> cuisineLower) {
+    double score = 0.0;
+
+    // Cuisine match: +1.0 if cuisine or cuisinePrimary matches any selected cuisine
+    if (cuisineLower.isNotEmpty) {
+      final cuisine = loc.cuisine?.toLowerCase() ?? '';
+      final cuisinePrimary = loc.cuisinePrimary?.toLowerCase() ?? '';
+      final matches = cuisineLower.any((tag) =>
+          cuisine == tag ||
+          cuisinePrimary == tag ||
+          cuisine.contains(tag) ||
+          cuisinePrimary.contains(tag));
+      if (matches) score += 1.0;
+    }
+
+    // Vibe match: sum of vibeVector scores for selected vibe tags
+    if (vibeKeys.isNotEmpty) {
+      final vibe = loc.vibe;
+      if (vibe != null) {
+        for (final tag in vibeKeys) {
+          score += vibe.scoreFor(tag);
+        }
+      }
+    }
+
+    return score;
+  }
+
+  /// Builds markers for a list of locations and sets _recommendedLocations + syncs currentItems.
+  Future<void> _buildMarkersAndSync(List<LocationModel> locations) async {
+    final tempMap = Map.fromEntries(locations.map((loc) => MapEntry(
+        loc,
+        MapMarkerData(
+            id: loc.locationId.toString(),
+            position: const LatLng(0, 0),
+            imageBytes: const []))));
+    final selectedForNames = _selectLocationsForNameDisplay(
+      tempMap,
+      viewportBounds: _currentViewportBounds,
+      zoom: _currentZoom,
+    );
+
+    final markers = await Future.wait(
+      locations.map((location) async {
+        final shouldShowName = selectedForNames.contains(location.locationId);
+        final marker = await location
+            .setPreference(LocationPreference.recommended)
+            .toMarker(_devicePixelRatio, shouldShowName: shouldShowName);
+        return MapEntry(location, marker!);
+      }),
+    );
+
+    _recommendedLocations = Map.fromEntries(markers);
+    _syncRecommendedItemsIfActive();
+  }
+
+  /// Updates filter tags and applies client-side filtering on cached recommendations.
+  /// [vibeTagNames] and [cuisineTagNames] are the human-readable tag text values
+  /// (e.g. "Cafe", "Italian") resolved by the caller from the tag objects.
   Future<void> applyFilters({
     required List<String> vibeTagIds,
     required List<String> cuisineTagIds,
+    List<String> vibeTagNames = const [],
+    List<String> cuisineTagNames = const [],
   }) async {
     // Update filter state
     _vibeTagIds = List.from(vibeTagIds);
     _cuisineTagIds = List.from(cuisineTagIds);
+    _vibeTagNames = List.from(vibeTagNames);
+    _cuisineTagNames = List.from(cuisineTagNames);
 
     log("🎯 [LocationListManager] applyFilters called");
     log("   Vibe tag IDs (${_vibeTagIds.length}): $_vibeTagIds");
+    log("   Vibe tag names: $_vibeTagNames");
     log("   Cuisine tag IDs (${_cuisineTagIds.length}): $_cuisineTagIds");
+    log("   Cuisine tag names: $_cuisineTagNames");
     log("   Current list type: $_currentListType");
+    log("   Cached recommendations: ${_allRecommendedLocations.length}");
 
-    // If we're currently on the recommended tab, refetch with new filters
     if (_currentListType == LocationListType.recommended) {
-      log("   ✅ On recommended tab - refetching with filters");
-      // Get current location
-      final currentLocation = currentPosition ?? await getCurrentLocation();
-
-      if (currentLocation != null) {
-        log("   Location: ${currentLocation.latitude}, ${currentLocation.longitude}");
-        await fetchRecommendedLocations(
-          latitude: currentLocation.latitude,
-          longitude: currentLocation.longitude,
-          vibeTagIds: _vibeTagIds.isNotEmpty ? _vibeTagIds : null,
-          cuisineTagIds: _cuisineTagIds.isNotEmpty ? _cuisineTagIds : null,
-        );
+      if (_recommendedLocations.isNotEmpty) {
+        // Reorder the existing list — no API call, no marker rebuild
+        log("   ✅ On recommended tab - reordering ${_recommendedLocations.length} recommendations");
+        _reorderByFilters();
       } else {
-        log("   ⚠️ No current location available");
+        // No data yet — do a full fetch
+        log("   ⚠️ No recommendations loaded - fetching fresh");
+        final currentLocation = currentPosition ?? await getCurrentLocation();
+        if (currentLocation != null) {
+          await fetchRecommendedLocations(
+            latitude: currentLocation.latitude,
+            longitude: currentLocation.longitude,
+          );
+        }
       }
     } else {
       log("   ⏭️ Not on recommended tab - filters saved but not applied yet");
@@ -1170,13 +1257,11 @@ class LocationListManager with ChangeNotifier {
   Future<bool> searchThisArea({
     required LatLng center,
     required double radiusKm,
-    int maxResults = 20,
+    int maxResults = 100,
     double tasteWeight = 0.2,
     double proximityWeight = 0.6,
     double qualityWeight = 0.2,
     bool includeTasteBreakdown = false,
-    List<String>? vibeTagIds,
-    List<String>? cuisineTagIds,
   }) async {
     if (_userId == null) {
       _error = "User not logged in";
@@ -1199,8 +1284,6 @@ class LocationListManager with ChangeNotifier {
         proximityWeight: proximityWeight,
         qualityWeight: qualityWeight,
         includeTasteBreakdown: includeTasteBreakdown,
-        vibeTagIds: vibeTagIds,
-        cuisineTagIds: cuisineTagIds,
       );
 
       final locationIds = response.recommendations
@@ -1209,6 +1292,7 @@ class LocationListManager with ChangeNotifier {
           .toList();
 
       if (locationIds.isEmpty) {
+        _allRecommendedLocations = [];
         _recommendedLocations = {};
         _updateLastSearchedArea(center, radiusKm);
         _areaChanged = false;
@@ -1219,31 +1303,11 @@ class LocationListManager with ChangeNotifier {
 
       final locations = await _fetchLocationsByIdsInOrder(locationIds);
 
-      // Select which locations should show names
-      final tempMap = Map.fromEntries(locations.map((loc) => MapEntry(
-          loc,
-          MapMarkerData(
-              id: loc.locationId.toString(),
-              position: const LatLng(0, 0),
-              imageBytes: const []))));
-      final selectedForNames = _selectLocationsForNameDisplay(
-        tempMap,
-        viewportBounds: _currentViewportBounds,
-      );
+      // Cache the full unfiltered list
+      _allRecommendedLocations = locations;
 
-      final markers = await Future.wait(
-        locations.map((location) async {
-          final shouldShowName = selectedForNames.contains(location.locationId);
-          final marker = await location
-              .setPreference(LocationPreference.recommended)
-              .toMarker(_devicePixelRatio, shouldShowName: shouldShowName);
-          return marker != null ? MapEntry(location, marker) : null;
-        }),
-      );
-
-      // Update recommended locations instead of search locations
-      _recommendedLocations = Map.fromEntries(
-          markers.whereType<MapEntry<LocationModel, MapMarkerData>>());
+      await _buildMarkersAndSync(locations);
+      _reorderByFilters();
       _updateLastSearchedArea(center, radiusKm);
       _areaChanged = false;
       _error = null;
@@ -1394,6 +1458,20 @@ class LocationListManager with ChangeNotifier {
     }
     notifyListeners();
 
+    // If location has no vibe data, call locations/add to populate it
+    if ((location.vibeVector == null || location.vibeVector!.isEmpty) &&
+        location.googlePlaceId != null &&
+        location.googlePlaceId!.isNotEmpty) {
+      try {
+        await _recommendationsApi.addLocationByGooglePlaceId(
+          googlePlaceId: location.googlePlaceId!,
+        );
+        log("Populated vibe data for location: ${location.name}");
+      } catch (e) {
+        log("Failed to populate vibe data for ${location.name}: $e");
+      }
+    }
+
     final supabaseSuccess = await _supabaseService.locations
         .saveLocation(location.locationId, savedMethod: 'in-app');
     if (supabaseSuccess) {
@@ -1440,11 +1518,6 @@ class LocationListManager with ChangeNotifier {
     int maxResults = 20,
     bool includeTasteBreakdown = false,
   }) async {
-    print('🎯 LocationListManager.magicSearch CALLED');
-    print('   Query: "$query"');
-    print('   UserId: $_userId');
-    print('[MagicSearchDebug] permissionGranted: $permissionGranted');
-
     if (_userId == null) {
       log("Cannot perform magic search: userId is null.");
       _error = "User not logged in";
@@ -1458,11 +1531,10 @@ class LocationListManager with ChangeNotifier {
       return;
     }
 
-    // Get device GPS location
-    log("LocationListManager: Getting device GPS location...");
-    print('[MagicSearchDebug] About to call getCurrentLocation()');
-    final currentLocation = await getCurrentLocation();
-    print('[MagicSearchDebug] getCurrentLocation() returned: $currentLocation');
+    // Prefer the camera position so results centre on the visible map area,
+    // falling back to the device GPS location when the map hasn't been moved.
+    final currentLocation =
+        _cameraPosition?.target ?? await getCurrentLocation();
     if (currentLocation == null) {
       log("LocationListManager: Cannot perform magic search without location.");
       _error = "Location permission required for search";
@@ -1471,13 +1543,19 @@ class LocationListManager with ChangeNotifier {
       return;
     }
 
-    log("LocationListManager: Starting magic search for query: '$trimmedQuery'");
+    final locationSource =
+        _cameraPosition?.target != null ? 'camera' : 'gps';
     log(
-      "LocationListManager: Magic search request params - "
-      "userId: $_userId, lat: ${currentLocation.latitude}, "
-      "lng: ${currentLocation.longitude}, radiusKm: $radiusKm, "
-      "maxResults: $maxResults, includeTasteBreakdown: $includeTasteBreakdown",
+      "LocationListManager: Magic search request — "
+      "query: '$trimmedQuery', source: $locationSource, "
+      "lat: ${currentLocation.latitude}, lng: ${currentLocation.longitude}, "
+      "radiusKm: $radiusKm, maxResults: $maxResults, "
+      "includeTasteBreakdown: $includeTasteBreakdown, userId: $_userId",
     );
+
+    _isMagicSearching = true;
+    _searchLocations = {};
+    await setCurrentListType(LocationListType.search);
 
     try {
       final locations = await _naturalLanguageSearchService.search(
@@ -1521,14 +1599,15 @@ class LocationListManager with ChangeNotifier {
       log(
         "LocationListManager: Magic search returned ${_searchLocations.length} results for '$trimmedQuery'.",
       );
+      _isMagicSearching = false;
       await setCurrentListType(LocationListType.search);
     } catch (e) {
       log('LocationListManager: Error during magic search: $e');
       _error = "Search error: ${e.toString()}";
+      _isMagicSearching = false;
       _searchLocations = {};
       await setCurrentListType(LocationListType.search);
     }
-    // No need for notifyListeners() here as setCurrentListType calls it
   }
 
   /// Check if location is saved by current user
