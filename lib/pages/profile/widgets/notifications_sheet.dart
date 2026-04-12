@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/notification_type.dart';
 import 'package:login/models/notifications/base_notification.dart';
+import 'package:login/models/notifications/follow_request_notification.dart';
+import 'package:login/pages/profile/other_user_profile_page.dart';
 import 'package:login/services/fcm_service.dart';
+import 'package:login/supabase/service.dart';
+import 'package:provider/provider.dart';
 import 'pinit_colors.dart';
 
 class NotificationsSheet extends StatelessWidget {
@@ -115,7 +119,7 @@ class NotificationsSheet extends StatelessWidget {
   }
 }
 
-class _NotificationItem extends StatelessWidget {
+class _NotificationItem extends StatefulWidget {
   final BaseNotification notification;
 
   const _NotificationItem({
@@ -123,18 +127,128 @@ class _NotificationItem extends StatelessWidget {
   });
 
   @override
+  State<_NotificationItem> createState() => _NotificationItemState();
+}
+
+class _NotificationItemState extends State<_NotificationItem> {
+  bool _isProcessing = false;
+  bool _accepted = false;
+  bool _followedBack = false;
+
+  Future<void> _handleAccept() async {
+    final n = widget.notification;
+    if (n is! FollowRequestNotification || _isProcessing) return;
+    setState(() => _isProcessing = true);
+    try {
+      final auth =
+          Provider.of<SupabaseService>(context, listen: false).users;
+      await auth.acceptFollowRequest(n.userId);
+      await FCMService().markAsRead(n.id);
+      if (mounted) setState(() => _accepted = true);
+      await FCMService().refreshFromDB();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not accept request: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
+  Future<void> _handleFollowBack() async {
+    final n = widget.notification;
+    if (n is! FollowRequestNotification || _isProcessing || _followedBack) {
+      return;
+    }
+    setState(() => _isProcessing = true);
+    try {
+      final auth =
+          Provider.of<SupabaseService>(context, listen: false).users;
+      await auth.followUser(n.userId);
+      if (mounted) setState(() => _followedBack = true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not follow back: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
+  Future<void> _openRequesterProfile() async {
+    final n = widget.notification;
+    if (n is! FollowRequestNotification) return;
+    final users =
+        Provider.of<SupabaseService>(context, listen: false).users;
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final user = await users.getUserProfileById(n.userId);
+      if (!mounted) return;
+      if (user == null) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Could not load user profile')),
+        );
+        return;
+      }
+      await FCMService().markAsRead(n.id);
+      navigator.push(
+        MaterialPageRoute(
+          builder: (_) => OtherUserProfilePage(user: user),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('Could not open profile: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleReject() async {
+    final n = widget.notification;
+    if (n is! FollowRequestNotification || _isProcessing) return;
+    setState(() => _isProcessing = true);
+    try {
+      final auth =
+          Provider.of<SupabaseService>(context, listen: false).users;
+      await auth.rejectFollowRequest(n.userId);
+      await FCMService().markAsRead(n.id);
+      await FCMService().refreshFromDB();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not reject request: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final notification = widget.notification;
     final meta = _metaFor(notification.type);
     final body = notification.getNotificationBody().trim();
     final title = notification.getNotificationTitle().trim();
     final showBody = body.isNotEmpty && body != title;
+    final isFollowRequest = notification is FollowRequestNotification;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       child: AnimatedOpacity(
         duration: const Duration(milliseconds: 180),
         opacity: notification.isRead ? 0.84 : 1,
-        child: Container(
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: isFollowRequest ? _openRequesterProfile : null,
+          child: Container(
           decoration: const BoxDecoration(
             color: PinitColors.cream,
             border: Border.fromBorderSide(
@@ -200,6 +314,21 @@ class _NotificationItem extends StatelessWidget {
                                     ),
                                   ),
                                 ],
+                                if (isFollowRequest) ...[
+                                  const SizedBox(height: 10),
+                                  if (_accepted)
+                                    _FollowBackAction(
+                                      isProcessing: _isProcessing,
+                                      followed: _followedBack,
+                                      onFollowBack: _handleFollowBack,
+                                    )
+                                  else
+                                    _FollowRequestActions(
+                                      isProcessing: _isProcessing,
+                                      onAccept: _handleAccept,
+                                      onReject: _handleReject,
+                                    ),
+                                ],
                               ],
                             ),
                           ),
@@ -235,6 +364,7 @@ class _NotificationItem extends StatelessWidget {
                 ],
               ),
             ),
+          ),
           ),
         ),
       ),
@@ -359,4 +489,104 @@ class _NotificationMeta {
     required this.label,
     required this.accentColor,
   });
+}
+
+class _FollowRequestActions extends StatelessWidget {
+  final bool isProcessing;
+  final VoidCallback onAccept;
+  final VoidCallback onReject;
+
+  const _FollowRequestActions({
+    required this.isProcessing,
+    required this.onAccept,
+    required this.onReject,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _ActionPill(
+          label: 'Accept',
+          filled: true,
+          isLoading: isProcessing,
+          onTap: onAccept,
+        ),
+        const SizedBox(width: 8),
+        _ActionPill(
+          label: 'Reject',
+          filled: false,
+          isLoading: isProcessing,
+          onTap: onReject,
+        ),
+      ],
+    );
+  }
+}
+
+class _FollowBackAction extends StatelessWidget {
+  final bool isProcessing;
+  final bool followed;
+  final VoidCallback onFollowBack;
+
+  const _FollowBackAction({
+    required this.isProcessing,
+    required this.followed,
+    required this.onFollowBack,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _ActionPill(
+          label: followed ? 'Requested' : 'Follow back',
+          filled: !followed,
+          isLoading: isProcessing,
+          onTap: followed ? () {} : onFollowBack,
+        ),
+      ],
+    );
+  }
+}
+
+class _ActionPill extends StatelessWidget {
+  final String label;
+  final bool filled;
+  final bool isLoading;
+  final VoidCallback onTap;
+
+  const _ActionPill({
+    required this.label,
+    required this.filled,
+    required this.isLoading,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = filled ? PinitColors.aubergine : PinitColors.cream;
+    final fg = filled ? PinitColors.cream : PinitColors.aubergine;
+
+    return GestureDetector(
+      onTap: isLoading ? null : onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: PinitColors.aubergine, width: 1.2),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.dmSans(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: fg,
+            letterSpacing: 0.2,
+          ),
+        ),
+      ),
+    );
+  }
 }

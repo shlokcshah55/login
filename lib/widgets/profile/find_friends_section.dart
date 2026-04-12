@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -24,12 +25,26 @@ class FindFriendsSection extends StatefulWidget {
 
 class _FindFriendsSectionState extends State<FindFriendsSection> {
   List<UserModel> _suggestedUsers = [];
+  List<UserModel> _searchResults = [];
   bool _isLoading = false;
+  bool _isSearching = false;
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
+  String _searchQuery = '';
+  Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
     _fetchSuggestedUsers();
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    _searchFocus.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchSuggestedUsers() async {
@@ -42,6 +57,46 @@ class _FindFriendsSectionState extends State<FindFriendsSection> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _onSearchChanged(String value) {
+    setState(() => _searchQuery = value);
+    _debounce?.cancel();
+    if (value.trim().isEmpty) {
+      setState(() {
+        _searchResults = [];
+        _isSearching = false;
+      });
+      return;
+    }
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      _runSearch(value.trim());
+    });
+  }
+
+  Future<void> _runSearch(String query) async {
+    setState(() => _isSearching = true);
+    try {
+      final service = Provider.of<SupabaseService>(context, listen: false);
+      final results = await service.users.searchUsers(query);
+      if (mounted && _searchQuery.trim() == query) {
+        setState(() => _searchResults = results);
+      }
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _isSearching = false);
+    }
+  }
+
+  void _clearSearch() {
+    _debounce?.cancel();
+    _searchController.clear();
+    setState(() {
+      _searchQuery = '';
+      _searchResults = [];
+      _isSearching = false;
+    });
+    _searchFocus.unfocus();
   }
 
   @override
@@ -102,6 +157,60 @@ class _FindFriendsSectionState extends State<FindFriendsSection> {
           ),
         ),
 
+        // ── Search bar ──
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+          child: Container(
+            decoration: BoxDecoration(
+              color: PinitColors.creamSunk,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: PinitColors.creamDeep, width: 1.5),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                const Icon(Icons.search_rounded,
+                    size: 20, color: PinitColors.aubergineSoft),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    focusNode: _searchFocus,
+                    onChanged: _onSearchChanged,
+                    textInputAction: TextInputAction.search,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 15,
+                      color: PinitColors.aubergine,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    decoration: InputDecoration(
+                      isCollapsed: true,
+                      contentPadding:
+                          const EdgeInsets.symmetric(vertical: 14),
+                      border: InputBorder.none,
+                      hintText: 'Search people by name',
+                      hintStyle: GoogleFonts.dmSans(
+                        fontSize: 15,
+                        color: PinitColors.aubergineSoft,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+                if (_searchQuery.isNotEmpty)
+                  GestureDetector(
+                    onTap: _clearSearch,
+                    child: const Padding(
+                      padding: EdgeInsets.only(left: 8),
+                      child: Icon(Icons.close_rounded,
+                          size: 18, color: PinitColors.aubergineSoft),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+
         // ── Content ──
         Padding(
           padding: const EdgeInsets.only(left: 24, right: 20),
@@ -112,6 +221,47 @@ class _FindFriendsSectionState extends State<FindFriendsSection> {
   }
 
   Widget _buildContent() {
+    if (_searchQuery.trim().isNotEmpty) {
+      if (_isSearching) {
+        return const Padding(
+          padding: EdgeInsets.symmetric(vertical: 40),
+          child: Center(
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: PinitColors.aubergine,
+            ),
+          ),
+        );
+      }
+      if (_searchResults.isEmpty) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 32),
+          child: Center(
+            child: Text(
+              'No people found for "${_searchQuery.trim()}"',
+              style: GoogleFonts.dmSans(
+                fontSize: 14,
+                color: PinitColors.aubergineSoft,
+                height: 1.5,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        );
+      }
+      return Column(
+        children: _searchResults
+            .map((user) => Padding(
+                  padding: const EdgeInsets.only(bottom: 16, right: 4),
+                  child: UserCard(
+                    user: user,
+                    onTap: widget.onUserTap,
+                  ),
+                ))
+            .toList(),
+      );
+    }
+
     if (_isLoading) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 40),

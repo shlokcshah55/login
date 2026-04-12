@@ -221,6 +221,7 @@ class _CollectionsGridState extends State<CollectionsGrid>
           collection: collections[index],
           showOwner: showOwner,
           onEdit: showOwner ? null : () => _openEditSheet(collections[index]),
+          onDeleted: showOwner ? null : _loadCollections,
         ),
       ),
     );
@@ -664,11 +665,13 @@ class _CollectionCard extends StatelessWidget {
   final CollectionModel collection;
   final bool showOwner;
   final VoidCallback? onEdit;
+  final VoidCallback? onDeleted;
 
   const _CollectionCard({
     required this.collection,
     this.showOwner = false,
     this.onEdit,
+    this.onDeleted,
   });
 
   @override
@@ -680,7 +683,11 @@ class _CollectionCard extends StatelessWidget {
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
-        builder: (_) => _CollectionDetailSheet(collection: collection, onEdit: onEdit),
+        builder: (_) => CollectionDetailSheet(
+          collection: collection,
+          onEdit: onEdit,
+          onDeleted: onDeleted,
+        ),
       ),
       child: Container(
         decoration: BoxDecoration(
@@ -902,20 +909,29 @@ class _EmptyCollections extends StatelessWidget {
 //  Collection detail bottom sheet
 // ─────────────────────────────────────────────────────────────
 
-class _CollectionDetailSheet extends StatefulWidget {
+class CollectionDetailSheet extends StatefulWidget {
   final CollectionModel collection;
   final VoidCallback? onEdit;
-  const _CollectionDetailSheet({required this.collection, this.onEdit});
+  final VoidCallback? onDeleted;
+  const CollectionDetailSheet({
+    required this.collection,
+    this.onEdit,
+    this.onDeleted,
+  });
 
   @override
-  State<_CollectionDetailSheet> createState() => _CollectionDetailSheetState();
+  State<CollectionDetailSheet> createState() => CollectionDetailSheetState();
 }
 
-class _CollectionDetailSheetState extends State<_CollectionDetailSheet> {
+// Auto-generated collections that the user is not allowed to delete.
+const Set<String> _kUndeletableCollectionNames = {'Been To', 'Shared Finds'};
+
+class CollectionDetailSheetState extends State<CollectionDetailSheet> {
   final CollectionsHelper _helper = CollectionsHelper();
   List<LocationModel> _locations = [];
   bool _isLoading = true;
   bool _showingOnMap = false;
+  bool _isDeleting = false;
   String? _error;
 
   @override
@@ -930,6 +946,47 @@ class _CollectionDetailSheetState extends State<_CollectionDetailSheet> {
       if (mounted) setState(() { _locations = locs; _isLoading = false; });
     } catch (e) {
       if (mounted) setState(() { _error = e.toString(); _isLoading = false; });
+    }
+  }
+
+  Future<void> _confirmAndDelete() async {
+    if (_isDeleting) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete collection?'),
+        content: Text(
+          'This will permanently delete "${widget.collection.name}" and remove all its places from the collection. Your saved places themselves are not deleted.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isDeleting = true);
+    try {
+      await _helper.deleteCollection(widget.collection.id);
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      widget.onDeleted?.call();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isDeleting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to delete collection: $e')),
+      );
     }
   }
 
@@ -1056,6 +1113,38 @@ class _CollectionDetailSheetState extends State<_CollectionDetailSheet> {
                             ),
                           ),
                         ),
+                      if (widget.onDeleted != null &&
+                          !_kUndeletableCollectionNames
+                              .contains(widget.collection.name)) ...[
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: _isDeleting ? null : _confirmAndDelete,
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: PinitColors.creamSunk,
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: Colors.red.withValues(alpha: 0.35),
+                              ),
+                            ),
+                            child: _isDeleting
+                                ? const SizedBox(
+                                    width: 15,
+                                    height: 15,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.red,
+                                    ),
+                                  )
+                                : const Icon(
+                                    FeatherIcons.trash2,
+                                    size: 15,
+                                    color: Colors.red,
+                                  ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -1422,6 +1511,7 @@ class _EditCollectionSheetState extends State<_EditCollectionSheet> {
 
   File? _pendingPhoto;
   bool _saving = false;
+  bool _deleting = false;
   String? _error;
 
   @override
@@ -1452,6 +1542,48 @@ class _EditCollectionSheetState extends State<_EditCollectionSheet> {
       }
     } catch (e) {
       if (mounted) setState(() => _error = 'Could not load image.');
+    }
+  }
+
+  Future<void> _confirmAndDelete() async {
+    if (_deleting || _saving) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete collection?'),
+        content: Text(
+          'This will permanently delete "${widget.collection.name}" and remove all its places from the collection. Your saved places themselves are not deleted.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() { _deleting = true; _error = null; });
+    try {
+      await _helper.deleteCollection(widget.collection.id);
+      if (!mounted) return;
+      Navigator.pop(context);
+      await widget.onSaved();
+    } catch (e) {
+      debugPrint('[EditCollectionSheet] delete error: $e');
+      if (!mounted) return;
+      setState(() {
+        _deleting = false;
+        _error = 'Could not delete collection. Please try again.';
+      });
     }
   }
 
@@ -1693,6 +1825,58 @@ class _EditCollectionSheetState extends State<_EditCollectionSheet> {
                 ),
               ),
             ),
+
+            // Delete button (hidden for auto-generated collections)
+            if (!_kUndeletableCollectionNames.contains(widget.collection.name)) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: GestureDetector(
+                  onTap: (_saving || _deleting) ? null : _confirmAndDelete,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: Colors.red.withValues(alpha: 0.5),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Center(
+                      child: _deleting
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.red,
+                              ),
+                            )
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  FeatherIcons.trash2,
+                                  size: 16,
+                                  color: Colors.red,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Delete Collection',
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.red,
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

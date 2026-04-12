@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../models/users.dart';
 import '../../providers/user_data_provider.dart';
 import '../../supabase/service.dart';
+import 'user_list_page.dart';
 import 'widgets/pinit_colors.dart';
 
 /// Lets the user update their profile photo, display name, and bio.
@@ -177,6 +178,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
                             maxLength: 160,
                             maxLines: 4,
                           ),
+                          const SizedBox(height: 26),
+                          _buildBlockedUsersTile(),
                           if (_error != null) ...[
                             const SizedBox(height: 18),
                             _buildErrorBanner(_error!),
@@ -344,6 +347,81 @@ class _EditProfilePageState extends State<EditProfilePage> {
             fontSize: 15,
             color: PinitColors.mute,
             fontWeight: FontWeight.w400,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBlockedUsersTile() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => UserListPage(
+                title: 'Blocked Users',
+                loader: (s) => s.users.getBlockedUsers(),
+                emptyMessage: "You haven't blocked anyone",
+              ),
+            ),
+          );
+        },
+        child: Ink(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: PinitColors.creamSunk,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: PinitColors.creamDeep, width: 1.5),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: PinitColors.creamDeep,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.block_rounded,
+                  size: 20,
+                  color: PinitColors.aubergine,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Blocked Users',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: PinitColors.aubergine,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Manage who you have blocked',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 12,
+                        color: PinitColors.aubergineSoft,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: PinitColors.aubergineSoft,
+              ),
+            ],
           ),
         ),
       ),

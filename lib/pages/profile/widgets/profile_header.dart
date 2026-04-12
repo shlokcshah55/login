@@ -11,6 +11,11 @@ class ProfileHeader extends StatelessWidget {
   final VoidCallback onNotificationsTap;
   final VoidCallback onSettingsTap;
   final int unreadCount;
+  final int followersCount;
+  final int followingCount;
+  final int pinsCount;
+  final VoidCallback? onFollowersTap;
+  final VoidCallback? onFollowingTap;
 
   const ProfileHeader({
     Key? key,
@@ -19,6 +24,11 @@ class ProfileHeader extends StatelessWidget {
     required this.onNotificationsTap,
     required this.onSettingsTap,
     required this.unreadCount,
+    required this.followersCount,
+    required this.followingCount,
+    required this.pinsCount,
+    this.onFollowersTap,
+    this.onFollowingTap,
   }) : super(key: key);
 
   @override
@@ -74,7 +84,13 @@ class ProfileHeader extends StatelessWidget {
                             ),
                           ],
                           const SizedBox(height: 10),
-                          _StatsRow(user: user),
+                          _StatsRow(
+                            followersCount: followersCount,
+                            followingCount: followingCount,
+                            pinsCount: pinsCount,
+                            onFollowersTap: onFollowersTap,
+                            onFollowingTap: onFollowingTap,
+                          ),
                         ],
                       ),
                     ),
@@ -226,9 +242,19 @@ class _ProfileAvatar extends StatelessWidget {
 }
 
 class _StatsRow extends StatelessWidget {
-  final UserModel user;
+  final int followersCount;
+  final int followingCount;
+  final int pinsCount;
+  final VoidCallback? onFollowersTap;
+  final VoidCallback? onFollowingTap;
 
-  const _StatsRow({required this.user});
+  const _StatsRow({
+    required this.followersCount,
+    required this.followingCount,
+    required this.pinsCount,
+    this.onFollowersTap,
+    this.onFollowingTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -237,11 +263,19 @@ class _StatsRow extends StatelessWidget {
       alignment: Alignment.centerLeft,
       child: Row(
         children: [
-          _StatItem(value: '0', label: 'Pins'),
+          _StatItem(value: pinsCount.toString(), label: 'Pins'),
           _buildDivider(),
-          _StatItem(value: user.followersCount.toString(), label: 'Followers'),
+          _StatItem(
+            value: followersCount.toString(),
+            label: 'Followers',
+            onTap: onFollowersTap,
+          ),
           _buildDivider(),
-          _StatItem(value: user.followingCount.toString(), label: 'Following'),
+          _StatItem(
+            value: followingCount.toString(),
+            label: 'Following',
+            onTap: onFollowingTap,
+          ),
         ],
       ),
     );
@@ -258,15 +292,17 @@ class _StatsRow extends StatelessWidget {
 class _StatItem extends StatelessWidget {
   final String value;
   final String label;
+  final VoidCallback? onTap;
 
   const _StatItem({
     required this.value,
     required this.label,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    final column = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
@@ -290,6 +326,16 @@ class _StatItem extends StatelessWidget {
           ),
         ),
       ],
+    );
+
+    if (onTap == null) return column;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap!();
+      },
+      child: column,
     );
   }
 }

@@ -1,10 +1,10 @@
-CREATE OR REPLACE FUNCTION public.create_friendship(p_follower_id uuid, p_followee_id uuid, p_status text DEFAULT 'pending'::text)
+CREATE OR REPLACE FUNCTION public.create_friendship(p_follower_id uuid, p_followee_id uuid, p_status text DEFAULT 'requested'::text)
  RETURNS void
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO 'public'
-AS $function$BEGIN
-  -- Prevent self-follow
+AS $function$
+BEGIN
   IF p_follower_id = p_followee_id THEN
     RAISE EXCEPTION 'User cannot follow themselves';
   END IF;
@@ -22,5 +22,6 @@ AS $function$BEGIN
   )
   ON CONFLICT (followee_id, follower_id) DO UPDATE SET
     status = EXCLUDED.status;
-END;$function$
+END;
+$function$
 ;

@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:googleapis/mybusinessbusinessinformation/v1.dart';
 import 'package:login/models/locations.dart';
+import 'package:login/services/push_notification_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../supabase_client.dart';
@@ -453,10 +455,10 @@ class AuthHelper {
       if (user == null) {
         throw Exception("User not authenticated");
       }
-      final followeeId = user.id;
+      final followerId = user.id;
 
       // Prevent self-follow
-      if (followeeId == followingId) {
+      if (followerId == followingId) {
         if (kDebugMode) {
           print("User cannot follow themselves.");
         }
@@ -464,14 +466,20 @@ class AuthHelper {
       }
 
       await _client.rpc('create_friendship', params: {
-      'p_follower_id': followingId,
-      'p_followee_id': followeeId,
-      'p_status': SupabaseConstants.relationshipStatusPending,
+        'p_follower_id': followerId,
+        'p_followee_id': followingId,
+        'p_status': SupabaseConstants.relationshipStatusRequested,
       });
 
       if (kDebugMode) {
-        print("Follow request sent to $followeeId from $followingId");
+        print("Follow request sent from $followerId to $followingId");
       }
+
+      // Best-effort: push + persist via Cloud Function. Don't fail the follow if push fails.
+      unawaited(PushNotificationService().sendFollowRequestNotification(
+        recipientUserId: followingId,
+        requesterUserId: followerId,
+      ));
     } catch (e) {
       if (kDebugMode) {
         print('Error following user: $e');
@@ -487,15 +495,15 @@ class AuthHelper {
       if (user == null) {
         throw Exception("User not authenticated");
       }
-      final followeeId = user.id;
+      final followerId = user.id;
 
       await _client.rpc('unfollow_user', params: {
-        'p_follower_id': followingId,
-        'p_followee_id': followeeId,
+        'p_follower_id': followerId,
+        'p_followee_id': followingId,
       });
 
       if (kDebugMode) {
-        print("Unfollowed user $followingId from $followeeId");
+        print("User $followerId unfollowed $followingId");
       }
     } catch (e) {
       if (kDebugMode) {
@@ -528,6 +536,163 @@ class AuthHelper {
         print('Error getting follow status: $e');
       }
       return null;
+    }
+  }
+
+  /// Accept an incoming follow request
+  Future<void> acceptFollowRequest(String requesterId) async {
+    try {
+      final user = currentUser;
+      if (user == null) throw Exception('User not authenticated');
+
+      await _client.rpc('accept_friendship', params: {
+        'request_from_id': requesterId,
+        'user_id': user.id,
+      });
+
+      unawaited(PushNotificationService().sendFollowAcceptedNotification(
+        recipientUserId: requesterId,
+        accepterUserId: user.id,
+      ));
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error accepting follow request: $e');
+      }
+      rethrow;
+    }
+  }
+
+  /// Reject an incoming follow request
+  Future<void> rejectFollowRequest(String requesterId) async {
+    try {
+      final user = currentUser;
+      if (user == null) throw Exception('User not authenticated');
+
+      await _client.rpc('reject_friendship', params: {
+        'request_from_id': requesterId,
+        'user_id': user.id,
+      });
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error rejecting follow request: $e');
+      }
+      rethrow;
+    }
+  }
+
+  /// Block another user
+  Future<void> blockUser(String targetId) async {
+    try {
+      final user = currentUser;
+      if (user == null) throw Exception('User not authenticated');
+
+      await _client.rpc('block_user', params: {
+        'p_blocker_id': user.id,
+        'p_blocked_id': targetId,
+      });
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error blocking user: $e');
+      }
+      rethrow;
+    }
+  }
+
+  /// Unblock a previously blocked user
+  Future<void> unblockUser(String targetId) async {
+    try {
+      final user = currentUser;
+      if (user == null) throw Exception('User not authenticated');
+
+      await _client.rpc('unblock_user', params: {
+        'p_blocker_id': user.id,
+        'p_blocked_id': targetId,
+      });
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error unblocking user: $e');
+      }
+      rethrow;
+    }
+  }
+
+  /// Get incoming follow requests for the current user
+  Future<List<UserModel>> getIncomingFollowRequests() async {
+    try {
+      final user = currentUser;
+      if (user == null) return [];
+
+      final response = await _client.rpc('get_incoming_follow_requests',
+          params: {'p_user_id': user.id});
+
+      return (response as List)
+          .map((row) => UserModel.fromJson(row as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error fetching incoming follow requests: $e');
+      }
+      return [];
+    }
+  }
+
+  /// Get the followers of a given user (defaults to current user)
+  Future<List<UserModel>> getFollowers({String? userId}) async {
+    try {
+      final targetId = userId ?? currentUser?.id;
+      if (targetId == null) return [];
+
+      final response = await _client
+          .rpc('get_followers', params: {'p_user_id': targetId});
+
+      return (response as List)
+          .map((row) => UserModel.fromJson(row as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error fetching followers: $e');
+      }
+      return [];
+    }
+  }
+
+  /// Get the users that a given user is following (defaults to current user)
+  Future<List<UserModel>> getFollowingList({String? userId}) async {
+    try {
+      final targetId = userId ?? currentUser?.id;
+      if (targetId == null) return [];
+
+      final response = await _client
+          .rpc('get_following', params: {'p_user_id': targetId});
+
+      return (response as List)
+          .map((row) => UserModel.fromJson(row as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error fetching following list: $e');
+      }
+      return [];
+    }
+  }
+
+  /// Get the users that the current user has blocked
+  Future<List<UserModel>> getBlockedUsers() async {
+    try {
+      final user = currentUser;
+      if (user == null) return [];
+
+      final response = await _client
+          .rpc('get_blocked_users', params: {'p_user_id': user.id});
+
+      return (response as List)
+          .map((row) => UserModel.fromJson(row as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error fetching blocked users: $e');
+      }
+      return [];
     }
   }
 

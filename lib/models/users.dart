@@ -83,6 +83,26 @@ class UserModel {
     return dot / (math.sqrt(magA) * math.sqrt(magB));
   }
 
+  /// Cosine similarity between this user's vibe affinity and another user's
+  /// vibe affinity. Returns null if either vector is missing or empty so
+  /// callers can hide the indicator gracefully.
+  double? vibeSimilarityWith(UserModel other) {
+    final a = vibeTagAffinity;
+    final b = other.vibeTagAffinity;
+    if (a == null || b == null || a.isEmpty || b.isEmpty) return null;
+    final len = math.min(a.length, b.length);
+    double dot = 0, magA = 0, magB = 0;
+    for (var i = 0; i < len; i++) {
+      final x = a[i].toDouble();
+      final y = b[i].toDouble();
+      dot += x * y;
+      magA += x * x;
+      magB += y * y;
+    }
+    if (magA == 0 || magB == 0) return null;
+    return dot / (math.sqrt(magA) * math.sqrt(magB));
+  }
+
   /// Whether this user has any affinity vectors populated.
   bool get hasAffinityData =>
       (vibeTagAffinity != null && vibeTagAffinity!.isNotEmpty) ||
