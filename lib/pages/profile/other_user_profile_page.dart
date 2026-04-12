@@ -231,9 +231,10 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
     final currentUser = Provider.of<UserDataProvider>(context).supabaseUserData;
     final similarity = currentUser?.vibeSimilarityWith(_user);
     debugPrint('[OtherUserProfilePage] vibe match: '
-        'me=${currentUser?.vibeTagAffinity?.length ?? "null"} '
-        'them=${_user.vibeTagAffinity?.length ?? "null"} '
-        'similarity=$similarity');
+        'me=${currentUser?.vibeTagAffinity ?? "null"} '
+        'them=${_user.vibeTagAffinity ?? "null"} '
+        'similarity=$similarity '
+        'userId=${_user.supabaseId}');
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,

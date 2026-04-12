@@ -493,7 +493,11 @@ class _KeepExploringCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final modeLabel = mode == HomeMode.you ? 'You' : 'Explore';
+    final modeLabel = switch (mode) {
+      HomeMode.you => 'You',
+      HomeMode.explore => 'Explore',
+      HomeMode.bubble => 'Bubble',
+    };
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

@@ -45,6 +45,8 @@ class _LoginPageState extends State<LoginPage> {
             MaterialPageRoute(builder: (context) => const AuthHandler()),
           );
         }
+      } else {
+        signInFailedNotifier.value = true;
       }
     } catch (e) {
       print("Login error: $e");

@@ -16,13 +16,13 @@ import 'widgets/hidden_gems_section.dart';
 import 'widgets/trending_now_section.dart';
 import 'widgets/collections_grid.dart';
 import 'widgets/recent_activity_section.dart';
-import 'widgets/notifications_sheet.dart';
 import 'widgets/pinit_colors.dart';
 import 'edit_profile_page.dart';
 import 'preferences_page.dart';
 import 'other_user_profile_page.dart';
 import 'user_list_page.dart';
 import '../../widgets/profile/find_friends_section.dart';
+import '../../widgets/profile/notifications_popover.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({Key? key}) : super(key: key);
@@ -113,8 +113,8 @@ class _ProfilePageState extends State<ProfilePage>
           SnackBar(
             content: Text('Error signing out: $e'),
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
       }
@@ -447,14 +447,14 @@ class _ProfilePageState extends State<ProfilePage>
                   right: 5,
                   top: 5,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 4, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                     decoration: const BoxDecoration(
                       color: PinitColors.accent,
                       shape: BoxShape.circle,
                     ),
-                    constraints: const BoxConstraints(
-                        minWidth: 18, minHeight: 18),
+                    constraints:
+                        const BoxConstraints(minWidth: 18, minHeight: 18),
                     child: Center(
                       child: Text(
                         badgeCount > 9 ? '9+' : badgeCount.toString(),
@@ -562,8 +562,8 @@ class _ProfilePageState extends State<ProfilePage>
               GestureDetector(
                 onTap: () => _handleSignOut(context),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 32, vertical: 16),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                   decoration: BoxDecoration(
                     color: PinitColors.aubergine,
                     borderRadius: BorderRadius.circular(999),
@@ -612,11 +612,11 @@ class _ProfilePageState extends State<ProfilePage>
   }
 
   void _showNotifications(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => const NotificationsSheet(),
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const NotificationsPopover(),
+        fullscreenDialog: true,
+      ),
     );
   }
 
@@ -961,9 +961,8 @@ class _ProfileSettingsRow extends StatelessWidget {
         child: Ink(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: isDestructive
-                ? const Color(0xFFFFF5F2)
-                : PinitColors.creamSunk,
+            color:
+                isDestructive ? const Color(0xFFFFF5F2) : PinitColors.creamSunk,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: PinitColors.creamDeep, width: 1.5),
           ),

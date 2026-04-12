@@ -5,7 +5,7 @@ import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/supabase/helpers/collections.dart';
 
 /// Mode toggle enum.
-enum HomeMode { you, explore }
+enum HomeMode { you, explore, bubble }
 
 /// Unified home chip row with an inline collections dropdown.
 class HomeChipRow extends StatefulWidget {
@@ -19,6 +19,7 @@ class HomeChipRow extends StatefulWidget {
     required this.onCollectionMenuOpened,
     required this.onCollectionSelected,
     this.activeCollectionId,
+    this.activeBubbleName,
   });
 
   final HomeMode currentMode;
@@ -29,6 +30,7 @@ class HomeChipRow extends StatefulWidget {
   final VoidCallback onCollectionMenuOpened;
   final ValueChanged<CollectionItem> onCollectionSelected;
   final String? activeCollectionId;
+  final String? activeBubbleName;
 
   @override
   State<HomeChipRow> createState() => _HomeChipRowState();
@@ -55,8 +57,9 @@ class _HomeChipRowState extends State<HomeChipRow> {
 
   @override
   Widget build(BuildContext context) {
-    final collectionActive =
-        _showCollections || widget.activeCollectionId != null;
+    final bubbleActive = widget.activeBubbleName != null;
+    final collectionActive = !bubbleActive &&
+        (_showCollections || widget.activeCollectionId != null);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -65,56 +68,71 @@ class _HomeChipRowState extends State<HomeChipRow> {
           scrollDirection: Axis.horizontal,
           child: Row(
             children: [
-              _Chip(
-                label: 'YOU',
-                icon: FeatherIcons.user,
-                state: widget.currentMode == HomeMode.you && !collectionActive
-                    ? _ChipState.filled
-                    : _ChipState.normal,
-                onTap: () {
-                  _closeCollections();
-                  widget.onModeChanged(HomeMode.you);
-                },
-              ),
-              const SizedBox(width: 8),
-              _Chip(
-                label: 'EXPLORE',
-                icon: FeatherIcons.compass,
-                state:
-                    widget.currentMode == HomeMode.explore && !collectionActive
-                    ? _ChipState.filled
-                    : _ChipState.normal,
-                onTap: () {
-                  _closeCollections();
-                  widget.onModeChanged(HomeMode.explore);
-                },
-              ),
-              const SizedBox(width: 8),
-              _Chip(
-                label: 'DECIDE',
-                icon: FeatherIcons.zap,
-                state: _ChipState.accent,
-                onTap: () {
-                  _closeCollections();
-                  widget.onDecideTap();
-                },
-              ),
-              const SizedBox(width: 8),
+              if (bubbleActive)
                 _Chip(
-                label: 'COLLECTION',
-                icon: FeatherIcons.bookmark,
-                state: collectionActive ? _ChipState.filled : _ChipState.normal,
-                trailing: Icon(
-                  _showCollections
-                      ? FeatherIcons.chevronUp
-                      : FeatherIcons.chevronDown,
-                  size: 11,
-                  color: collectionActive
-                      ? PinitColors.cream
-                      : PinitColors.aubergine,
+                  label: 'BUBBLE',
+                  icon: FeatherIcons.users,
+                  state: widget.currentMode == HomeMode.bubble
+                      ? _ChipState.filled
+                      : _ChipState.normal,
+                  onTap: () {
+                    _closeCollections();
+                    widget.onModeChanged(HomeMode.bubble);
+                  },
+                )
+              else ...[
+                _Chip(
+                  label: 'YOU',
+                  icon: FeatherIcons.user,
+                  state: widget.currentMode == HomeMode.you && !collectionActive
+                      ? _ChipState.filled
+                      : _ChipState.normal,
+                  onTap: () {
+                    _closeCollections();
+                    widget.onModeChanged(HomeMode.you);
+                  },
                 ),
-                onTap: _toggleCollections,
-              ),
+                const SizedBox(width: 8),
+                _Chip(
+                  label: 'EXPLORE',
+                  icon: FeatherIcons.compass,
+                  state: widget.currentMode == HomeMode.explore &&
+                          !collectionActive
+                      ? _ChipState.filled
+                      : _ChipState.normal,
+                  onTap: () {
+                    _closeCollections();
+                    widget.onModeChanged(HomeMode.explore);
+                  },
+                ),
+                const SizedBox(width: 8),
+                _Chip(
+                  label: 'DECIDE',
+                  icon: FeatherIcons.zap,
+                  state: _ChipState.accent,
+                  onTap: () {
+                    _closeCollections();
+                    widget.onDecideTap();
+                  },
+                ),
+                const SizedBox(width: 8),
+                _Chip(
+                  label: 'COLLECTION',
+                  icon: FeatherIcons.bookmark,
+                  state:
+                      collectionActive ? _ChipState.filled : _ChipState.normal,
+                  trailing: Icon(
+                    _showCollections
+                        ? FeatherIcons.chevronUp
+                        : FeatherIcons.chevronDown,
+                    size: 11,
+                    color: collectionActive
+                        ? PinitColors.cream
+                        : PinitColors.aubergine,
+                  ),
+                  onTap: _toggleCollections,
+                ),
+              ],
               const SizedBox(width: 8),
             ],
           ),
@@ -123,7 +141,7 @@ class _HomeChipRowState extends State<HomeChipRow> {
           duration: const Duration(milliseconds: 180),
           switchInCurve: Curves.easeOutCubic,
           switchOutCurve: Curves.easeOutCubic,
-          child: !_showCollections
+          child: bubbleActive || !_showCollections
               ? const SizedBox.shrink()
               : Padding(
                   key: const ValueKey('collections_dropdown'),
@@ -164,8 +182,7 @@ class _HomeChipRowState extends State<HomeChipRow> {
                           )
                         : widget.collections.isEmpty
                             ? Padding(
-                                padding:
-                                    const EdgeInsets.fromLTRB(4, 8, 4, 10),
+                                padding: const EdgeInsets.fromLTRB(4, 8, 4, 10),
                                 child: Text(
                                   'No collections yet.',
                                   style: GoogleFonts.dmSans(

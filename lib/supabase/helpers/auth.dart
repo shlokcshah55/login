@@ -363,22 +363,24 @@ class AuthHelper {
           .eq(SupabaseConstants.columnSupabaseId, userId)
           .single();
 
-      final followingDetails = await _client
+      // followee_id = userId → someone follows this user → followers
+      final followersRows = await _client
           .from(SupabaseConstants.tableUserFriends)
           .select()
           .eq(SupabaseConstants.columnFolloweeId, userId)
           .eq(SupabaseConstants.columnStatus,
               SupabaseConstants.relationshipStatusAccepted);
 
-      final followersDetails = await _client
+      // follower_id = userId → this user follows someone → following
+      final followingRows = await _client
           .from(SupabaseConstants.tableUserFriends)
           .select()
           .eq(SupabaseConstants.columnFollowerId, userId)
           .eq(SupabaseConstants.columnStatus,
               SupabaseConstants.relationshipStatusAccepted);
 
-      userCreds['followers_count'] = followersDetails.length;
-      userCreds['following_count'] = followingDetails.length;
+      userCreds['followers_count'] = followersRows.length;
+      userCreds['following_count'] = followingRows.length;
 
       return UserModel.fromJson(userCreds);
     } catch (e, stackTrace) {
@@ -729,13 +731,10 @@ class AuthHelper {
 
       if (friendIds.isEmpty) return [];
 
-      // Fetch user details
-      final usersData = await _client
-          .from(SupabaseConstants.tableUsers)
-          .select()
-          .inFilter(SupabaseConstants.columnSupabaseId, friendIds.toList());
-
-      return usersData.map((user) => UserModel.fromJson(user)).toList();
+      // Fetch full profiles with counts
+      final futures = friendIds.map((id) => getUserProfileById(id)).toList();
+      final users = await Future.wait(futures);
+      return users.whereType<UserModel>().toList();
     } catch (e) {
       if (kDebugMode) {
         print('Error getting friends: $e');
@@ -744,18 +743,20 @@ class AuthHelper {
     }
   }
 
-  /// Search users by name or email
+  /// Search users by name or email (uses server-side RPC that includes
+  /// followers_count / following_count).
   Future<List<UserModel>> searchUsers(String query) async {
     try {
       if (query.isEmpty) return [];
 
-      final usersData = await _client
-          .from(SupabaseConstants.tableUsers)
-          .select()
-          .or('${SupabaseConstants.name}.ilike.%$query%,${SupabaseConstants.columnEmail}.ilike.%$query%')
-          .limit(20);
+      final response = await _client.rpc('search_users', params: {
+        'p_query': query,
+        'p_limit': 20,
+      });
 
-      return usersData.map((user) => UserModel.fromJson(user)).toList();
+      return (response as List)
+          .map((row) => UserModel.fromJson(row as Map<String, dynamic>))
+          .toList();
     } catch (e) {
       if (kDebugMode) {
         print('Error searching users: $e');

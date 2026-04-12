@@ -69,7 +69,12 @@ class BubbleHelper {
           description:
               'Created ${_getTimeAgo(DateTime.parse(bubble[SupabaseConstants.columnCreatedAt]))}',
           memberIds: members
-              .map((m) => m[SupabaseConstants.columnSupabaseId].toString())
+              .map((m) =>
+                  m[SupabaseConstants.columnUserId] ??
+                  m[SupabaseConstants.columnSupabaseId])
+              .where((id) => id != null)
+              .map((id) => id.toString())
+              .where((id) => id.isNotEmpty && id != 'null')
               .toList(),
           memberNames: members
               .map((m) => (m[SupabaseConstants.name] ?? '').toString())
@@ -231,7 +236,12 @@ class BubbleHelper {
         description:
             'Created ${_getTimeAgo(DateTime.parse(bubbleResponse[SupabaseConstants.columnCreatedAt]))}',
         memberIds: members
-            .map((m) => m[SupabaseConstants.columnSupabaseId].toString())
+            .map((m) =>
+                m[SupabaseConstants.columnUserId] ??
+                m[SupabaseConstants.columnSupabaseId])
+            .where((id) => id != null)
+            .map((id) => id.toString())
+            .where((id) => id.isNotEmpty && id != 'null')
             .toList(),
         memberNames: members
             .map((m) => (m[SupabaseConstants.name] ?? '').toString())

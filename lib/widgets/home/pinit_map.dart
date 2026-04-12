@@ -404,8 +404,9 @@ class _PinitMapState extends State<PinitMap> {
     }
 
     final currentPosition = locationListManager.currentPosition;
-    final isRecommendedTab =
-        locationListManager.currentListType == LocationListType.recommended;
+    final supportsSearchThisArea =
+        locationListManager.currentListType == LocationListType.recommended ||
+            locationListManager.currentListType == LocationListType.bubble;
     final isSearchingArea = locationListManager.isSearchingArea;
 
     final initialCenter = currentPosition ??
@@ -434,10 +435,10 @@ class _PinitMapState extends State<PinitMap> {
           },
         ),
 
-        // "Search this area" button - only show on recommended tab.
+        // "Search this area" button - show for proximal recommendation modes.
         // Positioned below the header panel (logo + search shell + chip row)
         // so it never sits behind the You / Explore / Decide chips.
-        if (isRecommendedTab)
+        if (supportsSearchThisArea)
           Positioned(
             top: MediaQuery.of(context).padding.top + 160,
             left: 0,

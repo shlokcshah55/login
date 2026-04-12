@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
+import 'package:login/themes/app_typography.dart';
 
 class NoRecommendationsPopover extends StatelessWidget {
   const NoRecommendationsPopover({super.key});
@@ -42,6 +43,7 @@ class NoRecommendationsPopover extends StatelessWidget {
                       color: pinit.PinitColors.aubergine,
                       letterSpacing: 1.7,
                       height: 1.05,
+                      decoration: TextDecoration.none,
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -50,6 +52,17 @@ class NoRecommendationsPopover extends StatelessWidget {
                     child: SvgPicture.asset(
                       'lib/assets/illustrations/login_svg1.svg',
                       fit: BoxFit.contain,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Try searching another area',
+                    textAlign: TextAlign.center,
+                    style: AppTypography.bodyMedium.copyWith(
+                      color:
+                          pinit.PinitColors.aubergine.withValues(alpha: 0.72),
+                      fontWeight: FontWeight.w600,
+                      decoration: TextDecoration.none,
                     ),
                   ),
                 ],

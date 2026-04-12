@@ -11,15 +11,6 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $function$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM public.bubble_members bm
-    WHERE bm.bubble_id = p_bubble_id
-      AND bm.user_id = auth.uid()
-  ) THEN
-    RAISE EXCEPTION 'User not a member of this bubble';
-  END IF;
-
   RETURN QUERY
   SELECT
     bm.user_id,

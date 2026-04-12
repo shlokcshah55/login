@@ -87,8 +87,7 @@ class CarouselListPage extends StatelessWidget {
       body: ListView.builder(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
         itemCount: locations.length,
-        itemBuilder: (context, index) =>
-            _ListCard(location: locations[index]),
+        itemBuilder: (context, index) => _ListCard(location: locations[index]),
       ),
     );
   }
@@ -239,7 +238,10 @@ class _ListCard extends StatelessWidget {
                                 : location.preference ==
                                         LocationPreference.recommended
                                     ? FeatherIcons.award
-                                    : FeatherIcons.mapPin,
+                                    : location.preference ==
+                                            LocationPreference.bubble
+                                        ? FeatherIcons.users
+                                        : FeatherIcons.mapPin,
                             size: 11,
                             color: PinitColors.mute,
                           ),
@@ -363,6 +365,9 @@ class _ListCard extends StatelessWidget {
     if (location.preference == LocationPreference.saved) return 'SAVED';
     if (location.preference == LocationPreference.recommended) {
       return 'TOP PICK';
+    }
+    if (location.preference == LocationPreference.bubble) {
+      return 'BUBBLE PICK';
     }
     if (location.preference == LocationPreference.search) return 'MATCH';
     if (location.savedCount != null && location.savedCount! > 0) {

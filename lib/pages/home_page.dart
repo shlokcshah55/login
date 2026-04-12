@@ -441,10 +441,11 @@ class _HomePageState extends State<HomePage> {
                                         MaterialPageRoute(
                                           builder: (_) => CarouselListPage(
                                             locations: viewModel.locations,
-                                            title: viewModel.homeMode ==
-                                                    HomeMode.you
-                                                ? 'Your Saves'
-                                                : 'Top Picks',
+                                            title: switch (viewModel.homeMode) {
+                                              HomeMode.you => 'Your Saves',
+                                              HomeMode.explore => 'Top Picks',
+                                              HomeMode.bubble => 'Bubble Picks',
+                                            },
                                           ),
                                         ),
                                       ),
@@ -792,6 +793,7 @@ class _TopPanel extends StatelessWidget {
               footer: HomeChipRow(
                 currentMode: viewModel.homeMode,
                 onModeChanged: viewModel.setHomeMode,
+                activeBubbleName: viewModel.activeBubbleName,
                 collections: viewModel.collections,
                 isLoadingCollections: viewModel.isLoadingCollections,
                 activeCollectionId: viewModel.activeCollectionId,
