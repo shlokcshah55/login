@@ -112,4 +112,6 @@ api/__pycache__/
 .DS_Store           
 
 pubspec.lock
+ios/Runner/RunnerRelease.entitlements
+ios/URLShareExtension/ShareViewController.swift
 
