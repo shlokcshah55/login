@@ -15,7 +15,7 @@ import 'package:login/providers/bubbles_provider.dart';
 import 'package:login/providers/bubble_mode_provider.dart';
 import 'package:login/providers/navigation_provider.dart';
 import 'package:login/pages/bubble_messaging_page.dart';
-import 'package:login/widgets/profile/user_profile_dialog.dart';
+import 'package:login/pages/profile/other_user_profile_page.dart';
 import 'package:login/widgets/chat/bubble_discover_view.dart';
 
 class BubblesPage extends StatefulWidget {
@@ -852,9 +852,10 @@ class _BubblesPageState extends State<BubblesPage>
   }
 
   void _showUserProfileDialog(UserModel user) {
-    showDialog(
-      context: context,
-      builder: (context) => UserProfileDialog(user: user),
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => OtherUserProfilePage(user: user),
+      ),
     );
   }
 }

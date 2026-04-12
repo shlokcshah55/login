@@ -143,8 +143,8 @@ class _TagSelectionPopoverState extends State<TagSelectionPopover> {
                   spacing: 10,
                   runSpacing: 10,
                   children: widget.tags.map((tag) {
-                    final tagId = tag['id'] as String;
-                    final tagName = tag['name'] as String;
+                    final tagId = (tag['tag_id'] ?? tag['id']).toString();
+                    final tagName = (tag['text'] ?? tag['name'] ?? '').toString();
                     final isSelected = _selectedTagIds.contains(tagId);
 
                     return Material(

@@ -223,7 +223,7 @@ class SupabaseConstants {
 
   // Enum values - relationship_status
   static const String relationshipStatusAccepted = 'accepted';
-  static const String relationshipStatusPending = 'pending';
+  static const String relationshipStatusRequested = 'requested';
   static const String relationshipStatusBlocked = 'blocked';
 
   // Enum values - tag_type

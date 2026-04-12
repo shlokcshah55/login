@@ -1,15 +1,19 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_feather_icons/flutter_feather_icons.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/users.dart';
 import 'package:login/models/locations.dart';
+import 'package:login/supabase/helpers/collections.dart';
 import 'package:login/supabase/service.dart';
 import 'package:provider/provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'widgets/pinit_colors.dart';
-import 'widgets/taste_match_card.dart';
 import 'widgets/map_preview_card.dart';
 import 'widgets/hidden_gems_section.dart';
 import 'widgets/trending_now_section.dart';
+import 'widgets/collections_grid.dart';
 
 class OtherUserProfilePage extends StatefulWidget {
   final UserModel user;
@@ -29,15 +33,18 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
   int _selectedTab = 0;
   bool _isLoading = true;
   List<LocationModel> _userPins = [];
-  String _followStatus = 'idle'; // idle, requested, accepted
+  List<CollectionItem> _publicCollections = [];
+  String _followStatus = 'idle'; // idle, requested, accepted, blocked
+  late UserModel _user;
 
+  final CollectionsHelper _collectionsHelper = CollectionsHelper();
   final List<String> _tabs = ['Pins', 'Map'];
 
   @override
   void initState() {
     super.initState();
-    _scrollController = ScrollController();
-    _scrollController.addListener(_onScroll);
+    _user = widget.user;
+    _scrollController = ScrollController()..addListener(_onScroll);
     _loadUserData();
   }
 
@@ -57,30 +64,32 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
       final supabaseService =
           Provider.of<SupabaseService>(context, listen: false);
 
-      // Get user's saved locations
-      final locations = await supabaseService.locations
-          .getUserSavedLocations(widget.user.supabaseId!);
-
-      // Get follow status
-      final status =
-          await supabaseService.users.getFollowStatus(widget.user.supabaseId!);
+      final results = await Future.wait([
+        supabaseService.locations.getUserSavedLocations(widget.user.supabaseId!),
+        supabaseService.users.getFollowStatus(widget.user.supabaseId!),
+        _collectionsHelper.getUserPublicCollections(widget.user.supabaseId!),
+        supabaseService.users.getUserProfileById(widget.user.supabaseId!),
+      ]);
 
       if (mounted) {
         setState(() {
-          _userPins = locations;
-          _followStatus = status ?? 'idle';
+          _userPins = results[0] as List<LocationModel>;
+          _followStatus = (results[1] as String?) ?? 'idle';
+          _publicCollections = results[2] as List<CollectionItem>;
+          final fullUser = results[3] as UserModel?;
+          if (fullUser != null) _user = fullUser;
           _isLoading = false;
         });
       }
     } catch (e) {
-      print('Error loading user data: $e');
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      debugPrint('Error loading user data: $e');
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _handleFollowAction() async {
+    if (_followStatus == 'blocked') return;
+    HapticFeedback.selectionClick();
     try {
       final supabaseService =
           Provider.of<SupabaseService>(context, listen: false);
@@ -93,31 +102,144 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
         if (mounted) setState(() => _followStatus = 'idle');
       }
     } catch (e) {
-      print('Error handling follow action: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error: $e'),
             behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
           ),
         );
       }
     }
   }
 
+  Future<void> _handleBlock() async {
+    final supabaseService =
+        Provider.of<SupabaseService>(context, listen: false);
+    try {
+      await supabaseService.users.blockUser(widget.user.supabaseId!);
+      if (mounted) {
+        setState(() => _followStatus = 'blocked');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Blocked ${widget.user.name ?? "user"}')),
+        );
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not block user: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleUnblock() async {
+    final supabaseService =
+        Provider.of<SupabaseService>(context, listen: false);
+    try {
+      await supabaseService.users.unblockUser(widget.user.supabaseId!);
+      if (mounted) {
+        setState(() => _followStatus = 'idle');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('User unblocked')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not unblock user: $e')),
+        );
+      }
+    }
+  }
+
+  void _showOverflowMenu() {
+    HapticFeedback.selectionClick();
+    final isBlocked = _followStatus == 'blocked';
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: PinitColors.cream,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: PinitColors.creamDeep, width: 1.5),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(
+                  isBlocked ? Icons.lock_open_rounded : Icons.block_rounded,
+                  color: PinitColors.accent,
+                ),
+                title: Text(
+                  isBlocked ? 'Unblock user' : 'Block user',
+                  style: GoogleFonts.dmSans(
+                    fontWeight: FontWeight.w600,
+                    color: PinitColors.aubergine,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  if (isBlocked) {
+                    _handleUnblock();
+                  } else {
+                    _confirmBlock();
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmBlock() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Block ${widget.user.name ?? "this user"}?'),
+        content: const Text(
+          'They will no longer be able to follow you or see your activity. Any pending request between you will be cleared.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: PinitColors.accent),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Block'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) await _handleBlock();
+  }
+
   @override
   Widget build(BuildContext context) {
     final collapsedHeader = _scrollOffset > 120;
     final currentUser = Provider.of<UserDataProvider>(context).supabaseUserData;
+    final similarity = currentUser?.vibeSimilarityWith(_user);
+    debugPrint('[OtherUserProfilePage] vibe match: '
+        'me=${currentUser?.vibeTagAffinity ?? "null"} '
+        'them=${_user.vibeTagAffinity ?? "null"} '
+        'similarity=$similarity '
+        'userId=${_user.supabaseId}');
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: collapsedHeader
-          ? SystemUiOverlayStyle.dark
-          : SystemUiOverlayStyle.light,
+      value: SystemUiOverlayStyle.light,
       child: Scaffold(
-        backgroundColor: PinitColors.background,
+        backgroundColor: PinitColors.cream,
         body: _isLoading
             ? _buildLoadingState()
             : Stack(
@@ -128,119 +250,37 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
                       parent: AlwaysScrollableScrollPhysics(),
                     ),
                     slivers: [
-                      // Back button
+                      SliverToBoxAdapter(child: _buildProfileHeader()),
+                      const SliverToBoxAdapter(child: SizedBox(height: 20)),
                       SliverToBoxAdapter(
-                        child: SafeArea(
-                          bottom: false,
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: GestureDetector(
-                              onTap: () => Navigator.pop(context),
-                              child: Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color:
-                                      PinitColors.background.withOpacity(0.9),
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.1),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: const Icon(
-                                  Icons.arrow_back,
-                                  color: PinitColors.textPrimary,
-                                ),
-                              ),
-                            ),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+                          child: _VibeMatchCard(
+                            otherUserName: _user.name ?? 'them',
+                            similarity: similarity,
                           ),
                         ),
                       ),
-
-                      // Profile Header
-                      SliverToBoxAdapter(
-                        child: _buildProfileHeader(),
-                      ),
-
-                      // Taste Match Section
-                      if (currentUser != null)
+                      if (_publicCollections.isNotEmpty)
                         SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 20, vertical: 16),
-                            child: TasteMatchCard(
-                              overlapPercentage:
-                                  72, // TODO: Calculate from actual data
-                              sharedPlaces: _calculateSharedPlaces(currentUser),
-                              sharedTastes: _calculateSharedTastes(),
-                            ),
+                          child: _PublicCollectionsSection(
+                            collections: _publicCollections,
                           ),
                         ),
-
-                      // Tab Bar
                       SliverAppBar(
                         pinned: true,
-                        elevation: 0,
-                        backgroundColor: PinitColors.background,
+                        elevation: 4,
+                        shadowColor:
+                            PinitColors.aubergine.withValues(alpha: 0.06),
+                        backgroundColor: PinitColors.cream,
                         automaticallyImplyLeading: false,
-                        toolbarHeight: 56,
-                        flexibleSpace: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          alignment: Alignment.centerLeft,
-                          child: Row(
-                            children: _tabs.asMap().entries.map((entry) {
-                              final isSelected = entry.key == _selectedTab;
-                              return GestureDetector(
-                                onTap: () =>
-                                    setState(() => _selectedTab = entry.key),
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 200),
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 10),
-                                  margin: const EdgeInsets.only(right: 8),
-                                  decoration: BoxDecoration(
-                                    color: isSelected
-                                        ? PinitColors.primary.withOpacity(0.12)
-                                        : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Text(
-                                    entry.value,
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: isSelected
-                                          ? FontWeight.w700
-                                          : FontWeight.w500,
-                                      color: isSelected
-                                          ? PinitColors.primary
-                                          : PinitColors.textSecondary,
-                                      letterSpacing: -0.2,
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                        ),
+                        toolbarHeight: 20,
+                        flexibleSpace: _buildPinnedTabs(),
                       ),
-
-                      // Content
-                      SliverToBoxAdapter(
-                        child: _buildTabContent(),
-                      ),
-
-                      // Bottom padding
-                      const SliverToBoxAdapter(
-                        child: SizedBox(height: 100),
-                      ),
+                      SliverToBoxAdapter(child: _buildTabContent()),
+                      const SliverToBoxAdapter(child: SizedBox(height: 100)),
                     ],
                   ),
-
-                  // Collapsed header overlay
                   if (collapsedHeader)
                     Positioned(
                       top: 0,
@@ -255,146 +295,199 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
   }
 
   Widget _buildProfileHeader() {
+    final topPadding = MediaQuery.of(context).padding.top;
+    final opacity = (1 - (_scrollOffset / 120)).clamp(0.0, 1.0);
+
     return Container(
-      decoration: const BoxDecoration(
-        gradient: PinitColors.primaryGradient,
-      ),
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 28),
-      child: Column(
-        children: [
-          // Profile Photo
-          Container(
-            width: 100,
-            height: 100,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              image: DecorationImage(
-                image: widget.user.profileImageUrl != null &&
-                        widget.user.profileImageUrl!.isNotEmpty
-                    ? NetworkImage(widget.user.profileImageUrl!)
-                    : const AssetImage('lib/assets/default_avatar.png')
-                        as ImageProvider,
-                fit: BoxFit.cover,
-              ),
-              border: Border.all(
-                color: Colors.white,
-                width: 4,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 16,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Name
-          Text(
-            widget.user.name ?? 'No Name',
-            style: const TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.w800,
-              color: PinitColors.textPrimary,
-              letterSpacing: -0.5,
-            ),
-          ),
-          const SizedBox(height: 8),
-
-          // Bio
-          if (widget.user.bio != null && widget.user.bio!.isNotEmpty)
+      color: PinitColors.aubergine,
+      child: Padding(
+        padding: EdgeInsets.only(top: topPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top bar: back + overflow
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                widget.user.bio!,
-                style: const TextStyle(
-                  fontSize: 15,
-                  color: PinitColors.textSecondary,
-                  height: 1.4,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 3,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Row(
+                children: [
+                  _buildHeaderIconButton(
+                    icon: Icons.arrow_back_rounded,
+                    onTap: () => Navigator.pop(context),
+                  ),
+                  const Spacer(),
+                  _buildHeaderIconButton(
+                    icon: Icons.more_horiz_rounded,
+                    onTap: _showOverflowMenu,
+                  ),
+                ],
               ),
             ),
-          const SizedBox(height: 20),
-
-          // Stats Row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildStat(_userPins.length.toString(), 'Pins'),
-              const SizedBox(width: 32),
-              _buildStat(widget.user.followersCount.toString(), 'Followers'),
-              const SizedBox(width: 32),
-              _buildStat(widget.user.followingCount.toString(), 'Following'),
-            ],
-          ),
-          const SizedBox(height: 24),
-
-          // Follow Button
-          _buildFollowButton(),
-        ],
+            Opacity(
+              opacity: opacity,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 14, 24, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        _buildAvatar(size: 72),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _user.name ?? 'No Name',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontFamily: 'Rova',
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w100,
+                                  color: PinitColors.cream,
+                                  letterSpacing: 1.7,
+                                  height: 1.05,
+                                ),
+                              ),
+                              if (_user.bio != null &&
+                                  _user.bio!.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  _user.bio!,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 14,
+                                    color: PinitColors.cream
+                                        .withValues(alpha: 0.7),
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 12),
+                              _buildStatsRow(),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    _buildFollowButton(),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildStat(String value, String label) {
-    return GestureDetector(
-      onTap: () {
-        // Navigate to followers/following list
-      },
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: PinitColors.textPrimary,
-              letterSpacing: -0.5,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 13,
-              color: PinitColors.textSecondary,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
+  Widget _buildAvatar({required double size}) {
+    final hasImage = _user.profileImageUrl != null &&
+        _user.profileImageUrl!.isNotEmpty;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        image: DecorationImage(
+          image: hasImage
+              ? NetworkImage(_user.profileImageUrl!)
+              : const AssetImage('lib/assets/default_avatar.png')
+                  as ImageProvider,
+          fit: BoxFit.cover,
+        ),
+        border: Border.all(
+          color: PinitColors.creamDeep.withValues(alpha: 0.5),
+          width: 2.5,
+        ),
       ),
+    );
+  }
+
+  Widget _buildStatsRow() {
+    return Row(
+      children: [
+        _buildStat(_userPins.length.toString(), 'Pins'),
+        _buildStatDivider(),
+        _buildStat(_user.followersCount.toString(), 'Followers'),
+        _buildStatDivider(),
+        _buildStat(_user.followingCount.toString(), 'Following'),
+      ],
+    );
+  }
+
+  Widget _buildStatDivider() => Container(
+        width: 1,
+        height: 26,
+        margin: const EdgeInsets.symmetric(horizontal: 14),
+        color: PinitColors.cream.withValues(alpha: 0.18),
+      );
+
+  Widget _buildStat(String value, String label) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            fontFamily: 'Rova',
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            color: PinitColors.cream,
+            letterSpacing: 0.5,
+            height: 1.0,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          label,
+          style: GoogleFonts.dmSans(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: PinitColors.cream.withValues(alpha: 0.65),
+            letterSpacing: 0.2,
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildFollowButton() {
-    String buttonText;
-    Color buttonColor;
-    Color textColor;
+    late String label;
+    late Color bg;
+    late Color fg;
+    late IconData icon;
 
     switch (_followStatus) {
-      case 'idle':
-        buttonText = 'Follow';
-        buttonColor = PinitColors.primary;
-        textColor = Colors.white;
-        break;
       case 'requested':
-        buttonText = 'Requested';
-        buttonColor = PinitColors.surfaceLight;
-        textColor = PinitColors.textSecondary;
+        label = 'Requested';
+        bg = PinitColors.cream.withValues(alpha: 0.12);
+        fg = PinitColors.cream;
+        icon = Icons.schedule_rounded;
         break;
       case 'accepted':
-        buttonText = 'Following';
-        buttonColor = PinitColors.surfaceLight;
-        textColor = PinitColors.primary;
+        label = 'Following';
+        bg = PinitColors.cream.withValues(alpha: 0.12);
+        fg = PinitColors.cream;
+        icon = Icons.check_rounded;
         break;
+      case 'blocked':
+        label = 'Blocked';
+        bg = PinitColors.cream.withValues(alpha: 0.08);
+        fg = PinitColors.cream.withValues(alpha: 0.6);
+        icon = Icons.block_rounded;
+        break;
+      case 'idle':
       default:
-        buttonText = 'Follow';
-        buttonColor = PinitColors.primary;
-        textColor = Colors.white;
+        label = 'Follow';
+        bg = PinitColors.cream;
+        fg = PinitColors.aubergine;
+        icon = Icons.add_rounded;
     }
 
     return GestureDetector(
@@ -403,28 +496,140 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color: buttonColor,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: _followStatus == 'idle'
-              ? [
-                  BoxShadow(
-                    color: PinitColors.primary.withOpacity(0.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
-        ),
-        child: Text(
-          buttonText,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w700,
-            color: textColor,
-            letterSpacing: -0.3,
+          color: bg,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: PinitColors.cream.withValues(alpha: 0.25),
+            width: 1.5,
           ),
         ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 17, color: fg),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: GoogleFonts.dmSans(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: fg,
+                letterSpacing: -0.2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderIconButton({
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: Ink(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: PinitColors.cream.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: PinitColors.cream.withValues(alpha: 0.2),
+              width: 1.5,
+            ),
+          ),
+          child: Icon(icon, size: 20, color: PinitColors.cream),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPinnedTabs() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: _tabs.asMap().entries.map((entry) {
+          final isSelected = entry.key == _selectedTab;
+          final isLast = entry.key == _tabs.length - 1;
+          final icon = entry.key == 0
+              ? Icons.push_pin_rounded
+              : Icons.map_rounded;
+
+          return Padding(
+            padding: EdgeInsets.only(right: isLast ? 0 : 10),
+            child: GestureDetector(
+              onTap: () {
+                if (_selectedTab == entry.key) return;
+                HapticFeedback.selectionClick();
+                setState(() => _selectedTab = entry.key);
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 280),
+                curve: Curves.easeOutCubic,
+                height: 40,
+                padding: EdgeInsets.symmetric(
+                  horizontal: isSelected ? 16 : 11,
+                ),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? PinitColors.aubergine
+                      : PinitColors.creamSunk,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: isSelected
+                        ? PinitColors.aubergine
+                        : PinitColors.creamDeep,
+                    width: 1.5,
+                  ),
+                  boxShadow: isSelected ? PinitColors.subtleShadow : null,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      icon,
+                      size: 17,
+                      color: isSelected
+                          ? PinitColors.cream
+                          : PinitColors.aubergineSoft,
+                    ),
+                    ClipRect(
+                      child: AnimatedSize(
+                        duration: const Duration(milliseconds: 280),
+                        curve: Curves.easeOutCubic,
+                        alignment: Alignment.centerLeft,
+                        child: isSelected
+                            ? Padding(
+                                padding: const EdgeInsets.only(left: 8),
+                                child: Text(
+                                  entry.value,
+                                  style: const TextStyle(
+                                    fontFamily: 'Rova',
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w100,
+                                    color: PinitColors.cream,
+                                    letterSpacing: 0.6,
+                                  ),
+                                ),
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
@@ -432,138 +637,83 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
   Widget _buildTabContent() {
     switch (_selectedTab) {
       case 0:
+        if (_userPins.isEmpty) return _buildEmptyState('No saved pins yet');
         return Column(
           children: [
-            if (_userPins.isNotEmpty) ...[
-              HiddenGemsSection(
-                locations: _userPins,
-              ),
-              TrendingNowSection(
-                locations: _userPins,
-              ),
-            ] else
-              Padding(
-                padding: const EdgeInsets.all(40),
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.location_off_outlined,
-                      size: 64,
-                      color: PinitColors.textMuted.withOpacity(0.5),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'No saved pins yet',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: PinitColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            HiddenGemsSection(locations: _userPins),
+            const SizedBox(height: 20),
+            TrendingNowSection(locations: _userPins),
           ],
         );
       case 1:
-        return _userPins.isNotEmpty
-            ? MapPreviewCard(
-                savedPins: _userPins,
-                isFullView: true,
-              )
-            : Padding(
-                padding: const EdgeInsets.all(40),
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.map_outlined,
-                      size: 64,
-                      color: PinitColors.textMuted.withOpacity(0.5),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'No locations to display',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: PinitColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              );
+        if (_userPins.isEmpty) {
+          return _buildEmptyState('No locations to display');
+        }
+        return MapPreviewCard(savedPins: _userPins, isFullView: true);
       default:
         return const SizedBox.shrink();
     }
+  }
+
+  Widget _buildEmptyState(String message) {
+    return Padding(
+      padding: const EdgeInsets.all(40),
+      child: Column(
+        children: [
+          Icon(
+            Icons.location_off_outlined,
+            size: 56,
+            color: PinitColors.mute.withValues(alpha: 0.5),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            message,
+            style: GoogleFonts.dmSans(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: PinitColors.aubergineSoft,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildCollapsedHeader() {
     return Container(
       padding: EdgeInsets.only(
         top: MediaQuery.of(context).padding.top,
-        left: 20,
-        right: 20,
+        left: 16,
+        right: 16,
         bottom: 12,
       ),
-      decoration: BoxDecoration(
-        color: PinitColors.background,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+      decoration: const BoxDecoration(color: PinitColors.aubergine),
       child: Row(
         children: [
-          GestureDetector(
+          _buildHeaderIconButton(
+            icon: Icons.arrow_back_rounded,
             onTap: () => Navigator.pop(context),
-            child: Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: PinitColors.surfaceLight,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(
-                Icons.arrow_back,
-                size: 20,
-                color: PinitColors.textPrimary,
-              ),
-            ),
           ),
           const SizedBox(width: 12),
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              image: DecorationImage(
-                image: widget.user.profileImageUrl != null &&
-                        widget.user.profileImageUrl!.isNotEmpty
-                    ? NetworkImage(widget.user.profileImageUrl!)
-                    : const AssetImage('lib/assets/default_avatar.png')
-                        as ImageProvider,
-                fit: BoxFit.cover,
-              ),
-              border: Border.all(
-                color: PinitColors.primary.withOpacity(0.3),
-                width: 2,
-              ),
-            ),
-          ),
+          _buildAvatar(size: 36),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              widget.user.name ?? 'Profile',
+              _user.name ?? 'Profile',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: PinitColors.textPrimary,
-                letterSpacing: -0.3,
+                fontFamily: 'Rova',
+                fontSize: 20,
+                fontWeight: FontWeight.w100,
+                color: PinitColors.cream,
+                letterSpacing: 1.6,
               ),
             ),
+          ),
+          _buildHeaderIconButton(
+            icon: Icons.more_horiz_rounded,
+            onTap: _showOverflowMenu,
           ),
         ],
       ),
@@ -579,8 +729,8 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
             width: 60,
             height: 60,
             decoration: BoxDecoration(
-              gradient: PinitColors.primaryGradient,
-              borderRadius: BorderRadius.circular(16),
+              color: PinitColors.aubergine,
+              borderRadius: BorderRadius.circular(999),
             ),
             child: const Center(
               child: SizedBox(
@@ -588,7 +738,7 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
                 height: 28,
                 child: CircularProgressIndicator(
                   strokeWidth: 3,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  valueColor: AlwaysStoppedAnimation<Color>(PinitColors.cream),
                 ),
               ),
             ),
@@ -596,9 +746,9 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
           const SizedBox(height: 20),
           Text(
             'Loading profile...',
-            style: TextStyle(
+            style: GoogleFonts.dmSans(
               fontSize: 16,
-              color: PinitColors.textSecondary,
+              color: PinitColors.aubergineSoft,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -606,14 +756,316 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
       ),
     );
   }
+}
 
-  int _calculateSharedPlaces(UserModel currentUser) {
-    // TODO: Implement actual calculation
-    return 6;
+// ─────────────────────────────────────────────────────────────────────────────
+// Vibe Match Card — cosine similarity between current user and viewed user.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _VibeMatchCard extends StatelessWidget {
+  final String otherUserName;
+  final double? similarity;
+
+  const _VibeMatchCard({
+    required this.otherUserName,
+    required this.similarity,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasData = similarity != null;
+    final clamped = (similarity ?? 0).clamp(0.0, 1.0);
+    final percentage = (clamped * 100).round();
+    final indicatorColor =
+        hasData ? PinitColors.matchIndicator(percentage) : PinitColors.mute;
+    final label = hasData ? _label(percentage) : 'Not enough data';
+    final subtitle = hasData
+        ? _subtitle(percentage, otherUserName)
+        : '$otherUserName needs a few more taps before we can compare vibes.';
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+      decoration: BoxDecoration(
+        color: PinitColors.creamSunk,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: PinitColors.creamDeep, width: 1.5),
+        boxShadow: PinitColors.subtleShadow,
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 72,
+            height: 72,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  width: 72,
+                  height: 72,
+                  child: CircularProgressIndicator(
+                    value: hasData ? clamped : 0,
+                    strokeWidth: 6,
+                    backgroundColor: PinitColors.creamDeep,
+                    valueColor: AlwaysStoppedAnimation<Color>(indicatorColor),
+                  ),
+                ),
+                Text(
+                  hasData ? '$percentage%' : '—',
+                  style: const TextStyle(
+                    fontFamily: 'Rova',
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: PinitColors.aubergine,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 18),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'VIBE MATCH',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: PinitColors.aubergineSoft,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontFamily: 'Rova',
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: PinitColors.aubergine,
+                    letterSpacing: 0.8,
+                    height: 1.1,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 12.5,
+                    color: PinitColors.aubergineSoft,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
-  List<String> _calculateSharedTastes() {
-    // TODO: Implement actual calculation
-    return ['Late-night veggie spots', 'East London'];
+  String _label(int percentage) {
+    if (percentage >= 85) return 'Twin Flames';
+    if (percentage >= 70) return 'Kindred Palates';
+    if (percentage >= 50) return 'Aligned Tastes';
+    if (percentage >= 30) return 'Some Overlap';
+    return 'Different Vibes';
+  }
+
+  String _subtitle(int percentage, String name) {
+    if (percentage >= 90) {
+      return 'Scary accurate. Did $name steal your tastebuds?';
+    }
+    if (percentage >= 85) {
+      return 'Basically the same person. Split the bill already.';
+    }
+    if (percentage >= 75) {
+      return "You'd never fight over where to eat with $name.";
+    }
+    if (percentage >= 65) {
+      return '$name is your people. Go get dinner.';
+    }
+    if (percentage >= 55) {
+      return 'Plenty of common ground — trust their recs.';
+    }
+    if (percentage >= 45) {
+      return 'Some sparks, some clashes. Keep it interesting.';
+    }
+    if (percentage >= 30) {
+      return "$name will drag you somewhere new — in a good way.";
+    }
+    if (percentage >= 15) {
+      return 'Different worlds. Might be worth a taste adventure.';
+    }
+    return "Opposites attract? $name eats on another planet.";
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Public Collections — horizontal row of this user's public collections.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _PublicCollectionsSection extends StatelessWidget {
+  final List<CollectionItem> collections;
+
+  const _PublicCollectionsSection({required this.collections});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 4, 24, 14),
+          child: Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Collections',
+                  style: TextStyle(
+                    fontFamily: 'Rova',
+                    fontSize: 24,
+                    fontWeight: FontWeight.w100,
+                    color: PinitColors.aubergine,
+                    letterSpacing: 1.2,
+                    height: 1.05,
+                  ),
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: PinitColors.creamSunk,
+                  borderRadius: BorderRadius.circular(999),
+                  border:
+                      Border.all(color: PinitColors.creamDeep, width: 1.5),
+                ),
+                child: Text(
+                  '${collections.length} public',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: PinitColors.aubergineSoft,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 200,
+          child: ListView.separated(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+            scrollDirection: Axis.horizontal,
+            itemCount: collections.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (context, index) => _PublicCollectionCard(
+              collection: collections[index],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PublicCollectionCard extends StatelessWidget {
+  final CollectionItem collection;
+
+  const _PublicCollectionCard({required this.collection});
+
+  void _openDetails(BuildContext context) {
+    HapticFeedback.selectionClick();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => CollectionDetailSheet(
+        collection: CollectionModel.fromItem(collection),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => _openDetails(context),
+      child: Container(
+      width: 150,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: PinitColors.aubergine, width: 1.5),
+        boxShadow: const [
+          BoxShadow(
+            color: PinitColors.aubergine,
+            blurRadius: 0,
+            offset: Offset(4, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14.5),
+        child: Container(
+          color: PinitColors.creamSunk,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: _buildCover()),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      collection.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.dmSans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: PinitColors.aubergine,
+                        letterSpacing: 0.2,
+                        height: 1.15,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${collection.placeCount} place${collection.placeCount == 1 ? "" : "s"}',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: PinitColors.mute,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      ),
+    );
+  }
+
+  Widget _buildCover() {
+    final photoUrl = collection.photo ?? collection.coverColor;
+    if (photoUrl != null && photoUrl.startsWith('http')) {
+      return CachedNetworkImage(
+        imageUrl: photoUrl,
+        fit: BoxFit.cover,
+        width: double.infinity,
+      );
+    }
+    return Container(
+      color: PinitColors.creamDeep,
+      child: const Center(
+        child: Icon(FeatherIcons.bookmark, size: 28, color: PinitColors.mute),
+      ),
+    );
   }
 }

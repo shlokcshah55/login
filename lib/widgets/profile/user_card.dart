@@ -20,7 +20,7 @@ class UserCard extends StatefulWidget {
   State<UserCard> createState() => _UserCardState();
 }
 
-enum _FollowStatus { idle, requested, following }
+enum _FollowStatus { idle, requested, following, blocked }
 
 class _UserCardState extends State<UserCard> {
   _FollowStatus _followStatus = _FollowStatus.idle;
@@ -43,6 +43,7 @@ class _UserCardState extends State<UserCard> {
           _followStatus = switch (status) {
             'requested' => _FollowStatus.requested,
             'accepted' => _FollowStatus.following,
+            'blocked' => _FollowStatus.blocked,
             _ => _FollowStatus.idle,
           };
         });
@@ -55,6 +56,7 @@ class _UserCardState extends State<UserCard> {
 
   Future<void> _handleFollowAction() async {
     if (_isLoading || widget.user.supabaseId == null) return;
+    if (_followStatus == _FollowStatus.blocked) return;
     HapticFeedback.selectionClick();
     setState(() => _isLoading = true);
     try {
@@ -253,6 +255,7 @@ class _FollowButton extends StatelessWidget {
       _FollowStatus.idle => (PinitColors.aubergine, PinitColors.cream, 'Follow'),
       _FollowStatus.requested => (PinitColors.creamDeep, PinitColors.aubergineSoft, 'Requested'),
       _FollowStatus.following => (PinitColors.creamDeep, PinitColors.aubergine, 'Following'),
+      _FollowStatus.blocked => (PinitColors.creamDeep, PinitColors.mute, 'Blocked'),
     };
 
     return GestureDetector(

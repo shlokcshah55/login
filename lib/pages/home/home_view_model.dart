@@ -105,6 +105,7 @@ class HomeViewModel extends ChangeNotifier {
   bool get isLoadingRecommendations =>
       locationListManager.isLoadingRecommendations ||
       locationListManager.isSearchingArea;
+  bool get isMagicSearching => locationListManager.isMagicSearching;
   HeaderSearchState get headerSearchState => _headerSearchCoordinator.state;
   bool get isHeaderSearchActive => headerSearchState.isActive;
   bool get isHeaderSearchPreviewing => headerSearchState.isPreviewingMap;
@@ -112,7 +113,19 @@ class HomeViewModel extends ChangeNotifier {
       _isMagicSearchActive && headerSearchFocusNode.hasFocus;
 
   // ── Mode toggle ───────────────────────────────────────────────
-  HomeMode get homeMode => _homeMode;
+  HomeMode get homeMode {
+    // Derive the visible tab highlight from the actual list type so the
+    // chip row stays in sync after magic search or other list switches.
+    switch (locationListManager.currentListType) {
+      case LocationListType.saved:
+        return HomeMode.you;
+      case LocationListType.recommended:
+      case LocationListType.search:
+        return HomeMode.explore;
+      case LocationListType.bubble:
+        return HomeMode.bubble;
+    }
+  }
   String? get activeBubbleName => _activeBubble?.name;
 
   void setHomeMode(HomeMode mode) {
@@ -381,6 +394,8 @@ class HomeViewModel extends ChangeNotifier {
       _showMagicSearchActivated = true;
     } else {
       _showMagicSearchActivated = false;
+      // Switch back to You mode when exiting magic search.
+      setHomeMode(HomeMode.you);
     }
     notifyListeners();
   }
@@ -593,12 +608,6 @@ class HomeViewModel extends ChangeNotifier {
     final didSearch = await locationListManager.searchThisArea(
       center: center,
       radiusKm: radiusKm,
-      vibeTagIds: locationListManager.vibeTagIds.isNotEmpty
-          ? locationListManager.vibeTagIds
-          : null,
-      cuisineTagIds: locationListManager.cuisineTagIds.isNotEmpty
-          ? locationListManager.cuisineTagIds
-          : null,
     );
 
     if (didSearch) {
@@ -661,12 +670,6 @@ class HomeViewModel extends ChangeNotifier {
         latitude: currentLocation.latitude,
         longitude: currentLocation.longitude,
         radiusKm: defaultRadius,
-        vibeTagIds: locationListManager.vibeTagIds.isNotEmpty
-            ? locationListManager.vibeTagIds
-            : null,
-        cuisineTagIds: locationListManager.cuisineTagIds.isNotEmpty
-            ? locationListManager.cuisineTagIds
-            : null,
       );
       final lastCenter = locationListManager.lastSearchedCenter;
       final lastRadius = locationListManager.lastSearchedRadius;

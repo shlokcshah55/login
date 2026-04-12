@@ -383,7 +383,8 @@ class LiveHeaderSearchRepository implements HeaderSearchRepository {
     required int limit,
   }) async {
     final userId = _supabaseService.users.currentUser?.id;
-    final currentLocation = await _currentLocation();
+    final currentLocation =
+        _locationListManager.cameraPosition?.target ?? await _currentLocation();
     if (userId == null || currentLocation == null || query.trim().isEmpty) {
       return const [];
     }

@@ -37,6 +37,8 @@ class PushNotificationService {
 
       final String requesterName =
           requesterProfile['name'] ?? requesterProfile['username'] ?? 'Someone';
+      final String requesterAvatar =
+          requesterProfile['profile_image_url'] ?? '';
 
       if (kDebugMode) {
         print('PushNotificationService: Sending follow request notification');
@@ -45,13 +47,17 @@ class PushNotificationService {
         print('  Requester ID: $requesterUserId');
       }
 
-      // Send notification (all data values must be strings)
       return await _sendNotification(
         fcmToken: fcmToken,
         title: 'New Follow Request',
         body: '$requesterName requested to follow you',
         recipientUserId: recipientUserId,
         type: 'follow_request',
+        additionalData: {
+          'userId': requesterUserId,
+          'username': requesterName,
+          'userAvatar': requesterAvatar,
+        },
       );
     } catch (e) {
       if (kDebugMode) {
@@ -89,14 +95,20 @@ class PushNotificationService {
 
       final String accepterName =
           accepterProfile['name'] ?? accepterProfile['username'] ?? 'Someone';
+      final String accepterAvatar =
+          accepterProfile['profile_image_url'] ?? '';
 
-      // Send notification (all data values must be strings)
       return await _sendNotification(
         fcmToken: fcmToken,
         title: 'Follow Request Accepted',
         body: '$accepterName accepted your follow request',
         recipientUserId: recipientUserId,
         type: 'follow_accepted',
+        additionalData: {
+          'userId': accepterUserId,
+          'username': accepterName,
+          'userAvatar': accepterAvatar,
+        },
       );
     } catch (e) {
       if (kDebugMode) {
@@ -358,6 +370,13 @@ class PushNotificationService {
     required String type,
     Map<String, dynamic>? additionalData,
   }) async {
+    if (apiSecretKey == null || apiSecretKey!.isEmpty) {
+      if (kDebugMode) {
+        print(
+            'PushNotificationService: ❌ API_SECRET_KEY is not set in .env — cannot authenticate to push function. Add API_SECRET_KEY to .env (must match the deployed Cloud Function value).');
+      }
+      return false;
+    }
     try {
       final payload = {
         'fcm_token': fcmToken,

@@ -4,8 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/notification_type.dart';
 import 'package:login/models/notifications/base_notification.dart';
+import 'package:login/models/notifications/follow_request_notification.dart';
+import 'package:login/models/notifications/video_processed_notification.dart';
+import 'package:login/pages/profile/other_user_profile_page.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/services/fcm_service.dart';
+import 'package:login/supabase/service.dart';
+import 'package:login/widgets/home/expanded_location_card.dart';
+import 'package:provider/provider.dart';
 
 class NotificationsPopover extends StatefulWidget {
   const NotificationsPopover({Key? key}) : super(key: key);
@@ -81,6 +87,75 @@ class _NotificationsPopoverState extends State<NotificationsPopover> {
     setState(() {
       _notifications = FCMService().notifications;
     });
+  }
+
+  Future<void> _handleAction(BaseNotification notification) async {
+    if (notification is FollowRequestNotification) {
+      await _handleFollowRequestAccept(notification);
+    } else if (notification is VideoProcessedNotification) {
+      await _handleViewLocation(notification);
+    }
+  }
+
+  Future<void> _handleFollowRequestAccept(
+      FollowRequestNotification notification) async {
+    try {
+      final auth =
+          Provider.of<SupabaseService>(context, listen: false).users;
+      await auth.acceptFollowRequest(notification.userId);
+      await FCMService().markAsRead(notification.id);
+      await FCMService().refreshFromDB();
+      if (!mounted) return;
+      setState(() => _notifications = FCMService().notifications);
+
+      // Navigate to requester's profile
+      final user = await auth.getUserProfileById(notification.userId);
+      if (!mounted || user == null) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => OtherUserProfilePage(user: user),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not accept request: $e')),
+      );
+    }
+  }
+
+  Future<void> _handleViewLocation(
+      VideoProcessedNotification notification) async {
+    try {
+      await FCMService().markAsRead(notification.id);
+      if (!mounted) return;
+      setState(() => _notifications = FCMService().notifications);
+
+      final service =
+          Provider.of<SupabaseService>(context, listen: false);
+      final locationId = int.tryParse(notification.locationId);
+      if (locationId == null) return;
+
+      final locations =
+          await service.locations.getLocationsByIds([locationId]);
+      if (!mounted || locations.isEmpty) return;
+
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => Scaffold(
+            body: ExpandedLocationCard(
+              location: locations.first,
+              onClose: () => Navigator.of(context).pop(),
+            ),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not open location: $e')),
+      );
+    }
   }
 
   @override
@@ -204,22 +279,7 @@ class _NotificationsPopoverState extends State<NotificationsPopover> {
                             onTap: () => _handleNotificationTap(notification),
                             onActionTap: notification.hasAction() &&
                                     notification.getActionLabel() != null
-                                ? () {
-                                    final actionLabel =
-                                        notification.getActionLabel();
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        backgroundColor: PinitColors.aubergine,
-                                        content: Text(
-                                          '$actionLabel action pressed',
-                                          style: GoogleFonts.dmSans(
-                                            color: PinitColors.cream,
-                                          ),
-                                        ),
-                                        duration: const Duration(seconds: 1),
-                                      ),
-                                    );
-                                  }
+                                ? () => _handleAction(notification)
                                 : null,
                           );
                         },
@@ -253,6 +313,7 @@ class _NotificationCard extends StatelessWidget {
     final actionLabel = notification.getActionLabel();
 
     return GestureDetector(
+      behavior: HitTestBehavior.deferToChild,
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
@@ -329,20 +390,20 @@ class _NotificationCard extends StatelessWidget {
                                       onActionTap != null) ...[
                                     const SizedBox(height: 10),
                                     GestureDetector(
-                                      onTap: onActionTap,
+                                      behavior: HitTestBehavior.opaque,
+                                      onTap: () {
+                                        // Stop the card-level onTap from also firing
+                                        onActionTap!();
+                                      },
                                       child: Container(
                                         padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 7,
+                                          horizontal: 14,
+                                          vertical: 8,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: PinitColors.creamSunk,
+                                          color: PinitColors.aubergine,
                                           borderRadius:
                                               BorderRadius.circular(999),
-                                          border: Border.all(
-                                            color: PinitColors.aubergine,
-                                            width: 1,
-                                          ),
                                         ),
                                         child: Text(
                                           actionLabel.toUpperCase(),
@@ -350,7 +411,7 @@ class _NotificationCard extends StatelessWidget {
                                             fontSize: 10,
                                             fontWeight: FontWeight.w700,
                                             letterSpacing: 0.8,
-                                            color: PinitColors.aubergine,
+                                            color: PinitColors.cream,
                                           ),
                                         ),
                                       ),

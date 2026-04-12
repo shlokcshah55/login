@@ -160,6 +160,20 @@ class CollectionsHelper {
         .getPublicUrl(path);
   }
 
+  /// Delete a collection the current user owns. The DB-side RPC refuses
+  /// to delete the auto-generated "Been To" and "Shared Finds" collections.
+  /// Throws on failure with the server error message.
+  Future<void> deleteCollection(String collectionId) async {
+    final response = await _client.rpc(
+      'delete_collection',
+      params: {'p_collection_id': collectionId},
+    );
+    final result = Map<String, dynamic>.from(response as Map);
+    if (result['success'] != true) {
+      throw Exception(result['error'] as String? ?? 'Failed to delete collection');
+    }
+  }
+
   /// Update a collection's name and cover_color (stores photo URL).
   Future<void> updateCollection({
     required String collectionId,
@@ -171,6 +185,20 @@ class CollectionsHelper {
       'p_name': name,
       'p_cover_color': coverColor,
     });
+  }
+
+  /// Load the public collections belonging to a specific user.
+  Future<List<CollectionItem>> getUserPublicCollections(String userId) async {
+    debugPrint('[CollectionsHelper] getUserPublicCollections — calling RPC for $userId');
+    final response = await _client.rpc(
+      'get_user_public_collections',
+      params: {'p_user_id': userId},
+    );
+    final items = (response as List)
+        .map((row) => CollectionItem.fromJson(row as Map<String, dynamic>))
+        .toList();
+    debugPrint('[CollectionsHelper] parsed ${items.length} public collections');
+    return items;
   }
 
   /// Load public collections from friends (people the current user follows).

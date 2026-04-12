@@ -1,8 +1,26 @@
-CREATE OR REPLACE FUNCTION public.save_location_with_tags(p_user_id uuid, p_location_id integer, p_saved_method text, p_acked boolean, p_source_video_url text)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$DECLARE
+-- ─────────────────────────────────────────────────────────────
+-- Auto-generated "Shared Finds" collection
+--
+-- Extends save_location_with_tags so that any save coming in via
+-- a social share (TikTok / Instagram) is also dropped into a
+-- per-user "Shared Finds" collection. The collection is created
+-- lazily on the user's first social save and reused thereafter.
+--
+-- Mirrors the lazy, name-matched pattern used for "Been To".
+-- ─────────────────────────────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION public.save_location_with_tags(
+    p_user_id uuid,
+    p_location_id integer,
+    p_saved_method text,
+    p_acked boolean,
+    p_source_video_url text
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $function$
+DECLARE
     v_location_id INTEGER;
     v_action_exists BOOLEAN := FALSE;
     v_timestamp TIMESTAMPTZ := NOW();
@@ -105,5 +123,43 @@ EXCEPTION
             'action_created', FALSE, 'message', 'Location already saved (race condition)');
     WHEN OTHERS THEN
         RETURN jsonb_build_object('success', FALSE, 'error', SQLERRM);
-END;$function$
-;
+END;
+$function$;
+
+
+-- ─────────────────────────────────────────────────────────────
+-- Backfill: ensure every user with historical TikTok / Instagram
+-- saves has a "Shared Finds" collection populated with those
+-- locations. Idempotent — safe to re-run.
+-- ─────────────────────────────────────────────────────────────
+WITH social_savers AS (
+    SELECT DISTINCT user_id
+    FROM user_location_actions
+    WHERE action = 'save'
+      AND saved_method IN ('tiktok', 'instagram')
+),
+ensured AS (
+    INSERT INTO collections (name, created_by, is_public)
+    SELECT 'Shared Finds', s.user_id, true
+    FROM social_savers s
+    WHERE NOT EXISTS (
+        SELECT 1 FROM collections c
+        WHERE c.created_by = s.user_id AND c.name = 'Shared Finds'
+    )
+    RETURNING collection_id, created_by
+),
+all_collections AS (
+    SELECT collection_id, created_by FROM ensured
+    UNION ALL
+    SELECT c.collection_id, c.created_by
+    FROM collections c
+    WHERE c.name = 'Shared Finds'
+      AND c.created_by IN (SELECT user_id FROM social_savers)
+)
+INSERT INTO collection_locations (collection_id, location_id, added_by)
+SELECT DISTINCT ac.collection_id, ula.location_id, ula.user_id
+FROM user_location_actions ula
+JOIN all_collections ac ON ac.created_by = ula.user_id
+WHERE ula.action = 'save'
+  AND ula.saved_method IN ('tiktok', 'instagram')
+ON CONFLICT ON CONSTRAINT collection_locations_unique DO NOTHING;

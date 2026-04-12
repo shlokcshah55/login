@@ -21,6 +21,7 @@ import 'widgets/pinit_colors.dart';
 import 'edit_profile_page.dart';
 import 'preferences_page.dart';
 import 'other_user_profile_page.dart';
+import 'user_list_page.dart';
 import '../../widgets/profile/find_friends_section.dart';
 import '../../widgets/profile/notifications_popover.dart';
 
@@ -37,6 +38,8 @@ class _ProfilePageState extends State<ProfilePage>
   late StreamSubscription<BaseNotification> _notificationSubscription;
   double _scrollOffset = 0.0;
   int _selectedTab = 0;
+  int _followersCount = 0;
+  int _followingCount = 0;
 
   final List<String> _tabs = ['Hot', 'Collections', 'People'];
 
@@ -47,7 +50,10 @@ class _ProfilePageState extends State<ProfilePage>
     _scrollController.addListener(_onScroll);
 
     _notificationSubscription = FCMService().notificationStream.listen((_) {
-      if (mounted) setState(() {});
+      if (mounted) {
+        setState(() {});
+        _loadFollowCounts();
+      }
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -55,7 +61,25 @@ class _ProfilePageState extends State<ProfilePage>
       manager.fetchSavedLocations();
       manager.fetchPopularLocations();
       manager.fetchHiddenGems();
+      _loadFollowCounts();
     });
+  }
+
+  Future<void> _loadFollowCounts() async {
+    try {
+      final service = Provider.of<SupabaseService>(context, listen: false);
+      final results = await Future.wait([
+        service.users.getFollowers(),
+        service.users.getFollowingList(),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _followersCount = results[0].length;
+        _followingCount = results[1].length;
+      });
+    } catch (_) {
+      // Best-effort refresh; leave prior counts in place on error.
+    }
   }
 
   void _onScroll() {
@@ -138,6 +162,11 @@ class _ProfilePageState extends State<ProfilePage>
                       onNotificationsTap: () => _showNotifications(context),
                       onSettingsTap: () => _showSettingsSheet(context, user),
                       unreadCount: FCMService().unreadCount,
+                      followersCount: _followersCount,
+                      followingCount: _followingCount,
+                      pinsCount: savedPins.length,
+                      onFollowersTap: () => _openFollowers(context),
+                      onFollowingTap: () => _openFollowing(context),
                     ),
                   ),
                   const SliverToBoxAdapter(
@@ -556,6 +585,32 @@ class _ProfilePageState extends State<ProfilePage>
         ),
       ),
     );
+  }
+
+  Future<void> _openFollowers(BuildContext context) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => UserListPage(
+          title: 'Followers',
+          loader: (s) => s.users.getFollowers(),
+          emptyMessage: 'No followers yet',
+        ),
+      ),
+    );
+    _loadFollowCounts();
+  }
+
+  Future<void> _openFollowing(BuildContext context) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => UserListPage(
+          title: 'Following',
+          loader: (s) => s.users.getFollowingList(),
+          emptyMessage: "You are not following anyone yet",
+        ),
+      ),
+    );
+    _loadFollowCounts();
   }
 
   void _showNotifications(BuildContext context) {
