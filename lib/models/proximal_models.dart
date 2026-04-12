@@ -4,25 +4,27 @@ class ProximalRequest {
   final double longitude;
   final double radiusKm;
   final int maxResults;
-  final double tasteWeight;
-  final double proximityWeight;
   final double qualityWeight;
+  final double vibeWeight;
+  final double dietaryWeight;
+  final double socialWeight;
+  final double collaborativeWeight;
   final bool includeTasteBreakdown;
-  final List<String>? vibeTagIds;
-  final List<String>? cuisineTagIds;
+  final Map<String, dynamic>? filters;
 
   const ProximalRequest({
     required this.userId,
     required this.latitude,
     required this.longitude,
     required this.radiusKm,
-    this.maxResults = 20,
-    this.tasteWeight = 0.2,
-    this.proximityWeight = 0.6,
-    this.qualityWeight = 0.2,
+    this.maxResults = 30,
+    this.qualityWeight = 0.30,
+    this.vibeWeight = 0.25,
+    this.dietaryWeight = 0.10,
+    this.socialWeight = 0.20,
+    this.collaborativeWeight = 0.15,
     this.includeTasteBreakdown = false,
-    this.vibeTagIds,
-    this.cuisineTagIds,
+    this.filters,
   });
 
   Map<String, dynamic> toJson() {
@@ -32,17 +34,16 @@ class ProximalRequest {
       'longitude': longitude,
       'radius_km': radiusKm,
       'max_results': maxResults,
-      'taste_weight': tasteWeight,
-      'proximity_weight': proximityWeight,
       'quality_weight': qualityWeight,
+      'vibe_weight': vibeWeight,
+      'dietary_weight': dietaryWeight,
+      'social_weight': socialWeight,
+      'collaborative_weight': collaborativeWeight,
       'include_taste_breakdown': includeTasteBreakdown,
     };
 
-    if (vibeTagIds != null && vibeTagIds!.isNotEmpty) {
-      json['vibe_tag_ids'] = vibeTagIds!;
-    }
-    if (cuisineTagIds != null && cuisineTagIds!.isNotEmpty) {
-      json['cuisine_tag_ids'] = cuisineTagIds!;
+    if (filters != null && filters!.isNotEmpty) {
+      json['filters'] = filters;
     }
 
     return json;

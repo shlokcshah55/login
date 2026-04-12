@@ -235,6 +235,12 @@ class _HomePageState extends State<HomePage> {
       _selectedVibeTagIds = result.vibeTagIds;
       _selectedCuisineTagIds = result.cuisineTagIds;
     });
+    await _locationListManager.applyFilters(
+      vibeTagIds: result.vibeTagIds.toList(),
+      cuisineTagIds: result.cuisineTagIds.toList(),
+      vibeTagNames: result.vibeTagNames,
+      cuisineTagNames: result.cuisineTagNames,
+    );
   }
 
   @override
@@ -334,10 +340,9 @@ class _HomePageState extends State<HomePage> {
                                       ),
                                     ),
                                   ),
-                                  if (viewModel.locations.isNotEmpty) ...[
-                                    const SizedBox(width: 10),
-                                    GestureDetector(
-                                      onTap: _openHomeFilters,
+                                  const SizedBox(width: 10),
+                                  GestureDetector(
+                                    onTap: _openHomeFilters,
                                       child: Stack(
                                         clipBehavior: Clip.none,
                                         children: [
@@ -417,7 +422,6 @@ class _HomePageState extends State<HomePage> {
                                         ],
                                       ),
                                     ),
-                                  ],
                                 ],
                               ),
                               Row(
@@ -502,6 +506,13 @@ class _HomePageState extends State<HomePage> {
                         ),
                         if (viewModel.isMagicSearching)
                           const _MagicSearchGeneratingCard()
+                        else if (viewModel.isLoadingRecommendations &&
+                            viewModel.currentListType ==
+                                LocationListType.recommended)
+                          const _MagicSearchGeneratingCard(
+                            eyebrow: 'FILTERING',
+                            title: 'Matching your filters...',
+                          )
                         else
                           HomeCarousel(
                             pageController: viewModel.pageController,
@@ -843,7 +854,13 @@ class _TopPanel extends StatelessWidget {
 }
 
 class _MagicSearchGeneratingCard extends StatefulWidget {
-  const _MagicSearchGeneratingCard();
+  const _MagicSearchGeneratingCard({
+    this.eyebrow = 'MAGIC SEARCH',
+    this.title = 'Finding your spots...',
+  });
+
+  final String eyebrow;
+  final String title;
 
   @override
   State<_MagicSearchGeneratingCard> createState() =>
@@ -923,7 +940,7 @@ class _MagicSearchGeneratingCardState extends State<_MagicSearchGeneratingCard>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'MAGIC SEARCH',
+                        widget.eyebrow,
                         style: GoogleFonts.dmSans(
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
@@ -935,7 +952,7 @@ class _MagicSearchGeneratingCardState extends State<_MagicSearchGeneratingCard>
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Finding your spots...',
+                        widget.title,
                         style: GoogleFonts.dmSans(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,

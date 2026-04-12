@@ -20,23 +20,30 @@ class RecommendationsApi {
     required double latitude,
     required double longitude,
     required double radiusKm,
-    int maxResults = 20,
-    double tasteWeight = 0.2,
-    double proximityWeight = 0.6,
-    double qualityWeight = 0.2,
+    int maxResults = 30,
+    double qualityWeight = 0.30,
+    double vibeWeight = 0.25,
+    double dietaryWeight = 0.10,
+    double socialWeight = 0.20,
+    double collaborativeWeight = 0.15,
     bool includeTasteBreakdown = false,
-    List<String>? vibeTagIds,
-    List<String>? cuisineTagIds,
+    List<String>? cuisines,
+    Map<String, dynamic>? filters,
   }) async {
+    // Build filters map — merge cuisines shortcut into explicit filters.
+    final mergedFilters = <String, dynamic>{
+      if (filters != null) ...filters,
+      if (cuisines != null && cuisines.isNotEmpty) 'cuisine': cuisines,
+    };
+
     // Log request parameters
-    log('🔍 [RecommendationsApi] fetchProximal called with parameters:');
-    log('   userId: $userId');
-    log('   latitude: $latitude, longitude: $longitude');
-    log('   radiusKm: $radiusKm, maxResults: $maxResults');
-    log('   tasteWeight: $tasteWeight, proximityWeight: $proximityWeight, qualityWeight: $qualityWeight');
-    log('   vibeTagIds: ${vibeTagIds ?? "null"} (count: ${vibeTagIds?.length ?? 0})');
-    log('   cuisineTagIds: ${cuisineTagIds ?? "null"} (count: ${cuisineTagIds?.length ?? 0})');
-    log('   includeTasteBreakdown: $includeTasteBreakdown');
+    print('🔍 [RecommendationsApi] fetchProximal called with parameters:');
+    print('   userId: $userId');
+    print('   latitude: $latitude, longitude: $longitude');
+    print('   radiusKm: $radiusKm, maxResults: $maxResults');
+    print('   weights — quality: $qualityWeight, vibe: $vibeWeight, dietary: $dietaryWeight, social: $socialWeight, collaborative: $collaborativeWeight');
+    print('   filters: ${mergedFilters.isEmpty ? "(none)" : mergedFilters}');
+    print('   includeTasteBreakdown: $includeTasteBreakdown');
 
     final request = ProximalRequest(
       userId: userId,
@@ -44,20 +51,21 @@ class RecommendationsApi {
       longitude: longitude,
       radiusKm: radiusKm,
       maxResults: maxResults,
-      tasteWeight: tasteWeight,
-      proximityWeight: proximityWeight,
       qualityWeight: qualityWeight,
+      vibeWeight: vibeWeight,
+      dietaryWeight: dietaryWeight,
+      socialWeight: socialWeight,
+      collaborativeWeight: collaborativeWeight,
       includeTasteBreakdown: includeTasteBreakdown,
-      vibeTagIds: vibeTagIds,
-      cuisineTagIds: cuisineTagIds,
+      filters: mergedFilters.isEmpty ? null : mergedFilters,
     );
 
     final requestJson = request.toJson();
     final uri = Uri.parse('$_baseUrl$_path');
 
     // Log the full request body
-    log('📤 [RecommendationsApi] POST request to: $uri');
-    log('📤 [RecommendationsApi] Request body: ${jsonEncode(requestJson)}');
+    print('📤 [RecommendationsApi] POST request to: $uri');
+    print('📤 [RecommendationsApi] Request body: ${jsonEncode(requestJson)}');
 
     // Retry logic for 500 errors (transient failures)
     const maxRetries = 3;
@@ -80,7 +88,7 @@ class RecommendationsApi {
             )
             .timeout(const Duration(seconds: 30));
 
-        log('📥 [RecommendationsApi] Response status: ${response.statusCode}');
+        print('📥 [RecommendationsApi] Response status: ${response.statusCode}');
 
         // Success or client error - don't retry
         if (response.statusCode < 500) {
@@ -89,13 +97,13 @@ class RecommendationsApi {
 
         // 500+ error - retry if we haven't exhausted attempts
         if (attempt < maxRetries) {
-          log('⚠️ [RecommendationsApi] Server error (${response.statusCode}), retrying in ${retryDelays[attempt].inMilliseconds}ms (attempt ${attempt + 1}/$maxRetries)');
+          print('⚠️ [RecommendationsApi] Server error (${response.statusCode}), retrying in ${retryDelays[attempt].inMilliseconds}ms (attempt ${attempt + 1}/$maxRetries)');
           await Future.delayed(retryDelays[attempt]);
           continue;
         }
       } on TimeoutException {
         if (attempt < maxRetries) {
-          log('⏱️ [RecommendationsApi] Request timeout, retrying (attempt ${attempt + 1}/$maxRetries)');
+          print('⏱️ [RecommendationsApi] Request timeout, retrying (attempt ${attempt + 1}/$maxRetries)');
           await Future.delayed(retryDelays[attempt]);
           continue;
         }
@@ -104,7 +112,7 @@ class RecommendationsApi {
     }
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      log('❌ [RecommendationsApi] Request failed: ${response.body}');
+      print('❌ [RecommendationsApi] Request failed: ${response.body}');
       throw RecommendationsApiException(
         'Failed with status ${response.statusCode}: ${response.body}',
       );
@@ -113,7 +121,7 @@ class RecommendationsApi {
     final decoded = jsonDecode(response.body) as Map<String, dynamic>;
     final proximalResponse = ProximalResponse.fromJson(decoded);
 
-    log('✅ [RecommendationsApi] Success! Received ${proximalResponse.recommendations.length} recommendations');
+    print('✅ [RecommendationsApi] Success! Received ${proximalResponse.recommendations.length} recommendations');
 
     return proximalResponse;
   }

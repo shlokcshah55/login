@@ -23,9 +23,12 @@ class _PreferencesPageState extends State<PreferencesPage> {
 
   late Future<List<Map<String, dynamic>>> _tagsFuture;
 
-  /// Local working copy of the affinity vector — gets updated optimistically
-  /// and synced to the provider on a debounce.
-  List<int>? _localAffinity;
+  /// Local working copy of the affinity vector — sourced from the provider
+  /// at construction time and only ever mutated by explicit user taps. We
+  /// NEVER pad or default this list: that would silently overwrite real
+  /// affinities with placeholder values the moment the user touched any
+  /// +/- button.
+  late final List<int> _localAffinity;
 
   Timer? _saveDebounce;
   bool _dirty = false;
@@ -35,8 +38,15 @@ class _PreferencesPageState extends State<PreferencesPage> {
     super.initState();
     final supabase = context.read<SupabaseService>();
     _tagsFuture = supabase.tags.getVibeTags();
-    _localAffinity = List<int>.from(
-        context.read<UserDataProvider>().vibeTagAffinity ?? const []);
+    // The page is gated upstream so we should always have real affinities by
+    // the time we get here. Copy them once into a mutable working list.
+    final fromProvider = context.read<UserDataProvider>().vibeTagAffinity;
+    assert(
+      fromProvider != null && fromProvider.isNotEmpty,
+      'PreferencesPage opened before vibe affinities loaded — gate the '
+      'navigation upstream so this never happens.',
+    );
+    _localAffinity = List<int>.from(fromProvider ?? const <int>[]);
   }
 
   @override
@@ -49,19 +59,10 @@ class _PreferencesPageState extends State<PreferencesPage> {
     super.dispose();
   }
 
-  void _ensureLength(int length) {
-    if (_localAffinity == null) {
-      _localAffinity = List<int>.filled(length, 0);
-    } else if (_localAffinity!.length < length) {
-      _localAffinity!
-          .addAll(List<int>.filled(length - _localAffinity!.length, 0));
-    }
-  }
-
   void _adjust(int index, int delta) {
     HapticFeedback.selectionClick();
     setState(() {
-      _localAffinity![index] = _localAffinity![index] + delta;
+      _localAffinity[index] = _localAffinity[index] + delta;
       _dirty = true;
     });
     _scheduleSave();
@@ -74,10 +75,10 @@ class _PreferencesPageState extends State<PreferencesPage> {
   }
 
   Future<void> _flushNow() async {
-    if (!_dirty || _localAffinity == null) return;
+    if (!_dirty) return;
     _dirty = false;
     final provider = context.read<UserDataProvider>();
-    await provider.updateVibeTagAffinity(List<int>.from(_localAffinity!));
+    await provider.updateVibeTagAffinity(List<int>.from(_localAffinity));
   }
 
   @override
@@ -107,8 +108,15 @@ class _PreferencesPageState extends State<PreferencesPage> {
                       return _buildEmpty();
                     }
                     final tags = snapshot.data!;
-                    _ensureLength(tags.length);
-                    return _buildList(tags);
+                    // Only render rows for tags we have a real affinity for.
+                    // If the backend ever adds new tags before this user's
+                    // affinity vector is migrated, we drop the extras rather
+                    // than fabricating zeros (which would clobber real data
+                    // on the next save).
+                    final renderable = tags.length <= _localAffinity.length
+                        ? tags
+                        : tags.sublist(0, _localAffinity.length);
+                    return _buildList(renderable);
                   },
                 ),
               ),
@@ -159,7 +167,7 @@ class _PreferencesPageState extends State<PreferencesPage> {
         final index = i - 1;
         final tag = tags[index];
         final rawText = (tag['text'] ?? '') as String;
-        final value = _localAffinity![index];
+        final value = _localAffinity[index];
         return _VibeRow(
           label: vibeDisplayName(rawText),
           icon: vibeIcons[rawText] ?? Icons.local_offer_rounded,

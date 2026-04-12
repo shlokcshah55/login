@@ -55,9 +55,14 @@ class MapStateProvider with ChangeNotifier {
   }
 
   void animateToCarouselItem(int index) {
-    if (_carouselPageController != null) {
-      _carouselPageController!.jumpToPage(index);
-    }
+    // Guard against the PageView not being mounted — when the carousel is
+    // temporarily swapped out (header search overlay, magic-search generating
+    // card, etc.) the controller has no clients, and jumpToPage would trip
+    // the `positions.isNotEmpty` assertion in page_view.dart and surface as
+    // a spurious "Failed to load recommendations".
+    final controller = _carouselPageController;
+    if (controller == null || !controller.hasClients) return;
+    controller.jumpToPage(index);
   }
 
   /// Call this from MapWidget's onMapCreated callback.

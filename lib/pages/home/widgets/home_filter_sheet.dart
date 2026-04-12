@@ -10,10 +10,14 @@ class HomeFilterSheetResult {
   const HomeFilterSheetResult({
     required this.vibeTagIds,
     required this.cuisineTagIds,
+    this.vibeTagNames = const [],
+    this.cuisineTagNames = const [],
   });
 
   final Set<String> vibeTagIds;
   final Set<String> cuisineTagIds;
+  final List<String> vibeTagNames;
+  final List<String> cuisineTagNames;
 
   int get totalSelectedCount => vibeTagIds.length + cuisineTagIds.length;
 }
@@ -512,10 +516,23 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
+                    // Resolve tag names from IDs for the scoring logic
+                    final vibeNames = _vibeTags
+                        .where((t) =>
+                            _selectedVibeTagIds.contains(_tagId(t)))
+                        .map((t) => _tagLabel(t))
+                        .toList();
+                    final cuisineNames = _cuisineTags
+                        .where((t) =>
+                            _selectedCuisineTagIds.contains(_tagId(t)))
+                        .map((t) => _tagLabel(t))
+                        .toList();
                     Navigator.of(context).pop(
                       HomeFilterSheetResult(
                         vibeTagIds: Set<String>.from(_selectedVibeTagIds),
                         cuisineTagIds: Set<String>.from(_selectedCuisineTagIds),
+                        vibeTagNames: vibeNames,
+                        cuisineTagNames: cuisineNames,
                       ),
                     );
                   },

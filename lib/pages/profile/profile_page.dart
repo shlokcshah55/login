@@ -640,6 +640,18 @@ class _ProfilePageState extends State<ProfilePage>
         },
         onPreferences: () {
           Navigator.pop(sheetContext);
+          // Refuse to open Preferences until the user's vibe affinities have
+          // actually loaded — otherwise the page would have no real data to
+          // edit and any save would risk overwriting real values.
+          final affinity = context.read<UserDataProvider>().vibeTagAffinity;
+          if (affinity == null || affinity.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Loading your vibes — try again in a moment.'),
+              ),
+            );
+            return;
+          }
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => const PreferencesPage(),
