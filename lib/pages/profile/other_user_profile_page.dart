@@ -257,7 +257,7 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
   Widget _buildProfileHeader() {
     return Container(
       decoration: const BoxDecoration(
-        gradient: PinitColors.warmGradient,
+        gradient: PinitColors.primaryGradient,
       ),
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 28),
       child: Column(

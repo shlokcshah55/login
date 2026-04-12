@@ -210,9 +210,10 @@ class _MapScreenSearchAreaState extends State<MapScreenSearchArea> {
       }
 
       final imageBytes = await PinitMarkers.createPinitMarker(
-        emoji: '📍',
         name: rec.name,
         devicePixelRatio: dpr,
+        rating: rec.rating,
+        fallbackSeed: rec.locationId,
       );
 
       markers.add(

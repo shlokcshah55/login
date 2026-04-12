@@ -7,6 +7,7 @@ import 'package:login/models/users.dart';
 import 'package:login/supabase/helpers/auth.dart';
 import 'package:login/supabase/helpers/collections.dart';
 import 'package:login/supabase/helpers/location.dart';
+import 'package:login/supabase/helpers/notes_import.dart';
 import 'package:login/supabase/helpers/location_reviews.dart';
 import 'package:login/supabase/helpers/tags.dart';
 import 'package:login/services/fcm_service.dart';
@@ -29,6 +30,7 @@ class SupabaseService extends ChangeNotifier {
   late final NotificationsHelper _notificationsService;
   late final MessagingHelper _messagingService;
   late final CollectionsHelper _collectionsService;
+  late final NotesImportHelper _notesImportService;
 
   bool _isLoading = false;
   bool _isInitializing = true;
@@ -53,6 +55,7 @@ class SupabaseService extends ChangeNotifier {
   NotificationsHelper get notifications => _notificationsService;
   MessagingHelper get messaging => _messagingService;
   CollectionsHelper get collections => _collectionsService;
+  NotesImportHelper get notesImport => _notesImportService;
 
   // Status getters
   bool get isLoading => _isLoading || _isInitializing;
@@ -87,6 +90,7 @@ class SupabaseService extends ChangeNotifier {
       _notificationsService = NotificationsHelper();
       _messagingService = MessagingHelper();
       _collectionsService = CollectionsHelper();
+      _notesImportService = NotesImportHelper();
 
       // Initialize completer before setting up listener
       _authStateCompleter = Completer<void>();
@@ -310,7 +314,8 @@ class SupabaseService extends ChangeNotifier {
               await _tagsService.initializeVibeTagsForUser(userId);
               await _uploadDefaultProfilePicture(userId);
               if (kDebugMode) {
-                print('SupabaseService: Initialized vibe tags and profile picture for new OAuth user');
+                print(
+                    'SupabaseService: Initialized vibe tags and profile picture for new OAuth user');
               }
             }
 
@@ -413,7 +418,8 @@ class SupabaseService extends ChangeNotifier {
       await _authService.uploadImage(tempFile, filePath, userId);
 
       if (kDebugMode) {
-        print('SupabaseService: Default profile picture uploaded for user $userId');
+        print(
+            'SupabaseService: Default profile picture uploaded for user $userId');
       }
     } catch (e) {
       if (kDebugMode) {

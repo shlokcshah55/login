@@ -946,14 +946,12 @@ class LocationModel {
       {bool shouldShowName = true}) async {
     if (lat == null || lng == null) return null;
 
-    String emojiToUse = emoji != null && emoji!.isNotEmpty ? emoji! : '📍';
-
     // Extract vibe scores — default to 0 when vector is absent.
     final double wavyScore = vibe?.wavyScore ?? 0.0;
     final double bossmanScore = vibe?.bossmanScore ?? 0.0;
 
     final imageBytes = await PinitMarkers.createPinitMarker(
-      emoji: emojiToUse,
+      emoji: emoji,
       name: name,
       devicePixelRatio: dpr,
       types: types,
@@ -964,6 +962,9 @@ class LocationModel {
       savedCount: savedCount ?? 0,
       matchScore: matchScore ?? 0.0,
       badgeType: markerBadgeType,
+      rating: rating,
+      vibeVector: vibeVector,
+      fallbackSeed: locationId,
     );
 
     return MapMarkerData(

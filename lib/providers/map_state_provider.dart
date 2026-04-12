@@ -77,12 +77,13 @@ class MapStateProvider with ChangeNotifier {
       _geoJsonLayerService = GeoJsonMapLayerService(
         mapboxMap: map,
         config: const GeoJsonLayerConfig(
-          enableClustering: true,
-          clusterRadius: 30,
-          clusterMaxZoom: 14,
+          enableClustering: false,
+          clusterRadius: 34,
+          clusterMaxZoom: 12,
           showTextLabels: true,
           allowTextOverlap: false,
-          allowIconOverlap: false,
+          allowIconOverlap: true,
+          denseMarkerThreshold: 15,
         ),
         onLocationTapped: onLocationTapped,
         onClusterTapped: onClusterTapped,
@@ -377,16 +378,39 @@ class MapStateProvider with ChangeNotifier {
       _selectedMarkerId = markerId;
       // Update selection in GeoJSON layer service
       _geoJsonLayerService?.setSelectedLocation(markerId);
+      if (triggeredByCarousel && markerId != null) {
+        final locationId = int.tryParse(markerId);
+        if (locationId != null) {
+          _geoJsonLayerService?.pulseLocation(locationId);
+        }
+      }
       log("MapStateProvider: Selected marker changed to: $markerId");
       notifyListeners();
     }
   }
 
   /// Called from the map's camera-change listener.
-  void updateMapCenter(LatLng center, double zoom) {
+  void updateMapCenter(
+    LatLng center,
+    double zoom,
+  ) {
     _currentVisibleCenter = center;
     _currentZoom = zoom;
     _checkIfViewDiffersFromLastSearch();
+  }
+
+  Future<void> refreshGeoJsonViewportPresentation({
+    LatLngBounds? visibleBounds,
+    Rect? usableScreenRect,
+  }) async {
+    if (!_useGeoJsonLayers || _geoJsonLayerService == null) {
+      return;
+    }
+
+    await _geoJsonLayerService!.updateViewportPresentation(
+      visibleBounds: visibleBounds,
+      usableScreenRect: usableScreenRect,
+    );
   }
 
   /// Check if current view differs significantly from the last searched area

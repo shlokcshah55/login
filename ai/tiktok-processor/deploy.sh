@@ -3,7 +3,49 @@
 # TikTok Processor API - GCP Cloud Run Deployment Script
 # This script builds and deploys the Docker image to Google Cloud Run
 
-set -e  # Exit on error
+set -euo pipefail  # Exit on error
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
+load_dotenv_file() {
+    local file_path="$1"
+    [[ -f "$file_path" ]] || return 0
+
+    while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
+        local line="$raw_line"
+
+        line="${line#"${line%%[![:space:]]*}"}"
+        line="${line%"${line##*[![:space:]]}"}"
+
+        [[ -z "$line" ]] && continue
+        [[ "${line:0:1}" == "#" ]] && continue
+        [[ "$line" != *"="* ]] && continue
+
+        local key="${line%%=*}"
+        local value="${line#*=}"
+
+        key="${key%"${key##*[![:space:]]}"}"
+        value="${value#"${value%%[![:space:]]*}"}"
+
+        if [[ "$value" =~ ^\".*\"$ ]] || [[ "$value" =~ ^\'.*\'$ ]]; then
+            value="${value:1:${#value}-2}"
+        fi
+
+        export "$key=$value"
+    done < "$file_path"
+}
+
+require_env() {
+    local key="$1"
+    if [[ -z "${!key:-}" ]]; then
+        echo "Error: missing required environment variable: $key" >&2
+        exit 1
+    fi
+}
+
+load_dotenv_file "${SCRIPT_DIR}/.env"
+load_dotenv_file "${REPO_ROOT}/.env"
 
 # ===== Configuration =====
 # You can modify these or pass them as environment variables
@@ -30,18 +72,18 @@ if ! command -v gcloud &> /dev/null; then
 fi
 
 # Check if .env file exists
-if [ ! -f .env ]; then
+if [ ! -f "${SCRIPT_DIR}/.env" ] && [ ! -f "${REPO_ROOT}/.env" ]; then
     echo "Error: .env file not found"
     echo "Please create a .env file with required environment variables"
     exit 1
 fi
 
-# Load environment variables from .env file
-echo ""
-echo "Loading environment variables from .env file..."
-set -a
-source .env
-set +a
+if [ -z "${SEND_PUSH_NOTIF_SECRET:-}" ] && [ -n "${API_SECRET_KEY:-}" ]; then
+    SEND_PUSH_NOTIF_SECRET="${API_SECRET_KEY}"
+    export SEND_PUSH_NOTIF_SECRET
+fi
+
+require_env "SEND_PUSH_NOTIF_SECRET"
 
 # Set the GCP project
 echo ""
@@ -73,7 +115,7 @@ gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet
 # Build the Docker image locally
 echo ""
 echo "Building Docker image locally..."
-docker build --platform linux/amd64 -t $IMAGE_NAME .
+docker build --platform linux/amd64 -t $IMAGE_NAME "${SCRIPT_DIR}"
 
 # Push to Artifact Registry
 echo ""

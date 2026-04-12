@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 import 'package:login/models/locations.dart';
+import 'package:login/pages/home/home_view_model.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
@@ -28,8 +30,12 @@ class PinitMap extends StatefulWidget {
 }
 
 class _PinitMapState extends State<PinitMap> {
+  static const double _usableMapTopOverlay = 160.0;
+  static const double _usableMapControlsAllowance = 52.0;
+  static const Duration _viewportRefreshDebounce = Duration(seconds: 2);
   bool _locationTrackingStarted = false;
   LocationListManager? _locationListManager;
+  Timer? _viewportRefreshTimer;
 
   // Legacy fields for PointAnnotation-based rendering (when useGeoJsonLayers is false)
   // ignore: unused_field
@@ -411,7 +417,6 @@ class _PinitMapState extends State<PinitMap> {
 
     final initialCenter = currentPosition ??
         const LatLng(PinitMap.DEFAULT_LAT, PinitMap.DEFAULT_LNG);
-
     return Stack(
       children: [
         mapbox.MapWidget(
@@ -432,6 +437,9 @@ class _PinitMapState extends State<PinitMap> {
           },
           onCameraChangeListener: (mapbox.CameraChangedEventData event) {
             _onCameraChanged(mapStateProvider, locationListManager);
+          },
+          onMapIdleListener: (mapbox.MapIdleEventData event) {
+            _scheduleViewportPresentationRefresh(mapStateProvider);
           },
         ),
 
@@ -580,16 +588,80 @@ class _PinitMapState extends State<PinitMap> {
     try {
       final state = await map.getCameraState();
       final center = LatLng.fromPoint(state.center);
-      mapStateProvider.updateMapCenter(center, state.zoom);
+      mapStateProvider.updateMapCenter(
+        center,
+        state.zoom,
+      );
       locationListManager.setCameraPosition(CameraPositionData(
         target: center,
         zoom: state.zoom,
       ));
+      _scheduleViewportPresentationRefresh(mapStateProvider);
     } catch (_) {}
+  }
+
+  void _scheduleViewportPresentationRefresh(
+    MapStateProvider mapStateProvider,
+  ) {
+    _viewportRefreshTimer?.cancel();
+    _viewportRefreshTimer = Timer(
+      _viewportRefreshDebounce,
+      () {
+        if (!mounted) return;
+        _refreshViewportPresentationNow(mapStateProvider);
+      },
+    );
+  }
+
+  Future<void> _refreshViewportPresentationNow(
+    MapStateProvider mapStateProvider,
+  ) async {
+    final map = mapStateProvider.mapboxMap;
+    if (map == null) return;
+
+    try {
+      final state = await map.getCameraState();
+      final bounds = await map.coordinateBoundsForCamera(
+        mapbox.CameraOptions(
+          center: state.center,
+          zoom: state.zoom,
+          bearing: state.bearing,
+          pitch: state.pitch,
+        ),
+      );
+      final usableScreenRect = _buildUsableScreenRect();
+      await mapStateProvider.refreshGeoJsonViewportPresentation(
+        visibleBounds: LatLngBounds.fromCoordinateBounds(bounds),
+        usableScreenRect: usableScreenRect,
+      );
+    } catch (_) {}
+  }
+
+  Rect _buildUsableScreenRect() {
+    final media = MediaQuery.of(context);
+    final bottomNavVisible = context.read<HomeViewModel>().bottomNavVisible;
+    final carouselBottom = bottomNavVisible ? 110.0 : 20.0;
+    final carouselHeight = bottomNavVisible ? 185.0 : 215.0;
+    final top = media.padding.top + _usableMapTopOverlay;
+    final bottom = media.size.height -
+        carouselBottom -
+        carouselHeight -
+        _usableMapControlsAllowance;
+    final clampedTop = top.clamp(0.0, media.size.height).toDouble();
+    final clampedBottom =
+        bottom.clamp(clampedTop + 1.0, media.size.height).toDouble();
+
+    return Rect.fromLTRB(
+      0,
+      clampedTop,
+      media.size.width,
+      clampedBottom,
+    );
   }
 
   @override
   void dispose() {
+    _viewportRefreshTimer?.cancel();
     if (_locationTrackingStarted) {
       _locationListManager?.stopLocationUpdates();
     }

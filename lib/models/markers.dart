@@ -1,10 +1,12 @@
 import 'dart:collection';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart' as svg;
 import 'package:google_fonts/google_fonts.dart';
+import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
 import 'package:login/themes/app_typography.dart';
 
 // ─────────────────────────────────────────────────────────────
@@ -94,86 +96,210 @@ class PinitMarkerBadgeType {
 // ─────────────────────────────────────────────────────────────
 class PinitMarkers {
   static final _BitmapCache _cache = _BitmapCache(maxEntries: 512);
+  static final Map<String, Future<ui.Image?>> _emojiImageCache = {};
+  static const String _openMojiAssetDirectory = 'lib/assets/openmoji-svg-color';
+  static const List<String> _genericFallbackEmojis = [
+    '🍽️',
+    '☕',
+    '🫕',
+    '🍷',
+    '🍴',
+    '🥣',
+    '🥐',
+  ];
 
-  static final Map<String, ui.Image> _imageAssetCache = {};
+  static const List<String> _vibeTagsByIndex = [
+    'cafe',
+    'casual',
+    'cozy',
+    'coffee_shop',
+    'bar',
+    'elegant',
+    'fine_dining',
+    'food_truck',
+    'hole_in_the_wall',
+    'late_night',
+    'live_music',
+    'michelin_starred',
+    'modern',
+    'fast_food',
+    'quiet',
+    'romantic',
+    'sports_bar',
+    'trendy',
+    'takeout_friendly',
+    'pub',
+    'grocery_store',
+    'brunch',
+    'outdoor_dining',
+    'wavy',
+    'bossman',
+  ];
 
-  static Future<ui.Image?> _loadAssetImage(String path) async {
-    if (_imageAssetCache.containsKey(path)) {
-      return _imageAssetCache[path];
-    }
-    try {
-      final data = await rootBundle.load(path);
-      final list = Uint8List.view(data.buffer);
-      final codec = await ui.instantiateImageCodec(list);
-      final frame = await codec.getNextFrame();
-      final image = frame.image;
-      _imageAssetCache[path] = image;
-      return image;
-    } catch (e) {
-      debugPrint('Error loading image $path: $e');
+  static const Set<String> _invalidEmojiSentinels = {
+    'none',
+    'null',
+    'nil',
+    'n/a',
+    'na',
+    'undefined',
+    'unknown',
+  };
+
+  static const Map<String, String> _vibeFallbackEmojis = {
+    'cafe': '☕',
+    'casual': '🍴',
+    'cozy': '🕯️',
+    'coffee_shop': '☕',
+    'bar': '🍸',
+    'elegant': '🥂',
+    'fine_dining': '🍽️',
+    'food_truck': '🌮',
+    'hole_in_the_wall': '🍜',
+    'late_night': '🌙',
+    'live_music': '🎵',
+    'michelin_starred': '⭐',
+    'modern': '✨',
+    'fast_food': '🍔',
+    'quiet': '🤫',
+    'romantic': '🌹',
+    'sports_bar': '🍺',
+    'trendy': '🪩',
+    'takeout_friendly': '🥡',
+    'pub': '🍻',
+    'grocery_store': '🛒',
+    'brunch': '🥐',
+    'outdoor_dining': '🌿',
+    'wavy': '🌊',
+    'bossman': '🕴️',
+  };
+
+  static int _positiveModulo(int value, int modulus) {
+    if (modulus == 0) return 0;
+    final mod = value % modulus;
+    return mod < 0 ? mod + modulus : mod;
+  }
+
+  static String? _sanitizeEmoji(String? emoji) {
+    final trimmed = emoji?.trim();
+    if (trimmed == null || trimmed.isEmpty) return null;
+
+    final normalized = trimmed.toLowerCase();
+    if (_invalidEmojiSentinels.contains(normalized)) {
       return null;
     }
+
+    // Reject plain text placeholders like "burger" or ":pizza:" so we can
+    // fall back to vibe icons / generic emojis instead of painting words.
+    if (RegExp(r'[A-Za-z]').hasMatch(trimmed)) {
+      return null;
+    }
+
+    return trimmed;
   }
 
-  static String _normalizeLookupText(String input) {
-    return input
-        .toLowerCase()
-        .replaceAll('\uFE0F', '')
-        .replaceAll(':', ' ')
-        .replaceAll('_', ' ')
-        .replaceAll('-', ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
+  static String? _highestSupportedVibeTag(List<double>? vibeVector) {
+    if (vibeVector == null || vibeVector.isEmpty) return null;
+
+    String? topTag;
+    double topScore = 0.0;
+
+    for (var i = 0; i < vibeVector.length && i < _vibeTagsByIndex.length; i++) {
+      final score = vibeVector[i];
+      if (!score.isFinite || score <= topScore) continue;
+
+      final tag = _vibeTagsByIndex[i];
+      if (!_vibeFallbackEmojis.containsKey(tag)) continue;
+
+      topTag = tag;
+      topScore = score;
+    }
+
+    return topScore > 0.0 ? topTag : null;
   }
 
-  static bool _containsAny(String input, List<String> tokens) {
-    for (final token in tokens) {
-      if (input.contains(token)) return true;
+  static String _visualKeyFor({
+    String? emoji,
+    List<double>? vibeVector,
+    int fallbackSeed = 0,
+  }) {
+    final sanitizedEmoji = _sanitizeEmoji(emoji);
+    if (sanitizedEmoji != null) {
+      return 'emoji:$sanitizedEmoji';
     }
-    return false;
+
+    final topVibeTag = _highestSupportedVibeTag(vibeVector);
+    if (topVibeTag != null) {
+      return 'vibe:$topVibeTag';
+    }
+
+    final fallbackIndex =
+        _positiveModulo(fallbackSeed, _genericFallbackEmojis.length);
+    return 'generic:$fallbackIndex';
   }
 
-  static String? getAssetForLocation(
-      String? cuisine, String? types, String emoji) {
-    final normalizedEmoji = _normalizeLookupText(emoji);
-    final normalizedCuisine = _normalizeLookupText(cuisine ?? '');
-    final normalizedTypes = _normalizeLookupText(types ?? '');
-    final combined = '$normalizedEmoji $normalizedCuisine $normalizedTypes';
+  static String markerVisualKey({
+    String? emoji,
+    List<double>? vibeVector,
+    int fallbackSeed = 0,
+  }) {
+    return _visualKeyFor(
+      emoji: emoji,
+      vibeVector: vibeVector,
+      fallbackSeed: fallbackSeed,
+    );
+  }
 
-    if (_containsAny(combined, ['🍔', 'burger', 'hamburger'])) {
-      return 'lib/assets/pin_emojis/burgerIcon.jpg';
+  static _MarkerVisual _resolveMarkerVisual({
+    String? emoji,
+    List<double>? vibeVector,
+    int fallbackSeed = 0,
+  }) {
+    // Marker content priority: explicit emoji, strongest supported vibe emoji,
+    // then a deterministic pick from the generic emoji set.
+    final sanitizedEmoji = _sanitizeEmoji(emoji);
+    if (sanitizedEmoji != null) {
+      return _MarkerVisual.emoji(sanitizedEmoji);
     }
-    if (_containsAny(combined, ['🍛', 'curry', 'indian'])) {
-      return 'lib/assets/pin_emojis/curryIcon.jpg';
+
+    final topVibeTag = _highestSupportedVibeTag(vibeVector);
+    if (topVibeTag != null) {
+      return _MarkerVisual.emoji(
+        _vibeFallbackEmojis[topVibeTag]!,
+        key: 'vibe:$topVibeTag',
+      );
     }
-    if (_containsAny(
-        combined, ['🍩', 'donut', 'doughnut', 'bakery', 'pastry'])) {
-      return 'lib/assets/pin_emojis/donutIcon.jpg';
-    }
-    if (_containsAny(
-        combined, ['🍜', 'pho', 'ramen', 'noodle', 'vietnamese'])) {
-      return 'lib/assets/pin_emojis/phoIcon.jpg';
-    }
-    if (_containsAny(combined, ['🍕', 'pizza'])) {
-      return 'lib/assets/pin_emojis/pizzaIcon.jpg';
-    }
-    if (_containsAny(combined, ['🥩', 'steak', 'bbq', 'barbecue', 'grill'])) {
-      return 'lib/assets/pin_emojis/steakIcon.jpg';
-    }
-    if (_containsAny(combined, ['🍣', 'sushi', 'japanese'])) {
-      return 'lib/assets/pin_emojis/sushiIcon.jpg';
-    }
-    if (_containsAny(combined, ['🌮', 'taco', 'mexican'])) {
-      return 'lib/assets/pin_emojis/tacoIcon.jpg';
-    }
-    if (_containsAny(combined, ['🍲', 'thai', 'tom yum'])) {
-      return 'lib/assets/pin_emojis/thaiIcon.jpg';
-    }
-    return null;
+
+    final fallbackIndex =
+        _positiveModulo(fallbackSeed, _genericFallbackEmojis.length);
+    return _MarkerVisual.emoji(
+      _genericFallbackEmojis[fallbackIndex],
+      key: 'generic:$fallbackIndex',
+    );
   }
 
   static const double _basePinBubbleDiameter = 32.0;
   static const double _popularPinBubbleDiameter = 36.0;
+  static const double _selectedPinScale = 1.7;
+  static const double _accentRatingThreshold = 4.5;
+  static const double _pinBubbleWidthFactor = 1.18;
+  static const double _pinBubbleHeightFactor = 0.92;
+  static const double _hardShadowOffset = 3.0;
+  static const Color _pinFillColor = pinit.PinitColors.creamDeep;
+  static const Color _pinStrokeColor = pinit.PinitColors.aubergine;
+  static const Color _pinAccentStrokeColor = pinit.PinitColors.accent;
+  static const Color _pinWavyShadowColor = Color(0xFF1E9FA3);
+  static const Color _pinBossmanShadowColor = Color(0xFF7A6852);
+  static const Color _pinMatchShadowColor = Color(0xFFC65B88);
+  static const Color _pinSavedShadowColor = Color(0xFFC98A2E);
+  static const Color _pinSparkleShadowColor = Color(0xFFCCA03A);
+  static const Color _pinLiveMusicShadowColor = Color(0xFFD45763);
+  static const Color _pinCocktailShadowColor = Color(0xFF8B63C7);
+  static const Color _pinOutdoorShadowColor = Color(0xFF4B9A68);
+  static const Color _pinLateShadowColor = Color(0xFF5F63D3);
+  static const Color _pinTrendingShadowColor = Color(0xFFE56A2E);
+  static const Color _pinLabelColor = pinit.PinitColors.aubergine;
+  static const Color _pinLabelMutedColor = pinit.PinitColors.aubergineSoft;
 
   // ── Brand colours ──
   static const Color _brandDark = Color(0xFF42143D);
@@ -186,34 +312,120 @@ class PinitMarkers {
   /// AND it is *not* also wavy.
   static const double _bossmanThreshold = 0.35;
 
-  // ── Saved-count glow mapping ──
-  /// Minimum glow intensity (used when savedCount == 0).
-  static const double _glowIntensityMin = 0.18;
-
-  /// Maximum glow intensity (reached when savedCount >= _savedCountCap).
-  static const double _glowIntensityMax = 0.70;
-
-  /// savedCount at (or above) which glow is maxed out.
-  static const int _savedCountCap = 20;
-
-  /// Maps a savedCount to a glow intensity value.
-  static double _glowForSavedCount(int savedCount) {
-    if (savedCount <= 0) return _glowIntensityMin;
-    final double t = (savedCount / _savedCountCap).clamp(0.0, 1.0);
-    // Ease-out curve so even a few saves make a visible difference.
-    final double ease = 1.0 - math.pow(1.0 - t, 2.5);
-    return _glowIntensityMin + (_glowIntensityMax - _glowIntensityMin) * ease;
-  }
-
   static double _pinBubbleDiameterForSavedCount(int savedCount) {
     return savedCount > 5 ? _popularPinBubbleDiameter : _basePinBubbleDiameter;
   }
 
-  static Color _boostSaturation(Color color, [double amount = 0.15]) {
-    final hsl = HSLColor.fromColor(color);
+  static bool _isAccentMarker(double? rating) =>
+      rating != null && rating > _accentRatingThreshold;
+
+  static Color markerStrokeColorForRating(double? rating) {
+    return _isAccentMarker(rating) ? _pinAccentStrokeColor : _pinStrokeColor;
+  }
+
+  static String markerChromeKey({double? rating}) {
+    return _isAccentMarker(rating) ? 'accent' : 'aubergine';
+  }
+
+  static ({Color color, String key}) markerShadowStyle({
+    double? rating,
+    double wavyScore = 0.0,
+    double bossmanScore = 0.0,
+    int savedCount = 0,
+    double matchScore = 0.0,
+    String? badgeType,
+    String? cuisine,
+    String? types,
+  }) {
+    final isWavy = _isWavy(wavyScore, bossmanScore);
+    final isBossman = _isBossman(wavyScore, bossmanScore);
+    final isAccent = _isAccentMarker(rating);
+
+    if (isBossman) {
+      return (color: _pinBossmanShadowColor, key: 'bossman');
+    }
+    if (isWavy) {
+      return (color: _pinWavyShadowColor, key: 'wavy');
+    }
+
+    switch (badgeType) {
+      case PinitMarkerBadgeType.sparkle:
+        return (color: _pinSparkleShadowColor, key: 'sparkle');
+      case PinitMarkerBadgeType.liveMusic:
+        return (color: _pinLiveMusicShadowColor, key: 'live_music');
+      case PinitMarkerBadgeType.cocktails:
+        return (color: _pinCocktailShadowColor, key: 'cocktails');
+      case PinitMarkerBadgeType.outdoor:
+        return (color: _pinOutdoorShadowColor, key: 'outdoor');
+      case PinitMarkerBadgeType.late:
+        return (color: _pinLateShadowColor, key: 'late');
+      case PinitMarkerBadgeType.trending:
+        return (color: _pinTrendingShadowColor, key: 'trending');
+    }
+
+    if (matchScore >= 0.72) {
+      return (color: _pinMatchShadowColor, key: 'match');
+    }
+    if (savedCount >= 18) {
+      return (color: _pinSavedShadowColor, key: 'saved');
+    }
+    if (isAccent) {
+      return (color: _pinAccentStrokeColor, key: 'rating');
+    }
+
+    final cuisineShadow = _shadowTint(
+      PinitMarkerPalette.forCuisine(cuisine, types),
+    );
+    return (
+      color: cuisineShadow,
+      key: 'c${cuisineShadow.toARGB32().toRadixString(16)}',
+    );
+  }
+
+  static Color _shadowTint(Color base) {
+    final hsl = HSLColor.fromColor(base);
     return hsl
-        .withSaturation((hsl.saturation * (1.0 + amount)).clamp(0.0, 1.0))
+        .withSaturation((hsl.saturation * 0.72 + 0.10).clamp(0.18, 0.78))
+        .withLightness((hsl.lightness * 0.58).clamp(0.28, 0.46))
         .toColor();
+  }
+
+  static Size _bubbleSizeForRadius(double radius) {
+    return Size(
+      radius * 2 * _pinBubbleWidthFactor,
+      radius * 2 * _pinBubbleHeightFactor,
+    );
+  }
+
+  static Rect _bubbleRectFor({
+    required Offset centre,
+    required double radius,
+  }) {
+    final size = _bubbleSizeForRadius(radius);
+    return Rect.fromCenter(
+      center: centre,
+      width: size.width,
+      height: size.height,
+    );
+  }
+
+  static RRect _bubbleRRectFor({
+    required Offset centre,
+    required double radius,
+    double inflate = 0,
+  }) {
+    final rect = _bubbleRectFor(
+      centre: centre,
+      radius: radius,
+    ).inflate(inflate);
+    return RRect.fromRectAndRadius(
+      rect,
+      Radius.circular(rect.height / 2),
+    );
+  }
+
+  static Offset _hardShadowOffsetFor(double dpr) {
+    return Offset(_hardShadowOffset * dpr, _hardShadowOffset * dpr);
   }
 
   // ==================================================================
@@ -221,23 +433,21 @@ class PinitMarkers {
   // ==================================================================
 
   /// Creates a single pin marker with:
-  ///  • Soft outer glow (intensity driven by [savedCount])
   ///  • Gradient bubble with inner highlight
   ///  • Downward‑pointing teardrop tail
+  ///  • Hard offset shadow whose colour reflects the marker state
   ///  • Optional avatar ring showing who recommended the place
   ///  • Optional text pill with the place name
-  ///  • **Wavy shimmer ring** when [wavyScore] > threshold
-  ///  • **Bossman de-saturation** when [bossmanScore] > threshold
   ///
   /// [wavyScore]    — value from vibe vector index 23 (0.0–1.0).
   /// [bossmanScore] — value from vibe vector index 24 (0.0–1.0).
   /// [savedCount]   — number of users who saved this place.
   static Future<Uint8List> createPinitMarker({
-    required String emoji,
+    String? emoji,
     required String name,
     double devicePixelRatio = 3.0,
     Color? surfaceColor,
-    Color textColor = const Color(0xFF6B4A8E),
+    Color textColor = _pinLabelColor,
     bool selected = false,
     String? types,
     String? cuisine,
@@ -248,31 +458,46 @@ class PinitMarkers {
     int savedCount = 0,
     double matchScore = 0.0,
     String? badgeType,
+    double? rating,
+    List<double>? vibeVector,
+    int fallbackSeed = 0,
   }) async {
-    final color = _boostSaturation(
-      surfaceColor ?? PinitMarkerPalette.forCuisine(cuisine, types),
+    final fillColor = surfaceColor ?? _pinFillColor;
+    final isAccent = _isAccentMarker(rating);
+    final shadowStyle = markerShadowStyle(
+      rating: rating,
+      wavyScore: wavyScore,
+      bossmanScore: bossmanScore,
+      savedCount: savedCount,
+      matchScore: matchScore,
+      badgeType: badgeType,
+      cuisine: cuisine,
+      types: types,
     );
     final avatarKey = avatarColors.map((c) => c.toARGB32()).join(',');
-    final assetPath = getAssetForLocation(cuisine, types, emoji);
+    final visual = _resolveMarkerVisual(
+      emoji: emoji,
+      vibeVector: vibeVector,
+      fallbackSeed: fallbackSeed,
+    );
 
-    final key = 'pin3|$emoji|$name|${devicePixelRatio.toStringAsFixed(2)}'
-        '|${color.toARGB32()}|${textColor.toARGB32()}|$selected|$showText|$avatarKey'
+    final key =
+        'pin7|${visual.key}|$name|${devicePixelRatio.toStringAsFixed(2)}'
+        '|${fillColor.toARGB32()}|${shadowStyle.key}'
+        '|${textColor.toARGB32()}|$selected|$showText|$avatarKey'
         '|${wavyScore.toStringAsFixed(2)}|${bossmanScore.toStringAsFixed(2)}'
-        '|$savedCount|${matchScore.toStringAsFixed(2)}|${badgeType ?? 'none'}|$assetPath';
+        '|$savedCount|${matchScore.toStringAsFixed(2)}|${badgeType ?? 'none'}';
 
     final cached = _cache.get(key);
     if (cached != null) return cached;
 
-    ui.Image? assetImage;
-    if (assetPath != null) {
-      assetImage = await _loadAssetImage(assetPath);
-    }
-
     final b = await _renderSinglePin(
-      emoji: emoji,
+      visual: visual,
       name: name,
       dpr: devicePixelRatio,
-      color: color,
+      fillColor: fillColor,
+      shadowColor: shadowStyle.color,
+      isAccent: isAccent,
       textColor: textColor,
       selected: selected,
       showText: showText,
@@ -281,7 +506,6 @@ class PinitMarkers {
       bossmanScore: bossmanScore,
       savedCount: savedCount,
       matchScore: matchScore,
-      assetImage: assetImage,
       badgeType: badgeType,
     );
     _cache.set(key, b);
@@ -289,12 +513,30 @@ class PinitMarkers {
   }
 
   // ==================================================================
-  //  PUBLIC API — Cluster (stacked fan + badge)
+  //  PUBLIC API — Dense viewport dot
+  // ==================================================================
+
+  static Future<Uint8List> createCompactMapDot({
+    double devicePixelRatio = 3.0,
+  }) async {
+    final key = 'compact-dot|${devicePixelRatio.toStringAsFixed(2)}';
+    final cached = _cache.get(key);
+    if (cached != null) return cached;
+
+    final b = await _renderCompactMapDot(
+      dpr: devicePixelRatio,
+    );
+    _cache.set(key, b);
+    return b;
+  }
+
+  // ==================================================================
+  //  PUBLIC API — Cluster (two-pin stack + overflow dots)
   // ==================================================================
 
   static Future<Uint8List> createClusterPinWithBadge({
-    required String emoji,
-    required int remainingCount,
+    String? emoji,
+    int pointCount = 2,
     double devicePixelRatio = 3.0,
     Color? surfaceColor,
     String? cuisine,
@@ -303,36 +545,47 @@ class PinitMarkers {
     double wavyScore = 0.0,
     double bossmanScore = 0.0,
     int savedCount = 0,
+    double? rating,
+    List<double>? vibeVector,
+    int fallbackSeed = 0,
   }) async {
-    final color = _boostSaturation(
-      surfaceColor ?? PinitMarkerPalette.forCuisine(cuisine, types),
+    final fillColor = surfaceColor ?? _pinFillColor;
+    final isAccent = _isAccentMarker(rating);
+    final shadowStyle = markerShadowStyle(
+      rating: rating,
+      wavyScore: wavyScore,
+      bossmanScore: bossmanScore,
+      savedCount: savedCount,
+      cuisine: cuisine,
+      types: types,
     );
     final avatarKey = avatarColors.map((c) => c.toARGB32()).join(',');
-    final assetPath = getAssetForLocation(cuisine, types, emoji);
+    final visual = _resolveMarkerVisual(
+      emoji: emoji,
+      vibeVector: vibeVector,
+      fallbackSeed: fallbackSeed,
+    );
 
-    final key = 'cfan4|$emoji|$remainingCount'
-        '|${devicePixelRatio.toStringAsFixed(2)}|${color.toARGB32()}|$avatarKey'
+    final key = 'cfan9|${visual.key}'
+        '|${devicePixelRatio.toStringAsFixed(2)}|${fillColor.toARGB32()}'
+        '|${shadowStyle.key}|$avatarKey'
         '|${wavyScore.toStringAsFixed(2)}|${bossmanScore.toStringAsFixed(2)}'
-        '|$savedCount|$assetPath';
+        '|$savedCount|$pointCount';
 
     final cached = _cache.get(key);
     if (cached != null) return cached;
 
-    ui.Image? assetImage;
-    if (assetPath != null) {
-      assetImage = await _loadAssetImage(assetPath);
-    }
-
     final b = await _renderClusterFan(
-      emoji: emoji,
-      remainingCount: remainingCount,
+      visual: visual,
       dpr: devicePixelRatio,
-      color: color,
+      fillColor: fillColor,
+      shadowColor: shadowStyle.color,
+      isAccent: isAccent,
       avatarColors: avatarColors,
       wavyScore: wavyScore,
       bossmanScore: bossmanScore,
       savedCount: savedCount,
-      assetImage: assetImage,
+      pointCount: pointCount,
     );
     _cache.set(key, b);
     return b;
@@ -378,175 +631,9 @@ class PinitMarkers {
   static bool _isBossman(double wavyScore, double bossmanScore) =>
       bossmanScore >= _bossmanThreshold && wavyScore < _wavyThreshold;
 
-  /// Desaturates [color] by blending toward a neutral grey.
-  /// [amount] 0.0 = no change, 1.0 = fully grey.
-  static Color _desaturate(Color color, double amount) {
-    // Convert to HSL, reduce saturation, convert back.
-    final hsl = HSLColor.fromColor(color);
-    final muted = hsl.withSaturation(
-      (hsl.saturation * (1.0 - amount)).clamp(0.0, 1.0),
-    );
-    // Also nudge lightness slightly toward the middle for a "flat" feel.
-    final flatLightness =
-        muted.lightness + (0.55 - muted.lightness) * amount * 0.3;
-    return muted.withLightness(flatLightness.clamp(0.0, 1.0)).toColor();
-  }
-
   // ══════════════════════════════════════════════════════════════
   //  PRIVATE — Shared drawing helpers
   // ══════════════════════════════════════════════════════════════
-
-  /// Draws the soft outer glow behind a pin.  Uses two stacked blurred
-  /// circles at different radii for a natural fall‑off.
-  static void _drawGlow(
-    Canvas canvas, {
-    required Offset centre,
-    required double radius,
-    required double dpr,
-    required Color color,
-    double intensity = 0.28,
-  }) {
-    // Outer wide glow
-    canvas.drawCircle(
-      centre,
-      radius * 2.2,
-      Paint()
-        ..color = color.withValues(alpha: intensity * 0.45)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 1.17),
-    );
-    // Inner tighter glow
-    canvas.drawCircle(
-      centre,
-      radius * 1.5,
-      Paint()
-        ..color = color.withValues(alpha: intensity)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.59),
-    );
-  }
-
-  /// Draws a secondary iridescent glow for wavy pins — two extra
-  /// blurred circles in contrasting hues offset slightly to create a
-  /// colour-fringe / holographic feel around the pin.
-  static void _drawWavyGlow(
-    Canvas canvas, {
-    required Offset centre,
-    required double radius,
-    required double dpr,
-    required double wavyScore,
-  }) {
-    // Intensity scales with how wavy the place is (0.35 → subtle, 1.0 → vivid).
-    final double t =
-        ((wavyScore - _wavyThreshold) / (1.0 - _wavyThreshold)).clamp(0.0, 1.0);
-    final double alpha = 0.12 + 0.16 * t; // 0.12–0.28
-
-    // Magenta halo — offset left
-    canvas.drawCircle(
-      Offset(centre.dx - radius * 0.25, centre.dy),
-      radius * 1.35,
-      Paint()
-        ..color = const Color(0xFFE040FB).withValues(alpha: alpha)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.7),
-    );
-
-    // Cyan halo — offset right
-    canvas.drawCircle(
-      Offset(centre.dx + radius * 0.25, centre.dy),
-      radius * 1.35,
-      Paint()
-        ..color = const Color(0xFF18FFFF).withValues(alpha: alpha * 0.85)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.7),
-    );
-  }
-
-  /// Draws a shimmering iridescent ring around wavy pins.
-  /// The ring uses a sweep gradient that cycles through vibrant hues,
-  /// giving it an oil-slick / holographic look.
-  static void _drawWavyRing(
-    Canvas canvas, {
-    required Offset centre,
-    required double innerRadius,
-    required double dpr,
-    required double wavyScore,
-  }) {
-    // Ring geometry — sits just outside the white border.
-    final double ringWidth = 3.2 * dpr;
-    final double ringRadius = innerRadius + ringWidth / 2 + 1.6 * dpr;
-
-    // Opacity scales with wavyScore intensity.
-    final double t =
-        ((wavyScore - _wavyThreshold) / (1.0 - _wavyThreshold)).clamp(0.0, 1.0);
-    final double ringOpacity = 0.85 + 0.15 * t; // 0.85–1.0
-
-    // Build the sweep gradient stops from the wavy palette.
-    final colors = PinitMarkerPalette.wavyGradient
-        .map((c) => c.withValues(alpha: ringOpacity))
-        .toList();
-    final stops = List<double>.generate(
-      colors.length,
-      (i) => i / (colors.length - 1),
-    );
-
-    final paint = Paint()
-      ..shader = ui.Gradient.sweep(
-        centre,
-        colors,
-        stops,
-        TileMode.clamp,
-        0, // startAngle
-        2 * math.pi, // endAngle
-      )
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = ringWidth
-      ..strokeCap = StrokeCap.round;
-
-    canvas.drawCircle(centre, ringRadius, paint);
-  }
-
-  /// Draws a shimmer ring for high match score locations (>50%).
-  /// More intense shimmer for higher match scores.
-  static void _drawMatchScoreShimmer(
-    Canvas canvas, {
-    required Offset centre,
-    required double outerRadius,
-    required double dpr,
-    required double matchScore,
-  }) {
-    // Ring geometry — outside the avatar ring
-    final double shimmerWidth = 1.8 * dpr;
-    final double shimmerRadius = outerRadius + shimmerWidth / 2 + 2.0 * dpr;
-
-    // Intensity scales with match score (0.5–1.0)
-    final double t = ((matchScore - 0.5) / 0.5).clamp(0.0, 1.0);
-    final double shimmerOpacity = 0.3 + 0.5 * t; // 0.3–0.8
-
-    // Warm golden shimmer for high match scores
-    final Color baseColor = Color.lerp(
-      const Color(0xFFFFB800),
-      const Color(0xFFFF6B9D),
-      (t * 0.3).clamp(0.0, 1.0),
-    )!;
-
-    // Draw dual-layer glow for depth
-    // Outer soft glow
-    canvas.drawCircle(
-      centre,
-      shimmerRadius + 1.5 * dpr,
-      Paint()
-        ..color = baseColor.withValues(alpha: shimmerOpacity * 0.4)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 2.5 * dpr),
-    );
-
-    // Inner shimmer ring
-    canvas.drawCircle(
-      centre,
-      shimmerRadius,
-      Paint()
-        ..color = baseColor.withValues(alpha: shimmerOpacity)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = shimmerWidth
-        ..strokeCap = StrokeCap.round,
-    );
-  }
 
   static ({String glyph, Color color, double fontSize})? _badgeVisualForType(
       String? badgeType) {
@@ -603,17 +690,10 @@ class PinitMarkers {
     if (visual == null) return;
 
     final double badgeRadius = 6.2 * dpr;
+    final bubbleRect = _bubbleRectFor(centre: centre, radius: radius);
     final Offset badgeCenter = Offset(
-      centre.dx + radius * 0.62,
-      centre.dy - radius * 0.62,
-    );
-
-    canvas.drawCircle(
-      Offset(badgeCenter.dx, badgeCenter.dy + 0.9 * dpr),
-      badgeRadius,
-      Paint()
-        ..color = Colors.black.withValues(alpha: 0.14)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 2.2 * dpr),
+      bubbleRect.right - badgeRadius * 0.75,
+      bubbleRect.top + badgeRadius * 0.78,
     );
 
     canvas.drawCircle(
@@ -656,33 +736,45 @@ class PinitMarkers {
     required Offset bubbleCentre,
     required double bubbleRadius,
     required double dpr,
-    required Color color,
+    required Color fillColor,
+    required Color shadowColor,
+    required Color outlineColor,
   }) {
-    final double tailHeight = bubbleRadius * 0.55;
-    final double tailHalfW = bubbleRadius * 0.32;
-
-    final double topY = bubbleCentre.dy + bubbleRadius * 0.75;
-    final double tipY = bubbleCentre.dy + bubbleRadius + tailHeight;
+    final bubbleRect = _bubbleRectFor(
+      centre: bubbleCentre,
+      radius: bubbleRadius,
+    );
+    final double tailHeight = bubbleRadius * 0.52;
+    final double tailHalfW = bubbleRadius * 0.28;
+    final double topY = bubbleRect.bottom - bubbleRect.height * 0.12;
+    final double tipY = bubbleRect.bottom + tailHeight;
 
     final path = Path()
       ..moveTo(bubbleCentre.dx - tailHalfW, topY)
-      ..quadraticBezierTo(
+      ..cubicTo(
+        bubbleCentre.dx - tailHalfW * 0.72,
+        topY + tailHeight * 0.34,
+        bubbleCentre.dx - tailHalfW * 0.18,
+        tipY - tailHeight * 0.1,
         bubbleCentre.dx,
-        tipY + 1.0 * dpr,
+        tipY,
+      )
+      ..cubicTo(
+        bubbleCentre.dx + tailHalfW * 0.18,
+        tipY - tailHeight * 0.1,
+        bubbleCentre.dx + tailHalfW * 0.72,
+        topY + tailHeight * 0.34,
         bubbleCentre.dx + tailHalfW,
         topY,
       )
       ..close();
 
-    // Tail shadow
+    final shadowPath = path.shift(_hardShadowOffsetFor(dpr));
     canvas.drawPath(
-      path.shift(Offset(0, 1.0 * dpr)),
-      Paint()
-        ..color = const Color(0x25000000)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 1.5 * dpr),
+      shadowPath,
+      Paint()..color = shadowColor,
     );
 
-    // Tail fill
     canvas.drawPath(
       path,
       Paint()
@@ -690,10 +782,18 @@ class PinitMarkers {
           Offset(bubbleCentre.dx, topY),
           Offset(bubbleCentre.dx, tipY),
           [
-            color,
-            Color.lerp(color, Colors.black, 0.18)!,
+            Color.lerp(fillColor, Colors.white, 0.08)!,
+            Color.lerp(fillColor, pinit.PinitColors.creamSunk, 0.75)!,
           ],
         ),
+    );
+
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.42)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.8 * dpr,
     );
   }
 
@@ -735,101 +835,182 @@ class PinitMarkers {
   }
 
   /// Draws a single pin circle with gradient, shadow, and inner highlight.
-  static Offset _drawPinBubble(
+  static Future<void> _drawPinBubble(
     Canvas canvas, {
     required Offset centre,
     required double radius,
     required double dpr,
-    required Color color,
-    required String emoji,
+    required Color fillColor,
+    required Color shadowColor,
+    required Color outlineColor,
+    required _MarkerVisual visual,
     bool selected = false,
-    double shadowOpacity = 0.18,
-    ui.Image? assetImage,
-  }) {
-    final double shadowOffY = 2.0 * dpr;
-    final double shadowSigma = 3.0 * dpr;
-    final double borderW = 1.6 * dpr;
+    bool showVisual = true,
+  }) async {
+    final shadowOffset = _hardShadowOffsetFor(dpr);
+    final bubbleShape = _bubbleRRectFor(centre: centre, radius: radius);
+    final shadowShape = bubbleShape.shift(shadowOffset);
+    final bubbleRect = bubbleShape.outerRect;
 
-    // Drop shadow
-    canvas.drawCircle(
-      Offset(centre.dx, centre.dy + shadowOffY),
-      radius,
-      Paint()
-        ..color = Color.fromRGBO(0, 0, 0, shadowOpacity)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, shadowSigma),
-    );
-
-    // Selection ring
     if (selected) {
-      canvas.drawCircle(
-        centre,
-        radius + borderW + 1.2 * dpr,
-        Paint()..color = Colors.white,
+      canvas.drawRRect(
+        _bubbleRRectFor(
+          centre: centre,
+          radius: radius,
+          inflate: 1.8 * dpr,
+        ),
+        Paint()..color = pinit.PinitColors.cream,
       );
     }
 
-    // White border ring
-    canvas.drawCircle(
-      centre,
-      radius + 1.0 * dpr,
-      Paint()..color = Colors.white.withValues(alpha: 0.92),
+    canvas.drawRRect(
+      shadowShape,
+      Paint()..color = shadowColor,
     );
 
-    // Radial gradient fill — light source top‑left
-    canvas.drawCircle(
-      centre,
-      radius,
+    canvas.drawRRect(
+      bubbleShape,
       Paint()
-        ..shader = ui.Gradient.radial(
-          Offset(centre.dx - radius * 0.35, centre.dy - radius * 0.35),
-          radius * 1.6,
+        ..shader = ui.Gradient.linear(
+          bubbleRect.topLeft,
+          bubbleRect.bottomRight,
           [
-            Color.lerp(color, Colors.white, 0.30)!,
-            color,
-            Color.lerp(color, Colors.black, 0.15)!,
+            Color.lerp(fillColor, Colors.white, 0.24)!,
+            fillColor,
+            Color.lerp(fillColor, pinit.PinitColors.creamSunk, 0.76)!,
           ],
-          [0.0, 0.45, 1.0],
+          [0.0, 0.54, 1.0],
         ),
     );
 
-    if (assetImage != null) {
-      final double imgRadius = radius - 1.2 * dpr;
-      canvas.save();
-      canvas.clipPath(
-          Path()..addOval(Rect.fromCircle(center: centre, radius: imgRadius)));
-      paintImage(
-        canvas: canvas,
-        rect: Rect.fromCircle(center: centre, radius: imgRadius),
-        image: assetImage,
-        fit: BoxFit.cover,
+    canvas.drawRRect(
+      bubbleShape,
+      Paint()
+        ..color = outlineColor.withValues(alpha: 0.14)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.9 * dpr,
+    );
+
+    if (!showVisual) {
+      // Used for the background cluster shell.
+    } else if (visual.emoji != null) {
+      await _drawEmoji(
+        canvas,
+        centre: centre,
+        size: radius * 1.5,
+        emoji: visual.emoji!,
       );
-      canvas.restore();
-    } else {
-      _drawEmoji(canvas, centre: centre, size: radius * 1.2, emoji: emoji);
     }
 
-    // Inner highlight ring — glossy feel
-    canvas.drawCircle(
-      centre,
-      radius - 1.0 * dpr,
+    canvas.drawRRect(
+      _bubbleRRectFor(
+        centre: centre,
+        radius: radius,
+        inflate: -1.15 * dpr,
+      ),
       Paint()
         ..color = const Color(0x50FFFFFF)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.8 * dpr,
     );
 
-    // Top specular dot
-    canvas.drawCircle(
-      Offset(centre.dx - radius * 0.22, centre.dy - radius * 0.28),
-      radius * 0.18,
-      Paint()..color = Colors.white.withValues(alpha: 0.35),
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: Offset(
+            bubbleRect.left + bubbleRect.width * 0.34,
+            bubbleRect.top + bubbleRect.height * 0.32,
+          ),
+          width: bubbleRect.width * 0.34,
+          height: bubbleRect.height * 0.24,
+        ),
+        Radius.circular(bubbleRect.height * 0.14),
+      ),
+      Paint()..color = Colors.white.withValues(alpha: 0.18),
     );
+  }
 
-    return centre;
+  static int _overflowDotCountForClusterSize(int pointCount) {
+    if (pointCount <= 2) return 0;
+    return math.min(3, pointCount - 2);
+  }
+
+  static void _drawClusterOverflowDots(
+    Canvas canvas, {
+    required Offset centre,
+    required double radius,
+    required double dpr,
+    required int pointCount,
+  }) {
+    final dotCount = _overflowDotCountForClusterSize(pointCount);
+    if (dotCount == 0) return;
+
+    final bubbleRect = _bubbleRectFor(centre: centre, radius: radius);
+    final baseCenter = Offset(
+      bubbleRect.right + 0.9 * dpr,
+      bubbleRect.top + 1.9 * dpr,
+    );
+    final dotRadius = 2.25 * dpr;
+    final dotStepX = 3.8 * dpr;
+    final dotStepY = 2.4 * dpr;
+    final shadowOffset = _hardShadowOffsetFor(dpr) * 0.32;
+    final shadowPaint = Paint()
+      ..color = pinit.PinitColors.aubergine.withValues(alpha: 0.26);
+    final fillPaint = Paint()..color = pinit.PinitColors.aubergine;
+    final strokePaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.92)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.9 * dpr;
+
+    for (var index = 0; index < dotCount; index++) {
+      final dotCenter = Offset(
+        baseCenter.dx - dotStepX * (dotCount - 1 - index),
+        baseCenter.dy + dotStepY * index,
+      );
+      canvas.drawCircle(dotCenter + shadowOffset, dotRadius, shadowPaint);
+      canvas.drawCircle(dotCenter, dotRadius, fillPaint);
+      canvas.drawCircle(dotCenter, dotRadius, strokePaint);
+    }
   }
 
   /// Draws an emoji centred at [centre].
-  static void _drawEmoji(
+  static Future<void> _drawEmoji(
+    Canvas canvas, {
+    required Offset centre,
+    required double size,
+    required String emoji,
+  }) async {
+    final image = await _loadEmojiImage(emoji);
+    if (image != null) {
+      final srcRect = Rect.fromLTWH(
+        0,
+        0,
+        image.width.toDouble(),
+        image.height.toDouble(),
+      );
+      final dstRect = Rect.fromCenter(
+        center: centre,
+        width: size,
+        height: size,
+      );
+      canvas.drawImageRect(
+        image,
+        srcRect,
+        dstRect,
+        Paint()..filterQuality = FilterQuality.high,
+      );
+      return;
+    }
+
+    _drawNativeEmoji(
+      canvas,
+      centre: centre,
+      size: size,
+      emoji: emoji,
+    );
+  }
+
+  static void _drawNativeEmoji(
     Canvas canvas, {
     required Offset centre,
     required double size,
@@ -842,15 +1023,71 @@ class PinitMarkers {
     p.paint(canvas, Offset(centre.dx - p.width / 2, centre.dy - p.height / 2));
   }
 
+  static Future<ui.Image?> _loadEmojiImage(String emoji) {
+    final sanitizedEmoji = _sanitizeEmoji(emoji);
+    if (sanitizedEmoji == null) return Future.value(null);
+
+    return _emojiImageCache.putIfAbsent(
+      sanitizedEmoji,
+      () async {
+        for (final assetPath in _emojiAssetCandidates(sanitizedEmoji)) {
+          try {
+            final pictureInfo = await svg.vg.loadPicture(
+              svg.SvgAssetLoader(assetPath),
+              null,
+            );
+            final width = pictureInfo.size.width.ceil().clamp(1, 512);
+            final height = pictureInfo.size.height.ceil().clamp(1, 512);
+            final image = await pictureInfo.picture.toImage(width, height);
+            pictureInfo.picture.dispose();
+            return image;
+          } catch (_) {
+            continue;
+          }
+        }
+        return null;
+      },
+    );
+  }
+
+  static Iterable<String> _emojiAssetCandidates(String emoji) sync* {
+    final seen = <String>{};
+    for (final codePoints in [
+      _emojiCodePoints(emoji, stripVariationSelectors: false),
+      _emojiCodePoints(emoji, stripVariationSelectors: true),
+    ]) {
+      if (codePoints.isEmpty) continue;
+      final assetPath = '$_openMojiAssetDirectory/${codePoints.join('-')}.svg';
+      if (seen.add(assetPath)) {
+        yield assetPath;
+      }
+    }
+  }
+
+  static List<String> _emojiCodePoints(
+    String emoji, {
+    required bool stripVariationSelectors,
+  }) {
+    return emoji.runes
+        .where((codePoint) {
+          if (!stripVariationSelectors) return true;
+          return codePoint != 0xFE0F && codePoint != 0xFE0E;
+        })
+        .map((codePoint) => codePoint.toRadixString(16).toUpperCase())
+        .toList();
+  }
+
   // ══════════════════════════════════════════════════════════════
   //  RENDER — Single Pin
   // ══════════════════════════════════════════════════════════════
 
   static Future<Uint8List> _renderSinglePin({
-    required String emoji,
+    required _MarkerVisual visual,
     required String name,
     required double dpr,
-    required Color color,
+    required Color fillColor,
+    required Color shadowColor,
+    required bool isAccent,
     required Color textColor,
     required bool selected,
     required bool showText,
@@ -859,33 +1096,26 @@ class PinitMarkers {
     required double bossmanScore,
     required int savedCount,
     required double matchScore,
-    ui.Image? assetImage,
     String? badgeType,
   }) async {
     // ── Determine vibe mode ──
-    final bool isWavy = _isWavy(wavyScore, bossmanScore);
     final bool isBossman = _isBossman(wavyScore, bossmanScore);
+    final Color effectiveFillColor = fillColor;
+    final Color effectiveOutlineColor = _pinStrokeColor;
 
-    // ── Apply bossman desaturation to the base colour ──
-    final Color effectiveColor = isBossman
-        ? _desaturate(color, 0.55) // noticeably muted
-        : color;
-
-    // ── Compute glow intensity from saved count ──
-    final double glowIntensity = _glowForSavedCount(savedCount);
-
-    final double bubR = _pinBubbleDiameterForSavedCount(savedCount) / 2 * dpr;
+    final double selectionScale = selected ? _selectedPinScale : 1.0;
+    final double bubR =
+        _pinBubbleDiameterForSavedCount(savedCount) / 2 * dpr * selectionScale;
     final double tailH = bubR * 0.55;
-    final double glowExtra = bubR * 1.15;
     final double avatarRingExtra = avatarColors.isNotEmpty ? 3.6 * dpr : 0;
-    // Wavy ring sits outside the avatar ring, so reserve extra space.
-    final double wavyRingExtra = isWavy ? 4.0 * dpr : 0;
-    final double shadowExtra = 5.0 * dpr;
+    final double ringSpace = avatarRingExtra;
+    final double shadowExtra = _hardShadowOffset * dpr;
+    final bubbleOuterSize = _bubbleSizeForRadius(bubR + ringSpace);
 
     // Text metrics
     final double fontSize = 4.6 * dpr;
     final double maxTextW = 52.0 * dpr;
-    final double textGap = 5.0 * dpr;
+    final double textGap = (selected ? 6.6 : 5.0) * dpr;
     final double pillPadH = 6.0 * dpr;
     final double pillPadV = 3.0 * dpr;
     final double pillRad = 5.0 * dpr;
@@ -894,9 +1124,7 @@ class PinitMarkers {
       text: TextSpan(
         text: name,
         style: GoogleFonts.inter(
-          color: isBossman
-              ? const Color(0xFF6E6E7A) // muted text for bossman
-              : const Color(0xFF1A1A2E),
+          color: isBossman ? _pinLabelMutedColor : textColor,
           fontSize: fontSize,
           fontWeight: FontWeight.w600,
           letterSpacing: 0.1 * dpr,
@@ -913,80 +1141,50 @@ class PinitMarkers {
     final double pillW = showText ? textW + pillPadH * 2 : 0;
     final double pillH = showText ? textH + pillPadV * 2 : 0;
 
-    final double ringSpace = avatarRingExtra + wavyRingExtra;
     final double selBorder = selected ? 1.6 * dpr : 0;
-    final double pad = selBorder + glowExtra + ringSpace + shadowExtra + 4;
+    final double pad = selBorder + ringSpace + shadowExtra + 4;
 
     final double totalW = showText
-        ? (bubR + ringSpace) * 2 + textGap + pillW
-        : (bubR + ringSpace) * 2;
-    final double totalH = math.max((bubR + ringSpace) * 2, pillH) + tailH;
+        ? bubbleOuterSize.width + textGap + pillW
+        : bubbleOuterSize.width;
+    final double totalH = math.max(bubbleOuterSize.height, pillH) + tailH;
 
     final int outW = (totalW + pad * 2).ceil();
-    final int outH = (totalH + pad * 2 + shadowExtra).ceil();
+    final int outH = (totalH + pad * 2).ceil();
 
     final rec = ui.PictureRecorder();
     final c = Canvas(rec);
 
     final centre = Offset(
-      bubR + ringSpace + pad,
-      bubR + ringSpace + pad,
+      bubbleOuterSize.width / 2 + pad,
+      bubbleOuterSize.height / 2 + pad,
     );
 
-    // 1. Base glow (intensity driven by savedCount)
-    _drawGlow(c,
-        centre: centre,
-        radius: bubR,
-        dpr: dpr,
-        color: effectiveColor,
-        intensity: glowIntensity);
-
-    // 1b. Extra iridescent glow for wavy pins
-    if (isWavy) {
-      _drawWavyGlow(c,
-          centre: centre, radius: bubR, dpr: dpr, wavyScore: wavyScore);
-    }
-
-    // 2. Pointer tail
+    // 1. Pointer tail
     _drawPointerTail(c,
         bubbleCentre: centre,
         bubbleRadius: bubR,
         dpr: dpr,
-        color: effectiveColor);
+        fillColor: effectiveFillColor,
+        shadowColor: shadowColor,
+        outlineColor: effectiveOutlineColor);
 
-    // 3. Wavy shimmer ring (outermost decorative ring)
-    if (isWavy) {
-      _drawWavyRing(c,
-          centre: centre,
-          innerRadius: bubR + avatarRingExtra,
-          dpr: dpr,
-          wavyScore: wavyScore);
-    }
-
-    // 3b. Match score shimmer ring (>50% match)
-    if (matchScore > 0.3) {
-      _drawMatchScoreShimmer(c,
-          centre: centre,
-          outerRadius: bubR + avatarRingExtra,
-          dpr: dpr,
-          matchScore: matchScore);
-    }
-
-    // 4. Avatar ring
+    // 2. Avatar ring
     if (avatarColors.isNotEmpty) {
       _drawAvatarRing(c,
           centre: centre, innerRadius: bubR, dpr: dpr, colors: avatarColors);
     }
 
-    // 5. Bubble
-    _drawPinBubble(c,
+    // 3. Bubble
+    await _drawPinBubble(c,
         centre: centre,
         radius: bubR,
         dpr: dpr,
-        color: effectiveColor,
+        fillColor: effectiveFillColor,
+        shadowColor: shadowColor,
+        outlineColor: effectiveOutlineColor,
         selected: selected,
-        emoji: emoji,
-        assetImage: assetImage);
+        visual: visual);
 
     _drawPersonalityBadge(
       c,
@@ -998,60 +1196,32 @@ class PinitMarkers {
 
     // 7. Pill label
     if (showText) {
-      final double px = centre.dx + bubR + ringSpace + textGap;
+      final double px =
+          _bubbleRectFor(centre: centre, radius: bubR + ringSpace).right +
+              textGap;
       final double py = centre.dy - pillH / 2;
-
-      // Pill shadow
-      c.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(px, py + 1.0 * dpr, pillW, pillH),
-          Radius.circular(pillRad),
-        ),
-        Paint()
-          ..color = const Color(0x20000000)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 2.0 * dpr),
+      final pillShape = RRect.fromRectAndRadius(
+        Rect.fromLTWH(px, py, pillW, pillH),
+        Radius.circular(pillRad),
       );
+
+      c.drawRRect(
+        pillShape.shift(_hardShadowOffsetFor(dpr)),
+        Paint()..color = shadowColor,
+      );
+
       // Pill background
       c.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(px, py, pillW, pillH),
-          Radius.circular(pillRad),
-        ),
-        Paint()..color = const Color(0xF0FFFFFF),
+        pillShape,
+        Paint()..color = pinit.PinitColors.cream.withValues(alpha: 0.96),
       );
-      // Pill subtle border — wavy pins get a faint iridescent border
-      if (isWavy) {
-        final borderPaint = Paint()
-          ..shader = ui.Gradient.linear(
-            Offset(px, py),
-            Offset(px + pillW, py + pillH),
-            [
-              const Color(0xFFE040FB).withValues(alpha: 0.35),
-              const Color(0xFF448AFF).withValues(alpha: 0.35),
-              const Color(0xFF18FFFF).withValues(alpha: 0.35),
-            ],
-          )
+      c.drawRRect(
+        pillShape,
+        Paint()
+          ..color = effectiveOutlineColor.withValues(alpha: 0.14)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 0.7 * dpr;
-        c.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTWH(px, py, pillW, pillH),
-            Radius.circular(pillRad),
-          ),
-          borderPaint,
-        );
-      } else {
-        c.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTWH(px, py, pillW, pillH),
-            Radius.circular(pillRad),
-          ),
-          Paint()
-            ..color = const Color(0x18000000)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 0.5 * dpr,
-        );
-      }
+          ..strokeWidth = 0.8 * dpr,
+      );
       // Text
       tp.paint(c, Offset(px + pillPadH, py + pillPadV));
     }
@@ -1060,133 +1230,97 @@ class PinitMarkers {
   }
 
   // ══════════════════════════════════════════════════════════════
-  //  RENDER — Cluster Fan (ghost circles + badge)
+  //  RENDER — Cluster stack (one back pin + overflow dots)
   // ══════════════════════════════════════════════════════════════
 
   static Future<Uint8List> _renderClusterFan({
-    required String emoji,
-    required int remainingCount,
+    required _MarkerVisual visual,
     required double dpr,
-    required Color color,
+    required Color fillColor,
+    required Color shadowColor,
+    required bool isAccent,
     required List<Color> avatarColors,
     required double wavyScore,
     required double bossmanScore,
     required int savedCount,
-    ui.Image? assetImage,
+    required int pointCount,
   }) async {
     // ── Vibe mode ──
-    final bool isWavy = _isWavy(wavyScore, bossmanScore);
-    final bool isBossman = _isBossman(wavyScore, bossmanScore);
-    final Color effectiveColor = isBossman ? _desaturate(color, 0.55) : color;
-    final double glowIntensity = _glowForSavedCount(savedCount);
+    final Color effectiveFillColor = fillColor;
+    final Color effectiveOutlineColor = _pinStrokeColor;
 
     final double bubR = _pinBubbleDiameterForSavedCount(savedCount) / 2 * dpr;
     final double tailH = bubR * 0.55;
-    final double glowExtra = bubR * 1.15;
-    final double shadowExtra = 5.0 * dpr;
+    final double shadowExtra = _hardShadowOffset * dpr;
     final double avatarRingExtra = avatarColors.isNotEmpty ? 3.6 * dpr : 0;
-    final double wavyRingExtra = isWavy ? 4.0 * dpr : 0;
+    final double ringSpace = avatarRingExtra;
+    final bubbleOuterSize = _bubbleSizeForRadius(bubR + ringSpace);
+    final Offset backPinOffset = Offset(-bubR * 0.34, -bubR * 0.28);
+    final double backPinExtraLeft = bubR * 0.52;
+    final double backPinExtraTop = bubR * 0.44;
+    final int overflowDotCount = _overflowDotCountForClusterSize(pointCount);
+    final double badgeExtraTop = overflowDotCount == 0 ? 4.0 * dpr : 11.5 * dpr;
+    final double overflowDotsExtraRight =
+        overflowDotCount == 0 ? 0.0 : 3.4 * dpr;
+    final double leftPad = shadowExtra + avatarRingExtra + backPinExtraLeft;
+    final double rightPad =
+        shadowExtra + avatarRingExtra + overflowDotsExtraRight;
+    final double topPad =
+        shadowExtra + avatarRingExtra + backPinExtraTop + badgeExtraTop;
+    final double bottomPad = shadowExtra + 2.0 * dpr;
 
-    final int ghosts = remainingCount.clamp(1, 3);
-
-    final double fanDistance = bubR * 0.55;
-    final double fanArcStart = -0.50;
-    final double fanArcEnd = 0.50;
-    final double scaleStep = 0.04;
-    final double opacityStep = 0.10;
-
-    final double extraForGhosts = fanDistance + bubR * 0.3;
-    final double pad = shadowExtra +
-        glowExtra +
-        extraForGhosts +
-        avatarRingExtra +
-        wavyRingExtra;
-    final double canvasW = bubR * 2 + pad * 2;
-    final double canvasH = bubR * 2 + pad * 2 + shadowExtra + tailH;
-
-    final int outW = canvasW.ceil();
-    final int outH = canvasH.ceil();
+    final int outW = (bubbleOuterSize.width + leftPad + rightPad).ceil();
+    final int outH =
+        (bubbleOuterSize.height + topPad + bottomPad + tailH).ceil();
 
     final rec = ui.PictureRecorder();
     final c = Canvas(rec);
 
-    final Offset mainCentre = Offset(outW / 2, outH / 2 - tailH / 2);
+    final Offset mainCentre = Offset(
+      leftPad + bubbleOuterSize.width / 2,
+      topPad + bubbleOuterSize.height / 2,
+    );
+    final Offset backCentre = mainCentre + backPinOffset;
+    final double backRadius = bubR * 0.94;
+    final Color backFillColor = Color.lerp(
+      effectiveFillColor,
+      pinit.PinitColors.cream,
+      0.18,
+    )!;
+    final Color backOutlineColor = Color.lerp(
+      effectiveOutlineColor,
+      pinit.PinitColors.cream,
+      0.08,
+    )!;
 
-    // ─── 1. Ghost circles ────────────────────────────────────
-    for (int i = ghosts; i >= 1; i--) {
-      final double t = ghosts == 1 ? 0.5 : (i - 1) / (ghosts - 1);
-      final double angle = ui.lerpDouble(fanArcStart, fanArcEnd, t)!;
-
-      final double dist = fanDistance * (0.7 + 0.3 * i);
-      final double gx = mainCentre.dx + math.cos(angle) * dist;
-      final double gy = mainCentre.dy - math.sin(angle) * dist;
-      final double gr = bubR * (1.0 - scaleStep * i);
-      final double gOpacity = (0.92 - opacityStep * i).clamp(0.55, 0.92);
-
-      final Offset gc = Offset(gx, gy);
-
-      c.drawCircle(
-        Offset(gc.dx, gc.dy + 1.2 * dpr),
-        gr,
-        Paint()
-          ..color = Color.fromRGBO(0, 0, 0, 0.08 * i)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 2.0 * dpr),
-      );
-
-      final ghostColor =
-          Color.lerp(effectiveColor, const Color(0xFFE8E4EC), 0.15 + 0.08 * i)!;
-      c.drawCircle(
-          gc, gr, Paint()..color = ghostColor.withValues(alpha: gOpacity));
-
-      c.drawCircle(
-        gc,
-        gr + 0.8 * dpr,
-        Paint()..color = Colors.white.withValues(alpha: 0.80),
-      );
-
-      c.drawCircle(
-          gc, gr, Paint()..color = ghostColor.withValues(alpha: gOpacity));
-
-      c.drawCircle(
-        gc,
-        gr,
-        Paint()
-          ..color = Colors.white.withValues(alpha: 0.5)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 0.8 * dpr,
-      );
-    }
-
-    // ─── 2. Glow (savedCount-driven) ─────────────────────────
-    _drawGlow(c,
-        centre: mainCentre,
-        radius: bubR,
+    _drawPointerTail(c,
+        bubbleCentre: backCentre,
+        bubbleRadius: backRadius,
         dpr: dpr,
-        color: effectiveColor,
-        intensity: (glowIntensity * 1.15).clamp(0.0, 0.60));
+        fillColor: backFillColor.withValues(alpha: 0.96),
+        shadowColor: shadowColor.withValues(alpha: 0.82),
+        outlineColor: backOutlineColor.withValues(alpha: 0.74));
 
-    // 2b. Wavy iridescent glow
-    if (isWavy) {
-      _drawWavyGlow(c,
-          centre: mainCentre, radius: bubR, dpr: dpr, wavyScore: wavyScore);
-    }
+    await _drawPinBubble(c,
+        centre: backCentre,
+        radius: backRadius,
+        dpr: dpr,
+        fillColor: backFillColor.withValues(alpha: 0.96),
+        shadowColor: shadowColor.withValues(alpha: 0.82),
+        outlineColor: backOutlineColor.withValues(alpha: 0.82),
+        visual: visual,
+        showVisual: false);
 
-    // ─── 3. Pointer tail ─────────────────────────────────────
+    // ─── 1. Pointer tail ─────────────────────────────────────
     _drawPointerTail(c,
         bubbleCentre: mainCentre,
         bubbleRadius: bubR,
         dpr: dpr,
-        color: effectiveColor);
+        fillColor: effectiveFillColor,
+        shadowColor: shadowColor,
+        outlineColor: effectiveOutlineColor);
 
-    // ─── 4. Wavy ring ────────────────────────────────────────
-    if (isWavy) {
-      _drawWavyRing(c,
-          centre: mainCentre,
-          innerRadius: bubR + avatarRingExtra,
-          dpr: dpr,
-          wavyScore: wavyScore);
-    }
-    // ─── 5. Avatar ring ──────────────────────────────────────
+    // ─── 2. Avatar ring ──────────────────────────────────────
     if (avatarColors.isNotEmpty) {
       _drawAvatarRing(c,
           centre: mainCentre,
@@ -1195,14 +1329,77 @@ class PinitMarkers {
           colors: avatarColors);
     }
 
-    // ─── 6. Main pin ─────────────────────────────────────────
-    _drawPinBubble(c,
+    // ─── 3. Main pin ─────────────────────────────────────────
+    await _drawPinBubble(c,
         centre: mainCentre,
         radius: bubR,
         dpr: dpr,
-        color: effectiveColor,
-        emoji: emoji,
-        assetImage: assetImage);
+        fillColor: effectiveFillColor,
+        shadowColor: shadowColor,
+        outlineColor: effectiveOutlineColor,
+        visual: visual);
+
+    // ─── 6. Overflow dots for hidden pins ────────────────────
+    _drawClusterOverflowDots(
+      c,
+      centre: mainCentre,
+      radius: bubR,
+      dpr: dpr,
+      pointCount: pointCount,
+    );
+
+    return _rasterise(rec, outW, outH);
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  //  RENDER — Dense viewport dot
+  // ══════════════════════════════════════════════════════════════
+
+  static Future<Uint8List> _renderCompactMapDot({
+    required double dpr,
+  }) async {
+    final dotRadius = 4.0 * dpr;
+    final strokeWidth = 1.0 * dpr;
+    final shadowRadius = dotRadius + 0.8 * dpr;
+    final shadowOffset = Offset(1.4 * dpr, 1.8 * dpr);
+    final pad = 4.0 * dpr;
+
+    final outW = (dotRadius * 2 + shadowOffset.dx + pad * 2).ceil();
+    final outH = (dotRadius * 2 + shadowOffset.dy + pad * 2).ceil();
+
+    final rec = ui.PictureRecorder();
+    final canvas = Canvas(rec);
+    final center = Offset(
+      pad + dotRadius,
+      pad + dotRadius,
+    );
+
+    canvas.drawCircle(
+      center + shadowOffset,
+      shadowRadius,
+      Paint()..color = pinit.PinitColors.aubergine.withValues(alpha: 0.18),
+    );
+
+    canvas.drawCircle(
+      center,
+      dotRadius,
+      Paint()..color = pinit.PinitColors.aubergine,
+    );
+
+    canvas.drawCircle(
+      center,
+      dotRadius,
+      Paint()
+        ..color = pinit.PinitColors.cream.withValues(alpha: 0.95)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth,
+    );
+
+    canvas.drawCircle(
+      Offset(center.dx - 0.9 * dpr, center.dy - 1.0 * dpr),
+      1.2 * dpr,
+      Paint()..color = Colors.white.withValues(alpha: 0.42),
+    );
 
     return _rasterise(rec, outW, outH);
   }
@@ -1244,13 +1441,6 @@ class PinitMarkers {
     final c = Canvas(rec);
     final Offset ctr = Offset(diameter / 2 + pad, diameter / 2 + pad);
 
-    _drawGlow(c,
-        centre: ctr,
-        radius: diameter / 2,
-        dpr: dpr,
-        color: surfaceColor,
-        intensity: 0.18);
-
     if (selected) {
       c.drawCircle(ctr, diameter / 2 + selBW, Paint()..color = Colors.white);
     }
@@ -1270,6 +1460,26 @@ class PinitMarkers {
     final ui.Image img = await picture.toImage(w, h);
     final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
     return byteData!.buffer.asUint8List();
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Marker visual selection
+// ─────────────────────────────────────────────────────────────
+class _MarkerVisual {
+  const _MarkerVisual._({
+    required this.key,
+    this.emoji,
+  });
+
+  final String key;
+  final String? emoji;
+
+  factory _MarkerVisual.emoji(String emoji, {String? key}) {
+    return _MarkerVisual._(
+      key: key ?? 'emoji:$emoji',
+      emoji: emoji,
+    );
   }
 }
 

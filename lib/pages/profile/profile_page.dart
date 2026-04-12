@@ -16,6 +16,7 @@ import 'widgets/hidden_gems_section.dart';
 import 'widgets/trending_now_section.dart';
 import 'widgets/collections_grid.dart';
 import 'widgets/recent_activity_section.dart';
+import 'widgets/notes_import_sheet.dart';
 import 'widgets/pinit_colors.dart';
 import 'edit_profile_page.dart';
 import 'preferences_page.dart';
@@ -192,6 +193,7 @@ class _ProfilePageState extends State<ProfilePage>
       case 1:
         return CollectionsGrid(
           generatedCollections: user.generatedCollections,
+          onImportNotes: () => _showNotesImportSheet(context, user),
         );
       case 2:
         return _buildDiscoverSection();
@@ -593,6 +595,28 @@ class _ProfilePageState extends State<ProfilePage>
         onSignOut: () {
           Navigator.pop(sheetContext);
           _handleSignOut(context);
+        },
+      ),
+    );
+  }
+
+  void _showNotesImportSheet(BuildContext context, UserModel user) {
+    HapticFeedback.mediumImpact();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => NotesImportSheet(
+        onImportFile: (file, sourceName) async {
+          final service = Provider.of<SupabaseService>(context, listen: false);
+          final result = await service.notesImport.importFile(
+            userId: user.supabaseId ?? '',
+            file: file,
+            sourceName: sourceName,
+          );
+          await Provider.of<LocationListManager>(context, listen: false)
+              .refreshSavedLocations();
+          return result;
         },
       ),
     );
