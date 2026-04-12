@@ -125,6 +125,7 @@ def _send_completion_notification(
     *,
     user_id: str,
     source_name: str,
+    processed_count: int,
     saved_count: int,
 ) -> None:
     fcm_token = _get_user_fcm_token(user_id)
@@ -133,7 +134,8 @@ def _send_completion_notification(
         return
 
     title = "Import complete"
-    body = f"Saved {saved_count} places from your doc"
+    place_label = "place" if processed_count == 1 else "places"
+    body = f"We processed {processed_count} {place_label} from your document."
 
     payload = {
         "fcm_token": fcm_token,
@@ -142,6 +144,7 @@ def _send_completion_notification(
         "title": title,
         "body": body,
         "metadata": {
+            "processedCount": processed_count,
             "savedCount": saved_count,
             "sourceName": source_name,
         },
@@ -173,16 +176,19 @@ def _process_import_async(
             note_text=note_text,
             source_name=source_name,
         )
+        processed_count = int(result.get("matched_count") or result.get("extracted_count") or 0)
         saved_count = int(result.get("saved_count") or 0)
         _send_completion_notification(
             user_id=user_id,
             source_name=source_name,
+            processed_count=processed_count,
             saved_count=saved_count,
         )
         logger.info(
-            "Finished async notes import %s for user %s with %s saved places",
+            "Finished async notes import %s for user %s with %s processed places and %s saved places",
             request_id,
             user_id,
+            processed_count,
             saved_count,
         )
     except Exception as exc:
@@ -259,6 +265,7 @@ def import_notes():
                 "source_name": source_name,
                 "request_id": request_id,
             },
+            daemon=True,
         ).start()
 
         return jsonify({
@@ -266,8 +273,8 @@ def import_notes():
             "queued": True,
             "request_id": request_id,
             "source_name": source_name,
-            "message": "Import started. We will let you know once we are done.",
-        }), 202
+            "message": "Import queued. We will notify you when processing is complete.",
+        }), 200
 
     except ValueError as exc:
         logger.warning("Validation error in /import-notes: %s", exc)

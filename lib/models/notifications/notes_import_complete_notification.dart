@@ -4,6 +4,7 @@ import 'package:login/models/notifications/base_notification.dart';
 class NotesImportCompleteNotification extends BaseNotification {
   final String title;
   final String body;
+  final int processedCount;
   final int savedCount;
   final String? sourceName;
 
@@ -13,6 +14,7 @@ class NotesImportCompleteNotification extends BaseNotification {
     required bool isRead,
     required this.title,
     required this.body,
+    required this.processedCount,
     required this.savedCount,
     required this.sourceName,
   }) : super(
@@ -25,6 +27,7 @@ class NotesImportCompleteNotification extends BaseNotification {
   factory NotesImportCompleteNotification.fromFCMData(
     Map<String, dynamic> data,
   ) {
+    final rawProcessedCount = data['processedCount'];
     final rawSavedCount = data['savedCount'];
 
     return NotesImportCompleteNotification(
@@ -35,6 +38,9 @@ class NotesImportCompleteNotification extends BaseNotification {
       isRead: data['isRead'] == true || data['isRead'] == 'true',
       title: (data['title'] as String?) ?? 'Import complete',
       body: (data['body'] as String?) ?? 'Your note import has finished.',
+      processedCount: rawProcessedCount is num
+          ? rawProcessedCount.toInt()
+          : int.tryParse(rawProcessedCount?.toString() ?? '') ?? 0,
       savedCount: rawSavedCount is num
           ? rawSavedCount.toInt()
           : int.tryParse(rawSavedCount?.toString() ?? '') ?? 0,
@@ -62,6 +68,7 @@ class NotesImportCompleteNotification extends BaseNotification {
       'timestamp': timestamp.toIso8601String(),
       'title': title,
       'body': body,
+      'processedCount': processedCount.toString(),
       'savedCount': savedCount.toString(),
       if (sourceName != null && sourceName!.isNotEmpty)
         'sourceName': sourceName,

@@ -58,23 +58,17 @@ class NoSavedLocationsPopover extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: PinitColors.creamSunk,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        'EMPTY SAVES',
-                        style: AppTypography.caption.copyWith(
-                          color: PinitColors.aubergineSoft,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1.1,
-                        ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Empty Saves',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontFamily: 'Rova',
+                        fontSize: 28,
+                        fontWeight: FontWeight.w100,
+                        color: PinitColors.aubergine,
+                        letterSpacing: 1.4,
+                        height: 1.0,
                       ),
                     ),
                     const SizedBox(height: 18),
