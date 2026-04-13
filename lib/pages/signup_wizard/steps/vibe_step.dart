@@ -4,7 +4,10 @@ import 'package:login/animations/common_animations.dart';
 import 'package:provider/provider.dart';
 import '../../../models/signup_wizard_state.dart';
 import '../../../models/locations.dart';
+import '../../../services/location_service.dart';
+import '../../../services/recommendations_api.dart';
 import '../../../supabase/service.dart';
+import '../../../utils/geo_types.dart';
 import '../../../widgets/spinnable_tile.dart';
 import '../../profile/widgets/pinit_colors.dart';
 
@@ -73,7 +76,7 @@ class _VibeStepState extends State<VibeStep> {
       '8625848c-d6b5-47ea-8069-e08103ac2d02',
       '4b107468-3693-4878-870d-f907b6924c2b',
       '76b42037-ff12-4536-a7fe-8a6063e95230',
-      '878b661e-e245-4fab-95f3-fa5195162828'
+      '878b661e-e245-4fab-95f3-fa5195162828',
       '5d6f988f-68bc-4ac3-bec1-70613f07ed01',
       
     ],
@@ -96,30 +99,60 @@ class _VibeStepState extends State<VibeStep> {
     await _proceedToRestaurantStep();
   }
 
+  // Fallback city center (central London) when we can't get the user's location
+  // during signup. The proximal recs API requires lat/lng, so we need some value.
+  static const double _fallbackLat = 51.5074;
+  static const double _fallbackLng = -0.1278;
+
   Future<void> _proceedToRestaurantStep() async {
     // Map images to associated tags
-    List<String> selectedTags = _selected.map((name) => _imageTags[name]!).expand((tags) => tags).toList();
+    List<String> selectedTags = _selected
+        .map((name) => _imageTags[name]!)
+        .expand((tags) => tags)
+        .toList();
 
-    // Capture BOTH providers before the async callback (from child widget context)
+    // Capture providers before any async gap (child widget context is about to unmount).
     final supabase = Provider.of<SupabaseService>(context, listen: false);
     final wizardState = Provider.of<SignupWizardState>(context, listen: false);
 
     // Persist the selections into the wizard state
     wizardState.setVibeTags(selectedTags);
 
-    // if (wizardState.userId != null && wizardState.selectedVibeTagIds.isNotEmpty) {
-    //     await supabase.tags.updateUserTagsPhotos(
-    //       wizardState.userId!,
-    //       wizardState.selectedVibeTagIds,
-    //     );
-    //   }
+    // Write vibe affinities immediately so the downstream proximal recs call
+    // sees the user's vibe vector server-side.
+    if (wizardState.userId != null && wizardState.selectedVibeTagIds.isNotEmpty) {
+      await supabase.tags.updateUserTagsPhotos(
+        wizardState.userId!,
+        wizardState.selectedVibeTagIds,
+      );
+    }
 
-    // Call the recommendation function to fetch restaurants
     await widget.onNextWithRestaurants(() async {
-    
-      // TODO: Replace this with custom recommendation function
-      final allLocations = await supabase.locations.getFiveLocations();
-      return allLocations.take(5).toList();
+      // Try to get the user's current location; fall back to London center.
+      LatLng? pos = LocationService().currentPosition;
+      pos ??= await LocationService().getCurrentLocation();
+      final lat = pos?.latitude ?? _fallbackLat;
+      final lng = pos?.longitude ?? _fallbackLng;
+
+      final response = await RecommendationsApi().fetchProximal(
+        userId: wizardState.userId!,
+        latitude: lat,
+        longitude: lng,
+        radiusKm: 20,
+        maxResults: 15,
+        qualityWeight: 0.9,
+        vibeWeight: 0.1,
+        dietaryWeight: 0.0,
+        socialWeight: 0.0,
+        collaborativeWeight: 0.0,
+      );
+
+      final ids = response.recommendations
+          .map((r) => r.locationId)
+          .where((id) => id > 0)
+          .toList();
+      if (ids.isEmpty) return <LocationModel>[];
+      return supabase.locations.getLocationsByIds(ids);
     });
   }
 

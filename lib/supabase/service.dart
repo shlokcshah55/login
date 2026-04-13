@@ -47,6 +47,11 @@ class SupabaseService extends ChangeNotifier {
   // Cached profile from sign-in to avoid double fetch
   UserModel? _cachedUserProfile;
 
+  // Signals that the app received a password recovery deep link and should
+  // show the reset password screen. Cleared by the UI after handling.
+  final ValueNotifier<bool> passwordRecoveryRequested =
+      ValueNotifier<bool>(false);
+
   // Getters for repositories
   AuthHelper get users => _authService;
   LocationHelper get locations => _locationService;
@@ -377,6 +382,15 @@ class SupabaseService extends ChangeNotifier {
 
           case AuthChangeEvent.userUpdated:
             // User data updated
+            notifyListeners();
+            break;
+
+          case AuthChangeEvent.passwordRecovery:
+            // User tapped the reset-password email link. Supabase grants a
+            // short-lived recovery session; surface a flag so the UI can
+            // push the reset-password screen.
+            _hasValidSession = true;
+            passwordRecoveryRequested.value = true;
             notifyListeners();
             break;
 

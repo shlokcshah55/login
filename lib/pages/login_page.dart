@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../supabase/service.dart';
 import '../pages/profile/widgets/pinit_colors.dart';
 import 'auth_handler.dart';
+import 'forgot_password_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -181,7 +182,11 @@ class _LoginPageState extends State<LoginPage> {
                 alignment: Alignment.centerRight,
                 child: ElevatedButton(
                   onPressed: () {
-                    // TODO: forgot password
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const ForgotPasswordPage(),
+                      ),
+                    );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: PinitColors.accent,

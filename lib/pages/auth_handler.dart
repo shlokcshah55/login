@@ -1,6 +1,7 @@
 import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:login/pages/legal_consent_gate_page.dart';
+import 'package:login/pages/reset_password_page.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/pages/main_screen.dart';
 import 'package:login/pages/welcome_page.dart';
@@ -29,6 +30,47 @@ class _AuthHandlerState extends State<AuthHandler> {
     super.initState();
     // Check auth state on first build
     _scheduleInitialization();
+
+    // Listen for password recovery deep link (Supabase fires this after the
+    // user taps the reset-password email link).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final supabaseProvider =
+          Provider.of<SupabaseService>(context, listen: false);
+      supabaseProvider.passwordRecoveryRequested
+          .addListener(_onPasswordRecoveryRequested);
+      // Handle the case where recovery was already requested before this
+      // widget mounted (e.g. cold start via deep link).
+      if (supabaseProvider.passwordRecoveryRequested.value) {
+        _onPasswordRecoveryRequested();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    // Defensive: provider is a singleton so it outlives this widget.
+    try {
+      Provider.of<SupabaseService>(context, listen: false)
+          .passwordRecoveryRequested
+          .removeListener(_onPasswordRecoveryRequested);
+    } catch (_) {}
+    super.dispose();
+  }
+
+  void _onPasswordRecoveryRequested() {
+    if (!mounted) return;
+    final supabaseProvider =
+        Provider.of<SupabaseService>(context, listen: false);
+    if (!supabaseProvider.passwordRecoveryRequested.value) return;
+
+    // Push the reset page on top of whatever is currently shown.
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute(
+        builder: (_) => const ResetPasswordPage(),
+        fullscreenDialog: true,
+      ),
+    );
   }
 
   void _scheduleInitialization() {

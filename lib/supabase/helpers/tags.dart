@@ -197,20 +197,74 @@ class TagsHelper {
     }
   }
 
-  // Future<bool> updateUserTagsPhotos(String userID, List<String> tags) async {
-  //   Map<String, double> tagMap = {};
-  //   for (var tag in tags) {
-  //     tagMap[tag] = 80;
-  //   }
-  //   print("updating user tags based on vibe photos");
-  //   return updateUserTagAffinityByWeight(userID, 5, tagMap, action: 'initialisation vibes');
-  // }
+  // Canonical vibe tag order — must stay in sync with the comment on
+  // users.vibe_tag_affinity (see remote_schema.sql). Duplicated here
+  // because the server-side update_user_tag_affinity RPC writes to the
+  // wrong table (profiles) and no replacement RPC targets users.vibe_tag_affinity
+  // directly from a (tag_id, affinity) pair.
+  static const List<String> _vibeTagOrder = [
+    'cafe', 'casual', 'cozy', 'coffee_shop', 'bar',
+    'elegant', 'fine_dining', 'food_truck', 'hole_in_the_wall', 'late_night',
+    'live_music', 'michelin_starred', 'modern', 'fast_food', 'quiet',
+    'romantic', 'sports_bar', 'trendy', 'takeout_friendly', 'pub',
+    'grocery_store', 'brunch', 'outdoor_dining', 'wavy', 'bossman',
+  ];
 
+  /// Writes vibe affinities (80 per selected tag) directly onto users.vibe_tag_affinity.
+  /// Called from the signup wizard vibe step so downstream proximal recommendation
+  /// calls see the user's vibe vector before they're fetched.
+  ///
+  /// Implementation notes:
+  /// - We don't read the existing vector because during signup the user has
+  ///   just been initialized with defaults; overwriting is fine.
+  /// - We write integers (not doubles) so we don't have to guess the column's
+  ///   element type — Postgres accepts int literals for both integer[] and real[].
+  Future<bool> updateUserTagsPhotos(String userId, List<String> vibeTagIds) async {
+    if (vibeTagIds.isEmpty) return true;
+    try {
+      // 1. Resolve tag names for the supplied tag_ids.
+      final tagRows = await _client
+          .from(SupabaseConstants.tableTags)
+          .select('${SupabaseConstants.columnTagId}, text')
+          .inFilter(SupabaseConstants.columnTagId, vibeTagIds);
 
-  // TODO:
-  // Future<bool> updateUserTagsRating(String userId, int locationID) async
-  // Future<bool> updateUserTagsMagicSearch(String userId, int locationID) async
-  // Future<bool> updateUserTagsSpiceTolerance(String userId, int spiceTolerance) async {
+      final tagNames = <String>{};
+      for (final row in tagRows as List) {
+        final name = row['text'];
+        if (name is String) tagNames.add(name);
+      }
+      print('updateUserTagsPhotos: resolved tag names: $tagNames');
+      if (tagNames.isEmpty) return false;
 
+      // 2. Build a fresh default vector (matches initialize_vibe_tags_for_user).
+      final affinity = List<int>.filled(_vibeTagOrder.length, 50);
+      affinity[20] = 0; // grocery_store
+
+      // 3. Bump matched indices to 80.
+      var applied = 0;
+      for (final name in tagNames) {
+        final idx = _vibeTagOrder.indexOf(name);
+        if (idx >= 0) {
+          affinity[idx] = 80;
+          applied++;
+        }
+      }
+      print('updateUserTagsPhotos: applied=$applied new affinity=$affinity');
+      if (applied == 0) return false;
+
+      // 4. Write it.
+      await _client
+          .from(SupabaseConstants.tableUsers)
+          .update({'vibe_tag_affinity': affinity})
+          .eq(SupabaseConstants.columnSupabaseId, userId);
+
+      print('updateUserTagsPhotos: wrote $applied affinities for user $userId');
+      return true;
+    } catch (e, st) {
+      print('updateUserTagsPhotos failed: $e');
+      print(st);
+      return false;
+    }
+  }
 
 }

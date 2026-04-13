@@ -9,7 +9,7 @@ import '../profile/widgets/pinit_colors.dart';
 import 'account_step.dart';
 import 'steps/dietary_step.dart';
 import 'steps/vibe_step.dart';
-import 'steps/restaurant_swipe_step.dart';
+import 'steps/top_places_step.dart';
 
 class SignupWizardPage extends StatelessWidget {
   const SignupWizardPage({super.key});
@@ -44,7 +44,7 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
     'Create Account', // After finishing this step we actually creates the account
     'Dietary Preferences',
     'Your Vibe',
-    'Find Your Restaurants',
+    'Add Your Favourites',
   ];
 
   @override
@@ -138,24 +138,19 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
         ),
       ]);
 
-      // Step 2: Process restaurant decisions in parallel
-      final restaurantFutures = <Future>[];
+      // Step 2: Save the places the user tapped + lightweight "been to" marks.
+      final placeFutures = <Future>[
+        for (final id in wizardState.addedLocationIds)
+          supabase.locations.saveLocation(
+            id,
+            savedMethod: SupabaseConstants.savedMethodInApp,
+          ),
+        for (final id in wizardState.beenToLocationIds)
+          supabase.reviews.submitBeenTo(locationId: id),
+      ];
 
-      for (final entry in wizardState.restaurantDecisions.entries) {
-        final locationId = entry.key;
-        final saved = entry.value;
-
-        if (saved) {
-          restaurantFutures.add(supabase.locations.saveLocation(locationId,
-              savedMethod: SupabaseConstants.savedMethodInApp));
-        } else {
-          restaurantFutures.add(supabase.locations.dislikeLocation(locationId));
-        }
-      }
-
-      // Wait for all restaurant operations to complete
-      if (restaurantFutures.isNotEmpty) {
-        await Future.wait(restaurantFutures);
+      if (placeFutures.isNotEmpty) {
+        await Future.wait(placeFutures);
       }
 
       // Step 3: Mark wizard as complete
@@ -281,11 +276,11 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
                     onNextWithRestaurants: _nextStepWithRestaurants,
                     isLoadingRestaurants: _isLoadingRestaurants,
                   ),
-                  RestaurantSwipeStep(
+                  TopPlacesStep(
                     onBack: _previousStep,
                     onComplete: _completeWizard,
                     isCompleting: _isCompletingWizard,
-                    restaurants: _restaurants ?? [],
+                    recommendations: _restaurants ?? [],
                   ),
                 ],
               ),

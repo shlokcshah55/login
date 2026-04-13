@@ -15,8 +15,12 @@ class SignupWizardState extends ChangeNotifier {
   // Step 3: Vibe Selection
   List<String> _selectedVibeTagIds = [];
 
-  // Step 4: Restaurant Swipes
+  // Step 4: Restaurant Swipes (deprecated — kept for the dormant swipe step)
   Map<int, bool> _restaurantDecisions = {}; // locationId -> saved (true) or passed (false)
+
+  // Step 4 (new): Top Places quick-add grid
+  final Set<int> _addedLocationIds = <int>{};
+  final Set<int> _beenToLocationIds = <int>{};
 
   // Getters
   String? get userId => _userId;
@@ -27,6 +31,8 @@ class SignupWizardState extends ChangeNotifier {
   int get spiceTolerance => _spiceTolerance;
   List<String> get selectedVibeTagIds => List.unmodifiable(_selectedVibeTagIds);
   Map<int, bool> get restaurantDecisions => Map.unmodifiable(_restaurantDecisions);
+  Set<int> get addedLocationIds => Set.unmodifiable(_addedLocationIds);
+  Set<int> get beenToLocationIds => Set.unmodifiable(_beenToLocationIds);
 
   // Get list of restaurant IDs that were saved
   List<int> get savedRestaurantIds {
@@ -105,6 +111,26 @@ class SignupWizardState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void toggleAddedLocation(int id) {
+    if (_addedLocationIds.contains(id)) {
+      _addedLocationIds.remove(id);
+      _beenToLocationIds.remove(id); // can't be "been to" without being added
+    } else {
+      _addedLocationIds.add(id);
+    }
+    notifyListeners();
+  }
+
+  void toggleBeenToLocation(int id) {
+    if (_beenToLocationIds.contains(id)) {
+      _beenToLocationIds.remove(id);
+    } else {
+      _beenToLocationIds.add(id);
+      _addedLocationIds.add(id); // been-to implies added
+    }
+    notifyListeners();
+  }
+
   // Validation
   bool isStep1Valid() {
     return _name.isNotEmpty && _email.isNotEmpty && _userId != null;
@@ -135,6 +161,8 @@ class SignupWizardState extends ChangeNotifier {
     _spiceTolerance = 3;
     _selectedVibeTagIds.clear();
     _restaurantDecisions.clear();
+    _addedLocationIds.clear();
+    _beenToLocationIds.clear();
     notifyListeners();
   }
 }

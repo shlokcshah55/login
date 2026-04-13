@@ -303,7 +303,10 @@ class AuthHelper {
   /// Reset password for a user
   Future<void> resetPassword(String email) async {
     try {
-      await _client.auth.resetPasswordForEmail(email);
+      await _client.auth.resetPasswordForEmail(
+        email,
+        redirectTo: 'com.srishlok.pinit://login-callback/',
+      );
     } catch (e) {
       if (kDebugMode) {
         print('Error resetting password: $e');
