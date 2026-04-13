@@ -95,8 +95,7 @@ class PushNotificationService {
 
       final String accepterName =
           accepterProfile['name'] ?? accepterProfile['username'] ?? 'Someone';
-      final String accepterAvatar =
-          accepterProfile['profile_image_url'] ?? '';
+      final String accepterAvatar = accepterProfile['profile_image_url'] ?? '';
 
       return await _sendNotification(
         fcmToken: fcmToken,
@@ -255,15 +254,16 @@ class PushNotificationService {
       final String bubbleName =
           bubbleResponse[SupabaseConstants.columnName] ?? 'Group Chat';
 
-      // Fetch all bubble members except the sender
-      final membersResponse = await SupabaseClientManager()
-          .client
-          .from(SupabaseConstants.tableBubbleMembers)
-          .select(SupabaseConstants.columnUserId)
-          .eq(SupabaseConstants.columnBubbleId, bubbleId)
-          .neq(SupabaseConstants.columnUserId, senderId);
-
-      final members = membersResponse as List<dynamic>;
+      // Fetch all bubble members except the sender via RPC.
+      final members = List<Map<String, dynamic>>.from(
+        await SupabaseClientManager().client.rpc(
+          'get_bubble_member_ids_excluding_user',
+          params: {
+            'p_bubble_id': bubbleId,
+            'p_excluded_user_id': senderId,
+          },
+        ),
+      );
 
       if (kDebugMode) {
         print(

@@ -87,8 +87,8 @@ class LocationListManager with ChangeNotifier {
 
   // Per-collection marker cache. Keyed by collectionId, capped LRU.
   static const int _collectionCacheMaxEntries = 10;
-  final Map<String, Map<LocationModel, MapMarkerData>>
-      _collectionMarkerCache = {};
+  final Map<String, Map<LocationModel, MapMarkerData>> _collectionMarkerCache =
+      {};
   String? _activeCollectionKey;
   Map<LocationModel, MapMarkerData> _currentItems = {};
   List<LocationModel> _justDecideLocations = [];
@@ -150,6 +150,62 @@ class LocationListManager with ChangeNotifier {
   LatLng? get lastSearchedCenter => _lastSearchedCenter;
   double? get lastSearchedRadius => _lastSearchedRadius;
 
+  void _resetUserScopedState({
+    bool notify = false,
+    bool stopLocationTracking = false,
+  }) {
+    _savedLocations.clear();
+    _recommendedLocations.clear();
+    _searchLocations.clear();
+    _bubbleLocations.clear();
+    _currentItems.clear();
+
+    _allSavedLocations = [];
+    _allRecommendedLocations = [];
+    _allSearchLocations = [];
+    _allBubbleLocations = [];
+
+    _justDecideLocations = [];
+    _popularLocations = [];
+    _hiddenGemLocations = [];
+
+    _currentListType = LocationListType.saved;
+    _cameraPosition = null;
+    _lastSearchedCenter = null;
+    _lastSearchedRadius = null;
+    _areaChanged = false;
+    _isSearchingArea = false;
+    _isLoadingRecommendations = false;
+    _isMagicSearching = false;
+    _error = null;
+
+    _vibeTagIds = [];
+    _cuisineTagIds = [];
+    _vibeTagNames = [];
+    _cuisineTagNames = [];
+
+    _currentViewportBounds = null;
+    _lastSelectedIds = null;
+    _lastSelectionZoom = null;
+    _currentZoom = 15.0;
+
+    _savedLocationsLoaded = false;
+    _isLoadingSaved = false;
+    _isLoadingPopular = false;
+    _isLoadingHiddenGems = false;
+
+    invalidateAllCollectionCaches();
+    _proximityNotificationService.clear();
+
+    if (stopLocationTracking) {
+      _locationService.stopLocationUpdates();
+    }
+
+    if (notify) {
+      notifyListeners();
+    }
+  }
+
   void _updateLastSearchedArea(LatLng center, double radiusKm) {
     _lastSearchedCenter = center;
     _lastSearchedRadius = radiusKm;
@@ -181,19 +237,12 @@ class LocationListManager with ChangeNotifier {
     print('Unsubscribing from realtime updates');
     _supabaseService.locations.unsubscribeFromUserLocationActions();
     _isSubscribed = false;
-
-    // Reset flags when user changes
-    _savedLocationsLoaded = false;
-    _isLoadingSaved = false;
+    _resetUserScopedState(stopLocationTracking: userId == null);
+    notifyListeners();
 
     // Potentially clear locations if user logs out (userId is null)
     if (_userId == null) {
-      _savedLocations = {};
-      _recommendedLocations = {};
-      _searchLocations = {};
-      _bubbleLocations = {};
-      _currentItems = {};
-      notifyListeners();
+      return;
     } else {
       unawaited(_proximityNotificationService.initializeForUser(_userId!));
 
@@ -627,7 +676,8 @@ class LocationListManager with ChangeNotifier {
 
   /// Fetches saved locations from Supabase and falls back to Firebase if needed
   Future<void> fetchSavedLocations() async {
-    if (_userId == null) {
+    final requestUserId = _userId;
+    if (requestUserId == null) {
       print("Cannot fetch saved locations: userId is null.");
       return;
     }
@@ -640,22 +690,32 @@ class LocationListManager with ChangeNotifier {
 
     // Already completed a successful load — don't re-fetch
     if (_savedLocationsLoaded) {
-      print('[fetchSavedLocations] Already loaded (${_savedLocations.length} items), skipping');
+      print(
+          '[fetchSavedLocations] Already loaded (${_savedLocations.length} items), skipping');
       return;
     }
 
     _isLoadingSaved = true;
-    print('[fetchSavedLocations] Starting fetch for user $_userId');
+    print('[fetchSavedLocations] Starting fetch for user $requestUserId');
     final stopwatch = Stopwatch()..start();
 
     try {
       List<LocationModel> supabaseSavedLocations =
           await _supabaseService.locations.getSavedLocations();
 
-      print('[fetchSavedLocations] Got ${supabaseSavedLocations.length} locations in ${stopwatch.elapsedMilliseconds}ms');
+      if (_userId != requestUserId) {
+        print('[fetchSavedLocations] Discarding stale result for user '
+            '$requestUserId; current user is $_userId');
+        return;
+      }
+
+      print(
+          '[fetchSavedLocations] Got ${supabaseSavedLocations.length} locations in ${stopwatch.elapsedMilliseconds}ms');
 
       // Always mark as loaded — even if empty (user simply has no saves yet)
       _savedLocationsLoaded = true;
+      _allSavedLocations = supabaseSavedLocations;
+      _savedLocations = {};
 
       if (supabaseSavedLocations.isNotEmpty) {
         // First create a temporary map to select which locations should show names
@@ -684,6 +744,12 @@ class LocationListManager with ChangeNotifier {
           }),
         );
 
+        if (_userId != requestUserId) {
+          print('[fetchSavedLocations] Discarding stale marker build for user '
+              '$requestUserId; current user is $_userId');
+          return;
+        }
+
         // Sort saved locations by distance (nearest first), then by match score (highest first)
         final sortedMarkers = _sortLocationsByDistanceAndScore(
           markers.map((e) => e.key).toList(),
@@ -692,7 +758,8 @@ class LocationListManager with ChangeNotifier {
         );
 
         _savedLocations = Map.fromEntries(sortedMarkers);
-        print('[fetchSavedLocations] Created ${sortedMarkers.length} markers in ${stopwatch.elapsedMilliseconds}ms');
+        print(
+            '[fetchSavedLocations] Created ${sortedMarkers.length} markers in ${stopwatch.elapsedMilliseconds}ms');
       }
 
       // If the current type is saved, update currentItems
@@ -958,7 +1025,8 @@ class LocationListManager with ChangeNotifier {
       print("📍 [LocationListManager] fetchRecommendedLocations called");
       print("   User ID: $_userId");
       print("   Location: $latitude, $longitude (radius: ${radiusKm}km)");
-      print("   Weights — quality: $qualityWeight, vibe: $vibeWeight, dietary: $dietaryWeight, social: $socialWeight, collaborative: $collaborativeWeight");
+      print(
+          "   Weights — quality: $qualityWeight, vibe: $vibeWeight, dietary: $dietaryWeight, social: $socialWeight, collaborative: $collaborativeWeight");
       print("   Cuisines (${cuisines?.length ?? 0}): ${cuisines ?? '(none)'}");
 
       // Fetch recommendations from API. Cuisine filtering happens server-side
@@ -1334,9 +1402,7 @@ class LocationListManager with ChangeNotifier {
         latitude: currentLocation.latitude,
         longitude: currentLocation.longitude,
         vibeTagIds: _vibeTagIds,
-        cuisines: _cuisineTagNames
-            .map((c) => c.toLowerCase())
-            .toList(),
+        cuisines: _cuisineTagNames.map((c) => c.toLowerCase()).toList(),
       );
       notifyListeners();
       return;
@@ -1361,7 +1427,8 @@ class LocationListManager with ChangeNotifier {
         );
       }
     } else {
-      print("   ⏭️ No locations loaded for $_currentListType - filters saved for when data arrives");
+      print(
+          "   ⏭️ No locations loaded for $_currentListType - filters saved for when data arrives");
     }
 
     notifyListeners();
@@ -1872,15 +1939,15 @@ class LocationListManager with ChangeNotifier {
     final currentLocation =
         _cameraPosition?.target ?? await getCurrentLocation();
     if (currentLocation == null) {
-      print("LocationListManager: Cannot perform magic search without location.");
+      print(
+          "LocationListManager: Cannot perform magic search without location.");
       _error = "Location permission required for search";
       _searchLocations = {};
       await setCurrentListType(LocationListType.search);
       return;
     }
 
-    final locationSource =
-        _cameraPosition?.target != null ? 'camera' : 'gps';
+    final locationSource = _cameraPosition?.target != null ? 'camera' : 'gps';
     print(
       "LocationListManager: Magic search request — "
       "query: '$trimmedQuery', source: $locationSource, "
@@ -2059,14 +2126,7 @@ class LocationListManager with ChangeNotifier {
   /// Clears all data (used for sign out)
   void clearData() {
     _userId = null;
-    _savedLocations.clear();
-    _recommendedLocations.clear();
-    _searchLocations.clear();
-    _bubbleLocations.clear();
-    _currentItems.clear();
-    _currentListType = LocationListType.saved;
-    _proximityNotificationService.clear();
-    _locationService.stopLocationUpdates(); // Stop tracking when clearing data
+    _resetUserScopedState(stopLocationTracking: true);
     print("LocationListManager: Cleared all location data");
     notifyListeners();
   }

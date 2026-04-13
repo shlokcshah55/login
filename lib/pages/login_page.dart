@@ -175,7 +175,25 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
 
-              const SizedBox(height: 8),
+              ValueListenableBuilder<bool>(
+                valueListenable: signInFailedNotifier,
+                builder: (context, signInFailed, child) {
+                  if (!signInFailed) {
+                    return const SizedBox(height: 8);
+                  }
+
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+                    child: Text(
+                      'Incorrect email or password',
+                      style: GoogleFonts.dmSans(
+                        color: PinitColors.accent,
+                        fontSize: 14,
+                      ),
+                    ),
+                  );
+                },
+              ),
 
               // Forgot password
               Align(
@@ -264,28 +282,6 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                 ),
-              ),
-
-              // Sign in failure message
-              ValueListenableBuilder<bool>(
-                valueListenable: signInFailedNotifier,
-                builder: (context, signInFailed, child) {
-                  if (signInFailed) {
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 14.0),
-                      child: Center(
-                        child: Text(
-                          'Incorrect email or password',
-                          style: GoogleFonts.dmSans(
-                            color: PinitColors.accent,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                    );
-                  }
-                  return const SizedBox.shrink();
-                },
               ),
 
               const SizedBox(height: 24),

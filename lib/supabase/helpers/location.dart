@@ -26,6 +26,7 @@ class LocationHelper {
 
   // Request deduplication - prevents concurrent identical requests
   static Future<List<LocationModel>>? _activeSavedLocationsRequest;
+  static String? _activeSavedLocationsRequestUserId;
   static Future<List<LocationModel>>? _activePopularLocationsRequest;
 
   // Cache a single location
@@ -204,28 +205,32 @@ class LocationHelper {
   /// Get saved locations for the current user
   /// Uses request deduplication to prevent concurrent identical requests
   Future<List<LocationModel>> getSavedLocations() async {
+    final userId = SupabaseClientManager().currentUser?.id;
+    if (userId == null) {
+      throw Exception('User not authenticated');
+    }
+
     // Request deduplication - reuse in-flight request
-    if (_activeSavedLocationsRequest != null) {
+    if (_activeSavedLocationsRequest != null &&
+        _activeSavedLocationsRequestUserId == userId) {
       return _activeSavedLocationsRequest!;
     }
 
-    _activeSavedLocationsRequest = _fetchSavedLocations();
+    _activeSavedLocationsRequestUserId = userId;
+    _activeSavedLocationsRequest = _fetchSavedLocations(userId);
     try {
       return await _activeSavedLocationsRequest!;
     } finally {
-      _activeSavedLocationsRequest = null;
+      if (_activeSavedLocationsRequestUserId == userId) {
+        _activeSavedLocationsRequest = null;
+        _activeSavedLocationsRequestUserId = null;
+      }
     }
   }
 
-  Future<List<LocationModel>> _fetchSavedLocations() async {
+  Future<List<LocationModel>> _fetchSavedLocations(String userId) async {
     final stopwatch = Stopwatch()..start();
     try {
-      final user = SupabaseClientManager().currentUser;
-
-      if (user == null) {
-        throw Exception('User not authenticated');
-      }
-
       // Clean expired cache periodically
       _cleanExpiredCache();
 
@@ -238,7 +243,7 @@ class LocationHelper {
             .select(
               '${SupabaseConstants.columnVibeTagAffinity}, ${SupabaseConstants.columnDietaryRequirementTagAffinity}',
             )
-            .eq(SupabaseConstants.columnSupabaseId, user.id)
+            .eq(SupabaseConstants.columnSupabaseId, userId)
             .maybeSingle();
 
         if (userProf != null) {
@@ -261,7 +266,7 @@ class LocationHelper {
       }
 
       // First get all user_location_actions with 'save' action for this user
-      developer.log('[Saved] Querying saved actions for user ${user.id}',
+      developer.log('[Saved] Querying saved actions for user $userId',
           name: 'LocationHelper');
       final savedActions = await _client
           .from(SupabaseConstants.tableUserLocationActions)
@@ -270,7 +275,7 @@ class LocationHelper {
             '${SupabaseConstants.columnSourceVideoUrl}, '
             '${SupabaseConstants.columnSavedMethod}',
           )
-          .eq(SupabaseConstants.columnUserId, user.id)
+          .eq(SupabaseConstants.columnUserId, userId)
           .eq(SupabaseConstants.columnAction, SupabaseConstants.actionSave)
           .eq(SupabaseConstants.columnAcked, true);
 
@@ -1043,6 +1048,8 @@ class LocationHelper {
   /// Clear all cached locations (useful when user logs out)
   void clearCache() {
     _locationCache.clear();
+    _activeSavedLocationsRequest = null;
+    _activeSavedLocationsRequestUserId = null;
   }
 
   /// Invalidate a specific location from cache (useful after save/unsave)

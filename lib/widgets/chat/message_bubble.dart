@@ -143,9 +143,10 @@ class MessageBubble extends StatelessWidget {
   }
 
   String _formatTime(DateTime dateTime) {
-    final hour = dateTime.hour % 12 == 0 ? 12 : dateTime.hour % 12;
-    final minute = dateTime.minute.toString().padLeft(2, '0');
-    final period = dateTime.hour >= 12 ? 'PM' : 'AM';
+    final localDateTime = dateTime.toLocal();
+    final hour = localDateTime.hour % 12 == 0 ? 12 : localDateTime.hour % 12;
+    final minute = localDateTime.minute.toString().padLeft(2, '0');
+    final period = localDateTime.hour >= 12 ? 'PM' : 'AM';
     return '$hour:$minute $period';
   }
 }
@@ -264,8 +265,8 @@ class _SharedLocationCard extends StatelessWidget {
                                   vertical: 6,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: PinitColors.cream
-                                      .withValues(alpha: 0.92),
+                                  color:
+                                      PinitColors.cream.withValues(alpha: 0.92),
                                   borderRadius: BorderRadius.circular(999),
                                   border: Border.all(
                                     color: PinitColors.creamDeep,
@@ -312,7 +313,8 @@ class _SharedLocationCard extends StatelessWidget {
                               height: 1.0,
                             ),
                           ),
-                          if ((location?.vicinity?.trim().isNotEmpty ?? false) ||
+                          if ((location?.vicinity?.trim().isNotEmpty ??
+                                  false) ||
                               (location?.cuisine?.trim().isNotEmpty ??
                                   false)) ...[
                             const SizedBox(height: 6),

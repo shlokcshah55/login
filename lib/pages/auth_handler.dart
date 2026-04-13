@@ -22,6 +22,8 @@ class _AuthHandlerState extends State<AuthHandler> {
   bool _isInitializing = false;
   bool _isCheckingLegalConsent = false;
   bool _initCallScheduled = false; // Prevents multiple post-frame callbacks
+  bool _logoutCleanupScheduled = false;
+  bool _hasCleanedLoggedOutState = false;
   String? _legalConsentCheckedUserId;
   bool? _hasAcceptedLegalConsent;
 
@@ -83,6 +85,21 @@ class _AuthHandlerState extends State<AuthHandler> {
     });
   }
 
+  void _scheduleLoggedOutCleanup() {
+    if (_logoutCleanupScheduled || _hasCleanedLoggedOutState) return;
+    _logoutCleanupScheduled = true;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      _logoutCleanupScheduled = false;
+      if (!mounted) return;
+
+      await context.read<UserDataProvider>().clearUserData();
+      context.read<LocationListManager>().clearData();
+
+      _hasCleanedLoggedOutState = true;
+    });
+  }
+
   Future<void> _initializeUserData() async {
     // Prevent concurrent initialization
     if (_isInitializing) return;
@@ -91,6 +108,7 @@ class _AuthHandlerState extends State<AuthHandler> {
         Provider.of<SupabaseService>(context, listen: false);
 
     if (supabaseProvider.isAuthenticated && !_hasInitializedData) {
+      _hasCleanedLoggedOutState = false;
       setState(() {
         _isInitializing = true;
       });
@@ -216,7 +234,12 @@ class _AuthHandlerState extends State<AuthHandler> {
     if (supabaseProvider.isAuthenticated &&
         !_hasInitializedData &&
         !_isInitializing) {
+      _hasCleanedLoggedOutState = false;
       _scheduleInitialization();
+    }
+
+    if (!supabaseProvider.isAuthenticated) {
+      _scheduleLoggedOutCleanup();
     }
 
     final currentUserId = supabaseProvider.users.currentUser?.id;
@@ -239,6 +262,12 @@ class _AuthHandlerState extends State<AuthHandler> {
 
         if (supabaseProvider.isAuthenticated &&
             !supabaseProvider.hasValidSession) {
+          return const LoadingWidget();
+        }
+
+        if (supabaseProvider.isAuthenticated &&
+            supabaseProvider.hasValidSession &&
+            !_hasInitializedData) {
           return const LoadingWidget();
         }
 

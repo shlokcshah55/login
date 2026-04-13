@@ -194,4 +194,14 @@ class UserDataProvider with ChangeNotifier {
     }
     return ok;
   }
+
+  /// Updates the local cached wizard completion flag immediately after the
+  /// onboarding RPC succeeds so the UI does not render stale onboarding state.
+  void setWizardCompleted(bool value) {
+    final current = _supabaseUserData;
+    if (current == null || current.wizardCompleted == value) return;
+
+    _supabaseUserData = current.copyWith(wizardCompleted: value);
+    notifyListeners();
+  }
 }

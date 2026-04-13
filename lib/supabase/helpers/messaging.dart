@@ -45,6 +45,8 @@ class MessagingHelper {
         'p_location_id': locationId,
       });
 
+      print('Suceeded over here');
+
       if (kDebugMode) {
         print('MessagingHelper: Message sent, id: $result');
       }

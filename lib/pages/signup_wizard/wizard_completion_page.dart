@@ -5,6 +5,7 @@ import '../../models/locations.dart';
 import '../../supabase/service.dart';
 import '../../supabase/supabase_client.dart';
 import '../../supabase/constants.dart';
+import '../../providers/user_data_provider.dart';
 import '../auth_handler.dart';
 import '../profile/widgets/pinit_colors.dart';
 import 'steps/dietary_step.dart';
@@ -151,6 +152,9 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
 
       // Step 3: Mark wizard as complete
       await supabase.users.completeSignupWizard(wizardState.userId!);
+      if (mounted) {
+        context.read<UserDataProvider>().setWizardCompleted(true);
+      }
 
       // Step 4: Navigate back to main app
       if (mounted) {

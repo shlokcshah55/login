@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/signup_wizard_state.dart';
 import '../../models/locations.dart';
+import '../../providers/user_data_provider.dart';
 import '../../supabase/service.dart';
 import '../../supabase/constants.dart';
 import '../auth_handler.dart';
@@ -155,6 +156,9 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
 
       // Step 3: Mark wizard as complete
       await supabase.users.completeSignupWizard(wizardState.userId!);
+      if (mounted) {
+        this.context.read<UserDataProvider>().setWizardCompleted(true);
+      }
 
       // Step 4: Navigate to main app
       if (mounted) {

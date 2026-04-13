@@ -68,7 +68,7 @@ class _HomeChipRowState extends State<HomeChipRow> {
           scrollDirection: Axis.horizontal,
           child: Row(
             children: [
-              if (bubbleActive)
+              if (bubbleActive) ...[
                 _Chip(
                   label: 'BUBBLE',
                   icon: FeatherIcons.users,
@@ -79,8 +79,18 @@ class _HomeChipRowState extends State<HomeChipRow> {
                     _closeCollections();
                     widget.onModeChanged(HomeMode.bubble);
                   },
-                )
-              else ...[
+                ),
+                const SizedBox(width: 8),
+                _Chip(
+                  label: 'DECIDE',
+                  icon: FeatherIcons.zap,
+                  state: _ChipState.accent,
+                  onTap: () {
+                    _closeCollections();
+                    widget.onDecideTap();
+                  },
+                ),
+              ] else ...[
                 _Chip(
                   label: 'YOU',
                   icon: FeatherIcons.user,

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:developer';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:login/utils/geo_types.dart';
@@ -126,6 +127,7 @@ class HomeViewModel extends ChangeNotifier {
         return HomeMode.bubble;
     }
   }
+
   String? get activeBubbleName => _activeBubble?.name;
 
   void setHomeMode(HomeMode mode) {
@@ -539,6 +541,32 @@ class HomeViewModel extends ChangeNotifier {
     final radiusKm = (walkingMinutes * 5.0) / 60.0;
     log("HomeViewModel: Requesting quick picks for $walkingMinutes min (~${radiusKm.toStringAsFixed(2)} km)");
 
+    if (_isBubbleModeActive) {
+      final currentLocation = locationListManager.currentPosition ??
+          await locationListManager.getCurrentLocation();
+      final bubbleLocations =
+          List<LocationModel>.from(locationListManager.bubbleLocations.keys);
+
+      if (bubbleLocations.isEmpty) {
+        log("HomeViewModel: No bubble recommendations available for quick picks");
+        return const [];
+      }
+
+      if (currentLocation == null) {
+        log("HomeViewModel: No location available, using current bubble ranking without distance filtering");
+        return bubbleLocations.take(10).toList();
+      }
+
+      final filteredBubbleLocations = bubbleLocations.where((location) {
+        final position = location.position;
+        if (position == null) return false;
+        return _distanceKm(currentLocation, position) <= radiusKm;
+      }).toList();
+
+      log("HomeViewModel: Bubble quick picks filtered ${filteredBubbleLocations.length} locations within ${radiusKm.toStringAsFixed(2)} km");
+      return filteredBubbleLocations.take(10).toList();
+    }
+
     final currentLocation = locationListManager.currentPosition ??
         await locationListManager.getCurrentLocation();
 
@@ -559,6 +587,22 @@ class HomeViewModel extends ChangeNotifier {
     }
 
     return List<LocationModel>.from(locationListManager.justDecideLocations);
+  }
+
+  double _distanceKm(LatLng from, LatLng to) {
+    const earthRadiusKm = 6371.0;
+    final lat1Rad = from.latitude * math.pi / 180.0;
+    final lat2Rad = to.latitude * math.pi / 180.0;
+    final deltaLatRad = (to.latitude - from.latitude) * math.pi / 180.0;
+    final deltaLngRad = (to.longitude - from.longitude) * math.pi / 180.0;
+
+    final a = math.sin(deltaLatRad / 2) * math.sin(deltaLatRad / 2) +
+        math.cos(lat1Rad) *
+            math.cos(lat2Rad) *
+            math.sin(deltaLngRad / 2) *
+            math.sin(deltaLngRad / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return earthRadiusKm * c;
   }
 
   /// Saves a location that was liked in the quick-picks deck.
