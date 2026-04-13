@@ -27,7 +27,12 @@ import '../../widgets/profile/no_saved_locations_popover.dart';
 import '../../widgets/profile/notifications_popover.dart';
 
 class ProfilePage extends StatefulWidget {
-  const ProfilePage({Key? key}) : super(key: key);
+  final bool isActive;
+
+  const ProfilePage({
+    Key? key,
+    this.isActive = true,
+  }) : super(key: key);
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -146,6 +151,7 @@ class _ProfilePageState extends State<ProfilePage>
     _scheduleSavedEmptyPopoverIfNeeded(
       locationListManager: locationListManager,
       hasNoSavedPins: savedPins.isEmpty,
+      wizardCompleted: user.wizardCompleted,
     );
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -254,13 +260,16 @@ class _ProfilePageState extends State<ProfilePage>
   void _scheduleSavedEmptyPopoverIfNeeded({
     required LocationListManager locationListManager,
     required bool hasNoSavedPins,
+    required bool wizardCompleted,
   }) {
     if (!hasNoSavedPins) {
       _hasShownSavedEmptyPopover = false;
       return;
     }
 
-    if (locationListManager.isLoadingSaved ||
+    if (!widget.isActive ||
+        !wizardCompleted ||
+        locationListManager.isLoadingSaved ||
         !locationListManager.hasLoadedSavedLocations ||
         _hasShownSavedEmptyPopover ||
         _isSavedEmptyPopoverVisible) {

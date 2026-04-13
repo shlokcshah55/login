@@ -32,10 +32,14 @@ class PinitMap extends StatefulWidget {
 class _PinitMapState extends State<PinitMap> {
   static const double _usableMapTopOverlay = 160.0;
   static const double _usableMapControlsAllowance = 52.0;
-  static const Duration _viewportRefreshDebounce = Duration(seconds: 2);
+  static const Duration _viewportRefreshThrottle = Duration(milliseconds: 96);
   bool _locationTrackingStarted = false;
   LocationListManager? _locationListManager;
   Timer? _viewportRefreshTimer;
+  bool _viewportRefreshPending = false;
+  bool _viewportRefreshPendingInteracting = false;
+  bool _viewportRefreshInFlight = false;
+  bool _mapInteractionActive = false;
 
   // Legacy fields for PointAnnotation-based rendering (when useGeoJsonLayers is false)
   // ignore: unused_field
@@ -191,7 +195,8 @@ class _PinitMapState extends State<PinitMap> {
   }
 
   /// Looks up tag text names from the loaded tag list for a set of selected tag IDs.
-  List<String> _resolveTagNames(Set<String> selectedIds, List<Map<String, dynamic>>? tags) {
+  List<String> _resolveTagNames(
+      Set<String> selectedIds, List<Map<String, dynamic>>? tags) {
     if (tags == null || selectedIds.isEmpty) return [];
     final names = <String>[];
     for (final tag in tags) {
@@ -452,7 +457,12 @@ class _PinitMapState extends State<PinitMap> {
             _onCameraChanged(mapStateProvider, locationListManager);
           },
           onMapIdleListener: (mapbox.MapIdleEventData event) {
-            _scheduleViewportPresentationRefresh(mapStateProvider);
+            _mapInteractionActive = false;
+            _scheduleViewportPresentationRefresh(
+              mapStateProvider,
+              immediate: true,
+              isInteracting: false,
+            );
           },
         ),
 
@@ -609,26 +619,73 @@ class _PinitMapState extends State<PinitMap> {
         target: center,
         zoom: state.zoom,
       ));
-      _scheduleViewportPresentationRefresh(mapStateProvider);
+      final shouldRefreshImmediately = !_mapInteractionActive;
+      _mapInteractionActive = true;
+      _scheduleViewportPresentationRefresh(
+        mapStateProvider,
+        immediate: shouldRefreshImmediately,
+        isInteracting: true,
+      );
     } catch (_) {}
   }
 
   void _scheduleViewportPresentationRefresh(
+    MapStateProvider mapStateProvider, {
+    bool immediate = false,
+    required bool isInteracting,
+  }) {
+    _viewportRefreshPending = true;
+    _viewportRefreshPendingInteracting = isInteracting;
+
+    if (immediate) {
+      _viewportRefreshTimer?.cancel();
+      _viewportRefreshTimer = null;
+      unawaited(_pumpViewportPresentationRefresh(mapStateProvider));
+      return;
+    }
+
+    if (_viewportRefreshTimer != null || _viewportRefreshInFlight) {
+      return;
+    }
+
+    _viewportRefreshTimer = Timer(_viewportRefreshThrottle, () {
+      _viewportRefreshTimer = null;
+      if (!mounted) return;
+      unawaited(_pumpViewportPresentationRefresh(mapStateProvider));
+    });
+  }
+
+  Future<void> _pumpViewportPresentationRefresh(
     MapStateProvider mapStateProvider,
-  ) {
-    _viewportRefreshTimer?.cancel();
-    _viewportRefreshTimer = Timer(
-      _viewportRefreshDebounce,
-      () {
-        if (!mounted) return;
-        _refreshViewportPresentationNow(mapStateProvider);
-      },
-    );
+  ) async {
+    if (!mounted || _viewportRefreshInFlight || !_viewportRefreshPending) {
+      return;
+    }
+
+    _viewportRefreshPending = false;
+    final isInteracting = _viewportRefreshPendingInteracting;
+    _viewportRefreshInFlight = true;
+    try {
+      await _refreshViewportPresentationNow(
+        mapStateProvider,
+        isInteracting: isInteracting,
+      );
+    } finally {
+      _viewportRefreshInFlight = false;
+
+      if (_viewportRefreshPending && mounted) {
+        _scheduleViewportPresentationRefresh(
+          mapStateProvider,
+          isInteracting: _viewportRefreshPendingInteracting,
+        );
+      }
+    }
   }
 
   Future<void> _refreshViewportPresentationNow(
-    MapStateProvider mapStateProvider,
-  ) async {
+    MapStateProvider mapStateProvider, {
+    required bool isInteracting,
+  }) async {
     final map = mapStateProvider.mapboxMap;
     if (map == null) return;
 
@@ -646,6 +703,7 @@ class _PinitMapState extends State<PinitMap> {
       await mapStateProvider.refreshGeoJsonViewportPresentation(
         visibleBounds: LatLngBounds.fromCoordinateBounds(bounds),
         usableScreenRect: usableScreenRect,
+        isInteracting: isInteracting,
       );
     } catch (_) {}
   }

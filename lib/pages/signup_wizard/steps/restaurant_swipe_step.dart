@@ -205,7 +205,8 @@ class _RestaurantSwipeStepState extends State<RestaurantSwipeStep> {
                     Expanded(
                       flex: 2,
                       child: ElevatedButton(
-                        onPressed: widget.isCompleting ? null : widget.onComplete,
+                        onPressed:
+                            widget.isCompleting ? null : widget.onComplete,
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           backgroundColor: PinitColors.aubergine,

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../models/signup_wizard_state.dart';
 import '../../models/locations.dart';
@@ -33,8 +32,10 @@ class _SignupWizardContent extends StatefulWidget {
 
 class _SignupWizardContentState extends State<_SignupWizardContent> {
   final PageController _pageController = PageController();
+  static const int _accountSubStepCount = 5;
+  static const int _totalWizardUnits = _accountSubStepCount + 3;
   int _currentStep = 0;
-  int _accountSubStep = 1; // Track account sub-steps (1-4)
+  int _accountSubStep = 1; // Track account sub-steps (1-5)
   List<LocationModel>? _restaurants;
   bool _isLoadingRestaurants = false;
   bool _isCompletingWizard = false;
@@ -70,7 +71,8 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
     }
   }
 
-  Future<void> _nextStepWithRestaurants(Future<List<LocationModel>> Function() fetchRestaurants) async {
+  Future<void> _nextStepWithRestaurants(
+      Future<List<LocationModel>> Function() fetchRestaurants) async {
     if (_currentStep < 3) {
       setState(() {
         _isLoadingRestaurants = true;
@@ -111,8 +113,10 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
 
     try {
       // Use this.context from the State class, not the build method's context
-      final wizardState = Provider.of<SignupWizardState>(this.context, listen: false);
-      final supabase = Provider.of<SupabaseService>(this.context, listen: false);
+      final wizardState =
+          Provider.of<SignupWizardState>(this.context, listen: false);
+      final supabase =
+          Provider.of<SupabaseService>(this.context, listen: false);
 
       // Validate required data
       if (wizardState.userId == null) {
@@ -142,7 +146,8 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
         final saved = entry.value;
 
         if (saved) {
-          restaurantFutures.add(supabase.locations.saveLocation(locationId, savedMethod: SupabaseConstants.savedMethodInApp));
+          restaurantFutures.add(supabase.locations.saveLocation(locationId,
+              savedMethod: SupabaseConstants.savedMethodInApp));
         } else {
           restaurantFutures.add(supabase.locations.dislikeLocation(locationId));
         }
@@ -189,15 +194,14 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
   }
 
   double _calculateProgress() {
-    // Total: 7 units (4 for account sub-steps + 3 for other steps)
     if (_currentStep == 0) {
-      return _accountSubStep / 7.0; // 1-4
+      return _accountSubStep / _totalWizardUnits;
     } else if (_currentStep == 1) {
-      return 4.0 / 7.0;
+      return _accountSubStepCount / _totalWizardUnits;
     } else if (_currentStep == 2) {
-      return 5.0 / 7.0;
+      return (_accountSubStepCount + 1) / _totalWizardUnits;
     } else if (_currentStep == 3) {
-      return 6.0 / 7.0;
+      return (_accountSubStepCount + 2) / _totalWizardUnits;
     }
     return 1.0;
   }
@@ -207,86 +211,88 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
     return Scaffold(
       backgroundColor: PinitColors.cream,
       body: SafeArea(
-          child: Column(
-            children: [
-              // Progress Indicator
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 5),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _stepTitles[_currentStep],
-                      style: const TextStyle(
-                        fontFamily: 'Rova',
-                        fontSize: 32,
-                        fontWeight: FontWeight.w100,
-                        color: PinitColors.aubergine,
-                        letterSpacing: 1.5,
-                      ),
+        child: Column(
+          children: [
+            // Progress Indicator
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 24.0, vertical: 5),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _stepTitles[_currentStep],
+                    style: const TextStyle(
+                      fontFamily: 'Rova',
+                      fontSize: 32,
+                      fontWeight: FontWeight.w100,
+                      color: PinitColors.aubergine,
+                      letterSpacing: 1.5,
                     ),
-                    const SizedBox(height: 12),
-                    // Progress bar
-                    Container(
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: PinitColors.creamDeep,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          return AnimatedContainer(
-                            duration: const Duration(milliseconds: 400),
-                            curve: Curves.easeOutQuint,
-                            width: constraints.maxWidth * _calculateProgress(),
-                            decoration: BoxDecoration(
-                              color: PinitColors.accent,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                          );
-                        },
-                      ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Progress bar
+                  Container(
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: PinitColors.creamDeep,
+                      borderRadius: BorderRadius.circular(4),
                     ),
-                  ],
-                ),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        return AnimatedContainer(
+                          duration: const Duration(milliseconds: 400),
+                          curve: Curves.easeOutQuint,
+                          width: constraints.maxWidth * _calculateProgress(),
+                          decoration: BoxDecoration(
+                            color: PinitColors.accent,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
-              // Page Content
-              Expanded(
-                child: PageView(
-                  controller: _pageController,
-                  physics: const NeverScrollableScrollPhysics(), // Disable swipe, use buttons
-                  onPageChanged: (index) {
-                    setState(() {
-                      _currentStep = index;
-                    });
-                  },
-                  children: [
-                    AccountStep(
-                      onNext: _nextStep,
-                      onSubStepChanged: _updateAccountSubStep,
-                    ),
-                    DietaryStep(
-                      onNext: _nextStep,
-                      onBack: _previousStep,
-                    ),
-                    VibeStep(
-                      onNext: _nextStep,
-                      onBack: _previousStep,
-                      onNextWithRestaurants: _nextStepWithRestaurants,
-                      isLoadingRestaurants: _isLoadingRestaurants,
-                    ),
-                    RestaurantSwipeStep(
-                      onBack: _previousStep,
-                      onComplete: _completeWizard,
-                      isCompleting: _isCompletingWizard,
-                      restaurants: _restaurants ?? [],
-                    ),
-                  ],
-                ),
+            ),
+            // Page Content
+            Expanded(
+              child: PageView(
+                controller: _pageController,
+                physics:
+                    const NeverScrollableScrollPhysics(), // Disable swipe, use buttons
+                onPageChanged: (index) {
+                  setState(() {
+                    _currentStep = index;
+                  });
+                },
+                children: [
+                  AccountStep(
+                    onNext: _nextStep,
+                    onSubStepChanged: _updateAccountSubStep,
+                  ),
+                  DietaryStep(
+                    onNext: _nextStep,
+                    onBack: _previousStep,
+                  ),
+                  VibeStep(
+                    onNext: _nextStep,
+                    onBack: _previousStep,
+                    onNextWithRestaurants: _nextStepWithRestaurants,
+                    isLoadingRestaurants: _isLoadingRestaurants,
+                  ),
+                  RestaurantSwipeStep(
+                    onBack: _previousStep,
+                    onComplete: _completeWizard,
+                    isCompleting: _isCompletingWizard,
+                    restaurants: _restaurants ?? [],
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
+      ),
     );
   }
 }

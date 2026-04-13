@@ -104,6 +104,9 @@ class GeoJsonMapLayerService {
   List<LocationModel>? _pendingLocations;
   List<LocationModel> _currentLocations = const [];
   Set<int> _compactLocationIds = const <int>{};
+  Set<int> _presentationVisibleLocationIds = const <int>{};
+  Set<int> _presentationExpandedLocationIds = const <int>{};
+  bool _presentationDefaultsVisibleToCompact = false;
   ui.Rect? _usableScreenRect;
   final Map<int, double> _compactFadeByLocationId = {};
   final Map<int, int> _bouncePhaseByLocationId = {};
@@ -138,9 +141,12 @@ class GeoJsonMapLayerService {
   static const int _segmentDenseEnterThreshold = 3;
   static const int _segmentDenseExitThreshold = 2;
   static const int _segmentExpandedPinCount = 2;
+  static const int _segmentStickyPinCount = 3;
   static const double _criticalOverlapEnterRatio = 0.50;
   static const double _criticalOverlapExitRatio = 0.38;
-  static const double _viewportOverscanFactor = 0.45;
+  static const double _criticalOverlapStickyRatio = 0.72;
+  static const double _viewportVerticalOverscanFactor = 0.18;
+  static const double _viewportMinVerticalOverscan = 44.0;
   static const double _densePinWidth = 52.0;
   static const double _densePinHeight = 58.0;
   static const double _denseSelectedPinWidth = 82.0;
@@ -227,7 +233,10 @@ class GeoJsonMapLayerService {
       // Register icons for all unique emoji+color combinations (both regular and cluster)
       await _registerEmojiIcons(locations);
       await _registerClusterIcons(locations);
-      await _refreshViewportPresentation(updateSource: false);
+      await _refreshViewportPresentation(
+        isInteracting: false,
+        updateSource: false,
+      );
       await _updateSourceData();
       _flushPendingRecentSaveBounces();
 
@@ -306,6 +315,7 @@ class GeoJsonMapLayerService {
   Future<void> updateViewportPresentation({
     LatLngBounds? visibleBounds,
     ui.Rect? usableScreenRect,
+    required bool isInteracting,
   }) async {
     if (usableScreenRect != null) {
       _usableScreenRect = usableScreenRect;
@@ -313,6 +323,7 @@ class GeoJsonMapLayerService {
     await _refreshViewportPresentation(
       visibleBounds: visibleBounds,
       usableScreenRect: usableScreenRect,
+      isInteracting: isInteracting,
       updateSource: true,
     );
   }
@@ -333,6 +344,9 @@ class GeoJsonMapLayerService {
       _compactFadeTimer = null;
       _compactFadeByLocationId.clear();
       _compactLocationIds = const <int>{};
+      _presentationVisibleLocationIds = const <int>{};
+      _presentationExpandedLocationIds = const <int>{};
+      _presentationDefaultsVisibleToCompact = false;
       _usableScreenRect = null;
 
       // Remove layers (reverse order of addition)
@@ -1204,6 +1218,7 @@ class GeoJsonMapLayerService {
   Future<void> _refreshViewportPresentation({
     LatLngBounds? visibleBounds,
     ui.Rect? usableScreenRect,
+    required bool isInteracting,
     required bool updateSource,
   }) async {
     final visibleLocationIds = <int>{};
@@ -1251,6 +1266,7 @@ class GeoJsonMapLayerService {
     }
 
     final nextCompactLocationIds = <int>{};
+    final nextExpandedLocationIds = <int>{};
     final locationsBySegment = <int, List<LocationModel>>{};
     final fallbackBounds = screenPositionsByLocationId.isEmpty
         ? (visibleBounds ?? await _getVisibleBounds())
@@ -1301,49 +1317,46 @@ class GeoJsonMapLayerService {
         ..sort(_compareLocationsForDenseDisplay);
       final visiblePinIds = <int>{};
       final keptPinRects = <ui.Rect>[];
+      final stickyLocations = isInteracting
+          ? sortedLocations
+              .where(
+                (location) =>
+                    _selectedLocationId == location.locationId.toString() ||
+                    !_compactLocationIds.contains(location.locationId),
+              )
+              .toList(growable: false)
+          : const <LocationModel>[];
 
-      for (final location in sortedLocations) {
-        final locationId = location.locationId;
-        final isSelected = _selectedLocationId == locationId.toString();
-        final wasCompact = _compactLocationIds.contains(locationId);
-        final screenOffset = screenPositionsByLocationId[locationId];
-        final pinRect = screenOffset == null
-            ? null
-            : _pinScreenRectForLocation(
-                center: screenOffset,
-                isSelected: isSelected,
-              );
+      for (final location in stickyLocations) {
+        _tryKeepExpandedLocation(
+          location: location,
+          isDenseSegment: isDenseSegment,
+          screenPositionsByLocationId: screenPositionsByLocationId,
+          visiblePinIds: visiblePinIds,
+          keptPinRects: keptPinRects,
+          stickyMode: isInteracting,
+        );
+      }
 
-        final overlapsExistingPin = pinRect != null &&
-            keptPinRects.any((existingRect) => existingRect.overlaps(pinRect));
-        final maxOverlapRatio = pinRect == null
-            ? 0.0
-            : keptPinRects.fold<double>(
-                0.0,
-                (maxRatio, existingRect) =>
-                    math.max(maxRatio, _overlapRatio(existingRect, pinRect)),
-              );
-        final overlapLimit =
-            wasCompact ? _criticalOverlapExitRatio : _criticalOverlapEnterRatio;
-        final hasCriticalOverlap = maxOverlapRatio >= overlapLimit;
-        final canAddAnotherPin =
-            !isDenseSegment || visiblePinIds.length < _segmentExpandedPinCount;
-
-        final shouldKeepPin = isSelected ||
-            (isDenseSegment
-                ? (!overlapsExistingPin && canAddAnotherPin)
-                : !hasCriticalOverlap);
-
-        if (shouldKeepPin) {
-          visiblePinIds.add(locationId);
-          if (pinRect != null) {
-            keptPinRects.add(pinRect);
-          }
+      final shouldPromoteNewPins = !isInteracting || visiblePinIds.isEmpty;
+      if (shouldPromoteNewPins) {
+        for (final location in sortedLocations) {
+          _tryKeepExpandedLocation(
+            location: location,
+            isDenseSegment: isDenseSegment,
+            screenPositionsByLocationId: screenPositionsByLocationId,
+            visiblePinIds: visiblePinIds,
+            keptPinRects: keptPinRects,
+            stickyMode: false,
+          );
         }
       }
 
       for (final location in segmentLocations) {
         final locationId = location.locationId;
+        if (visiblePinIds.contains(locationId)) {
+          nextExpandedLocationIds.add(locationId);
+        }
         if (_selectedLocationId == locationId.toString()) continue;
         if (!visiblePinIds.contains(locationId)) {
           nextCompactLocationIds.add(locationId);
@@ -1351,7 +1364,22 @@ class GeoJsonMapLayerService {
       }
     }
 
+    final presentationStateChanged =
+        !_setsEqual(_presentationVisibleLocationIds, visibleLocationIds) ||
+            !_setsEqual(
+              _presentationExpandedLocationIds,
+              nextExpandedLocationIds,
+            ) ||
+            _presentationDefaultsVisibleToCompact != isInteracting;
+
+    _presentationVisibleLocationIds = visibleLocationIds;
+    _presentationExpandedLocationIds = nextExpandedLocationIds;
+    _presentationDefaultsVisibleToCompact = isInteracting;
+
     if (_setsEqual(_compactLocationIds, nextCompactLocationIds)) {
+      if (presentationStateChanged && updateSource) {
+        await _updateSourceData();
+      }
       return;
     }
 
@@ -1359,6 +1387,65 @@ class GeoJsonMapLayerService {
       nextCompactLocationIds,
       updateSource: updateSource,
     );
+  }
+
+  void _tryKeepExpandedLocation({
+    required LocationModel location,
+    required bool isDenseSegment,
+    required Map<int, ui.Offset> screenPositionsByLocationId,
+    required Set<int> visiblePinIds,
+    required List<ui.Rect> keptPinRects,
+    required bool stickyMode,
+  }) {
+    final locationId = location.locationId;
+    if (visiblePinIds.contains(locationId)) {
+      return;
+    }
+
+    final isSelected = _selectedLocationId == locationId.toString();
+    final maxPinsInSegment =
+        stickyMode ? _segmentStickyPinCount : _segmentExpandedPinCount;
+    final canAddAnotherPin =
+        isSelected || visiblePinIds.length < maxPinsInSegment;
+    if (!canAddAnotherPin) {
+      return;
+    }
+
+    final wasCompact = _compactLocationIds.contains(locationId);
+    final screenOffset = screenPositionsByLocationId[locationId];
+    final pinRect = screenOffset == null
+        ? null
+        : _pinScreenRectForLocation(
+            center: screenOffset,
+            isSelected: isSelected,
+          );
+
+    final overlapsExistingPin = pinRect != null &&
+        keptPinRects.any((existingRect) => existingRect.overlaps(pinRect));
+    final maxOverlapRatio = pinRect == null
+        ? 0.0
+        : keptPinRects.fold<double>(
+            0.0,
+            (maxRatio, existingRect) =>
+                math.max(maxRatio, _overlapRatio(existingRect, pinRect)),
+          );
+    final overlapLimit = stickyMode
+        ? _criticalOverlapStickyRatio
+        : (wasCompact ? _criticalOverlapExitRatio : _criticalOverlapEnterRatio);
+    final hasCriticalOverlap = maxOverlapRatio >= overlapLimit;
+    final shouldKeepPin = isSelected ||
+        (stickyMode
+            ? !hasCriticalOverlap
+            : (isDenseSegment ? !overlapsExistingPin : !hasCriticalOverlap));
+
+    if (!shouldKeepPin) {
+      return;
+    }
+
+    visiblePinIds.add(locationId);
+    if (pinRect != null) {
+      keptPinRects.add(pinRect);
+    }
   }
 
   Future<void> _transitionCompactMarkers(
@@ -1436,6 +1523,16 @@ class GeoJsonMapLayerService {
     required bool isSelected,
   }) {
     if (isSelected) return 0.0;
+    final isPresentationExpanded =
+        _presentationExpandedLocationIds.contains(locationId);
+    if (isPresentationExpanded) {
+      return _compactFadeByLocationId[locationId] ?? 0.0;
+    }
+    final shouldDefaultToCompact = _presentationDefaultsVisibleToCompact &&
+        _presentationVisibleLocationIds.contains(locationId);
+    if (shouldDefaultToCompact) {
+      return _compactFadeByLocationId[locationId] ?? 1.0;
+    }
     return _compactFadeByLocationId[locationId] ??
         (_compactLocationIds.contains(locationId) ? 1.0 : 0.0);
   }
@@ -1522,12 +1619,14 @@ class GeoJsonMapLayerService {
   }
 
   ui.Rect _expandScreenRect(ui.Rect rect) {
-    final horizontalInset = rect.width * _viewportOverscanFactor;
-    final verticalInset = rect.height * _viewportOverscanFactor;
+    final verticalInset = math.max(
+      _viewportMinVerticalOverscan,
+      rect.height * _viewportVerticalOverscanFactor,
+    );
     return ui.Rect.fromLTRB(
-      rect.left - horizontalInset,
+      rect.left,
       rect.top - verticalInset,
-      rect.right + horizontalInset,
+      rect.right,
       rect.bottom + verticalInset,
     );
   }

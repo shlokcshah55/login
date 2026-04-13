@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:developer';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -929,7 +928,7 @@ class LocationListManager with ChangeNotifier {
     required double latitude,
     required double longitude,
     double radiusKm = 5.0,
-    int maxResults = 30,
+    int maxResults = RecommendationsApi.defaultMaxResults,
     double qualityWeight = 0.40,
     double vibeWeight = 0.3,
     double dietaryWeight = 0.30,
@@ -1589,7 +1588,7 @@ class LocationListManager with ChangeNotifier {
   Future<bool> searchThisArea({
     required LatLng center,
     required double radiusKm,
-    int maxResults = 100,
+    int maxResults = RecommendationsApi.defaultMaxResults,
     double qualityWeight = 0.30,
     double vibeWeight = 0.25,
     double dietaryWeight = 0.10,

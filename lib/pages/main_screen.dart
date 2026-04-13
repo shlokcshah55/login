@@ -63,7 +63,7 @@ class _MainScreenState extends State<MainScreen> {
     final pages = [
       HomePage(isActive: _currentIndex == 0),
       const BubblesPage(),
-      const ProfilePage(),
+      ProfilePage(isActive: _currentIndex == 2),
     ];
 
     return Scaffold(

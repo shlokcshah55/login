@@ -1,8 +1,11 @@
+import 'dart:convert';
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:http/http.dart' as http;
 import 'package:login/services/apple_auth_service.dart';
 import 'package:login/services/push_notification_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -18,38 +21,6 @@ class AuthHelper {
   User? get currentUser => _client.auth.currentUser;
   bool get isAuthenticated => currentUser != null;
   Stream<AuthState> get onAuthStateChange => _client.auth.onAuthStateChange;
-
-  /// Resend the signup confirmation OTP to the given email
-  Future<void> resendSignUpOtp(String email) async {
-    try {
-      print(
-          '📤 [RESEND_OTP] Calling Supabase resend() with email: $email, type: signup');
-      await _client.auth.resend(type: OtpType.signup, email: email);
-      print('✅ [RESEND_OTP] Successfully sent OTP to $email');
-    } catch (e) {
-      print('❌ [RESEND_OTP] Error resending signup OTP to $email: $e');
-      rethrow;
-    }
-  }
-
-  /// Verify the signup confirmation OTP code
-  /// Returns true if verification succeeds (user is now confirmed and signed in)
-  Future<bool> verifyEmailOtp(String email, String token) async {
-    try {
-      print('🔐 [VERIFY_OTP] Verifying OTP for email: $email, token: $token');
-      final response = await _client.auth.verifyOTP(
-        email: email,
-        token: token,
-        type: OtpType.signup,
-      );
-      print(
-          '✅ [VERIFY_OTP] OTP verified successfully. User: ${response.user?.id}');
-      return response.user != null;
-    } catch (e) {
-      print('❌ [VERIFY_OTP] Error verifying signup OTP for $email: $e');
-      return false;
-    }
-  }
 
   /// Sign up a new user with email and password
   Future<UserModel> signUp(
@@ -74,16 +45,6 @@ class AuthHelper {
 
       final user = response.user!;
       print('✅ [SIGNUP] User created successfully: ${user.id}');
-
-      // Send OTP for email confirmation
-      print('📤 [OTP] Attempting to send OTP to $email...');
-      try {
-        await resendSignUpOtp(email);
-        print('✅ [OTP] OTP sent successfully to $email');
-      } catch (e) {
-        print('❌ [OTP] Failed to send OTP: $e');
-        // Don't throw - account was created, just warn about OTP
-      }
 
       await _client.rpc('create_user_profile', params: {
         'p_supabase_id': user.id,
@@ -269,6 +230,69 @@ class AuthHelper {
     } catch (e) {
       if (kDebugMode) {
         print('Error signing out: $e');
+      }
+      rethrow;
+    }
+  }
+
+  /// Permanently delete the current authenticated account.
+  ///
+  /// We sign out the client first so the local app session is torn down
+  /// immediately, then invoke the RPC once with the access token we captured
+  /// from the pre-sign-out session.
+  Future<void> deleteMyAccount() async {
+    try {
+      final session = _client.auth.currentSession;
+      if (session == null) {
+        throw Exception('User not authenticated');
+      }
+
+      final supabaseUrl = dotenv.env['SUPABASE_URL'];
+      final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
+      if (supabaseUrl == null || supabaseAnonKey == null) {
+        throw Exception('Supabase configuration missing');
+      }
+
+      final accessToken = session.accessToken;
+      await _client.auth.signOut();
+
+      final response = await http.post(
+        Uri.parse('$supabaseUrl/rest/v1/rpc/delete_my_account'),
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': 'Bearer $accessToken',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: '{}',
+      );
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final body = response.body.trim();
+        if (body.isNotEmpty) {
+          final decoded = jsonDecode(body);
+          if (decoded is Map<String, dynamic>) {
+            throw Exception(
+              decoded['error'] ??
+                  decoded['message'] ??
+                  'Failed to delete account',
+            );
+          }
+        }
+        throw Exception('Failed to delete account');
+      }
+
+      final result = Map<String, dynamic>.from(
+        jsonDecode(response.body) as Map,
+      );
+      if (result['success'] != true) {
+        throw Exception(
+          result['error'] as String? ?? 'Failed to delete account',
+        );
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error deleting account: $e');
       }
       rethrow;
     }
@@ -1012,6 +1036,37 @@ class AuthHelper {
         print('Error checking wizard completion: $e');
       }
       return false;
+    }
+  }
+
+  Future<bool> hasAcceptedLegalConsent(String userId) async {
+    try {
+      final response = await _client
+          .from(SupabaseConstants.tableUsers)
+          .select(SupabaseConstants.columnLegalConsentAcceptedAt)
+          .eq(SupabaseConstants.columnSupabaseId, userId)
+          .single();
+
+      return response[SupabaseConstants.columnLegalConsentAcceptedAt] != null;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error checking legal consent: $e');
+      }
+      return false;
+    }
+  }
+
+  Future<void> acceptLegalConsent(String userId) async {
+    try {
+      await _client.from(SupabaseConstants.tableUsers).update({
+        SupabaseConstants.columnLegalConsentAcceptedAt:
+            DateTime.now().toUtc().toIso8601String(),
+      }).eq(SupabaseConstants.columnSupabaseId, userId);
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error accepting legal consent: $e');
+      }
+      rethrow;
     }
   }
 

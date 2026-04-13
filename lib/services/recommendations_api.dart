@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:developer';
 
 import 'package:http/http.dart' as http;
 import 'package:login/models/proximal_models.dart';
 
 class RecommendationsApi {
+  static const int defaultMaxResults = 30;
   static const String _baseUrl =
       'https://pinit-recommendations-api-1070859807237.europe-west2.run.app';
   static const String _path = '/recommendations/proximal';
@@ -20,7 +20,7 @@ class RecommendationsApi {
     required double latitude,
     required double longitude,
     required double radiusKm,
-    int maxResults = 30,
+    int maxResults = defaultMaxResults,
     double qualityWeight = 0.30,
     double vibeWeight = 0.25,
     double dietaryWeight = 0.10,
@@ -30,6 +30,10 @@ class RecommendationsApi {
     List<String>? cuisines,
     Map<String, dynamic>? filters,
   }) async {
+    final effectiveMaxResults = maxResults < 1
+        ? 1
+        : (maxResults > defaultMaxResults ? defaultMaxResults : maxResults);
+
     // Build filters map — merge cuisines shortcut into explicit filters.
     final mergedFilters = <String, dynamic>{
       if (filters != null) ...filters,
@@ -40,7 +44,7 @@ class RecommendationsApi {
     print('🔍 [RecommendationsApi] fetchProximal called with parameters:');
     print('   userId: $userId');
     print('   latitude: $latitude, longitude: $longitude');
-    print('   radiusKm: $radiusKm, maxResults: $maxResults');
+    print('   radiusKm: $radiusKm, maxResults: $effectiveMaxResults');
     print('   weights — quality: $qualityWeight, vibe: $vibeWeight, dietary: $dietaryWeight, social: $socialWeight, collaborative: $collaborativeWeight');
     print('   filters: ${mergedFilters.isEmpty ? "(none)" : mergedFilters}');
     print('   includeTasteBreakdown: $includeTasteBreakdown');
@@ -50,7 +54,7 @@ class RecommendationsApi {
       latitude: latitude,
       longitude: longitude,
       radiusKm: radiusKm,
-      maxResults: maxResults,
+      maxResults: effectiveMaxResults,
       qualityWeight: qualityWeight,
       vibeWeight: vibeWeight,
       dietaryWeight: dietaryWeight,
@@ -121,7 +125,11 @@ class RecommendationsApi {
     final decoded = jsonDecode(response.body) as Map<String, dynamic>;
     final proximalResponse = ProximalResponse.fromJson(decoded);
 
-    print('✅ [RecommendationsApi] Success! Received ${proximalResponse.recommendations.length} recommendations');
+    print(
+      '✅ [RecommendationsApi] Success! Received '
+      '${proximalResponse.recommendations.length} recommendations '
+      '(requested: $effectiveMaxResults, total_results: ${proximalResponse.totalResults})',
+    );
 
     return proximalResponse;
   }
