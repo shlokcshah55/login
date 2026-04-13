@@ -6,7 +6,7 @@
 	<string>production</string>
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>group.com.example.srishlok.pinit</string>
+		<string>group.com.srishlok.pinit</string>
 	</array>
 </dict>
 </plist>

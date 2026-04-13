@@ -120,7 +120,7 @@ class ShareViewController: UIViewController {
 
         // Get userId from App Group UserDefaults
         print("🔍 Share Extension: Attempting to access App Group UserDefaults")
-        guard let userDefaults = UserDefaults(suiteName: "group.com.example.srishlok.pinit") else {
+        guard let userDefaults = UserDefaults(suiteName: "group.com.srishlok.pinit") else {
             print("❌ Share Extension: FAILED to access App Group UserDefaults!")
             DispatchQueue.main.async { [weak self] in
                 self?.showError("Configuration error - cannot access app group")
@@ -158,7 +158,7 @@ class ShareViewController: UIViewController {
         }
 
         // Create backend URL
-        let backendURLString = "https://tiktok-processor-3e26rjbtca-ew.a.run.app/process-share"
+        let backendURLString = "https://tiktok-processor-1070859807237.europe-west1.run.app/process-share"
         print("🔗 Share Extension: Backend URL: \(backendURLString)")
 
         guard let backendURL = URL(string: backendURLString) else {
