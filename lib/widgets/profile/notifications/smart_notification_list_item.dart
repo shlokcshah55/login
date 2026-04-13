@@ -8,6 +8,7 @@ import 'package:login/models/notifications/follow_request_notification.dart';
 import 'package:login/models/notifications/follow_accepted_notification.dart';
 import 'package:login/models/notifications/friend_visited_location_notification.dart';
 import 'package:login/models/notifications/proximity_location_notification.dart';
+import 'package:login/models/notifications/notes_import_complete_notification.dart';
 
 class SmartNotificationListItem extends StatelessWidget {
   final BaseNotification notification;
@@ -99,6 +100,23 @@ class SmartNotificationListItem extends StatelessWidget {
     }
 
     if (notification.type == NotificationType.proximityLocation) {
+      return Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: Colors.grey[300]!,
+            width: 1,
+          ),
+        ),
+        child: CircleAvatar(
+          radius: 20,
+          backgroundImage: const AssetImage('lib/assets/default_avatar.png'),
+          backgroundColor: Colors.grey[200],
+        ),
+      );
+    }
+
+    if (notification.type == NotificationType.notesImportComplete) {
       return Container(
         decoration: BoxDecoration(
           shape: BoxShape.circle,
@@ -334,6 +352,17 @@ class SmartNotificationListItem extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        );
+      case NotificationType.notesImportComplete:
+        final importNotif = notification as NotesImportCompleteNotification;
+        return Text(
+          importNotif.getMessage(),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: Colors.black87,
+            height: 1.3,
           ),
         );
     }

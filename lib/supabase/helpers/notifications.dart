@@ -23,6 +23,8 @@ class NotificationsHelper {
           .select('''
             ${SupabaseConstants.columnNotificationId},
             ${SupabaseConstants.columnType},
+            title,
+            message,
             ${SupabaseConstants.columnMetadata},
             ${SupabaseConstants.columnIsRead},
             ${SupabaseConstants.columnUserId},
@@ -92,8 +94,7 @@ class NotificationsHelper {
     try {
       await _client
           .from('notifications')
-          .update({'is_read': true})
-          .eq('notification_id', notificationId);
+          .update({'is_read': true}).eq('notification_id', notificationId);
 
       print('📲 Marked notification $notificationId as read in DB');
     } catch (e) {
@@ -114,8 +115,7 @@ class NotificationsHelper {
 
       await _client
           .from('notifications')
-          .update({'is_read': true})
-          .eq('user_id', userId);
+          .update({'is_read': true}).eq('user_id', userId);
 
       print('📲 Marked all notifications as read in DB');
     } catch (e) {
@@ -148,7 +148,8 @@ class NotificationsHelper {
           callback: (payload) {
             print('📲 Realtime notification received: ${payload.newRecord}');
             try {
-              final notification = BaseNotification.fromSupabase(payload.newRecord);
+              final notification =
+                  BaseNotification.fromSupabase(payload.newRecord);
               if (notification != null) {
                 onNewNotification(notification);
               }

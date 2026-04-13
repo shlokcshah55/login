@@ -107,6 +107,8 @@ class LocationListManager with ChangeNotifier {
   List<String> get cuisineTagIds => List.unmodifiable(_cuisineTagIds);
   bool get hasActiveFilters =>
       _vibeTagIds.isNotEmpty || _cuisineTagIds.isNotEmpty;
+  bool get isLoadingSaved => _isLoadingSaved;
+  bool get hasLoadedSavedLocations => _savedLocationsLoaded;
 
   // Device location getters - delegate to LocationService
   LatLng? get currentPosition => _locationService.currentPosition;
@@ -999,9 +1001,8 @@ class LocationListManager with ChangeNotifier {
     final vibeKeys = _vibeTagNames
         .map((name) => name.toLowerCase().replaceAll(' ', '_'))
         .toList();
-    final cuisineLower = _cuisineTagNames
-        .map((name) => name.toLowerCase())
-        .toList();
+    final cuisineLower =
+        _cuisineTagNames.map((name) => name.toLowerCase()).toList();
 
     print("🔍 [Filter] ────────────────────────────────────");
     print("🔍 [Filter] Applying filters to $type");

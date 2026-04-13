@@ -7,6 +7,7 @@ import 'package:login/models/notifications/friend_visited_location_notification.
 import 'package:login/models/notifications/bubble_message_notification.dart';
 import 'package:login/models/notifications/proximity_location_notification.dart';
 import 'package:login/models/notifications/user_added_to_bubble_notification.dart';
+import 'package:login/models/notifications/notes_import_complete_notification.dart';
 
 abstract class BaseNotification {
   final String id;
@@ -79,6 +80,8 @@ abstract class BaseNotification {
           return ProximityLocationNotification.fromFCMData(data);
         case 'user_added_to_bubble':
           return UserAddedToBubbleNotification.fromFCMData(data);
+        case 'notes_import_complete':
+          return NotesImportCompleteNotification.fromFCMData(data);
         default:
           print('Unknown notification type: $type');
           return null;
@@ -106,6 +109,8 @@ abstract class BaseNotification {
         'id': row['id'], // Map DB UUID to id field
         'timestamp': row['created_at'],
         'isRead': row['is_read'] ?? false,
+        'title': row['title'],
+        'body': row['message'],
         ...metadata, // Spread metadata fields into data map
       };
 
@@ -125,6 +130,8 @@ abstract class BaseNotification {
           return BubbleMessageNotification.fromFCMData(data);
         case 'user_added_to_bubble':
           return UserAddedToBubbleNotification.fromFCMData(data);
+        case 'notes_import_complete':
+          return NotesImportCompleteNotification.fromFCMData(data);
         default:
           print('Unknown notification type: $type');
           return null;

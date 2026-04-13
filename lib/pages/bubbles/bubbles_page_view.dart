@@ -414,7 +414,7 @@ class _BubblesPageViewState extends State<BubblesPageView> {
             Text(
               'No bubbles yet',
               style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w100,
                 color: const Color(0xFF5E3340),
               ),
             ),

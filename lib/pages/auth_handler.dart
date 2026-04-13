@@ -121,6 +121,11 @@ class _AuthHandlerState extends State<AuthHandler> {
           return const LoadingWidget();
         }
 
+        if (supabaseProvider.isAuthenticated &&
+            !supabaseProvider.hasValidSession) {
+          return const LoadingWidget();
+        }
+
         // Check Supabase authentication and session validity
         if (supabaseProvider.isAuthenticated &&
             supabaseProvider.hasValidSession) {

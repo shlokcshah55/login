@@ -267,6 +267,7 @@ class _HomePageState extends State<HomePage> {
           return Scaffold(
             resizeToAvoidBottomInset: false,
             body: Stack(
+              clipBehavior: Clip.none,
               children: [
                 // ─── Layer 1: Map ──────────────────────────────
                 Positioned.fill(
@@ -888,9 +889,11 @@ class _MagicSearchGeneratingCardState extends State<_MagicSearchGeneratingCard>
         child: AnimatedBuilder(
           animation: _shimmer,
           builder: (context, child) {
-            final pulse = (0.5 + 0.5 * Curves.easeInOut.transform(
-              (_shimmer.value * 2.0 % 1.0),
-            ));
+            final pulse = (0.5 +
+                0.5 *
+                    Curves.easeInOut.transform(
+                      (_shimmer.value * 2.0 % 1.0),
+                    ));
             return Opacity(
               opacity: 0.6 + 0.4 * pulse,
               child: child,
@@ -944,8 +947,8 @@ class _MagicSearchGeneratingCardState extends State<_MagicSearchGeneratingCard>
                         style: GoogleFonts.dmSans(
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
-                          color: pinit.PinitColors.cream
-                              .withValues(alpha: 0.78),
+                          color:
+                              pinit.PinitColors.cream.withValues(alpha: 0.78),
                           letterSpacing: 1.6,
                           height: 1,
                         ),

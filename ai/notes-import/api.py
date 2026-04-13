@@ -5,6 +5,8 @@ and saves them to the current user's account.
 """
 import logging
 import os
+import threading
+import uuid
 
 import httpx
 from flask import Flask, jsonify, request
@@ -25,6 +27,7 @@ REQUIRED_ENV_VARS = [
     "GOOGLE_PLACES_API_KEY",
     "SUPABASE_URL",
     "SUPABASE_SERVICE_KEY",
+    "API_SECRET_KEY",
 ]
 missing_vars = [var for var in REQUIRED_ENV_VARS if not os.getenv(var)]
 if missing_vars:
@@ -35,6 +38,11 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
+API_SECRET_KEY = os.getenv("API_SECRET_KEY")
+PUSH_NOTIFICATION_URL = os.getenv(
+    "PUSH_NOTIFICATION_URL",
+    "https://europe-west1-project-add4b0f5-0080-47ef-80f.cloudfunctions.net/send-push-notifications",
+)
 
 processor = NotesImportProcessor(
     openai_api_key=OPENAI_API_KEY,
@@ -99,6 +107,100 @@ def _extract_request_payload() -> tuple[str | None, str | None, bytes | None, st
     )
 
 
+def _get_user_fcm_token(user_id: str) -> str | None:
+    response = (
+        processor.supabase
+        .table("users")
+        .select("fcm_token")
+        .eq("supabase_id", user_id)
+        .maybe_single()
+        .execute()
+    )
+    if not response or not getattr(response, "data", None):
+        return None
+    return response.data.get("fcm_token")
+
+
+def _send_completion_notification(
+    *,
+    user_id: str,
+    source_name: str,
+    processed_count: int,
+    saved_count: int,
+) -> None:
+    fcm_token = _get_user_fcm_token(user_id)
+    if not fcm_token:
+        logger.warning("User %s has no fcm_token; skipping completion push", user_id)
+        return
+
+    title = "Import complete"
+    place_label = "place" if processed_count == 1 else "places"
+    body = f"We processed {processed_count} {place_label} from your document."
+
+    payload = {
+        "fcm_token": fcm_token,
+        "user_id": user_id,
+        "type": "notes_import_complete",
+        "title": title,
+        "body": body,
+        "metadata": {
+            "processedCount": processed_count,
+            "savedCount": saved_count,
+            "sourceName": source_name,
+        },
+    }
+
+    with httpx.Client(timeout=10.0) as client:
+        response = client.post(
+            PUSH_NOTIFICATION_URL,
+            headers={
+                "Authorization": f"Bearer {API_SECRET_KEY}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+        )
+        response.raise_for_status()
+
+
+def _process_import_async(
+    *,
+    user_id: str,
+    note_text: str,
+    source_name: str,
+    request_id: str,
+) -> None:
+    try:
+        logger.info("Starting async notes import %s for user %s", request_id, user_id)
+        result = processor.process_note(
+            user_id=user_id,
+            note_text=note_text,
+            source_name=source_name,
+        )
+        processed_count = int(result.get("matched_count") or result.get("extracted_count") or 0)
+        saved_count = int(result.get("saved_count") or 0)
+        _send_completion_notification(
+            user_id=user_id,
+            source_name=source_name,
+            processed_count=processed_count,
+            saved_count=saved_count,
+        )
+        logger.info(
+            "Finished async notes import %s for user %s with %s processed places and %s saved places",
+            request_id,
+            user_id,
+            processed_count,
+            saved_count,
+        )
+    except Exception as exc:
+        logger.error(
+            "Async notes import %s failed for user %s: %s",
+            request_id,
+            user_id,
+            exc,
+            exc_info=True,
+        )
+
+
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "healthy", "service": "notes-import"}), 200
@@ -154,14 +256,25 @@ def import_notes():
         if not note_text.strip():
             return jsonify({"success": False, "error": "The provided note content was empty"}), 400
 
-        result = processor.process_note(
-            user_id=effective_user_id,
-            note_text=note_text,
-            source_name=source_name,
-        )
+        request_id = str(uuid.uuid4())
+        threading.Thread(
+            target=_process_import_async,
+            kwargs={
+                "user_id": effective_user_id,
+                "note_text": note_text,
+                "source_name": source_name,
+                "request_id": request_id,
+            },
+            daemon=True,
+        ).start()
 
-        status_code = 200 if result.get("success") else 422
-        return jsonify(result), status_code
+        return jsonify({
+            "success": True,
+            "queued": True,
+            "request_id": request_id,
+            "source_name": source_name,
+            "message": "Import queued. We will notify you when processing is complete.",
+        }), 200
 
     except ValueError as exc:
         logger.warning("Validation error in /import-notes: %s", exc)
