@@ -55,7 +55,10 @@ Future<AppDependencies> bootstrap({
   print('🔧 Loading .env file...');
   await dotenv.load();
 
-  // Initialize Mapbox access token
+  // Initialize Mapbox access token. Telemetry opt-out is handled natively
+  // in ios/Runner/AppDelegate.swift and android/.../MainActivity.kt — the
+  // Flutter plugin (mapbox_maps_flutter 2.12.0) does not expose a Dart API
+  // for it, so this has to be done on each platform's side at app launch.
   final mapboxToken = dotenv.env['MAPBOX_ACCESS_TOKEN'] ?? '';
   mapbox.MapboxOptions.setAccessToken(mapboxToken);
   print('✅ Mapbox access token configured');

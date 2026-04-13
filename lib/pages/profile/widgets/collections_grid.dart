@@ -182,6 +182,9 @@ class _CollectionsGridState extends State<CollectionsGrid>
           ? _helper.autoUpdateCollections(authUser.id)
           : _helper.generateCollections(authUser.id));
 
+      if (mounted) {
+        context.read<LocationListManager>().invalidateAllCollectionCaches();
+      }
       if (!_hasGenerated && mounted) setState(() => _hasGenerated = true);
 
       // Snap to 100% on success
@@ -1106,6 +1109,9 @@ class CollectionDetailSheetState extends State<CollectionDetailSheet> {
     try {
       await _helper.deleteCollection(widget.collection.id);
       if (!mounted) return;
+      context
+          .read<LocationListManager>()
+          .invalidateCollectionCache(widget.collection.id);
       Navigator.of(context).pop();
       widget.onDeleted?.call();
     } catch (e) {
@@ -1138,11 +1144,15 @@ class CollectionDetailSheetState extends State<CollectionDetailSheet> {
       final mapStateProvider = context.read<MapStateProvider>();
       final navigationProvider = context.read<NavigationProvider>();
 
-      await locationListManager.showLocationsOnMap(validLocations);
-      mapStateProvider.setSelectedMarkerId(
-        validLocations.first.locationId.toString(),
+      final shown = await locationListManager.showCollectionLocations(
+        widget.collection.id,
+        () async => validLocations,
       );
-      await mapStateProvider.focusOnLocations(validLocations);
+      final toFocus = shown.isNotEmpty ? shown : validLocations;
+      mapStateProvider.setSelectedMarkerId(
+        toFocus.first.locationId.toString(),
+      );
+      await mapStateProvider.focusOnLocations(toFocus);
 
       if (!mounted) return;
       navigationProvider.navigateToTab(0);
@@ -1716,6 +1726,9 @@ class _EditCollectionSheetState extends State<_EditCollectionSheet> {
     try {
       await _helper.deleteCollection(widget.collection.id);
       if (!mounted) return;
+      context
+          .read<LocationListManager>()
+          .invalidateCollectionCache(widget.collection.id);
       Navigator.pop(context);
       await widget.onSaved();
     } catch (e) {

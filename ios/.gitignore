@@ -33,3 +33,5 @@ Runner/GeneratedPluginRegistrant.*
 !default.pbxuser
 !default.perspectivev3
 Runner/Info.plist
+ShareViewController.swift
+Runner/RunnerRelease.entitlements
