@@ -17,7 +17,8 @@ class SupabaseConstants {
   static const String tableUserTagAffinities = 'user_tag_affinities';
   static const String tableNotifications = 'notifications';
   static const String tableRecommendationRuns = 'recommendation_runs';
-  static const String tableRecommendationCandidates = 'recommendation_candidates';
+  static const String tableRecommendationCandidates =
+      'recommendation_candidates';
   static const String tableUserRecommendations = 'user_recommendations';
   static const String tableMessages = 'messages';
   static const String tableUserChatState = 'user_chat_state';
@@ -30,13 +31,16 @@ class SupabaseConstants {
   static const String columnBio = 'bio';
   static const String columnProfileImageUrl = 'profile_image_url';
   static const String columnWizardCompleted = 'wizard_completed';
+  static const String columnLegalConsentAcceptedAt =
+      'legal_consent_accepted_at';
   static const String columnGeneratedCollections = 'generated_collections';
   static const String columnUsername = 'username';
   static const String columnSpiceTolerance = 'spice_tolerance';
   static const String columnFcmToken = 'fcm_token';
   static const String columnFcmTokenUpdatedAt = 'fcm_token_updated_at';
   static const String columnVibeTagAffinity = 'vibe_tag_affinity';
-  static const String columnDietaryRequirementTagAffinity = 'dietary_requirement_tag_affinity';
+  static const String columnDietaryRequirementTagAffinity =
+      'dietary_requirement_tag_affinity';
 
   // Column names - locations
   static const String columnLocationId = 'location_id';
@@ -57,7 +61,8 @@ class SupabaseConstants {
   static const String columnBusinessStatus = 'business_status';
   static const String columnEditorialSummary = 'editorial_summary';
   static const String columnWebsite = 'website';
-  static const String columnInternationalPhoneNumber = 'international_phone_number';
+  static const String columnInternationalPhoneNumber =
+      'international_phone_number';
   static const String columnTypes = 'types';
   static const String columnOpeningHoursText = 'opening_hours_text';
   static const String columnOpeningHoursPeriods = 'opening_hours_periods';
@@ -67,7 +72,8 @@ class SupabaseConstants {
   static const String columnCuisinePrimary = 'cuisine_primary';
   static const String columnTopReviewLanguage = 'top_review_language';
   static const String columnTopLanguageShare = 'top_language_share';
-  static const String columnReviewLanguageCountsJson = 'review_language_counts_json';
+  static const String columnReviewLanguageCountsJson =
+      'review_language_counts_json';
   static const String columnIsOpenLate = 'is_open_late';
   static const String columnIsOpenEarly = 'is_open_early';
   static const String columnIsSundayOpen = 'is_sunday_open';
@@ -76,7 +82,8 @@ class SupabaseConstants {
   static const String columnDerivedAttributes = 'derived_attributes';
   static const String columnDataVersion = 'data_version';
   static const String columnIngestedAt = 'ingested_at';
-  static const String columnPhotoReferenceValidUntil = 'photo_reference_valid_until';
+  static const String columnPhotoReferenceValidUntil =
+      'photo_reference_valid_until';
   static const String columnPhotoReferenceScore = 'photo_reference_score';
   static const String columnImageStored = 'image_stored';
   static const String columnEmoji = 'emoji';
@@ -101,12 +108,14 @@ class SupabaseConstants {
   static const String columnServesWine = 'serves_wine';
   static const String columnMenu = 'menu';
   static const String columnGeneratedSummary = 'generated_summary';
-  static const String columnRecommendedDishes = 'reccomended_dishes'; // note: DB typo preserved
+  static const String columnRecommendedDishes =
+      'reccomended_dishes'; // note: DB typo preserved
   static const String columnMenuAnalysisConfidence = 'menu_analysis_confidence';
   static const String columnVibeVector = 'vibe_vector';
   static const String columnUpdatedVibe = 'updated_vibe';
   static const String columnIsTakeaway = 'is_takeaway';
-  static const String columnDietaryRequirementVector = 'dietary_requirement_vector';
+  static const String columnDietaryRequirementVector =
+      'dietary_requirement_vector';
   static const String columnCuisineScoresJson = 'cuisine_scores_json';
 
   // Column names - videos
@@ -231,8 +240,7 @@ class SupabaseConstants {
   static const String tagTypeVibe = 'vibe';
   static const String tagTypeCuisine = 'cuisine';
 
-  static const String supabaseStorageBucketProfileImages =
-      'profile_photos';
+  static const String supabaseStorageBucketProfileImages = 'profile_photos';
 
   static const String supabaseStorageBucketCollectionCovers =
       'collection_covers';

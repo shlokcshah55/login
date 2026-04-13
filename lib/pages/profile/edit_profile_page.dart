@@ -7,8 +7,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/users.dart';
+import '../../providers/location_list_provider.dart';
 import '../../providers/user_data_provider.dart';
 import '../../supabase/service.dart';
+import '../auth_handler.dart';
 import 'user_list_page.dart';
 import 'widgets/pinit_colors.dart';
 
@@ -28,6 +30,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   File? _pendingPhoto;
   bool _saving = false;
+  bool _deleting = false;
   String? _error;
 
   @override
@@ -117,13 +120,16 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
       if (!mounted) return;
 
-      if (ok || (newName == (user.name ?? '') && newBio == (user.bio ?? '') && _pendingPhoto == null)) {
+      if (ok ||
+          (newName == (user.name ?? '') &&
+              newBio == (user.bio ?? '') &&
+              _pendingPhoto == null)) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('Profile updated'),
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
         Navigator.of(context).pop(true);
@@ -134,6 +140,162 @@ class _EditProfilePageState extends State<EditProfilePage> {
       if (mounted) setState(() => _error = 'Could not save changes.');
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _confirmDeleteAccount() async {
+    if (_deleting) return;
+    HapticFeedback.heavyImpact();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: PinitColors.cream,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: const BorderSide(
+            color: PinitColors.creamDeep,
+            width: 1.5,
+          ),
+        ),
+        titlePadding: const EdgeInsets.fromLTRB(24, 22, 24, 8),
+        contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        title: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: PinitColors.accent.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.delete_forever_rounded,
+                color: PinitColors.accent,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Delete account?',
+                style: GoogleFonts.dmSans(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: PinitColors.aubergine,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'This action is irreversible and permanent. Once you delete your account, it cannot be restored.',
+          style: GoogleFonts.dmSans(
+            fontSize: 14,
+            height: 1.45,
+            color: PinitColors.aubergineSoft,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.dmSans(
+                fontWeight: FontWeight.w700,
+                color: PinitColors.aubergineSoft,
+              ),
+            ),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: PinitColors.accent,
+              foregroundColor: PinitColors.cream,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(
+              'Delete account',
+              style: GoogleFonts.dmSans(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final supabase = context.read<SupabaseService>();
+    final userData = context.read<UserDataProvider>();
+    final locationList = context.read<LocationListManager>();
+
+    setState(() {
+      _deleting = true;
+      _error = null;
+    });
+
+    try {
+      await supabase.users.deleteMyAccount();
+
+      if (!mounted) return;
+
+      await userData.clearUserData();
+      locationList.clearData();
+
+      if (!mounted) return;
+
+      messenger.showSnackBar(
+        SnackBar(
+          content: const Text('Account deleted'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const AuthHandler()),
+        (route) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      if (!supabase.isAuthenticated) {
+        await userData.clearUserData();
+        locationList.clearData();
+
+        if (!mounted) return;
+
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              'Signed out, but account deletion failed. ${e.toString()}',
+            ),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const AuthHandler()),
+          (route) => false,
+        );
+      } else {
+        setState(() {
+          _error = 'Could not delete account. ${e.toString()}';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _deleting = false);
+      }
     }
   }
 
@@ -180,6 +342,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
                           ),
                           const SizedBox(height: 26),
                           _buildBlockedUsersTile(),
+                          const SizedBox(height: 28),
+                          _buildDeleteAccountSection(),
                           if (_error != null) ...[
                             const SizedBox(height: 18),
                             _buildErrorBanner(_error!),
@@ -248,8 +412,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: PinitColors.creamSunk,
-                    border: Border.all(
-                        color: PinitColors.creamDeep, width: 2),
+                    border: Border.all(color: PinitColors.creamDeep, width: 2),
                     boxShadow: PinitColors.subtleShadow,
                     image: preview != null
                         ? DecorationImage(image: preview, fit: BoxFit.cover)
@@ -269,8 +432,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   decoration: BoxDecoration(
                     color: PinitColors.aubergine,
                     shape: BoxShape.circle,
-                    border:
-                        Border.all(color: PinitColors.cream, width: 3),
+                    border: Border.all(color: PinitColors.cream, width: 3),
                   ),
                   child: const Icon(
                     Icons.camera_alt_rounded,
@@ -285,7 +447,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
           GestureDetector(
             onTap: _showPhotoSourceSheet,
             child: Text(
-              _pendingPhoto != null ? 'Photo ready to save' : 'Tap to change photo',
+              _pendingPhoto != null
+                  ? 'Photo ready to save'
+                  : 'Tap to change photo',
               style: GoogleFonts.dmSans(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
@@ -457,6 +621,92 @@ class _EditProfilePageState extends State<EditProfilePage> {
     );
   }
 
+  Widget _buildDeleteAccountSection() {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7F4),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: PinitColors.accent.withValues(alpha: 0.18),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'ACCOUNT',
+            style: GoogleFonts.dmSans(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: PinitColors.accent,
+              letterSpacing: 1.4,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Delete account',
+            style: const TextStyle(
+              fontFamily: 'Rova',
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              color: PinitColors.aubergine,
+              letterSpacing: 1.2,
+              height: 1.05,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'This is permanent. You will not be able to undo it once confirmed.',
+            style: GoogleFonts.dmSans(
+              fontSize: 13,
+              height: 1.45,
+              color: PinitColors.aubergineSoft,
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: PinitColors.accent,
+                side: BorderSide(
+                  color: PinitColors.accent.withValues(alpha: 0.28),
+                  width: 1.5,
+                ),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+              ),
+              onPressed: _deleting ? null : _confirmDeleteAccount,
+              icon: _deleting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(PinitColors.accent),
+                      ),
+                    )
+                  : const Icon(Icons.delete_forever_rounded, size: 20),
+              label: Text(
+                _deleting ? 'Deleting account...' : 'Delete account',
+                style: GoogleFonts.dmSans(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSaveBar() {
     return Padding(
       padding: EdgeInsets.fromLTRB(
@@ -472,7 +722,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(999),
-            onTap: _saving ? null : _save,
+            onTap: (_saving || _deleting) ? null : _save,
             child: Ink(
               decoration: BoxDecoration(
                 color: PinitColors.aubergine,

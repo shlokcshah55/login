@@ -140,7 +140,7 @@ class _WelcomePageState extends State<WelcomePage> {
           ),
           // Optional dark overlay to improve contrast over the image
           Positioned.fill(
-            child: Container(color: Colors.black.withOpacity(0.35)),
+            child: Container(color: Colors.black.withValues(alpha: 0.35)),
           ),
           // Foreground content (kept same as before)
           SafeArea(
@@ -213,7 +213,7 @@ class _WelcomePageState extends State<WelcomePage> {
                         backgroundColor: Colors.white,
                         foregroundColor: Colors.black87,
                         elevation: 4,
-                        shadowColor: Colors.black.withOpacity(0.3),
+                        shadowColor: Colors.black.withValues(alpha: 0.3),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
@@ -246,7 +246,7 @@ class _WelcomePageState extends State<WelcomePage> {
                         child: Text(
                           'Or continue with',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.8),
+                            color: Colors.white.withValues(alpha: 0.8),
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
                           ),
@@ -285,7 +285,8 @@ class _WelcomePageState extends State<WelcomePage> {
                                 backgroundColor: Colors.white,
                                 foregroundColor: Colors.black87,
                                 elevation: 4,
-                                shadowColor: Colors.black.withOpacity(0.3),
+                                shadowColor:
+                                    Colors.black.withValues(alpha: 0.3),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(16),
                                 ),
@@ -331,7 +332,7 @@ class _WelcomePageState extends State<WelcomePage> {
                           backgroundColor: Colors.white,
                           foregroundColor: Colors.black87,
                           elevation: 4,
-                          shadowColor: Colors.black.withOpacity(0.3),
+                          shadowColor: Colors.black.withValues(alpha: 0.3),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
                           ),
@@ -379,7 +380,7 @@ class _SocialAuthButton extends StatelessWidget {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black87,
         elevation: 4,
-        shadowColor: Colors.black.withOpacity(0.3),
+        shadowColor: Colors.black.withValues(alpha: 0.3),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),

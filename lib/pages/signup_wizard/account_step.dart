@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
@@ -11,6 +10,7 @@ import '../../animations/common_animations.dart';
 import '../../animations/animation_constants.dart';
 import '../../models/signup_wizard_state.dart';
 import '../../supabase/service.dart';
+import '../../widgets/auth/legal_consent_section.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/profile/profile_photo_selector.dart';
 import '../auth_handler.dart';
@@ -39,19 +39,15 @@ class _AccountStepState extends State<AccountStep>
   final TextEditingController nameController = TextEditingController();
   final TextEditingController usernameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
-  final TextEditingController otpController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
-  final TextEditingController confirmPasswordController = TextEditingController();
+  final TextEditingController confirmPasswordController =
+      TextEditingController();
 
   // Focus nodes for fields (keep keyboard open and control focus)
   late FocusNode nameFocusNode;
   late FocusNode emailFocusNode;
-  late FocusNode otpFocusNode;
   late FocusNode passwordFocusNode;
   late FocusNode usernameFocusNode;
-
-  bool _isSendingOtp = false;
-  bool _isVerifyingOtp = false;
 
   // Profile picture state
   File? _selectedProfileImage;
@@ -62,6 +58,7 @@ class _AccountStepState extends State<AccountStep>
   bool isLoading = false;
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
+  bool _legalConsentChecked = false;
 
   @override
   void initState() {
@@ -71,7 +68,6 @@ class _AccountStepState extends State<AccountStep>
     // initialize focus nodes
     nameFocusNode = FocusNode();
     emailFocusNode = FocusNode();
-    otpFocusNode = FocusNode();
     passwordFocusNode = FocusNode();
     usernameFocusNode = FocusNode();
 
@@ -82,20 +78,28 @@ class _AccountStepState extends State<AccountStep>
     });
   }
 
-  
+  Future<bool> _ensureLegalConsentAccepted() async {
+    if (!_legalConsentChecked) {
+      errorNotifier.value =
+          'Please agree to the Terms and Conditions and Privacy Policy.';
+      return false;
+    }
+
+    errorNotifier.value = null;
+    return true;
+  }
+
   @override
   void dispose() {
     _pageController.dispose();
     _transitionController.dispose();
     nameController.dispose();
     emailController.dispose();
-    otpController.dispose();
     passwordController.dispose();
     confirmPasswordController.dispose();
     errorNotifier.dispose();
     nameFocusNode.dispose();
     emailFocusNode.dispose();
-    otpFocusNode.dispose();
     passwordFocusNode.dispose();
     usernameFocusNode.dispose();
     usernameController.dispose();
@@ -115,17 +119,25 @@ class _AccountStepState extends State<AccountStep>
       animation: _transitionController,
       builder: (context, child) {
         return Transform.rotate(
-          angle: AnimationBuilders.createRotationAnimation(_transitionController).value,
+          angle:
+              AnimationBuilders.createRotationAnimation(_transitionController)
+                  .value,
           child: Transform.translate(
             offset: Offset(
               0,
-              AnimationBuilders.createMainSlideAnimation(_transitionController).value.dy *
+              AnimationBuilders.createMainSlideAnimation(_transitionController)
+                      .value
+                      .dy *
                   MediaQuery.of(context).size.height,
             ),
             child: Opacity(
-              opacity: AnimationBuilders.createFadeAnimation(_transitionController).value,
+              opacity:
+                  AnimationBuilders.createFadeAnimation(_transitionController)
+                      .value,
               child: Transform.scale(
-                scale: AnimationBuilders.createScaleAnimation(_transitionController).value,
+                scale: AnimationBuilders.createScaleAnimation(
+                        _transitionController)
+                    .value,
                 child: child,
               ),
             ),
@@ -136,7 +148,7 @@ class _AccountStepState extends State<AccountStep>
     );
   }
 
-  Future<bool> _validateUserName() async{
+  Future<bool> _validateUserName() async {
     final username = usernameController.text.trim();
     if (username.isEmpty) {
       errorNotifier.value = 'Username cannot be empty';
@@ -148,7 +160,8 @@ class _AccountStepState extends State<AccountStep>
       return false;
     }
 
-    final _supabaseService = Provider.of<SupabaseService>(context, listen: false);
+    final _supabaseService =
+        Provider.of<SupabaseService>(context, listen: false);
 
     if (await _supabaseService.users.usernameExists(username) == true) {
       errorNotifier.value = 'Username is already in use, please choose another';
@@ -183,9 +196,11 @@ class _AccountStepState extends State<AccountStep>
       return false;
     }
 
-    final _supabaseService = Provider.of<SupabaseService>(context, listen: false);
+    final _supabaseService =
+        Provider.of<SupabaseService>(context, listen: false);
 
-    if (await _supabaseService.users.emailExists(emailController.text) == true) {
+    if (await _supabaseService.users.emailExists(emailController.text) ==
+        true) {
       errorNotifier.value = 'Email is already in use, please sign in';
       return false;
     }
@@ -221,7 +236,8 @@ class _AccountStepState extends State<AccountStep>
   }
 
   Future<void> _advanceToNextSubStep() async {
-    print('⏭️ [ADVANCE] Moving from step $_currentSubStep to ${_currentSubStep + 1}');
+    print(
+        '⏭️ [ADVANCE] Moving from step $_currentSubStep to ${_currentSubStep + 1}');
 
     // Reverse animation
     await _transitionController.reverse();
@@ -253,6 +269,11 @@ class _AccountStepState extends State<AccountStep>
       return;
     }
 
+    if (!await _ensureLegalConsentAccepted()) {
+      print('❌ [CREATE_ACCOUNT] Legal consent not accepted');
+      return;
+    }
+
     setState(() => isLoading = true);
     errorNotifier.value = null;
 
@@ -263,9 +284,9 @@ class _AccountStepState extends State<AccountStep>
       final wizardState =
           Provider.of<SignupWizardState>(context, listen: false);
 
-      // Create Supabase account — with "Confirm email" enabled in Supabase,
-      // this sends a 6-digit OTP to the user's email automatically
-      print('📝 [CREATE_ACCOUNT] Calling signUp with email: ${emailController.text}');
+      // Create the Supabase account and continue directly into the app.
+      print(
+          '📝 [CREATE_ACCOUNT] Calling signUp with email: ${emailController.text}');
       String userID = await supabaseProvider.signUp(
         emailController.text,
         passwordController.text,
@@ -282,86 +303,25 @@ class _AccountStepState extends State<AccountStep>
       wizardState.setUserId(userID);
       wizardState.setAccountInfo(nameController.text, emailController.text);
 
-      print('➡️ [CREATE_ACCOUNT] Advancing to OTP verification step...');
-      // Advance to OTP verification step
-      _advanceToNextSubStep();
+      print('🏷️ [CREATE_ACCOUNT] Initializing vibe tags for user: $userID');
+      await supabaseProvider.tags.initializeVibeTagsForUser(userID);
+
+      print('⏳ [CREATE_ACCOUNT] Waiting for authenticated session...');
+      int retryCount = 0;
+      while (supabaseProvider.users.currentUser == null && retryCount < 10) {
+        await Future.delayed(const Duration(milliseconds: 200));
+        retryCount++;
+      }
+
+      print('✅ [CREATE_ACCOUNT] Session ready (retries: $retryCount)');
+      await supabaseProvider.users.acceptLegalConsent(userID);
+      await _addProfilePic();
     } catch (e) {
       print('❌ [CREATE_ACCOUNT] Error: ${e.toString()}');
       errorNotifier.value = 'Sign up failed: ${e.toString()}';
     } finally {
       if (mounted) {
         setState(() => isLoading = false);
-      }
-    }
-  }
-
-  /// Verify the OTP code and complete account setup
-  Future<void> _verifyOtpAndComplete() async {
-    final code = otpController.text.trim();
-    print('🔐 [VERIFY] OTP input: "$code"');
-
-    if (code.isEmpty) {
-      print('❌ [VERIFY] Code is empty');
-      errorNotifier.value = 'Please enter the verification code';
-      return;
-    }
-    if (code.length != 6) {
-      print('❌ [VERIFY] Code length is ${code.length}, expected 6');
-      errorNotifier.value = 'Code must be 6 digits';
-      return;
-    }
-
-    setState(() => _isVerifyingOtp = true);
-    errorNotifier.value = null;
-
-    try {
-      print('🚀 [VERIFY] Starting OTP verification...');
-      final supabaseProvider =
-          Provider.of<SupabaseService>(context, listen: false);
-      final wizardState =
-          Provider.of<SignupWizardState>(context, listen: false);
-
-      // Verify the signup confirmation OTP
-      print('📧 [VERIFY] Verifying with email: ${emailController.text.trim()}, code: $code');
-      final verified = await supabaseProvider.users.verifyEmailOtp(
-        emailController.text.trim(),
-        code,
-      );
-
-      print('✅ [VERIFY] Verification result: $verified');
-
-      if (!verified) {
-        print('❌ [VERIFY] OTP verification failed');
-        errorNotifier.value = 'Invalid code. Please try again.';
-        return;
-      }
-
-      print('✅ [VERIFY] Email verified successfully');
-
-      // Email verified — now initialize vibe tags
-      if (wizardState.userId != null) {
-        print('🏷️ [VERIFY] Initializing vibe tags for user: ${wizardState.userId}');
-        await supabaseProvider.tags.initializeVibeTagsForUser(wizardState.userId!);
-      }
-
-      // Spinning for user to be fully registered
-      print('⏳ [VERIFY] Waiting for user to be fully registered...');
-      int retryCount = 0;
-      while (supabaseProvider.users.currentUser == null && retryCount < 10) {
-        await Future.delayed(const Duration(milliseconds: 200));
-        retryCount++;
-      }
-      print('✅ [VERIFY] User registration complete (retries: $retryCount)');
-
-      // Advance to profile picture step
-      print('➡️ [VERIFY] Advancing to profile picture step...');
-      await _addProfilePic();
-    } catch (e) {
-      print('❌ [VERIFY] Error: ${e.toString()}');
-      errorNotifier.value = 'Verification failed: ${e.toString()}';
-    } finally {
-      if (mounted) {
-        setState(() => _isVerifyingOtp = false);
       }
     }
   }
@@ -425,11 +385,8 @@ class _AccountStepState extends State<AccountStep>
         final fileExt = imageToUpload.path.split('.').last;
         final filePath = '${wizardState.userId}.$fileExt';
 
-        String profilePictureUrl = await supabaseService.users.uploadImage(
-          imageToUpload,
-          filePath,
-          wizardState.userId!
-        );
+        String profilePictureUrl = await supabaseService.users
+            .uploadImage(imageToUpload, filePath, wizardState.userId!);
 
         wizardState.setProfilePicture(profilePictureUrl);
       }
@@ -458,10 +415,10 @@ class _AccountStepState extends State<AccountStep>
     final baseHeight = screenHeight * 0.75;
 
     final topBuffer = 80.0;
-    // Available height when keyboard is open 
+    // Available height when keyboard is open
     final availableHeight = max(0.0, screenHeight - keyboardHeight - topBuffer);
-    final containerHeight = lockKeyboard ? min(baseHeight, availableHeight) : baseHeight;
-
+    final containerHeight =
+        lockKeyboard ? min(baseHeight, availableHeight) : baseHeight;
 
     final content = lockKeyboard
         ? SizedBox(
@@ -525,8 +482,10 @@ class _AccountStepState extends State<AccountStep>
         style: GoogleFonts.dmSans(fontSize: 15, color: PinitColors.aubergine),
         decoration: InputDecoration(
           hintText: hintText,
-          hintStyle: TextStyle(color: PinitColors.aubergineSoft.withValues(alpha: 0.6)),
-          prefixIcon: Icon(icon, color: PinitColors.aubergineSoft.withValues(alpha: 0.6)),
+          hintStyle: TextStyle(
+              color: PinitColors.aubergineSoft.withValues(alpha: 0.6)),
+          prefixIcon: Icon(icon,
+              color: PinitColors.aubergineSoft.withValues(alpha: 0.6)),
           suffixIcon: suffixIcon,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
@@ -587,7 +546,8 @@ class _AccountStepState extends State<AccountStep>
               const SizedBox(width: 8),
               GestureDetector(
                 onTap: () => errorNotifier.value = null,
-                child: Icon(Icons.close, size: 18, color: PinitColors.aubergine),
+                child:
+                    Icon(Icons.close, size: 18, color: PinitColors.aubergine),
               ),
             ],
           ),
@@ -617,28 +577,12 @@ class _AccountStepState extends State<AccountStep>
         FocusScope.of(context).requestFocus(passwordFocusNode);
         break;
       case 4:
-        print('📍 [FOCUS] Reached OTP step - sending OTP now!');
-        FocusScope.of(context).requestFocus(otpFocusNode);
-        // Send OTP when we reach the OTP verification step
-        _sendOtpOnReachingStep();
+        print('📍 [FOCUS] Reached Profile Picture step');
+        FocusScope.of(context).unfocus();
         break;
       default:
         print('📍 [FOCUS] Reached default step');
         FocusScope.of(context).unfocus();
-    }
-  }
-
-  // Send OTP when reaching the OTP verification step
-  Future<void> _sendOtpOnReachingStep() async {
-    print('🚀 [SEND_OTP] Attempting to send OTP to ${emailController.text}');
-    try {
-      final supabaseProvider =
-          Provider.of<SupabaseService>(context, listen: false);
-      await supabaseProvider.users.resendSignUpOtp(emailController.text.trim());
-      print('✅ [SEND_OTP] OTP sent successfully!');
-    } catch (e) {
-      print('❌ [SEND_OTP] Failed to send OTP: $e');
-      // Don't show error since they can manually resend
     }
   }
 
@@ -664,10 +608,12 @@ class _AccountStepState extends State<AccountStep>
           },
           children: [
             _buildKeyboardAwareSubStep(_buildNameSubStep(), lockKeyboard: true),
-            _buildKeyboardAwareSubStep(_buildUserNameSubStep(), lockKeyboard: true),
-            _buildKeyboardAwareSubStep(_buildEmailSubStep(), lockKeyboard: true),
-            _buildKeyboardAwareSubStep(_buildPasswordSubStep(), lockKeyboard: true),
-            _buildKeyboardAwareSubStep(_buildOtpSubStep(), lockKeyboard: true),
+            _buildKeyboardAwareSubStep(_buildUserNameSubStep(),
+                lockKeyboard: true),
+            _buildKeyboardAwareSubStep(_buildEmailSubStep(),
+                lockKeyboard: true),
+            _buildKeyboardAwareSubStep(_buildPasswordSubStep(),
+                lockKeyboard: true),
             _buildKeyboardAwareSubStep(_buildProfilePictureSubStep()),
           ],
         ),
@@ -683,9 +629,11 @@ class _AccountStepState extends State<AccountStep>
         children: [
           // Top text with stagger
           SlideTransition(
-            position: AnimationBuilders.createTextSlideAnimation(_transitionController),
+            position: AnimationBuilders.createTextSlideAnimation(
+                _transitionController),
             child: FadeTransition(
-              opacity: AnimationBuilders.createFadeAnimation(_transitionController),
+              opacity:
+                  AnimationBuilders.createFadeAnimation(_transitionController),
               child: Column(
                 children: [
                   TypingText(
@@ -701,8 +649,7 @@ class _AccountStepState extends State<AccountStep>
                     ),
                     totalDuration: const Duration(milliseconds: 2200),
                   ),
-                                    const SizedBox(height: 15),
-
+                  const SizedBox(height: 15),
                 ],
               ),
             ),
@@ -711,9 +658,11 @@ class _AccountStepState extends State<AccountStep>
 
           // Middle: Name field
           SlideTransition(
-            position: AnimationBuilders.createFieldSlideAnimation(_transitionController),
+            position: AnimationBuilders.createFieldSlideAnimation(
+                _transitionController),
             child: FadeTransition(
-              opacity: AnimationBuilders.createFadeAnimation(_transitionController),
+              opacity:
+                  AnimationBuilders.createFadeAnimation(_transitionController),
               child: Column(
                 children: [
                   _buildErrorBanner(),
@@ -731,9 +680,11 @@ class _AccountStepState extends State<AccountStep>
 
           // Bottom: Continue button
           SlideTransition(
-            position: AnimationBuilders.createBottomSlideAnimation(_transitionController),
+            position: AnimationBuilders.createBottomSlideAnimation(
+                _transitionController),
             child: FadeTransition(
-              opacity: AnimationBuilders.createFadeAnimation(_transitionController),
+              opacity:
+                  AnimationBuilders.createFadeAnimation(_transitionController),
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 12),
                 decoration: BoxDecoration(
@@ -786,7 +737,7 @@ class _AccountStepState extends State<AccountStep>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Box space 
+                // Box space
                 const SizedBox(height: 30),
                 // Quote text
                 Text(
@@ -816,9 +767,11 @@ class _AccountStepState extends State<AccountStep>
         children: [
           // Top text with stagger
           SlideTransition(
-            position: AnimationBuilders.createTextSlideAnimation(_transitionController),
+            position: AnimationBuilders.createTextSlideAnimation(
+                _transitionController),
             child: FadeTransition(
-              opacity: AnimationBuilders.createFadeAnimation(_transitionController),
+              opacity:
+                  AnimationBuilders.createFadeAnimation(_transitionController),
               child: Column(
                 children: [
                   const SizedBox(height: 16),
@@ -842,9 +795,11 @@ class _AccountStepState extends State<AccountStep>
 
           // Middle: Name field
           SlideTransition(
-            position: AnimationBuilders.createFieldSlideAnimation(_transitionController),
+            position: AnimationBuilders.createFieldSlideAnimation(
+                _transitionController),
             child: FadeTransition(
-              opacity: AnimationBuilders.createFadeAnimation(_transitionController),
+              opacity:
+                  AnimationBuilders.createFadeAnimation(_transitionController),
               child: Column(
                 children: [
                   _buildErrorBanner(),
@@ -858,13 +813,14 @@ class _AccountStepState extends State<AccountStep>
               ),
             ),
           ),
-          
 
           // Bottom: Continue button
           SlideTransition(
-            position: AnimationBuilders.createBottomSlideAnimation(_transitionController),
+            position: AnimationBuilders.createBottomSlideAnimation(
+                _transitionController),
             child: FadeTransition(
-              opacity: AnimationBuilders.createFadeAnimation(_transitionController),
+              opacity:
+                  AnimationBuilders.createFadeAnimation(_transitionController),
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 12),
                 decoration: BoxDecoration(
@@ -946,9 +902,11 @@ class _AccountStepState extends State<AccountStep>
         children: [
           // Top text
           SlideTransition(
-            position: AnimationBuilders.createTextSlideAnimation(_transitionController),
+            position: AnimationBuilders.createTextSlideAnimation(
+                _transitionController),
             child: FadeTransition(
-              opacity: AnimationBuilders.createFadeAnimation(_transitionController),
+              opacity:
+                  AnimationBuilders.createFadeAnimation(_transitionController),
               child: Column(
                 children: [
                   const SizedBox(height: 12),
@@ -971,9 +929,11 @@ class _AccountStepState extends State<AccountStep>
 
           // Middle: Email field
           SlideTransition(
-            position: AnimationBuilders.createFieldSlideAnimation(_transitionController),
+            position: AnimationBuilders.createFieldSlideAnimation(
+                _transitionController),
             child: FadeTransition(
-              opacity: AnimationBuilders.createFadeAnimation(_transitionController),
+              opacity:
+                  AnimationBuilders.createFadeAnimation(_transitionController),
               child: Column(
                 children: [
                   _buildErrorBanner(),
@@ -992,9 +952,11 @@ class _AccountStepState extends State<AccountStep>
 
           // Bottom: Continue button
           SlideTransition(
-            position: AnimationBuilders.createBottomSlideAnimation(_transitionController),
+            position: AnimationBuilders.createBottomSlideAnimation(
+                _transitionController),
             child: FadeTransition(
-              opacity: AnimationBuilders.createFadeAnimation(_transitionController),
+              opacity:
+                  AnimationBuilders.createFadeAnimation(_transitionController),
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 12),
                 decoration: BoxDecoration(
@@ -1068,162 +1030,7 @@ class _AccountStepState extends State<AccountStep>
     );
   }
 
-  // Sub-Step 4: OTP Verification (shown after signUp sends confirmation email)
-  Widget _buildOtpSubStep() {
-    return _buildAnimatedSubStep(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-          // Top text
-          SlideTransition(
-            position: AnimationBuilders.createTextSlideAnimation(_transitionController),
-            child: FadeTransition(
-              opacity: AnimationBuilders.createFadeAnimation(_transitionController),
-              child: Column(
-                children: [
-                  const SizedBox(height: 10),
-                  TypingText(
-                    key: ValueKey(_currentSubStep == 4),
-                    text: 'Check your email',
-                    style: const TextStyle(
-                      fontFamily: 'Rova',
-                      fontSize: 28,
-                      fontWeight: FontWeight.normal,
-                      color: PinitColors.aubergine,
-                    ),
-                    totalDuration: const Duration(milliseconds: 2200),
-                  ),
-                  const SizedBox(height: 19),
-                  Text(
-                    'We sent a 6-digit code to ${emailController.text}',
-                    style: TextStyle(
-                      fontFamily: 'Geist',
-                      fontSize: 16,
-                      color: PinitColors.mute,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // Middle: OTP field + resend
-          SlideTransition(
-            position: AnimationBuilders.createFieldSlideAnimation(_transitionController),
-            child: FadeTransition(
-              opacity: AnimationBuilders.createFadeAnimation(_transitionController),
-              child: Column(
-                children: [
-                  // Spacing adjustment
-                  const SizedBox(height: 8),
-                  _buildErrorBanner(),
-                  _buildTextField(
-                    controller: otpController,
-                    hintText: 'Verification Code',
-                    icon: Icons.lock_outline,
-                    keyboardType: TextInputType.number,
-                    focusNode: otpFocusNode,
-                  ),
-                  const SizedBox(height: 12),
-                  GestureDetector(
-                    onTap: _isSendingOtp ? null : () async {
-                      setState(() => _isSendingOtp = true);
-                      try {
-                        final supabaseService = Provider.of<SupabaseService>(context, listen: false);
-                        await supabaseService.users.resendSignUpOtp(emailController.text.trim());
-                        errorNotifier.value = null;
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Code resent!')),
-                          );
-                        }
-                      } catch (e) {
-                        errorNotifier.value = 'Failed to resend code';
-                      } finally {
-                        if (mounted) setState(() => _isSendingOtp = false);
-                      }
-                    },
-                    
-                    child: Text(
-                      'Resend code',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: const Color(0xFF42143d),
-                        fontWeight: FontWeight.w600,
-                        decoration: TextDecoration.underline,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          // Bottom: Verify button
-          SlideTransition(
-            position: AnimationBuilders.createBottomSlideAnimation(_transitionController),
-            child: FadeTransition(
-              opacity: AnimationBuilders.createFadeAnimation(_transitionController),
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 12),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border(
-                    right: BorderSide(
-                      color: PinitColors.aubergine,
-                      width: 2,
-                    ),
-                    bottom: BorderSide(
-                      color: PinitColors.aubergine,
-                      width: 2,
-                    ),
-                  ),
-                  boxShadow: PinitColors.cardShadow,
-                ),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: _isVerifyingOtp ? null : _verifyOtpAndComplete,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: PinitColors.aubergine,
-                      foregroundColor: PinitColors.cream,
-                      elevation: 0,
-                      shadowColor: Colors.transparent,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    child: _isVerifyingOtp
-                        ? const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: PinitColors.cream,
-                            ),
-                          )
-                        : const Text(
-                            'Verify',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Sub-Step 3: Password Fields
+  // Sub-Step 4: Password Fields
   Widget _buildPasswordSubStep() {
     return _buildAnimatedSubStep(
       child: Column(
@@ -1231,9 +1038,11 @@ class _AccountStepState extends State<AccountStep>
         children: [
           // Top text
           SlideTransition(
-            position: AnimationBuilders.createTextSlideAnimation(_transitionController),
+            position: AnimationBuilders.createTextSlideAnimation(
+                _transitionController),
             child: FadeTransition(
-              opacity: AnimationBuilders.createFadeAnimation(_transitionController),
+              opacity:
+                  AnimationBuilders.createFadeAnimation(_transitionController),
               child: Column(
                 children: [
                   TypingText(
@@ -1261,9 +1070,11 @@ class _AccountStepState extends State<AccountStep>
                 children: [
                   _buildErrorBanner(),
                   SlideTransition(
-                    position: AnimationBuilders.createFieldSlideAnimation(_transitionController),
+                    position: AnimationBuilders.createFieldSlideAnimation(
+                        _transitionController),
                     child: FadeTransition(
-                      opacity: AnimationBuilders.createFadeAnimation(_transitionController),
+                      opacity: AnimationBuilders.createFadeAnimation(
+                          _transitionController),
                       child: _buildTextField(
                         controller: passwordController,
                         hintText: 'Password',
@@ -1294,8 +1105,8 @@ class _AccountStepState extends State<AccountStep>
                       end: Offset.zero,
                     ).animate(CurvedAnimation(
                       parent: _transitionController,
-                      curve: const Interval(0.15, 0.65,
-                          curve: Curves.easeOutBack),
+                      curve:
+                          const Interval(0.15, 0.65, curve: Curves.easeOutBack),
                     )),
                     child: FadeTransition(
                       opacity: Tween<double>(
@@ -1303,8 +1114,8 @@ class _AccountStepState extends State<AccountStep>
                         end: 1.0,
                       ).animate(CurvedAnimation(
                         parent: _transitionController,
-                        curve: const Interval(0.15, 0.55,
-                            curve: Curves.easeInOut),
+                        curve:
+                            const Interval(0.15, 0.55, curve: Curves.easeInOut),
                       )),
                       child: _buildTextField(
                         controller: confirmPasswordController,
@@ -1334,15 +1145,18 @@ class _AccountStepState extends State<AccountStep>
             ),
           ),
 
-          // Bottom: Create Account button
+          // Bottom: Continue button
           SlideTransition(
-            position: AnimationBuilders.createBottomSlideAnimation(_transitionController),
+            position: AnimationBuilders.createBottomSlideAnimation(
+                _transitionController),
             child: FadeTransition(
-              opacity: AnimationBuilders.createFadeAnimation(_transitionController),
+              opacity:
+                  AnimationBuilders.createFadeAnimation(_transitionController),
               child: Column(
                 children: [
                   Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 12),
+                    margin:
+                        const EdgeInsets.symmetric(horizontal: 0, vertical: 12),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(16),
                       border: Border(
@@ -1374,7 +1188,7 @@ class _AccountStepState extends State<AccountStep>
                         child: isLoading
                             ? const LoadingWidget(width: 24, height: 24)
                             : const Text(
-                                'Create Account',
+                                'Continue',
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w100,
@@ -1394,7 +1208,7 @@ class _AccountStepState extends State<AccountStep>
     );
   }
 
-  // Sub-Step 4: Profile Picture (Final step)
+  // Sub-Step 5: Profile Picture (Final step)
   Widget _buildProfilePictureSubStep() {
     return _buildAnimatedSubStep(
       child: Column(
@@ -1425,11 +1239,30 @@ class _AccountStepState extends State<AccountStep>
 
           // Bottom: Buttons section
           SlideTransition(
-            position: AnimationBuilders.createBottomSlideAnimation(_transitionController),
+            position: AnimationBuilders.createBottomSlideAnimation(
+                _transitionController),
             child: FadeTransition(
-              opacity: AnimationBuilders.createFadeAnimation(_transitionController),
+              opacity:
+                  AnimationBuilders.createFadeAnimation(_transitionController),
               child: Column(
                 children: [
+                  LegalConsentSection(
+                    value: _legalConsentChecked,
+                    onChanged: (value) {
+                      setState(() {
+                        _legalConsentChecked = value;
+                      });
+                      if (value && errorNotifier.value != null) {
+                        errorNotifier.value = null;
+                      }
+                    },
+                    textColor: PinitColors.aubergine,
+                    linkColor: PinitColors.aubergine,
+                    checkboxActiveColor: PinitColors.aubergine,
+                    checkboxCheckColor: PinitColors.cream,
+                    checkboxSideColor: PinitColors.aubergineSoft,
+                  ),
+                  const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
                     height: 56,
@@ -1447,8 +1280,8 @@ class _AccountStepState extends State<AccountStep>
                           ? const LoadingWidget(width: 24, height: 24)
                           : Text(
                               _selectedProfileImage != null
-                                  ? 'Continue'
-                                  : 'Skip & Continue',
+                                  ? 'Create Account'
+                                  : 'Skip & Create Account',
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,

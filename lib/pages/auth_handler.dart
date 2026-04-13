@@ -1,5 +1,6 @@
 import 'dart:developer';
 import 'package:flutter/material.dart';
+import 'package:login/pages/legal_consent_gate_page.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/pages/main_screen.dart';
 import 'package:login/pages/welcome_page.dart';
@@ -18,7 +19,10 @@ class AuthHandler extends StatefulWidget {
 class _AuthHandlerState extends State<AuthHandler> {
   bool _hasInitializedData = false;
   bool _isInitializing = false;
+  bool _isCheckingLegalConsent = false;
   bool _initCallScheduled = false; // Prevents multiple post-frame callbacks
+  String? _legalConsentCheckedUserId;
+  bool? _hasAcceptedLegalConsent;
 
   @override
   void initState() {
@@ -97,7 +101,66 @@ class _AuthHandlerState extends State<AuthHandler> {
       // Reset flags when user logs out
       _hasInitializedData = false;
       _isInitializing = false;
+      _isCheckingLegalConsent = false;
+      _legalConsentCheckedUserId = null;
+      _hasAcceptedLegalConsent = null;
     }
+  }
+
+  void _scheduleLegalConsentCheck() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkLegalConsentStatus();
+    });
+  }
+
+  Future<void> _checkLegalConsentStatus() async {
+    if (_isCheckingLegalConsent || !mounted) {
+      return;
+    }
+
+    final supabaseProvider =
+        Provider.of<SupabaseService>(context, listen: false);
+    final currentUser = supabaseProvider.users.currentUser;
+    if (currentUser == null) {
+      return;
+    }
+
+    setState(() {
+      _isCheckingLegalConsent = true;
+    });
+
+    final hasAccepted =
+        await supabaseProvider.users.hasAcceptedLegalConsent(currentUser.id);
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isCheckingLegalConsent = false;
+      _legalConsentCheckedUserId = currentUser.id;
+      _hasAcceptedLegalConsent = hasAccepted;
+    });
+  }
+
+  Future<void> _acceptLegalConsent() async {
+    final supabaseProvider =
+        Provider.of<SupabaseService>(context, listen: false);
+    final currentUser = supabaseProvider.users.currentUser;
+    if (currentUser == null) {
+      throw Exception('User not authenticated');
+    }
+
+    await supabaseProvider.users.acceptLegalConsent(currentUser.id);
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _legalConsentCheckedUserId = currentUser.id;
+      _hasAcceptedLegalConsent = true;
+    });
   }
 
   @override
@@ -114,6 +177,17 @@ class _AuthHandlerState extends State<AuthHandler> {
       _scheduleInitialization();
     }
 
+    final currentUserId = supabaseProvider.users.currentUser?.id;
+    final needsLegalConsentRefresh = supabaseProvider.isAuthenticated &&
+        supabaseProvider.hasValidSession &&
+        currentUserId != null &&
+        _legalConsentCheckedUserId != currentUserId &&
+        !_isCheckingLegalConsent;
+
+    if (needsLegalConsentRefresh) {
+      _scheduleLegalConsentCheck();
+    }
+
     return Scaffold(
       body: Builder(builder: (context) {
         // Show loading during session validation
@@ -123,6 +197,14 @@ class _AuthHandlerState extends State<AuthHandler> {
 
         if (supabaseProvider.isAuthenticated &&
             !supabaseProvider.hasValidSession) {
+          return const LoadingWidget();
+        }
+
+        if (_isCheckingLegalConsent ||
+            (supabaseProvider.isAuthenticated &&
+                supabaseProvider.hasValidSession &&
+                currentUserId != null &&
+                _legalConsentCheckedUserId != currentUserId)) {
           return const LoadingWidget();
         }
 
@@ -140,6 +222,12 @@ class _AuthHandlerState extends State<AuthHandler> {
 
           // User is logged in with valid session
           log("AuthHandler: User logged in with valid session, showing MainScreen");
+
+          if (_hasAcceptedLegalConsent == false) {
+            return LegalConsentGatePage(
+              onAccept: _acceptLegalConsent,
+            );
+          }
 
           // Show MainScreen - wizard completion handled via popover
           return const MainScreen();

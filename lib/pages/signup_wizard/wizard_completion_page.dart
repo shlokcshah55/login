@@ -35,7 +35,8 @@ class _WizardCompletionContent extends StatefulWidget {
   const _WizardCompletionContent();
 
   @override
-  State<_WizardCompletionContent> createState() => _WizardCompletionContentState();
+  State<_WizardCompletionContent> createState() =>
+      _WizardCompletionContentState();
 }
 
 class _WizardCompletionContentState extends State<_WizardCompletionContent> {
@@ -44,7 +45,6 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
   List<LocationModel>? _restaurants;
   bool _isLoadingRestaurants = false;
   bool _isCompletingWizard = false;
-
   @override
   void dispose() {
     _pageController.dispose();
@@ -69,7 +69,8 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
     }
   }
 
-  Future<void> _nextStepWithRestaurants(Future<List<LocationModel>> Function() fetchRestaurants) async {
+  Future<void> _nextStepWithRestaurants(
+      Future<List<LocationModel>> Function() fetchRestaurants) async {
     if (_currentStep < 2) {
       setState(() {
         _isLoadingRestaurants = true;
@@ -109,7 +110,8 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
     });
 
     try {
-      final wizardState = Provider.of<SignupWizardState>(context, listen: false);
+      final wizardState =
+          Provider.of<SignupWizardState>(context, listen: false);
       final supabase = Provider.of<SupabaseService>(context, listen: false);
 
       // Validate required data
@@ -121,7 +123,8 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
 
       print(wizardState.selectedVibeTagIds);
       // Add dietary tags and spice tolerance and update the vibe tags
-      await supabase.users.addUserTags(userId, wizardState.selectedDietaryTagIds);
+      await supabase.users
+          .addUserTags(userId, wizardState.selectedDietaryTagIds);
       await supabase.users.AddSpiceTolerance(
         userId,
         wizardState.spiceTolerance,
@@ -129,7 +132,6 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
 
       // TODO: Update based on the vibes selected
       //await supabase.tags.updateUserTagsPhotos(userId, wizardState.selectedVibeTagIds);
-
 
       // Step 2: Process restaurant decisions
 
@@ -146,7 +148,6 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
           await supabase.locations.dislikeLocation(locationId);
         }
       }
-
 
       // Step 3: Mark wizard as complete
       await supabase.users.completeSignupWizard(wizardState.userId!);
@@ -199,7 +200,8 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
                     children: [
                       // Close button
                       IconButton(
-                        icon: const Icon(Icons.close, color: PinitColors.aubergine),
+                        icon: const Icon(Icons.close,
+                            color: PinitColors.aubergine),
                         onPressed: () => Navigator.of(context).pop(),
                       ),
                       const Spacer(),
@@ -234,7 +236,8 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
             Expanded(
               child: PageView(
                 controller: _pageController,
-                physics: const NeverScrollableScrollPhysics(), // Disable swipe, use buttons
+                physics:
+                    const NeverScrollableScrollPhysics(), // Disable swipe, use buttons
                 onPageChanged: (index) {
                   setState(() {
                     _currentStep = index;

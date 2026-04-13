@@ -407,6 +407,7 @@ class MapStateProvider with ChangeNotifier {
   Future<void> refreshGeoJsonViewportPresentation({
     LatLngBounds? visibleBounds,
     Rect? usableScreenRect,
+    required bool isInteracting,
   }) async {
     if (!_useGeoJsonLayers || _geoJsonLayerService == null) {
       return;
@@ -415,6 +416,7 @@ class MapStateProvider with ChangeNotifier {
     await _geoJsonLayerService!.updateViewportPresentation(
       visibleBounds: visibleBounds,
       usableScreenRect: usableScreenRect,
+      isInteracting: isInteracting,
     );
   }
 
