@@ -447,16 +447,22 @@ class HomeViewModel extends ChangeNotifier {
   }
 
   Future<bool> showCollectionOnMap(CollectionItem collection) async {
-    final locations = await _collectionsHelper
-        .getLocationsForCollection(collection.collectionId);
-    if (locations.isEmpty) {
+    final collectionId = collection.collectionId;
+    _activeCollectionId = collectionId;
+
+    final shown = await locationListManager.showCollectionLocations(
+      collectionId,
+      () => _collectionsHelper.getLocationsForCollection(collectionId),
+    );
+
+    if (shown.isEmpty) {
+      _activeCollectionId = null;
+      notifyListeners();
       return false;
     }
 
-    _activeCollectionId = collection.collectionId;
-    await locationListManager.showLocationsOnMap(locations);
-    mapStateProvider.setSelectedMarkerId(locations.first.locationId.toString());
-    await mapStateProvider.focusOnLocations(locations);
+    mapStateProvider.setSelectedMarkerId(shown.first.locationId.toString());
+    await mapStateProvider.focusOnLocations(shown);
     bottomNavVisibilityProvider.showTemporarily();
     notifyListeners();
     return true;

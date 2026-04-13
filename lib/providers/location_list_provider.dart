@@ -85,6 +85,12 @@ class LocationListManager with ChangeNotifier {
   Map<LocationModel, MapMarkerData> _recommendedLocations = {};
   Map<LocationModel, MapMarkerData> _searchLocations = {};
   Map<LocationModel, MapMarkerData> _bubbleLocations = {};
+
+  // Per-collection marker cache. Keyed by collectionId, capped LRU.
+  static const int _collectionCacheMaxEntries = 10;
+  final Map<String, Map<LocationModel, MapMarkerData>>
+      _collectionMarkerCache = {};
+  String? _activeCollectionKey;
   Map<LocationModel, MapMarkerData> _currentItems = {};
   List<LocationModel> _justDecideLocations = [];
   List<LocationModel> _popularLocations = [];
@@ -728,6 +734,117 @@ class LocationListManager with ChangeNotifier {
     );
     _searchLocations = {location: markerData};
     await setCurrentListType(LocationListType.search);
+  }
+
+  bool hasCachedCollection(String collectionId) =>
+      _collectionMarkerCache.containsKey(collectionId);
+
+  /// Renders a collection on the map, using the per-collection marker cache
+  /// when available. Falls back to [locationsLoader] only on a cache miss so
+  /// callers can skip a Supabase round-trip for previously-viewed collections.
+  /// Returns the ordered list of locations actually shown (empty if none).
+  Future<List<LocationModel>> showCollectionLocations(
+    String collectionId,
+    Future<List<LocationModel>> Function() locationsLoader,
+  ) async {
+    final cached = _collectionMarkerCache.remove(collectionId);
+    if (cached != null) {
+      _collectionMarkerCache[collectionId] = cached;
+      _activeCollectionKey = collectionId;
+      final orderedLocations = cached.keys.toList();
+      _searchLocations = Map.of(cached);
+      _allSearchLocations = orderedLocations;
+      _error = null;
+      await setCurrentListType(LocationListType.search);
+      return orderedLocations;
+    }
+
+    final locations = await locationsLoader();
+    // A newer collection request superseded this one — discard.
+    if (_activeCollectionKey != null &&
+        _activeCollectionKey != collectionId &&
+        _collectionMarkerCache.containsKey(_activeCollectionKey)) {
+      return const [];
+    }
+
+    final validLocations = locations
+        .where((location) => location.lat != null && location.lng != null)
+        .toList();
+
+    if (validLocations.isEmpty) {
+      _searchLocations = {};
+      _allSearchLocations = [];
+      _activeCollectionKey = collectionId;
+      await setCurrentListType(LocationListType.search);
+      return const [];
+    }
+
+    final tempMap = Map.fromEntries(
+      validLocations.map(
+        (location) => MapEntry(
+          location,
+          MapMarkerData(
+            id: location.locationId.toString(),
+            position: LatLng(location.lat!, location.lng!),
+            imageBytes: const [],
+          ),
+        ),
+      ),
+    );
+
+    final selectedForNames = _selectLocationsForNameDisplay(
+      tempMap,
+      viewportBounds: _currentViewportBounds,
+    );
+
+    final markers = await Future.wait(
+      validLocations.map((location) async {
+        final marker = await location
+            .setPreference(LocationPreference.search)
+            .toMarker(
+              _devicePixelRatio,
+              shouldShowName: selectedForNames.contains(location.locationId),
+            );
+        return MapEntry(
+          location,
+          marker ??
+              MapMarkerData(
+                id: location.locationId.toString(),
+                position: LatLng(location.lat!, location.lng!),
+                imageBytes: const [],
+                title: location.name,
+                snippet: location.vicinity ?? '',
+              ),
+        );
+      }),
+    );
+
+    final built = Map<LocationModel, MapMarkerData>.fromEntries(markers);
+
+    // LRU evict before insert.
+    while (_collectionMarkerCache.length >= _collectionCacheMaxEntries) {
+      _collectionMarkerCache.remove(_collectionMarkerCache.keys.first);
+    }
+    _collectionMarkerCache[collectionId] = built;
+    _activeCollectionKey = collectionId;
+
+    _searchLocations = Map.of(built);
+    _allSearchLocations = validLocations;
+    _error = null;
+    await setCurrentListType(LocationListType.search);
+    return validLocations;
+  }
+
+  void invalidateCollectionCache(String collectionId) {
+    _collectionMarkerCache.remove(collectionId);
+    if (_activeCollectionKey == collectionId) {
+      _activeCollectionKey = null;
+    }
+  }
+
+  void invalidateAllCollectionCaches() {
+    _collectionMarkerCache.clear();
+    _activeCollectionKey = null;
   }
 
   Future<void> showLocationsOnMap(List<LocationModel> locations) async {
@@ -1634,6 +1751,7 @@ class LocationListManager with ChangeNotifier {
       (existing, _) => existing.locationId == savedLocation.locationId,
     );
     _mapStateProvider?.bounceRecentlySaved(savedLocation.locationId);
+    invalidateAllCollectionCaches();
     notifyListeners();
 
     unawaited(_finalizeSavedLocation(savedLocation));
@@ -1862,6 +1980,7 @@ class LocationListManager with ChangeNotifier {
       _currentItems = Map.from(_savedLocations);
     }
 
+    invalidateAllCollectionCaches();
     notifyListeners();
 
     // Remove from Supabase
