@@ -129,7 +129,11 @@ class HomeViewModel extends ChangeNotifier {
   String? get activeBubbleName => _activeBubble?.name;
 
   void setHomeMode(HomeMode mode) {
-    if (_homeMode == mode) return;
+    if (homeMode == mode &&
+        _activeCollectionId == null &&
+        !_isBubbleModeActive) {
+      return;
+    }
     if (mode != HomeMode.bubble) {
       _lastNonBubbleMode = mode;
     }
