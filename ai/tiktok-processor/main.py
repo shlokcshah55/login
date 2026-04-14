@@ -81,7 +81,7 @@ if SUPABASE_URL and SUPABASE_SERVICE_KEY:
 
 # ===== Helper Functions =====
 
-def send_error_notification(user_id: str, error_type: str = "generic"):
+def send_error_notification(user_id: str, error_type: str = "generic", tiktok_url: str = None):
     """
     Send push notification to user when processing fails
 
@@ -136,6 +136,7 @@ def send_error_notification(user_id: str, error_type: str = "generic"):
             "body": body,
             "metadata": {
                 "errorType": error_type,
+                **({"tiktokUrl": tiktok_url} if tiktok_url else {}),
             },
         }
 
@@ -150,6 +151,71 @@ def send_error_notification(user_id: str, error_type: str = "generic"):
         logger.error(f"Push notification API returned error {e.response.status_code}: {e.response.text}")
     except Exception as e:
         logger.error(f"Error sending push notification: {e}", exc_info=True)
+
+
+def send_success_notification(user_id: str, saved_locations: list):
+    """
+    Send a single push notification when one or more locations are successfully saved.
+    If multiple locations, clusters them into one notification.
+    """
+    try:
+        if not supabase_client:
+            logger.warning("Supabase client not initialized - cannot fetch fcm_token")
+            return
+
+        if not SEND_PUSH_NOTIF_SECRET:
+            logger.warning("SEND_PUSH_NOTIF_SECRET not configured - skipping success notification")
+            return
+
+        response = supabase_client.table('users').select('fcm_token').eq('supabase_id', user_id).maybe_single().execute()
+
+        if not response or not hasattr(response, 'data') or not response.data:
+            logger.warning(f"User {user_id} not found in database")
+            return
+
+        fcm_token = response.data.get('fcm_token')
+
+        if not fcm_token:
+            logger.warning(f"User {user_id} has no fcm_token - cannot send notification")
+            return
+
+        first_name = saved_locations[0].get('name') or 'a location'
+        extra = len(saved_locations) - 1
+
+        if extra > 0:
+            body = f"We found {first_name} + {extra} more place{'s' if extra > 1 else ''} from your video."
+        else:
+            body = f"We found {first_name} from your video."
+
+        notification_url = PUSH_NOTIFICATION_URL
+        headers = {
+            "Authorization": f"Bearer {SEND_PUSH_NOTIF_SECRET}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "fcm_token": fcm_token,
+            "user_id": user_id,
+            "type": "video_processed",
+            "title": "Saved!",
+            "body": body,
+            "metadata": {
+                "locationId": saved_locations[0].get('location_id'),
+                "locationName": first_name,
+                "totalLocations": len(saved_locations),
+            },
+        }
+
+        logger.info(f"Sending success notification to {notification_url} for user {user_id}")
+        with httpx.Client(timeout=10.0) as client:
+            resp = client.post(notification_url, headers=headers, json=payload)
+            resp.raise_for_status()
+
+        logger.info(f"Successfully sent success notification to user {user_id}")
+
+    except httpx.HTTPStatusError as e:
+        logger.error(f"Push notification API returned error {e.response.status_code}: {e.response.text}")
+    except Exception as e:
+        logger.error(f"Error sending success notification: {e}", exc_info=True)
 
 
 def save_location_to_supabase(user_id: str, place_data: dict, url: str):
@@ -208,6 +274,7 @@ def save_location_to_supabase(user_id: str, place_data: dict, url: str):
             logger.info(f"Saved location {location_id} with {tag_count} tag updates (TikTok method)")
             return {
                 'location_id': location_id,
+                'name': place_data.get('name'),
             }
         else:
             error = response.get('error', 'Unknown error') if response else 'No response'
@@ -265,7 +332,9 @@ def process_and_save_async(url: str, user_id: str):
                         }).execute()
 
                         if result.data and result.data.get('success'):
-                            saved_locations.append(location_id)
+                            name_row = supabase_client.table('locations').select('name').eq('location_id', location_id).maybe_single().execute()
+                            loc_name = name_row.data.get('name') if name_row and name_row.data else None
+                            saved_locations.append({'location_id': location_id, 'name': loc_name})
                             logger.info(f"Saved existing location {location_id} for user {user_id}")
                     except Exception as e:
                         logger.error(f"Error saving existing location {location_id}: {e}", exc_info=True)
@@ -273,6 +342,7 @@ def process_and_save_async(url: str, user_id: str):
 
                 if saved_locations:
                     logger.info(f"Successfully saved {len(saved_locations)} existing locations for user {user_id}")
+                    send_success_notification(user_id, saved_locations)
                     return
                 else:
                     logger.warning(f"Failed to save any existing locations for user {user_id}. Will re-process video.")
@@ -283,14 +353,14 @@ def process_and_save_async(url: str, user_id: str):
         if not result.get("success"):
             error = result.get("error", "Unknown error")
             logger.error(f"Processing failed: {error}")
-            send_error_notification(user_id, error_type="generic")
+            send_error_notification(user_id, error_type="generic", tiktok_url=url)
             return
 
         locations = result.get("locations", [])
 
         if not locations:
             logger.warning("No locations found in video")
-            send_error_notification(user_id, error_type="no_location")
+            send_error_notification(user_id, error_type="no_location", tiktok_url=url)
             return
 
         # Save all locations to database
@@ -317,19 +387,20 @@ def process_and_save_async(url: str, user_id: str):
         # If all locations were already saved, send specific notification
         if already_saved_count > 0 and not saved_locations:
             logger.info(f"All {already_saved_count} locations already saved by user {user_id}")
-            send_error_notification(user_id, error_type="already_saved")
+            send_error_notification(user_id, error_type="already_saved", tiktok_url=url)
             return
 
         if not saved_locations and already_saved_count == 0:
             logger.error("Failed to save any locations")
-            send_error_notification(user_id, error_type="generic")
+            send_error_notification(user_id, error_type="generic", tiktok_url=url)
             return
 
         logger.info(f"Successfully saved {len(saved_locations)} locations for user {user_id}")
+        send_success_notification(user_id, saved_locations)
 
     except Exception as e:
         logger.error(f"Error in background processing: {e}", exc_info=True)
-        send_error_notification(user_id, error_type="generic")
+        send_error_notification(user_id, error_type="generic", tiktok_url=url)
 
 
 # ===== API Endpoints =====

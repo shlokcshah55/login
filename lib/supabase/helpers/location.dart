@@ -19,6 +19,10 @@ class LocationHelper {
   // Key: location_id, Value: Future that completes when download is done
   static final Map<int, Future<String?>> _activeDownloads = {};
 
+  // Locations confirmed to have no image available (Google returned no photos).
+  // Persisted in-memory for the session; the DB flag prevents retries across sessions.
+  static final Set<int> _noImageAvailable = {};
+
   // ==================== CACHING LAYER ====================
   // In-memory cache for locations with TTL
   static final Map<int, _CachedLocation> _locationCache = {};
@@ -74,6 +78,13 @@ class LocationHelper {
       return publicUrl;
     }
 
+    // If previously confirmed no image is available, skip and return null.
+    final imageUnavailable = locationData['image_unavailable'];
+    if (imageUnavailable == true) {
+      _noImageAvailable.add(locationId); // sync in-memory set from DB
+      return null;
+    }
+
     // Image not yet in storage — kick off a background download if we have a reference or place ID.
     final photoReference = locationData[SupabaseConstants.columnPhotoReference];
     final googlePlaceId = locationData[SupabaseConstants.columnGooglePlaceId];
@@ -82,7 +93,7 @@ class LocationHelper {
         photoReference != null && photoReference.toString().isNotEmpty;
     final hasPlaceId =
         googlePlaceId != null && googlePlaceId.toString().isNotEmpty;
-    if (hasPhotoRef || hasPlaceId) {
+    if ((hasPhotoRef || hasPlaceId) && !_noImageAvailable.contains(locationId)) {
       _ensureImageUploaded(locationId, googlePlaceId?.toString() ?? '',
           photoReference?.toString() ?? '');
     }
@@ -94,6 +105,8 @@ class LocationHelper {
   /// This is fire-and-forget - doesn't block the main flow
   Future<void> _ensureImageUploaded(
       int locationId, String googlePlaceId, String photoReference) async {
+    // Skip locations confirmed to have no image source
+    if (_noImageAvailable.contains(locationId)) return;
     // Skip if already downloading
     if (_activeDownloads.containsKey(locationId)) return;
 
@@ -115,6 +128,31 @@ class LocationHelper {
     List<int>? userDietaryAffinity,
   }) async {
     if (locationsData.isEmpty) return [];
+
+    // Log image source breakdown on home page load
+    final total = locationsData.length;
+    final fromStorage = locationsData
+        .where((item) => item[SupabaseConstants.columnImageStored] == true)
+        .length;
+    final unavailable = locationsData
+        .where((item) => item['image_unavailable'] == true)
+        .length;
+    final needsApi = locationsData.where((item) {
+      final imageStored = item[SupabaseConstants.columnImageStored];
+      final imageUnavailable = item['image_unavailable'];
+      final hasPhotoRef = (item[SupabaseConstants.columnPhotoReference] ?? '').toString().isNotEmpty;
+      final hasPlaceId = (item[SupabaseConstants.columnGooglePlaceId] ?? '').toString().isNotEmpty;
+      return imageStored != true && imageUnavailable != true && (hasPhotoRef || hasPlaceId);
+    }).length;
+    final noSource = total - fromStorage - unavailable - needsApi;
+    developer.log(
+      '[ImageAudit] $total locations — '
+      '$fromStorage from storage (free) | '
+      '$needsApi need API call | '
+      '$unavailable permanently unavailable (skipped) | '
+      '$noSource have no image source',
+      name: 'LocationHelper',
+    );
 
     // Process in parallel — errors per-item are caught individually
     final futures = locationsData.map((item) async {
@@ -879,7 +917,15 @@ class LocationHelper {
     if (freshPhotos == null || freshPhotos.isEmpty) {
       if (kDebugMode)
         print(
-            '[Image] [$locationId] Step 4: Google Places API returned no photos.');
+            '[Image] [$locationId] Step 4: Google Places API returned no photos — marking as unavailable.');
+      _noImageAvailable.add(locationId);
+      try {
+        await _client.rpc('mark_location_image_unavailable', params: {
+          'p_location_id': locationId,
+        });
+      } catch (e) {
+        // best-effort — in-memory flag still prevents retries this session
+      }
       return null;
     }
 
@@ -944,16 +990,23 @@ class LocationHelper {
       }
       final imageBytes = response.bodyBytes; // The actual image data
 
-      // 3. Upload image bytes to Supabase Storage
+      // 3. Upload image bytes to Supabase Storage.
+      // upsert: true so a pre-existing file (e.g. from a previous session where
+      // the RPC failed) doesn't throw a 409 and break the image_stored write.
       await _client.storage
-          .from('location_photos') // Existing bucket name
-          .uploadBinary(filename, imageBytes);
+          .from('location_photos')
+          .uploadBinary(
+            filename,
+            imageBytes,
+            fileOptions: const FileOptions(upsert: true),
+          );
 
       final permanentUrl = _client.storage
-          .from('location_photos') // Existing bucket name
+          .from('location_photos')
           .getPublicUrl(filename);
-      return permanentUrl; // This URL will work forever
+      return permanentUrl;
     } catch (e) {
+      print('[Image] [$locationId] Upload failed: $e');
       return null;
     }
   }

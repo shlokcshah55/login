@@ -22,8 +22,13 @@ class TikTokProcessor:
 
     async def process_url(self, tiktok_url: str) -> Dict:
         try:
-            video_data = await self._get_tiktok_data_appify(tiktok_url, fetch_comments=False)
-            logger.info("Extracted locaiton information", video_data)
+            # First check if its instagram or tiktok
+            if "instagram.com" in tiktok_url:
+                video_data = await self._get_instagram_data_appify(tiktok_url)
+
+            else:
+                video_data = await self._get_tiktok_data_appify(tiktok_url, fetch_comments=False)
+                logger.info("Extracted location information", video_data)
 
             # Extracting location without comments
             logger.info("Sending to OpenAI")
@@ -38,7 +43,10 @@ class TikTokProcessor:
                 return location
 
            # No location found, retry with comments
-            video_data_with_comments = await self._get_tiktok_data_appify(tiktok_url, fetch_comments=True)
+            if "instagram.com" in tiktok_url:
+                video_data_with_comments = await self._get_instagram_data_appify(tiktok_url, fetch_comments=True)
+            else:
+                video_data_with_comments = await self._get_tiktok_data_appify(tiktok_url, fetch_comments=True)
             location_queries = self._extract_location_with_llm(video_data_with_comments)
             logger.info(f"OpenAI extracted location queries with comments: {location_queries}")
 
@@ -111,6 +119,60 @@ class TikTokProcessor:
             "description": video_info.get("text", ""),
             "hashtags": hashtags,
             "comments": video_comments,
+        }
+
+        logger.info(to_return)
+
+        return to_return
+    
+
+    async def _get_instagram_data_appify(self, instagram_url: str, fetch_comments: bool = False) -> Dict:
+        # 1. Prepare inputs — apify/instagram-scraper uses directUrls for individual post/reel URLs
+        run_input = {
+            "directUrls": [instagram_url],
+            "resultsType": "posts",
+            "resultsLimit": 1,
+        }
+        if fetch_comments:
+            run_input["includeComments"] = True
+
+        # 2. Call Apify scraper (blocking call - waits for completion)
+        logger.info("Calling Apify Instagram scraper...")
+        run_meta = await asyncio.to_thread(
+            self.appify_client.actor("apify/instagram-scraper").call,
+            run_input=run_input
+        )
+        logger.info("Instagram scraper completed")
+
+        # 3. Fetch dataset items
+        meta_items = list(self.appify_client.dataset(run_meta["defaultDatasetId"]).iterate_items())
+
+        if not meta_items:
+            return {}
+
+        post_info = meta_items[0]
+        logger.info(post_info)
+
+        # 4. Extract hashtags — Instagram returns them as a flat list of strings
+        hashtags = post_info.get("hashtags", [])
+        logger.info(hashtags)
+
+        # 5. Extract comments — included inline when includeComments=True
+        video_comments = []
+        if fetch_comments:
+            video_comments = [
+                c.get("text") for c in post_info.get("latestComments", [])
+                if c.get("text")
+            ]
+
+        # 6. Return the consolidated object matching the shape expected by the rest of the pipeline
+        to_return = {
+            "id": post_info.get("id"),
+            "url": instagram_url,
+            "description": post_info.get("caption", ""),
+            "hashtags": hashtags,
+            "comments": video_comments,
+            "locationCreated": post_info.get("locationName"),
         }
 
         logger.info(to_return)

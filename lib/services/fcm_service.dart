@@ -1,7 +1,12 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/widgets.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:login/app/app_root.dart';
+import 'package:login/models/notification_type.dart';
+import 'package:login/providers/navigation_provider.dart';
 import 'package:login/supabase/supabase_client.dart';
 import 'package:login/supabase/helpers/notifications.dart';
 import 'package:login/models/notifications/base_notification.dart';
@@ -134,10 +139,15 @@ class FCMService {
     // Handle notification tap (background/terminated)
     FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
 
-    // Check if app was opened from terminated state via notification
+    // Check if app was opened from terminated state via notification.
+    // Delay navigation so the widget tree (and NavigationProvider) are ready.
     final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
     if (initialMessage != null) {
-      _handleNotificationTap(initialMessage);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          _handleNotificationTap(initialMessage);
+        });
+      });
     }
 
     print('📲 FCM Service initialization complete');
@@ -171,14 +181,62 @@ class FCMService {
     }
   }
 
-  /// Handle notification tap
+  /// Handle notification tap — navigate to the appropriate screen
   void _handleNotificationTap(RemoteMessage message) {
     print('📲 Notification tapped');
 
     final notification = BaseNotification.fromRemoteMessage(message);
-    if (notification != null) {
-      // TODO: Navigate to appropriate screen based on notification type
-      print('📲 Navigate to: ${notification.type}');
+    if (notification == null) return;
+
+    print('📲 Navigating for type: ${notification.type}');
+
+    final context = navigatorKey.currentContext;
+
+    switch (notification.type) {
+      case NotificationType.followRequest:
+      case NotificationType.followAccepted:
+        // Open the dedicated alerts page
+        navigatorKey.currentState?.pushNamed('/alerts');
+        break;
+
+      case NotificationType.newMessage:
+      case NotificationType.userAddedToBubble:
+        // Switch to the Bubbles tab (index 1 in MainScreen)
+        if (context != null) {
+          try {
+            Provider.of<NavigationProvider>(context, listen: false)
+                .navigateToTab(1);
+            return;
+          } catch (_) {}
+        }
+        navigatorKey.currentState?.pushNamed('/bubbles');
+        break;
+
+      case NotificationType.friendVisitedLocation:
+      case NotificationType.proximityLocation:
+        // Switch to the Home/Map tab (index 0 in MainScreen)
+        if (context != null) {
+          try {
+            Provider.of<NavigationProvider>(context, listen: false)
+                .navigateToTab(0);
+            return;
+          } catch (_) {}
+        }
+        navigatorKey.currentState?.pushNamed('/home');
+        break;
+
+      case NotificationType.videoProcessed:
+      case NotificationType.notesImportComplete:
+        // Switch to the Profile tab (index 2 in MainScreen)
+        if (context != null) {
+          try {
+            Provider.of<NavigationProvider>(context, listen: false)
+                .navigateToTab(2);
+            return;
+          } catch (_) {}
+        }
+        navigatorKey.currentState?.pushNamed('/profile');
+        break;
     }
   }
 

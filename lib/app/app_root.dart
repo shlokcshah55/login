@@ -25,6 +25,9 @@ class AppRoot extends StatelessWidget {
   }
 }
 
+// Global navigator key so services (e.g. FCMService) can navigate without BuildContext
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 class MyApp extends StatefulWidget {
   const MyApp({Key? key}) : super(key: key);
 
@@ -34,7 +37,6 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   static const platform = MethodChannel('com.example.srishlok.pinit/share');
-  final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   void initState() {
