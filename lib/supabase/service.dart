@@ -39,6 +39,10 @@ class SupabaseService extends ChangeNotifier {
   StreamSubscription? _authSubscription;
   bool _hasValidSession = false;
   bool _isValidatingSession = false;
+  // Guards against concurrent auth events (e.g. userUpdated / tokenRefreshed)
+  // notifying listeners before the signedIn handler has finished creating the
+  // user record, which would cause ProfilePage to fetch a non-existent row.
+  bool _isHandlingSignedIn = false;
 
   // Completer for waiting on initial auth state (replaces 500ms delay)
   Completer<void>? _authStateCompleter;
@@ -117,6 +121,7 @@ class SupabaseService extends ChangeNotifier {
         }
 
         final isValid = await _authService.validateSession();
+        print('isValid: $isValid');
 
         if (isValid) {
           // Note: ensureUserRecordExists is called only in auth listener
@@ -333,27 +338,39 @@ class SupabaseService extends ChangeNotifier {
         // Handle different auth events
         switch (state.event) {
           case AuthChangeEvent.signedIn:
-            // User just signed in - this is the ONLY place we call ensureUserRecordExists
-            final isNewUser = await _authService.ensureUserRecordExists();
-            _hasValidSession = true;
+            // Block concurrent events from notifying until we've finished
+            // creating the user record and caching the profile.
+            _isHandlingSignedIn = true;
+            try {
+              // User just signed in - this is the ONLY place we call ensureUserRecordExists
+              final isNewUser = await _authService.ensureUserRecordExists();
+              print('Is user new: $isNewUser');
 
-            // For new OAuth users, assign a default profile picture. Vibe +
-            // dietary affinity defaults are now seeded inside
-            // ensure_user_record_exists so no separate RPC call is needed.
-            if (isNewUser && _authService.currentUser != null) {
-              final userId = _authService.currentUser!.id;
-              await _uploadDefaultProfilePicture(userId);
-              if (kDebugMode) {
-                print(
-                    'SupabaseService: Uploaded default profile picture for new OAuth user');
+              // For new OAuth users, initialize vibe tags and assign a default profile picture
+              if (isNewUser && _authService.currentUser != null) {
+                final userId = _authService.currentUser!.id;
+                await _tagsService.initializeVibeTagsForUser(userId);
+                await _uploadDefaultProfilePicture(userId);
+                if (kDebugMode) {
+                  print(
+                      'SupabaseService: Initialized vibe tags and profile picture for new OAuth user');
+                }
               }
+
+              // Cache profile now so AuthHandler can use it without a race
+              _cachedUserProfile = await _authService.getUserProfile();
+              print('Cached user profile after sign in: ${_cachedUserProfile?.name}');
+              // Save FCM token to new user account
+              _hasValidSession = true;
+
+              
+              await FCMService().refreshAndSaveToken();
+
+              // Reinitialize notifications (load from DB and setup Realtime)
+              await FCMService().reinitializeAfterLogin();
+            } finally {
+              _isHandlingSignedIn = false;
             }
-
-            // Save FCM token to new user account
-            await FCMService().refreshAndSaveToken();
-
-            // Reinitialize notifications (load from DB and setup Realtime)
-            await FCMService().reinitializeAfterLogin();
 
             notifyListeners();
             break;
@@ -378,12 +395,12 @@ class SupabaseService extends ChangeNotifier {
               print('SupabaseService: Token refreshed successfully');
             }
             _hasValidSession = true;
-            notifyListeners();
+            if (!_isHandlingSignedIn) notifyListeners();
             break;
 
           case AuthChangeEvent.userUpdated:
             // User data updated
-            notifyListeners();
+            if (!_isHandlingSignedIn) notifyListeners();
             break;
 
           case AuthChangeEvent.passwordRecovery:
@@ -396,8 +413,9 @@ class SupabaseService extends ChangeNotifier {
             break;
 
           default:
-            // For other events, validate the session
-            if (_authService.isAuthenticated) {
+            // For other events, validate the session — but skip if the
+            // signedIn handler is still running to avoid a premature notify.
+            if (_authService.isAuthenticated && !_isHandlingSignedIn) {
               final isValid = await _authService.validateSession();
               if (!isValid) {
                 if (kDebugMode) {

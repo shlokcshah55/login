@@ -34,7 +34,7 @@ class NoRecommendationsPopover extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Text(
-                    "Oops, we couldn't find places you're worthy of",
+                    "Sorry, we haven't landed in your area yet!",
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontFamily: 'Rova',
@@ -56,7 +56,7 @@ class NoRecommendationsPopover extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Try searching another area',
+                    'Try searching another area, All of london is fully processed',
                     textAlign: TextAlign.center,
                     style: AppTypography.bodyMedium.copyWith(
                       color:
