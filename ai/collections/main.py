@@ -116,7 +116,9 @@ class CollectionGenerator:
         prompt_path = Path(__file__).parent / 'prompt.txt'
         template = prompt_path.read_text()
         location_json = json.dumps(location, indent=2, default=str)
-        return template.replace('{{RESTAURANTS_JSON}}', location_json)
+        print('LOCATION JSON FOR PROMPT:')
+        print(location_json)
+        return template.replace('{{RESTAURANT_JSON}}', location_json)
 
     async def call_grok_for_location(
         self,
@@ -128,6 +130,7 @@ class CollectionGenerator:
         """
         async with semaphore:
             system_prompt = self.build_system_prompt_for_location(location)
+            print
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[

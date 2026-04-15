@@ -25,12 +25,15 @@ class BeenToSwipeRanker extends StatefulWidget {
 
 class _BeenToSwipeRankerState extends State<BeenToSwipeRanker>
     with SingleTickerProviderStateMixin {
-  late List<Map<String, dynamic>> _comparisonReviews;
+  late List<Map<String, dynamic>> _allReviews;
   late AnimationController _swipeAnimController;
   late Animation<Offset> _slideAnimation;
 
-  int _currentComparisonIndex = 0;
-  List<bool> _swipeResults = []; // true = right (better), false = left (worse)
+  int _lo = 0;
+  int _hi = 0;
+  int _swipeCount = 0;
+  List<Map<String, dynamic>> _shownReviews = [];
+  List<bool> _swipeResults = [];
 
   Offset _dragOffset = Offset.zero;
   bool _isDragging = false;
@@ -47,8 +50,8 @@ class _BeenToSwipeRankerState extends State<BeenToSwipeRanker>
   void initState() {
     super.initState();
 
-    // Use up to 5 existing reviews for comparison (already sorted by rating DESC from RPC)
-    _comparisonReviews = widget.existingReviews.take(5).toList();
+    _allReviews = widget.existingReviews;
+    _hi = _allReviews.length - 1;
 
     // Animation controller for swipe
     _swipeAnimController = AnimationController(
@@ -73,39 +76,34 @@ class _BeenToSwipeRankerState extends State<BeenToSwipeRanker>
     super.dispose();
   }
 
+  Map<String, dynamic> get _currentCard => _allReviews[(_lo + _hi) ~/ 2];
+  bool get _searchDone => _lo > _hi || _swipeCount >= 5;
+
   double _deriveRating() {
-    // Calculate rating based on comparisons
-    // Count how many were marked as better than the new location
-    final betterCount = _swipeResults.where((r) => r).length;
-    final totalCount = _swipeResults.length;
+    if (_swipeResults.isEmpty) return 5.0;
 
-    if (totalCount == 0) return 5.0;
-
-    // Get ratings of comparison items
-    final ratings = _comparisonReviews
+    final ratings = _shownReviews
         .map((r) => (r['rating'] as num?)?.toDouble() ?? 5.0)
         .toList();
 
-    // Find where the new location fits
-    double derivedRating = 5.0;
-    if (betterCount == 0) {
-      // Worse than all comparisons
-      derivedRating = (ratings.isNotEmpty ? ratings.last : 1.0) - 0.5;
-    } else if (betterCount == totalCount) {
-      // Better than all comparisons
-      derivedRating = (ratings.isNotEmpty ? ratings.first : 10.0) + 0.5;
-    } else {
-      // Find insertion point and average surrounding ratings
-      for (int i = 0; i < _swipeResults.length; i++) {
-        if (!_swipeResults[i]) {
-          // This one is worse, so new location is better than this
-          derivedRating = ratings[i];
-          break;
-        }
-      }
+    int lastLoss = -1; // last index where comparison beat new place
+    int firstWin = -1; // first index where new place won
+
+    for (int i = 0; i < _swipeResults.length; i++) {
+      if (!_swipeResults[i]) lastLoss = i;
+      if (_swipeResults[i] && firstWin == -1) firstWin = i;
     }
 
-    return (derivedRating * 10).round() / 10.0;
+    double derivedRating;
+    if (firstWin == -1) {
+      derivedRating = ratings.last - 0.5; // lost to everything
+    } else if (lastLoss == -1) {
+      derivedRating = ratings.first + 0.5; // beat everything
+    } else {
+      derivedRating = (ratings[lastLoss] + ratings[firstWin]) / 2.0;
+    }
+
+    return (derivedRating.clamp(1.0, 10.0) * 10).round() / 10.0;
   }
 
   void _onDragStart(DragStartDetails details) {
@@ -154,17 +152,21 @@ class _BeenToSwipeRankerState extends State<BeenToSwipeRanker>
     _swipeAnimController.forward(from: 0).then((_) {
       if (!mounted) return;
 
-      // Record this swipe result
+      final mid = (_lo + _hi) ~/ 2;
+      _shownReviews.add(_allReviews[mid]);
       _swipeResults.add(isBetter);
-      _currentComparisonIndex++;
+      _swipeCount++;
 
-      // Check if we've compared against all cards or reached 5 comparisons
-      if (_currentComparisonIndex >= _comparisonReviews.length ||
-          _currentComparisonIndex >= 5) {
+      if (isBetter) {
+        _hi = mid - 1; // new place is better → search upper half (lower indices)
+      } else {
+        _lo = mid + 1; // new place is worse → search lower half (higher indices)
+      }
+
+      if (_searchDone) {
         _derivedRating = _deriveRating();
         setState(() => _rankingComplete = true);
       } else {
-        // Move to next comparison
         setState(() {
           _dragOffset = Offset.zero;
           _isDragging = false;
@@ -208,13 +210,13 @@ class _BeenToSwipeRankerState extends State<BeenToSwipeRanker>
   }
 
   Widget _buildRankerView() {
-    if (_currentComparisonIndex >= _comparisonReviews.length) {
+    if (_searchDone) {
       return const Center(
         child: CircularProgressIndicator(),
       );
     }
 
-    final comparison = _comparisonReviews[_currentComparisonIndex];
+    final comparison = _currentCard;
     final comparisonName = comparison['location_name'] as String? ?? 'A place';
 
     return Column(
@@ -240,7 +242,7 @@ class _BeenToSwipeRankerState extends State<BeenToSwipeRanker>
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Text(
-            'Comparison ${_currentComparisonIndex + 1}/${_comparisonReviews.length}',
+            'Comparison ${_swipeCount + 1}',
             style: GoogleFonts.dmSans(
               fontSize: 11,
               fontWeight: FontWeight.w600,
@@ -281,18 +283,6 @@ class _BeenToSwipeRankerState extends State<BeenToSwipeRanker>
                   child: _buildNewLocationCard(),
                 ),
               ),
-
-              // Next comparison card preview (peeking from behind)
-              if (_currentComparisonIndex + 1 < _comparisonReviews.length)
-                Transform.scale(
-                  scale: 0.90,
-                  child: Opacity(
-                    opacity: 0.6,
-                    child: _buildComparisonCard(
-                      _comparisonReviews[_currentComparisonIndex + 1],
-                    ),
-                  ),
-                ),
 
               // Swipeable comparison card
               GestureDetector(

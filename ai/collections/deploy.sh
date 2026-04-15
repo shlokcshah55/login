@@ -6,7 +6,7 @@
 set -e  # Exit on any error
 
 # Configuration
-PROJECT_ID="pinit-492215"  # Replace with your GCP project ID
+PROJECT_ID="project-add4b0f5-0080-47ef-80f"  # Replace with your GCP project ID
 SERVICE_NAME="collections-generator"
 REGION="europe-west1"
 IMAGE_NAME="${REGION}-docker.pkg.dev/${PROJECT_ID}/${SERVICE_NAME}/${SERVICE_NAME}"
