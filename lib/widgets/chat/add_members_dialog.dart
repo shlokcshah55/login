@@ -7,6 +7,36 @@ import 'package:provider/provider.dart';
 
 import '../../supabase/service.dart';
 
+@visibleForTesting
+List<UserModel> filterAddableBubbleFriends({
+  required Iterable<UserModel> friends,
+  required Set<String> existingMemberIds,
+  String query = '',
+}) {
+  final normalizedQuery = query.trim().toLowerCase();
+
+  return friends.where((friend) {
+    final userId = friend.supabaseId;
+    if (userId == null || existingMemberIds.contains(userId)) {
+      return false;
+    }
+
+    if (normalizedQuery.isEmpty) {
+      return true;
+    }
+
+    final searchableValues = [
+      friend.name,
+      friend.username,
+      friend.email,
+    ];
+
+    return searchableValues.any(
+      (value) => value != null && value.toLowerCase().contains(normalizedQuery),
+    );
+  }).toList();
+}
+
 class AddMembersDialog extends StatefulWidget {
   final Bubble bubble;
   final VoidCallback onMembersAdded;
@@ -42,36 +72,13 @@ class _AddMembersDialogState extends State<AddMembersDialog> {
   }
 
   void _onSearchChanged() {
-    final query = _searchController.text.trim();
-
     setState(() {
-      if (query.isEmpty) {
-        _filteredFriends = _allFriends;
-      }
+      _filteredFriends = filterAddableBubbleFriends(
+        friends: _allFriends,
+        existingMemberIds: widget.bubble.memberIds.toSet(),
+        query: _searchController.text,
+      );
     });
-
-    if (query.isNotEmpty) {
-      _performSearch(query);
-    }
-  }
-
-  Future<void> _performSearch(String query) async {
-    try {
-      final supabase = Provider.of<SupabaseService>(context, listen: false);
-      final results = await supabase.users.searchUsers(query);
-
-      final currentMemberIds = widget.bubble.memberIds.toSet();
-      final filteredResults = results
-          .where((user) => !currentMemberIds.contains(user.supabaseId))
-          .toList();
-
-      if (!mounted) return;
-      setState(() {
-        _filteredFriends = filteredResults;
-      });
-    } catch (e) {
-      print('Error searching users: $e');
-    }
   }
 
   Future<void> _loadFriends() async {
@@ -82,11 +89,10 @@ class _AddMembersDialogState extends State<AddMembersDialog> {
     try {
       final supabase = Provider.of<SupabaseService>(context, listen: false);
       final friends = await supabase.users.getFriends();
-
-      final currentMemberIds = widget.bubble.memberIds.toSet();
-      final availableFriends = friends
-          .where((friend) => !currentMemberIds.contains(friend.supabaseId))
-          .toList();
+      final availableFriends = filterAddableBubbleFriends(
+        friends: friends,
+        existingMemberIds: widget.bubble.memberIds.toSet(),
+      );
 
       if (!mounted) return;
       setState(() {

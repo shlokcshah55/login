@@ -14,6 +14,31 @@ import '../supabase_client.dart';
 import '../../models/users.dart';
 import '../constants.dart';
 
+@visibleForTesting
+Set<String> resolveMutualFriendIds({
+  required List<Map<String, dynamic>> followingRows,
+  required List<Map<String, dynamic>> followerRows,
+}) {
+  final followingIds = <String>{};
+  final followerIds = <String>{};
+
+  for (final row in followingRows) {
+    final followeeId = row[SupabaseConstants.columnFolloweeId];
+    if (followeeId is String && followeeId.isNotEmpty) {
+      followingIds.add(followeeId);
+    }
+  }
+
+  for (final row in followerRows) {
+    final followerId = row[SupabaseConstants.columnFollowerId];
+    if (followerId is String && followerId.isNotEmpty) {
+      followerIds.add(followerId);
+    }
+  }
+
+  return followingIds.intersection(followerIds);
+}
+
 /// Service for handling Supabase authentication operations
 class AuthHelper {
   final SupabaseClient _client = SupabaseClientManager().client;
@@ -768,14 +793,10 @@ class AuthHelper {
           .eq(SupabaseConstants.columnStatus,
               SupabaseConstants.relationshipStatusAccepted);
 
-      // Combine and deduplicate user IDs
-      final Set<String> friendIds = {};
-      for (var f in following) {
-        friendIds.add(f[SupabaseConstants.columnFolloweeId] as String);
-      }
-      for (var f in followers) {
-        friendIds.add(f[SupabaseConstants.columnFollowerId] as String);
-      }
+      final friendIds = resolveMutualFriendIds(
+        followingRows: List<Map<String, dynamic>>.from(following),
+        followerRows: List<Map<String, dynamic>>.from(followers),
+      );
 
       if (friendIds.isEmpty) return [];
 
@@ -1109,7 +1130,8 @@ class AuthHelper {
 
   /// Replaces the user's full vibe-tag affinity vector with [affinity].
   /// Writes directly to the users row (no RPC needed).
-  Future<bool> updateVibeTagAffinity(String userId, List<double> affinity) async {
+  Future<bool> updateVibeTagAffinity(
+      String userId, List<double> affinity) async {
     try {
       await _client
           .from(SupabaseConstants.tableUsers)
