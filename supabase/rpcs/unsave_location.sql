@@ -49,7 +49,10 @@ BEGIN
         v_multiplier := 3.0;
     END IF;
 
-    IF v_user_vibes IS NOT NULL AND v_location_vibes IS NOT NULL THEN
+    IF v_user_vibes IS NOT NULL
+       AND v_location_vibes IS NOT NULL
+       AND array_length(v_user_vibes, 1) >= 25
+       AND array_length(v_location_vibes, 1) >= 25 THEN
         UPDATE users
         SET vibe_tag_affinity = (
             SELECT array_agg(

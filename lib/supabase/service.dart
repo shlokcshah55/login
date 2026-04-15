@@ -337,14 +337,15 @@ class SupabaseService extends ChangeNotifier {
             final isNewUser = await _authService.ensureUserRecordExists();
             _hasValidSession = true;
 
-            // For new OAuth users, initialize vibe tags and assign a default profile picture
+            // For new OAuth users, assign a default profile picture. Vibe +
+            // dietary affinity defaults are now seeded inside
+            // ensure_user_record_exists so no separate RPC call is needed.
             if (isNewUser && _authService.currentUser != null) {
               final userId = _authService.currentUser!.id;
-              await _tagsService.initializeVibeTagsForUser(userId);
               await _uploadDefaultProfilePicture(userId);
               if (kDebugMode) {
                 print(
-                    'SupabaseService: Initialized vibe tags and profile picture for new OAuth user');
+                    'SupabaseService: Uploaded default profile picture for new OAuth user');
               }
             }
 

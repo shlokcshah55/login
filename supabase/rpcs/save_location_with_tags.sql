@@ -1,4 +1,13 @@
-CREATE OR REPLACE FUNCTION public.save_location_with_tags(p_user_id uuid, p_location_id integer, p_saved_method text, p_acked boolean, p_source_video_url text)
+CREATE OR REPLACE FUNCTION public.save_location_with_tags(
+    p_user_id uuid,
+    p_location_id integer,
+    p_saved_method text,
+    p_acked boolean,
+    p_source_video_url text,
+    p_social_vibe_vector real[] DEFAULT NULL,
+    p_social_extraction jsonb DEFAULT NULL,
+    p_social_extraction_version smallint DEFAULT NULL
+)
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -11,6 +20,7 @@ AS $function$DECLARE
     v_multiplier NUMERIC;
     v_interaction_weight NUMERIC;
     v_shared_collection_id UUID;
+    v_has_social_enrichment BOOLEAN := (p_social_vibe_vector IS NOT NULL OR p_social_extraction IS NOT NULL);
 BEGIN
     -- Step 1: Verify Location Exists
     SELECT location_id INTO v_location_id
@@ -27,18 +37,38 @@ BEGIN
     ) INTO v_action_exists;
 
     IF v_action_exists THEN
+        -- Don't silently drop enrichment for re-processed shares. If this
+        -- call carries social enrichment, merge it into the existing save row
+        -- so a later TikTok for an already-saved place still contributes its
+        -- vibe signal, story, and dishes to the aggregate.
+        IF v_has_social_enrichment THEN
+            UPDATE user_location_actions
+            SET
+                social_vibe_vector = COALESCE(p_social_vibe_vector, social_vibe_vector),
+                social_extraction = COALESCE(p_social_extraction, social_extraction),
+                social_extraction_version = COALESCE(p_social_extraction_version, social_extraction_version),
+                source_video_url = COALESCE(p_source_video_url, source_video_url)
+            WHERE user_id = p_user_id AND location_id = v_location_id AND action = 'save';
+        END IF;
+
         RETURN jsonb_build_object(
             'success', TRUE, 'location_id', v_location_id,
-            'action_created', FALSE, 'message', 'Location already saved'
+            'action_created', FALSE,
+            'enrichment_updated', v_has_social_enrichment,
+            'message', CASE WHEN v_has_social_enrichment
+                            THEN 'Location already saved — enrichment merged'
+                            ELSE 'Location already saved' END
         );
     END IF;
 
     -- Step 3: Create User Location Action
     INSERT INTO user_location_actions (
-        user_id, location_id, action, saved_method, source_video_url, acked, created_at
+        user_id, location_id, action, saved_method, source_video_url, acked, created_at,
+        social_vibe_vector, social_extraction, social_extraction_version
     ) VALUES (
         p_user_id, v_location_id, 'save', p_saved_method::saved_method,
-        p_source_video_url, p_acked, v_timestamp
+        p_source_video_url, p_acked, v_timestamp,
+        p_social_vibe_vector, p_social_extraction, p_social_extraction_version
     );
 
     -- Step 4: Update Location Popularity

@@ -1,0 +1,164 @@
+-- ============================================================================
+-- Fix: get_locations_with_quality → compute_quality_score overload resolution
+-- ============================================================================
+-- The 18-arg compute_quality_score overload is declared as
+--   (double precision, integer, integer, 15 booleans)
+-- but get_locations_with_quality was passing
+--   l.rating          (real)
+--   l.user_ratings_total (numeric)
+--   l.saved_count     (smallint)
+-- Postgres function overload resolution does not implicitly cast numeric →
+-- integer, so the call failed with:
+--   function compute_quality_score(real, numeric, smallint, boolean, ...)
+--   does not exist
+-- and get_locations_with_quality returned empty on every map load.
+--
+-- Fix: explicit casts at the call site. Signature and RETURNS TABLE are
+-- unchanged, so CREATE OR REPLACE is sufficient — no DROP needed.
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION public.get_locations_with_quality(
+  center_lat double precision,
+  center_lng double precision,
+  radius_meters double precision,
+  result_limit integer DEFAULT 6000
+)
+ RETURNS TABLE(
+  location_id integer,
+  google_place_id text,
+  name text,
+  vicinity text,
+  cuisine_primary text,
+  rating double precision,
+  user_ratings_total integer,
+  price_level double precision,
+  business_status text,
+  editorial_summary text,
+  website text,
+  international_phone_number text,
+  types text,
+  opening_hours_text text[],
+  opening_hours_periods text,
+  open_now boolean,
+  lat double precision,
+  lng double precision,
+  geog geography,
+  vibe_vector integer[],
+  dietary_requirement_vector integer[],
+  saved_count integer,
+  outdoor_seating boolean,
+  live_music boolean,
+  serves_cocktails boolean,
+  serves_brunch boolean,
+  serves_wine boolean,
+  serves_beer boolean,
+  good_for_groups boolean,
+  good_for_children boolean,
+  serves_vegetarian_food boolean,
+  serves_breakfast boolean,
+  serves_lunch boolean,
+  serves_dinner boolean,
+  serves_coffee boolean,
+  serves_dessert boolean,
+  good_for_watching_sports boolean,
+  emoji text,
+  photo_reference text,
+  photo_reference_score integer,
+  image_stored boolean,
+  image_unavailable boolean,
+  photos jsonb,
+  extra_photos_stored smallint,
+  created_at timestamp without time zone,
+  updated_at timestamp without time zone,
+  distance_km double precision,
+  quality_score double precision
+)
+ LANGUAGE plpgsql
+ STABLE
+AS $function$
+BEGIN
+  RETURN QUERY
+  SELECT
+    l.location_id,
+    l.google_place_id,
+    l.name,
+    l.vicinity,
+    l.cuisine_primary,
+    l.rating::double precision,
+    l.user_ratings_total::integer,
+    l.price_level::double precision,
+    l.business_status,
+    l.editorial_summary,
+    l.website,
+    l.international_phone_number,
+    l.types,
+    l.opening_hours_text,
+    l.opening_hours_periods::text,
+    l.open_now,
+    l.lat::double precision,
+    l.lng::double precision,
+    l.geog,
+    l.vibe_vector,
+    l.dietary_requirement_vector,
+    l.saved_count::integer,
+    l.outdoor_seating,
+    l.live_music,
+    l.serves_cocktails,
+    l.serves_brunch,
+    l.serves_wine,
+    l.serves_beer,
+    l.good_for_groups,
+    l.good_for_children,
+    l.serves_vegetarian_food,
+    l.serves_breakfast,
+    l.serves_lunch,
+    l.serves_dinner,
+    l.serves_coffee,
+    l.serves_dessert,
+    l.good_for_watching_sports,
+    l.emoji,
+    l.photo_reference,
+    l.photo_reference_score::integer,
+    l.image_stored,
+    l.image_unavailable,
+    l.photos,
+    l.extra_photos_stored,
+    l.created_at,
+    l.updated_at::timestamp without time zone,
+    ST_Distance(
+      l.geog,
+      ST_SetSRID(ST_MakePoint(center_lng, center_lat), 4326)::geography
+    ) / 1000.0 AS distance_km,
+    compute_quality_score(
+      l.rating::double precision,
+      l.user_ratings_total::integer,
+      l.saved_count::integer,
+      l.outdoor_seating,
+      l.live_music,
+      l.serves_cocktails,
+      l.serves_brunch,
+      l.serves_wine,
+      l.serves_beer,
+      l.good_for_groups,
+      l.good_for_children,
+      l.serves_vegetarian_food,
+      l.serves_breakfast,
+      l.serves_lunch,
+      l.serves_dinner,
+      l.serves_coffee,
+      l.serves_dessert,
+      l.good_for_watching_sports
+    ) AS quality_score
+  FROM public.locations l
+  WHERE ST_DWithin(
+    l.geog,
+    ST_SetSRID(ST_MakePoint(center_lng, center_lat), 4326)::geography,
+    radius_meters
+  )
+  ORDER BY distance_km ASC
+  LIMIT result_limit;
+END;
+$function$;
+
+GRANT EXECUTE ON FUNCTION public.get_locations_with_quality(double precision, double precision, double precision, integer) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_locations_with_quality(double precision, double precision, double precision, integer) TO service_role;
