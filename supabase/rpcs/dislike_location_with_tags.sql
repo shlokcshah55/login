@@ -39,23 +39,30 @@ BEGIN
     -- Step 4: Update Location Popularity
     PERFORM increment_dislikes_count(v_location_id);
 
-    -- Step 5: Update User Vibe Vector (push away from location vibes)
+    -- Step 5: Update User Vibe Vector (push away from location vibes).
+    -- Only runs when both vectors are populated — otherwise NULLs would
+    -- wipe the user's affinity array.
     SELECT calculate_interaction_weight(p_user_id) INTO v_interaction_weight;
 
     SELECT vibe_vector INTO v_location_vibes FROM locations WHERE location_id = v_location_id;
     SELECT vibe_tag_affinity INTO v_user_vibes FROM users WHERE supabase_id = p_user_id;
 
-    UPDATE users
-    SET vibe_tag_affinity = (
-        SELECT array_agg(
-            LEAST(100.0, GREATEST(0.0,
-                v_user_vibes[i] + ((v_user_vibes[i] - v_location_vibes[i]) / 100.0) * 2.0 * v_interaction_weight
-            ))
-            ORDER BY i
+    IF v_user_vibes IS NOT NULL
+       AND v_location_vibes IS NOT NULL
+       AND array_length(v_user_vibes, 1) >= 25
+       AND array_length(v_location_vibes, 1) >= 25 THEN
+        UPDATE users
+        SET vibe_tag_affinity = (
+            SELECT array_agg(
+                LEAST(100.0, GREATEST(0.0,
+                    v_user_vibes[i] + ((v_user_vibes[i] - v_location_vibes[i]) / 100.0) * 2.0 * v_interaction_weight
+                ))
+                ORDER BY i
+            )
+            FROM generate_series(1, 25) AS i
         )
-        FROM generate_series(1, 25) AS i
-    )
-    WHERE supabase_id = p_user_id;
+        WHERE supabase_id = p_user_id;
+    END IF;
 
     -- Step 6: Return Success
     RETURN jsonb_build_object(

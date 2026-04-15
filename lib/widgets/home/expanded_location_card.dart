@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:login/models/locations.dart';
@@ -7,6 +8,7 @@ import 'package:login/models/markers.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
+import 'package:login/supabase/helpers/location.dart';
 import 'package:login/supabase/helpers/location_reviews.dart';
 import 'package:login/supabase/supabase_client.dart';
 import 'package:login/widgets/home/been_to_review_sheet.dart';
@@ -66,7 +68,8 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
 
   // ── Hero photo state ──
   int _currentPhotoIndex = 0;
-  late final List<String> _photos;
+  List<String> _photos = const [];
+  final LocationHelper _locationHelper = LocationHelper();
 
   // ── Sheet entrance animation ──
   late final AnimationController _sheetController;
@@ -86,7 +89,13 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   @override
   void initState() {
     super.initState();
-    _photos = _resolvePhotoUrls();
+    // Seed with whatever we already have synchronously (the storage URL
+    // from the list row). The full gallery is fetched lazily below.
+    final seed = widget.location.imageUrl?.trim();
+    if (seed != null && seed.isNotEmpty) {
+      _photos = [seed];
+    }
+    _loadGalleryPhotos();
 
     _accentColor = PinitMarkerPalette.forCuisine(
       widget.location.cuisine,
@@ -168,7 +177,11 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
         locationId: widget.location.locationId,
         userId: user.id,
       );
-      if (mounted) setState(() => _isBeenTo = review != null);
+      if (!mounted || review == null) return;
+      context.read<LocationListManager>().markLocationBeenTo(
+            widget.location.locationId,
+          );
+      setState(() => _isBeenTo = true);
     } catch (_) {}
   }
 
@@ -186,6 +199,9 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
       content: notes,
       gatekeep: gatekeep,
     );
+    if (mounted) {
+      context.read<LocationListManager>().markLocationBeenTo(locationId);
+    }
     try {
       final collectionId = await _reviewsHelper.getOrCreateBeenToCollection();
       if (collectionId != null) {
@@ -469,15 +485,50 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   //  Display helpers
   // ─────────────────────────────────────────────────────────────
 
-  List<String> _resolvePhotoUrls() {
-    final urls = <String>[];
-    final primary = widget.location.imageUrl?.trim();
-    if (primary != null && primary.isNotEmpty) urls.add(primary);
-    final fallback = widget.location.photoReference?.trim();
-    if (fallback != null && fallback.isNotEmpty && fallback != primary) {
-      urls.add(fallback);
+  /// Loads the gallery with progressive, parallel delivery. Every time a
+  /// new contiguous prefix is ready we [setState] and [precacheImage]
+  /// each newly-arrived URL — that warms both the in-memory ImageCache
+  /// and the on-disk `CachedNetworkImage` cache so PageView swipes are
+  /// instant even though the network fetches only just finished.
+  Future<void> _loadGalleryPhotos() async {
+    final seen = <String>{..._photos};
+    try {
+      final finalUrls = await _locationHelper.fetchExpandedCardPhotos(
+        widget.location,
+        onPartial: (partial) {
+          if (!mounted || partial.isEmpty) return;
+          for (final url in partial) {
+            if (seen.add(url)) {
+              precacheImage(CachedNetworkImageProvider(url), context);
+            }
+          }
+          setState(() {
+            _photos = partial;
+            if (_currentPhotoIndex >= _photos.length) {
+              _currentPhotoIndex = _photos.length - 1;
+            }
+          });
+        },
+      );
+      if (!mounted || finalUrls.isEmpty) return;
+      for (final url in finalUrls) {
+        if (seen.add(url)) {
+          precacheImage(CachedNetworkImageProvider(url), context);
+        }
+      }
+      if (finalUrls.length != _photos.length) {
+        setState(() {
+          _photos = finalUrls;
+          if (_currentPhotoIndex >= _photos.length) {
+            _currentPhotoIndex = _photos.length - 1;
+          }
+        });
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('[ExpandedCard] Gallery load failed: $e');
+      }
     }
-    return urls;
   }
 
   String _openStatusLabel() {

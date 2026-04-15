@@ -266,11 +266,20 @@ class HomeViewModel extends ChangeNotifier {
   }
 
   void _onHeaderSearchChanged() {
+    _syncBottomNavVisibilityForSearch();
     notifyListeners();
   }
 
   void _onHeaderSearchFocusChanged() {
+    _syncBottomNavVisibilityForSearch();
     notifyListeners();
+  }
+
+  void _syncBottomNavVisibilityForSearch() {
+    final shouldLock = headerSearchState.isActive ||
+        _isMagicSearchActive ||
+        headerSearchFocusNode.hasFocus;
+    bottomNavVisibilityProvider.setLocked(shouldLock);
   }
 
   // ── Map interactions ──────────────────────────────────────────
@@ -312,12 +321,14 @@ class HomeViewModel extends ChangeNotifier {
 
   Future<void> openHeaderSearch() async {
     await _headerSearchCoordinator.open();
+    _syncBottomNavVisibilityForSearch();
   }
 
   void closeHeaderSearch() {
     headerSearchFocusNode.unfocus();
     headerSearchController.clear();
     _headerSearchCoordinator.close();
+    _syncBottomNavVisibilityForSearch();
   }
 
   void updateHeaderSearchQuery(String query) {
@@ -403,6 +414,7 @@ class HomeViewModel extends ChangeNotifier {
       // Switch back to You mode when exiting magic search.
       setHomeMode(HomeMode.you);
     }
+    _syncBottomNavVisibilityForSearch();
     notifyListeners();
   }
 
@@ -760,6 +772,7 @@ class HomeViewModel extends ChangeNotifier {
     locationListManager.removeListener(_onExternalStateChanged);
     bottomNavVisibilityProvider.removeListener(_onExternalStateChanged);
     shortlistProvider.removeListener(_onExternalStateChanged);
+    bottomNavVisibilityProvider.setLocked(false);
     pageController.dispose();
     magicSearchController.dispose();
     headerSearchController.dispose();

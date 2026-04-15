@@ -4,8 +4,10 @@ import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
+import 'package:login/providers/location_list_provider.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:provider/provider.dart';
 import 'dart:developer';
 
 // ─────────────────────────────────────────────────────────────
@@ -49,6 +51,7 @@ const Map<String, _VibeTagStyle> _vibeStyles = {
 class LocationCarousel extends StatelessWidget {
   final PageController pageController;
   final List<LocationModel> locations;
+  final Set<int> beenToLocationIds;
   final String? selectedMarkerId;
   final bool bottomNavVisible;
   final ValueChanged<int> onPageChanged;
@@ -60,6 +63,7 @@ class LocationCarousel extends StatelessWidget {
     Key? key,
     required this.pageController,
     required this.locations,
+    this.beenToLocationIds = const <int>{},
     required this.selectedMarkerId,
     required this.bottomNavVisible,
     required this.onPageChanged,
@@ -101,6 +105,7 @@ class LocationCarousel extends StatelessWidget {
               location: location,
               isSelected: isSelected,
               bottomNavVisible: bottomNavVisible,
+              beenToLocationIds: beenToLocationIds,
               onLocationSelected: onLocationSelected,
               onSwipeUp: onSwipeUp,
               onSwipeDown: onSwipeDown,
@@ -119,6 +124,7 @@ class _SwipeableCard extends StatefulWidget {
   final LocationModel location;
   final bool isSelected;
   final bool bottomNavVisible;
+  final Set<int> beenToLocationIds;
   final ValueChanged<LocationModel> onLocationSelected;
   final void Function(LocationModel)? onSwipeUp;
   final void Function(LocationModel)? onSwipeDown;
@@ -127,6 +133,7 @@ class _SwipeableCard extends StatefulWidget {
     required this.location,
     required this.isSelected,
     required this.bottomNavVisible,
+    required this.beenToLocationIds,
     required this.onLocationSelected,
     this.onSwipeUp,
     this.onSwipeDown,
@@ -197,6 +204,7 @@ class _SwipeableCardState extends State<_SwipeableCard>
                 location: widget.location,
                 isSelected: widget.isSelected,
                 bottomNavVisible: widget.bottomNavVisible,
+                beenToLocationIds: widget.beenToLocationIds,
                 onLocationSelected: widget.onLocationSelected,
               ),
               // Swipe up shortlist feedback
@@ -319,12 +327,14 @@ class _CarouselCard extends StatelessWidget {
   final LocationModel location;
   final bool isSelected;
   final bool bottomNavVisible;
+  final Set<int> beenToLocationIds;
   final ValueChanged<LocationModel> onLocationSelected;
 
   const _CarouselCard({
     required this.location,
     required this.isSelected,
     required this.bottomNavVisible,
+    required this.beenToLocationIds,
     required this.onLocationSelected,
   });
 
@@ -333,6 +343,9 @@ class _CarouselCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final manager = Provider.of<LocationListManager?>(context);
+    final isBeenTo = beenToLocationIds.contains(location.locationId) ||
+        (manager?.isLocationBeenToSync(location.locationId) ?? false);
     final Color borderColor =
         _isWavy ? PinitColors.accent : PinitColors.aubergine;
     final Color shadowColor =
@@ -421,6 +434,46 @@ class _CarouselCard extends StatelessWidget {
                           child: Text(
                             location.emoji!,
                             style: const TextStyle(fontSize: 16),
+                          ),
+                        ),
+                      ),
+                    if (isBeenTo)
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: PinitColors.warning,
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: PinitColors.aubergine,
+                              width: 1.2,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                FeatherIcons.check,
+                                size: 10,
+                                color: PinitColors.cream,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Been',
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.2,
+                                  color: PinitColors.cream,
+                                  height: 1,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),

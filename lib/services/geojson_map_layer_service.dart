@@ -103,6 +103,7 @@ class GeoJsonMapLayerService {
   String? _selectedLocationId;
   List<LocationModel>? _pendingLocations;
   List<LocationModel> _currentLocations = const [];
+  Set<int> _beenToLocationIds = const <int>{};
   Set<int> _compactLocationIds = const <int>{};
   Set<int> _presentationVisibleLocationIds = const <int>{};
   Set<int> _presentationExpandedLocationIds = const <int>{};
@@ -123,6 +124,8 @@ class GeoJsonMapLayerService {
   static const String _unclusteredIconLayerId = 'pinit-unclustered-icons';
   static const String _unclusteredTextLayerId = 'pinit-unclustered-text';
   static const String _compactDotIconId = '${_iconPrefix}compact-dot';
+  static const String _compactDotBeenToIconId =
+      '${_iconPrefix}compact-dot-been-to';
 
   // Track registered emoji icons to avoid re-registering
   final Set<String> _registeredIconIds = {};
@@ -181,7 +184,7 @@ class GeoJsonMapLayerService {
 
       // 2. Add fallback assets used by the marker layer
       await _addFallbackIcon();
-      await _addCompactDotIcon();
+      await _addCompactDotIcons();
 
       // 3. Add layers (order matters - clusters first, then individual points)
       await _addClusterLayers();
@@ -198,7 +201,10 @@ class GeoJsonMapLayerService {
         log('GeoJsonMapLayerService: Flushing ${_pendingLocations!.length} buffered locations');
         final pending = _pendingLocations!;
         _pendingLocations = null;
-        await _applyLocations(pending);
+        await _applyLocations(
+          pending,
+          beenToLocationIds: _beenToLocationIds,
+        );
       }
     } catch (e, stack) {
       log('GeoJsonMapLayerService: Initialization failed: $e\n$stack');
@@ -211,23 +217,34 @@ class GeoJsonMapLayerService {
   /// If initialization hasn't completed yet, locations are buffered and will be
   /// applied once initialize() completes. Otherwise, updates are applied immediately.
   /// Mapbox will automatically handle clustering.
-  Future<void> updateLocations(List<LocationModel> locations) async {
+  Future<void> updateLocations(
+    List<LocationModel> locations, {
+    Set<int> beenToLocationIds = const <int>{},
+  }) async {
     if (!_isInitialized) {
       log('GeoJsonMapLayerService: Buffering ${locations.length} locations until initialized');
       _pendingLocations = locations;
+      _beenToLocationIds = Set<int>.from(beenToLocationIds);
       return;
     }
 
-    await _applyLocations(locations);
+    await _applyLocations(
+      locations,
+      beenToLocationIds: beenToLocationIds,
+    );
   }
 
   /// Apply locations to the map immediately.
   ///
   /// Registers icons and updates the GeoJSON source with the provided locations.
   /// Should only be called after initialize() completes.
-  Future<void> _applyLocations(List<LocationModel> locations) async {
+  Future<void> _applyLocations(
+    List<LocationModel> locations, {
+    Set<int> beenToLocationIds = const <int>{},
+  }) async {
     try {
       _currentLocations = List<LocationModel>.from(locations);
+      _beenToLocationIds = Set<int>.from(beenToLocationIds);
       _pruneBounceStateForCurrentLocations();
 
       // Register icons for all unique emoji+color combinations (both regular and cluster)
@@ -344,6 +361,7 @@ class GeoJsonMapLayerService {
       _compactFadeTimer = null;
       _compactFadeByLocationId.clear();
       _compactLocationIds = const <int>{};
+      _beenToLocationIds = const <int>{};
       _presentationVisibleLocationIds = const <int>{};
       _presentationExpandedLocationIds = const <int>{};
       _presentationDefaultsVisibleToCompact = false;
@@ -411,6 +429,14 @@ class GeoJsonMapLayerService {
             ],
             ['get', 'colorHex']
           ],
+          'clusterBeenToCount': [
+            [
+              '+',
+              ['accumulated'],
+              ['get', 'beenToClusterFlag']
+            ],
+            ['get', 'beenToClusterFlag']
+          ],
         },
       });
     }
@@ -451,26 +477,35 @@ class GeoJsonMapLayerService {
     log('GeoJsonMapLayerService: Fallback icon added');
   }
 
-  Future<void> _addCompactDotIcon() async {
-    if (_registeredIconIds.contains(_compactDotIconId)) return;
+  Future<void> _addCompactDotIcons() async {
+    final compactDotIcons = <({String id, bool hasBeenTo})>[
+      (id: _compactDotIconId, hasBeenTo: false),
+      (id: _compactDotBeenToIconId, hasBeenTo: true),
+    ];
 
-    final iconBytes = await PinitMarkers.createCompactMapDot(
-      devicePixelRatio: 3.0,
-    );
-    final image = await _createMapboxImage(iconBytes);
+    for (final compactDotIcon in compactDotIcons) {
+      if (_registeredIconIds.contains(compactDotIcon.id)) continue;
 
-    await _map.style.addStyleImage(
-      _compactDotIconId,
-      3.0,
-      image,
-      false,
-      [],
-      [],
-      null,
-    );
+      final iconBytes = await PinitMarkers.createCompactMapDot(
+        devicePixelRatio: 3.0,
+        hasBeenTo: compactDotIcon.hasBeenTo,
+      );
+      final image = await _createMapboxImage(iconBytes);
 
-    _registeredIconIds.add(_compactDotIconId);
-    log('GeoJsonMapLayerService: Compact dot icon added');
+      await _map.style.addStyleImage(
+        compactDotIcon.id,
+        3.0,
+        image,
+        false,
+        [],
+        [],
+        null,
+      );
+
+      _registeredIconIds.add(compactDotIcon.id);
+    }
+
+    log('GeoJsonMapLayerService: Compact dot icons added');
   }
 
   /// Register icons for all unique marker-visual/color combinations in the locations.
@@ -611,41 +646,45 @@ class GeoJsonMapLayerService {
     for (final entry in iconData.entries) {
       final data = entry.value;
       for (final pointCount in _clusterIconPointCounts) {
-        final iconId =
-            '$_clusterIconPrefix${entry.key}-${_clusterOverflowTierKey(pointCount)}';
-        if (_registeredIconIds.contains(iconId)) continue;
+        for (final hasBeenTo in const [false, true]) {
+          final visitedKey = hasBeenTo ? 'been' : 'default';
+          final iconId =
+              '$_clusterIconPrefix${entry.key}-$visitedKey-${_clusterOverflowTierKey(pointCount)}';
+          if (_registeredIconIds.contains(iconId)) continue;
 
-        try {
-          final iconBytes = await PinitMarkers.createClusterPinWithBadge(
-            emoji: data.emoji,
-            pointCount: pointCount,
-            avatarColors: [],
-            rating: data.rating,
-            cuisine: data.cuisine,
-            types: data.types,
-            wavyScore: data.wavyScore,
-            bossmanScore: data.bossmanScore,
-            savedCount: data.savedCount,
-            vibeVector: data.vibeVector,
-            fallbackSeed: data.fallbackSeed,
-          );
+          try {
+            final iconBytes = await PinitMarkers.createClusterPinWithBadge(
+              emoji: data.emoji,
+              pointCount: pointCount,
+              avatarColors: [],
+              rating: data.rating,
+              cuisine: data.cuisine,
+              types: data.types,
+              wavyScore: data.wavyScore,
+              bossmanScore: data.bossmanScore,
+              savedCount: data.savedCount,
+              vibeVector: data.vibeVector,
+              fallbackSeed: data.fallbackSeed,
+              hasBeenTo: hasBeenTo,
+            );
 
-          final image = await _createMapboxImage(iconBytes);
+            final image = await _createMapboxImage(iconBytes);
 
-          await _map.style.addStyleImage(
-            iconId,
-            3.0, // devicePixelRatio
-            image,
-            false, // SDF
-            [], // Stretch X
-            [], // Stretch Y
-            null, // Content
-          );
+            await _map.style.addStyleImage(
+              iconId,
+              3.0, // devicePixelRatio
+              image,
+              false, // SDF
+              [], // Stretch X
+              [], // Stretch Y
+              null, // Content
+            );
 
-          _registeredIconIds.add(iconId);
-          registered++;
-        } catch (e) {
-          log('GeoJsonMapLayerService: Failed to register cluster icon $iconId: $e');
+            _registeredIconIds.add(iconId);
+            registered++;
+          } catch (e) {
+            log('GeoJsonMapLayerService: Failed to register cluster icon $iconId: $e');
+          }
         }
       }
     }
@@ -674,6 +713,21 @@ class GeoJsonMapLayerService {
             ['get', 'clusterColorHex'],
             '-',
             [
+              'case',
+              [
+                '>',
+                [
+                  'coalesce',
+                  ['get', 'clusterBeenToCount'],
+                  0
+                ],
+                0
+              ],
+              'been',
+              'default',
+            ],
+            '-',
+            [
               'step',
               ['get', 'point_count'],
               'dots0',
@@ -694,7 +748,7 @@ class GeoJsonMapLayerService {
       null,
     );
 
-    log('GeoJsonMapLayerService: Cluster layer added (pin stack with aubergine overflow dots)');
+    log('GeoJsonMapLayerService: Cluster layer added (visited-aware overflow dots)');
   }
 
   /// Add layers for individual (unclustered) points.
@@ -712,7 +766,16 @@ class GeoJsonMapLayerService {
           ],
         ],
         'layout': {
-          'icon-image': _compactDotIconId,
+          'icon-image': [
+            'case',
+            [
+              'coalesce',
+              ['get', 'isBeenTo'],
+              false
+            ],
+            _compactDotBeenToIconId,
+            _compactDotIconId,
+          ],
           'icon-size': [
             '*',
             config.iconSize,
@@ -963,6 +1026,7 @@ class GeoJsonMapLayerService {
       final openStatusLabel = _openStatusLabel(location.openNow);
       final hasInfoLine = infoSubtitle.isNotEmpty || openStatusLabel.isNotEmpty;
       final locationId = location.locationId;
+      final isBeenTo = _beenToLocationIds.contains(locationId);
       final isSelected = _selectedLocationId == locationId.toString();
       final compactBlend = _compactBlendForLocation(
         locationId,
@@ -980,6 +1044,8 @@ class GeoJsonMapLayerService {
           'types': location.types,
           'rating': location.rating,
           'savedCount': location.savedCount ?? 0,
+          'isBeenTo': isBeenTo,
+          'beenToClusterFlag': isBeenTo ? 1 : 0,
           'priceLevel': location.priceLevel,
           'openNow': location.openNow,
           'topVibeTag': location.topVibeTagLabel,

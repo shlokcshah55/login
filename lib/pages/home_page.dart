@@ -229,6 +229,7 @@ class _HomePageState extends State<HomePage> {
       context,
       initialVibeTagIds: _selectedVibeTagIds,
       initialCuisineTagIds: _selectedCuisineTagIds,
+      initialAvailabilityFilter: _locationListManager.availabilityFilter,
     );
     if (!mounted || result == null) return;
     setState(() {
@@ -238,6 +239,7 @@ class _HomePageState extends State<HomePage> {
     await _locationListManager.applyFilters(
       vibeTagIds: result.vibeTagIds.toList(),
       cuisineTagIds: result.cuisineTagIds.toList(),
+      availabilityFilter: result.availabilityFilter,
       vibeTagNames: result.vibeTagNames,
       cuisineTagNames: result.cuisineTagNames,
     );
@@ -344,85 +346,80 @@ class _HomePageState extends State<HomePage> {
                                   const SizedBox(width: 10),
                                   GestureDetector(
                                     onTap: _openHomeFilters,
-                                      child: Stack(
-                                        clipBehavior: Clip.none,
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 8,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: pinit.PinitColors.cream,
-                                              borderRadius:
-                                                  BorderRadius.circular(999),
-                                              border: Border.all(
-                                                color:
-                                                    pinit.PinitColors.aubergine,
-                                                width: 1.5,
-                                              ),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: pinit
-                                                      .PinitColors.aubergine,
-                                                  blurRadius: 0,
-                                                  offset: const Offset(3, 3),
-                                                ),
-                                              ],
-                                            ),
-                                            child: Icon(
-                                              FeatherIcons.sliders,
-                                              size: 15,
+                                    child: Stack(
+                                      clipBehavior: Clip.none,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 8,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: pinit.PinitColors.cream,
+                                            borderRadius:
+                                                BorderRadius.circular(999),
+                                            border: Border.all(
                                               color:
                                                   pinit.PinitColors.aubergine,
+                                              width: 1.5,
                                             ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color:
+                                                    pinit.PinitColors.aubergine,
+                                                blurRadius: 0,
+                                                offset: const Offset(3, 3),
+                                              ),
+                                            ],
                                           ),
-                                          if (_selectedVibeTagIds.isNotEmpty ||
-                                              _selectedCuisineTagIds.isNotEmpty)
-                                            Positioned(
-                                              top: -4,
-                                              right: -2,
-                                              child: Container(
-                                                constraints:
-                                                    const BoxConstraints(
-                                                  minWidth: 18,
-                                                  minHeight: 18,
-                                                ),
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                  horizontal: 5,
-                                                  vertical: 2,
-                                                ),
-                                                decoration: BoxDecoration(
+                                          child: Icon(
+                                            FeatherIcons.sliders,
+                                            size: 15,
+                                            color: pinit.PinitColors.aubergine,
+                                          ),
+                                        ),
+                                        if (_selectedVibeTagIds.isNotEmpty ||
+                                            _selectedCuisineTagIds.isNotEmpty)
+                                          Positioned(
+                                            top: -4,
+                                            right: -2,
+                                            child: Container(
+                                              constraints: const BoxConstraints(
+                                                minWidth: 18,
+                                                minHeight: 18,
+                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                horizontal: 5,
+                                                vertical: 2,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: pinit.PinitColors.accent,
+                                                borderRadius:
+                                                    BorderRadius.circular(999),
+                                                border: Border.all(
                                                   color:
-                                                      pinit.PinitColors.accent,
-                                                  borderRadius:
-                                                      BorderRadius.circular(
-                                                          999),
-                                                  border: Border.all(
+                                                      pinit.PinitColors.cream,
+                                                  width: 1.2,
+                                                ),
+                                              ),
+                                              child: Center(
+                                                child: Text(
+                                                  '${_selectedVibeTagIds.length + _selectedCuisineTagIds.length}',
+                                                  style: AppTypography.sans(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.w800,
                                                     color:
                                                         pinit.PinitColors.cream,
-                                                    width: 1.2,
-                                                  ),
-                                                ),
-                                                child: Center(
-                                                  child: Text(
-                                                    '${_selectedVibeTagIds.length + _selectedCuisineTagIds.length}',
-                                                    style: AppTypography.sans(
-                                                      fontSize: 10,
-                                                      fontWeight:
-                                                          FontWeight.w800,
-                                                      color: pinit
-                                                          .PinitColors.cream,
-                                                      height: 1.0,
-                                                    ),
+                                                    height: 1.0,
                                                   ),
                                                 ),
                                               ),
                                             ),
-                                        ],
-                                      ),
+                                          ),
+                                      ],
                                     ),
+                                  ),
                                 ],
                               ),
                               Row(

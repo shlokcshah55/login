@@ -114,7 +114,10 @@ class MapStateProvider with ChangeNotifier {
   /// If the service hasn't been initialized yet, it will be initialized now
   /// (ensuring supabase restaurants have loaded first).
   /// Returns true if the update was actually performed, false if skipped.
-  Future<bool> updateMapLocations(List<LocationModel> locations) async {
+  Future<bool> updateMapLocations(
+    List<LocationModel> locations, {
+    Set<int> beenToLocationIds = const <int>{},
+  }) async {
     if (!_useGeoJsonLayers || _geoJsonLayerService == null) {
       return false;
     }
@@ -130,7 +133,10 @@ class MapStateProvider with ChangeNotifier {
       }
     }
 
-    await _geoJsonLayerService!.updateLocations(locations);
+    await _geoJsonLayerService!.updateLocations(
+      locations,
+      beenToLocationIds: beenToLocationIds,
+    );
     _flushPendingRecentSaveBounces();
     log("MapStateProvider: Updated ${locations.length} locations on map.");
     return true;

@@ -61,9 +61,18 @@ class LocationHelper {
   }
 
   // ==================== IMAGE URL HELPER ====================
-  /// Constructs the image URL for a location.
-  /// If image_stored is true, the image is already in storage — return its public URL.
-  /// Otherwise, trigger a background download from Google and return the URL optimistically.
+  // Authoritative state lives in the DB:
+  //   image_stored=true        -> `{id}.jpg` exists in Supabase Storage
+  //   image_unavailable=true   -> Google returned no photos; never retry
+  //   photos jsonb             -> cached list of photo resource names from
+  //                               a previous Place Details call (avoids
+  //                               paying for another one)
+  //   extra_photos_stored      -> how many `{id}_1.jpg`..`{id}_N.jpg` extras
+  //                               are in storage for the expanded card
+  //
+  // Every fetched list row must include image_stored / image_unavailable in
+  // its SELECT, otherwise this check sees null and refires the download.
+  // See `get_locations_with_quality` and the photo pipeline migration.
   Future<String?> _getLocationImageUrl(
       Map<String, dynamic> locationData) async {
     final locationId = locationData[SupabaseConstants.columnLocationId] as int;
@@ -72,48 +81,84 @@ class LocationHelper {
     final publicUrl =
         _client.storage.from('location_photos').getPublicUrl(filename);
 
-    // If image_stored is true, the file is already in storage — return immediately.
-    final imageStored = locationData[SupabaseConstants.columnImageStored];
-    if (imageStored == true) {
+    if (locationData[SupabaseConstants.columnImageStored] == true) {
       return publicUrl;
     }
 
-    // If previously confirmed no image is available, skip and return null.
-    final imageUnavailable = locationData['image_unavailable'];
-    if (imageUnavailable == true) {
-      _noImageAvailable.add(locationId); // sync in-memory set from DB
+    if (locationData[SupabaseConstants.columnImageUnavailable] == true) {
+      _noImageAvailable.add(locationId);
       return null;
     }
 
-    // Image not yet in storage — kick off a background download if we have a reference or place ID.
-    final photoReference = locationData[SupabaseConstants.columnPhotoReference];
     final googlePlaceId = locationData[SupabaseConstants.columnGooglePlaceId];
-
-    final hasPhotoRef =
-        photoReference != null && photoReference.toString().isNotEmpty;
     final hasPlaceId =
         googlePlaceId != null && googlePlaceId.toString().isNotEmpty;
-    if ((hasPhotoRef || hasPlaceId) && !_noImageAvailable.contains(locationId)) {
-      _ensureImageUploaded(locationId, googlePlaceId?.toString() ?? '',
-          photoReference?.toString() ?? '');
+    if (!hasPlaceId || _noImageAvailable.contains(locationId)) {
+      return null;
     }
+
+    // Pass the cached `photos` jsonb through so we can skip the Details call
+    // for any row that was populated by a prior download.
+    final cachedPhotos = _coercePhotosJson(
+        locationData[SupabaseConstants.columnPhotos]);
+
+    _ensureImageUploaded(
+      locationId: locationId,
+      googlePlaceId: googlePlaceId.toString(),
+      cachedPhotos: cachedPhotos,
+    );
 
     return publicUrl;
   }
 
-  /// Background task to ensure image is uploaded to storage
-  /// This is fire-and-forget - doesn't block the main flow
-  Future<void> _ensureImageUploaded(
-      int locationId, String googlePlaceId, String photoReference) async {
-    // Skip locations confirmed to have no image source
+  /// Coerce the `photos` column (which may come back as List<dynamic> of
+  /// maps, or a JSON string depending on the transport) into a typed list.
+  List<Map<String, dynamic>>? _coercePhotosJson(dynamic raw) {
+    if (raw == null) return null;
+    try {
+      if (raw is String) {
+        if (raw.isEmpty) return null;
+        final decoded = jsonDecode(raw);
+        if (decoded is List) {
+          return decoded
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
+        }
+        return null;
+      }
+      if (raw is List) {
+        return raw
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Fire-and-forget background task: ensures the primary photo for this
+  /// location ends up in Supabase Storage. Deduped via `_activeDownloads`.
+  Future<void> _ensureImageUploaded({
+    required int locationId,
+    required String googlePlaceId,
+    List<Map<String, dynamic>>? cachedPhotos,
+  }) async {
     if (_noImageAvailable.contains(locationId)) return;
-    // Skip if already downloading
     if (_activeDownloads.containsKey(locationId)) return;
 
+    final future = _performImageDownload(
+      locationId: locationId,
+      placeId: googlePlaceId,
+      cachedPhotos: cachedPhotos,
+    );
+    _activeDownloads[locationId] = future;
     try {
-      await getLocationImage(locationId, googlePlaceId, photoReference);
-    } catch (e) {
-      // silent — background task, don't surface errors to UI
+      await future;
+    } catch (_) {
+      // background — swallow
+    } finally {
+      _activeDownloads.remove(locationId);
     }
   }
 
@@ -124,7 +169,7 @@ class LocationHelper {
   /// Optionally calculates match scores using user affinity vectors.
   Future<List<LocationModel>> processLocationsWithImages(
     List<dynamic> locationsData, {
-    List<int>? userVibeAffinity,
+    List<double>? userVibeAffinity,
     List<int>? userDietaryAffinity,
   }) async {
     if (locationsData.isEmpty) return [];
@@ -159,11 +204,15 @@ class LocationHelper {
       try {
         final locationId = item[SupabaseConstants.columnLocationId] as int;
 
-        // Check cache first
+        // Check cache first. Only re-resolve the image URL if the cached
+        // entry doesn't already have one — otherwise every list refresh
+        // re-fires the background download pipeline for every visible
+        // location, which was a major source of Google Places API spam.
         final cached = _getFromCache(locationId);
         if (cached != null) {
-          // Always refresh imageUrl even for cached locations
-          // in case it was added or updated
+          if (cached.imageUrl != null && cached.imageUrl!.isNotEmpty) {
+            return cached;
+          }
           final imageUrl = await _getLocationImageUrl(item);
           if (imageUrl != null && imageUrl != cached.imageUrl) {
             final updated = cached.copyWith(imageUrl: imageUrl);
@@ -273,7 +322,7 @@ class LocationHelper {
       _cleanExpiredCache();
 
       // Fetch user affinity vectors for match scoring
-      List<int>? userVibeAffinity;
+      List<double>? userVibeAffinity;
       List<int>? userDietaryAffinity;
       try {
         final userProf = await _client
@@ -287,8 +336,9 @@ class LocationHelper {
         if (userProf != null) {
           final vibeRaw = userProf[SupabaseConstants.columnVibeTagAffinity];
           if (vibeRaw is List) {
-            userVibeAffinity =
-                List<int>.from(vibeRaw.map((e) => (e as num).toInt()));
+            userVibeAffinity = <double>[
+              for (final e in vibeRaw) (e as num).toDouble(),
+            ];
           }
 
           final dietaryRaw =
@@ -816,158 +866,378 @@ class LocationHelper {
     }
   }
 
+  /// Public entry point used by callers that only know the placeId +
+  /// (optional) photo_reference hint. The photo_reference argument is kept
+  /// for signature compatibility but is ignored — stored references expire
+  /// and are unreliable, so we always drive from the cached `photos` jsonb
+  /// or (failing that) a one-time Place Details call.
   Future<String?> getLocationImage(
       int locationId, String google_place_id, String? photoReference) async {
+    if (_activeDownloads.containsKey(locationId)) {
+      return _activeDownloads[locationId];
+    }
+    final future = _performImageDownload(
+      locationId: locationId,
+      placeId: google_place_id,
+      cachedPhotos: null,
+    );
+    _activeDownloads[locationId] = future;
     try {
-      // Check if another call is already downloading this location
-      if (_activeDownloads.containsKey(locationId)) {
-        return await _activeDownloads[locationId];
-      }
-
-      // Download from Google and upload to Supabase
-      final downloadFuture =
-          _performImageDownload(locationId, photoReference, google_place_id);
-      _activeDownloads[locationId] = downloadFuture;
-
-      try {
-        final result = await downloadFuture;
-        return result;
-      } finally {
-        _activeDownloads.remove(locationId);
-      }
-    } catch (e) {
-      return null;
+      return await future;
+    } finally {
+      _activeDownloads.remove(locationId);
     }
   }
 
-  // Helper function to fetch photos array from Google Places API v1
-  Future<List<dynamic>?> _fetchPlacePhotos(String placeId) async {
+  /// Call Google Places Details v1 with a minimal field mask (`id,photos`)
+  /// and return the `photos` array. One call = one billable Pro-SKU hit, so
+  /// this should only ever be invoked when we don't already have the array
+  /// cached in the DB `photos` column.
+  Future<List<Map<String, dynamic>>?> _fetchPlacePhotos(String placeId) async {
     try {
       final apiKey = dotenv.env["GOOGLE_PLACE_API_KEY"];
-      if (apiKey == null || apiKey.isEmpty) {
-        return null;
-      }
+      if (apiKey == null || apiKey.isEmpty) return null;
 
-      final url = 'https://places.googleapis.com/v1/places/$placeId';
-      final headers = {
-        'Content-Type': 'application/json',
-        'X-Goog-Api-Key': apiKey,
-        'X-Goog-FieldMask': 'id,displayName,photos',
-      };
-      final response = await http.get(Uri.parse(url), headers: headers);
+      final response = await http.get(
+        Uri.parse('https://places.googleapis.com/v1/places/$placeId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': apiKey,
+          'X-Goog-FieldMask': 'id,photos',
+        },
+      );
+      if (response.statusCode != 200) return null;
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final photos = data['photos'] as List?;
-        if (photos != null && photos.isNotEmpty) {
-          return photos;
-        }
-      }
-
-      return null;
-    } catch (e) {
+      final data = jsonDecode(response.body);
+      final photos = data['photos'];
+      if (photos is! List || photos.isEmpty) return null;
+      return photos
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    } catch (_) {
       return null;
     }
   }
 
-  // Method that performs the actual download (called only once per location)
-  Future<String?> _performImageDownload(
-      int locationId, String? photoReference, String placeId) async {
-    // Step 3: Try the stored photo reference first if we have one
-    if (photoReference != null && photoReference.isNotEmpty) {
-      if (kDebugMode)
-        print('[Image] [$locationId] Step 3: Trying stored photo_reference...');
-      final permanentUrl =
-          await _downloadAndUploadImage(photoReference, locationId);
-      if (permanentUrl != null) {
-        try {
-          await _client.rpc('update_location_image_url', params: {
-            'p_location_id': locationId,
-            'p_image_url': permanentUrl,
-          });
-        } catch (e) {
-          // best-effort DB update
+  /// Core download pipeline. Guaranteed to be called at most once per
+  /// location-per-session because every public entry point wraps it in
+  /// `_activeDownloads`. Flow:
+  ///
+  ///   1. Pick the source for photo resource names, in priority order:
+  ///        a. cachedPhotos passed in from a list row (zero Google cost)
+  ///        b. Place Details API (1 billable call)
+  ///   2. If no photos available -> mark_location_image_unavailable, bail.
+  ///   3. Download photo[0] via the Media API, upload as `{id}.jpg`.
+  ///   4. Persist photos + flag via `mark_location_image_uploaded` RPC.
+  ///
+  /// After this succeeds, `image_stored=true` so every future list fetch
+  /// short-circuits in `_getLocationImageUrl` with zero Google calls.
+  Future<String?> _performImageDownload({
+    required int locationId,
+    required String placeId,
+    List<Map<String, dynamic>>? cachedPhotos,
+  }) async {
+    List<Map<String, dynamic>>? photos = cachedPhotos;
+
+    if (photos == null || photos.isEmpty) {
+      if (placeId.isEmpty) {
+        if (kDebugMode) {
+          print('[Image] [$locationId] No placeId and no cached photos.');
         }
-        if (kDebugMode)
+        return null;
+      }
+      if (kDebugMode) {
+        print(
+            '[Image] [$locationId] Calling Place Details for place $placeId...');
+      }
+      photos = await _fetchPlacePhotos(placeId);
+      if (photos == null || photos.isEmpty) {
+        if (kDebugMode) {
           print(
-              '[Image] [$locationId] Step 3: Stored photo_reference succeeded.');
-        return permanentUrl;
+              '[Image] [$locationId] Place Details returned no photos — marking unavailable.');
+        }
+        _noImageAvailable.add(locationId);
+        try {
+          await _client.rpc('mark_location_image_unavailable',
+              params: {'p_location_id': locationId});
+        } catch (_) {}
+        return null;
       }
-      if (kDebugMode)
-        print(
-            '[Image] [$locationId] Step 3: Stored photo_reference failed — falling back to google_place_id.');
-    } else {
-      if (kDebugMode)
-        print(
-            '[Image] [$locationId] Step 3: No stored photo_reference — will use google_place_id.');
-    }
-
-    // Step 4: Fetch fresh photo references from Google Places API using place ID
-    if (placeId.isEmpty) {
-      if (kDebugMode)
-        print(
-            '[Image] [$locationId] Step 4: No google_place_id available — cannot fetch image.');
-      return null;
-    }
-
-    if (kDebugMode)
+    } else if (kDebugMode) {
       print(
-          '[Image] [$locationId] Step 4: Fetching photo references from Google Places API for place $placeId...');
-    final freshPhotos = await _fetchPlacePhotos(placeId);
-    if (freshPhotos == null || freshPhotos.isEmpty) {
-      if (kDebugMode)
-        print(
-            '[Image] [$locationId] Step 4: Google Places API returned no photos — marking as unavailable.');
-      _noImageAvailable.add(locationId);
-      try {
-        await _client.rpc('mark_location_image_unavailable', params: {
-          'p_location_id': locationId,
-        });
-      } catch (e) {
-        // best-effort — in-memory flag still prevents retries this session
-      }
-      return null;
+          '[Image] [$locationId] Using ${photos.length} cached photo ref(s) — skipping Place Details.');
     }
 
-    final freshReference = freshPhotos[0]['name'] as String;
-    if (kDebugMode)
-      print(
-          '[Image] [$locationId] Step 4: Got ${freshPhotos.length} photo reference(s). Using first: $freshReference');
-
-    // Step 5: Save fresh references back to DB for future use
-    if (kDebugMode)
-      print(
-          '[Image] [$locationId] Step 5: Saving fresh photo reference and photos array to DB...');
-    try {
-      await _client.rpc('update_location_photo_reference', params: {
-        'p_location_id': locationId,
-        'p_photo_reference': freshReference,
-      });
-      await _client.rpc('update_location_photos', params: {
-        'p_location_id': locationId,
-        'p_photos': jsonEncode(freshPhotos),
-      });
-      if (kDebugMode)
-        print('[Image] [$locationId] Step 5: DB updated successfully.');
-    } catch (e) {
-      if (kDebugMode)
-        print(
-            '[Image] [$locationId] Step 5: Failed to save to DB (non-fatal): $e');
-    }
+    final firstReference = photos[0]['name'] as String?;
+    if (firstReference == null || firstReference.isEmpty) return null;
 
     final permanentUrl =
-        await _downloadAndUploadImage(freshReference, locationId);
-    if (permanentUrl != null) {
-      try {
-        await _client.rpc('update_location_image_url', params: {
-          'p_location_id': locationId,
-          'p_image_url': permanentUrl,
-        });
-      } catch (e) {
-        // best-effort DB update
+        await _downloadAndUploadImage(firstReference, locationId);
+    if (permanentUrl == null) return null;
+
+    try {
+      await _client.rpc('mark_location_image_uploaded', params: {
+        'p_location_id': locationId,
+        'p_photos': photos,
+        'p_photo_reference': firstReference,
+      });
+      if (kDebugMode) {
+        print('[Image] [$locationId] Upload complete, image_stored=true.');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('[Image] [$locationId] mark_location_image_uploaded failed: $e');
       }
     }
     return permanentUrl;
+  }
+
+  // ==================== EXPANDED CARD GALLERY ====================
+  /// Returns the list of Supabase Storage URLs for every photo we have
+  /// stored for this location — primary first, then `_1`, `_2`, … up to
+  /// `extra_photos_stored`.
+  ///
+  /// If the DB `photos` jsonb has more entries than we've persisted yet,
+  /// this lazily fetches the missing ones via the Media API, uploads them
+  /// to storage, and bumps `extra_photos_stored`. After the first open of
+  /// an expanded card, every subsequent open is zero Google calls.
+  ///
+  /// Cost model (per-location, lifetime):
+  ///   first open with 10 photos  -> up to 9 Media calls  (~$0.063)
+  ///   every open after that      -> 0 Google calls
+  ///
+  /// `maxPhotos` caps how many extras we'll ever fetch; Google's photos
+  /// array is typically 10 entries, which is the sensible default.
+  /// Fetches every photo we can for the expanded card, with maximum
+  /// parallelism and progressive delivery. The [onPartial] callback fires
+  /// each time a new contiguous prefix of photos is ready, so the UI can
+  /// render photo 0 as soon as it lands and progressively fill the
+  /// carousel as 1, 2, 3 … arrive.
+  ///
+  /// Latency model:
+  ///   - primary already in storage: 0 network round-trips for photo 0
+  ///   - primary not in storage:     1 Place Details + 1 Media (serial),
+  ///                                 then all extras Media calls in
+  ///                                 parallel (single RTT cost, not N)
+  ///   - primary in storage, extras missing: all extras in parallel
+  ///
+  /// On-device caching: every emitted URL is a Supabase Storage public
+  /// URL, which [CachedNetworkImage] persists to the app's sandboxed
+  /// cache directory on first display (iOS `NSCachesDirectory`, Android
+  /// app-private cache). Subsequent opens read from disk with no network.
+  Future<List<String>> fetchExpandedCardPhotos(
+    LocationModel location, {
+    int maxPhotos = 10,
+    void Function(List<String> contiguousPrefix)? onPartial,
+  }) async {
+    final locationId = location.locationId;
+    final bucket = _client.storage.from('location_photos');
+
+    if (kDebugMode) {
+      print(
+          '[Gallery] [$locationId] open: image_stored=${location.imageStored}, '
+          'photos_cached=${location.photos?.length ?? 0}, '
+          'extras_stored=${location.extraPhotosStored ?? 0}, '
+          'place_id=${location.googlePlaceId}');
+    }
+
+    // Wait out any background primary-photo download so we don't race it.
+    final inflight = _activeDownloads[locationId];
+    if (inflight != null) {
+      try {
+        await inflight;
+      } catch (_) {}
+    }
+
+    // ─── Resolve photos metadata (Place Details only if jsonb empty) ────
+    List<Map<String, dynamic>>? photosJson = location.photos;
+    if (photosJson == null || photosJson.isEmpty) {
+      final placeId = location.googlePlaceId;
+      if (placeId == null || placeId.isEmpty) {
+        if (kDebugMode) {
+          print('[Gallery] [$locationId] No photos and no place_id.');
+        }
+        if (location.imageStored == true) {
+          final only = [bucket.getPublicUrl('$locationId.jpg')];
+          onPartial?.call(only);
+          return only;
+        }
+        return const [];
+      }
+      if (kDebugMode) {
+        print('[Gallery] [$locationId] Calling Place Details (one-time)...');
+      }
+      photosJson = await _fetchPlacePhotos(placeId);
+      if (photosJson == null || photosJson.isEmpty) {
+        if (kDebugMode) {
+          print(
+              '[Gallery] [$locationId] Place Details returned no photos — marking unavailable.');
+        }
+        _noImageAvailable.add(locationId);
+        try {
+          await _client.rpc('mark_location_image_unavailable',
+              params: {'p_location_id': locationId});
+        } catch (_) {}
+        return const [];
+      }
+    }
+
+    final desired =
+        photosJson.length < maxPhotos ? photosJson.length : maxPhotos;
+    if (desired == 0) return const [];
+
+    // Sparse map keyed by index; we build the contiguous prefix on the
+    // fly. Concurrent completions mutate this under a single isolate's
+    // event loop, so no explicit locking is required.
+    final results = <int, String>{};
+
+    List<String> contiguousPrefix() {
+      final out = <String>[];
+      for (var i = 0; i < desired; i++) {
+        final v = results[i];
+        if (v == null) break;
+        out.add(v);
+      }
+      return out;
+    }
+
+    void emit() {
+      if (onPartial != null) onPartial(contiguousPrefix());
+    }
+
+    // ─── Seed anything we can resolve for free from storage ─────────────
+    if (location.imageStored == true) {
+      results[0] = bucket.getPublicUrl('$locationId.jpg');
+    }
+    var alreadyStored = location.extraPhotosStored ?? 0;
+    if (alreadyStored > desired - 1) alreadyStored = desired - 1;
+    for (var i = 1; i <= alreadyStored; i++) {
+      results[i] = bucket.getPublicUrl('${locationId}_$i.jpg');
+    }
+    if (results.isNotEmpty) emit();
+
+    // ─── Identify the indices that still need a Media round-trip ────────
+    final needsFetch = <int>[];
+    if (results[0] == null) needsFetch.add(0);
+    for (var i = alreadyStored + 1; i <= desired - 1; i++) {
+      needsFetch.add(i);
+    }
+
+    if (needsFetch.isEmpty) {
+      return contiguousPrefix();
+    }
+
+    if (kDebugMode) {
+      print('[Gallery] [$locationId] Fetching indices $needsFetch in parallel');
+    }
+
+    // ─── Kick every missing index off in parallel ───────────────────────
+    // One of them may be index 0, which needs the primary-filename upload
+    // path + mark_location_image_uploaded RPC. The rest get the
+    // extras path + mark_location_extra_photos_stored at the end.
+    bool primaryWasFetched = false;
+    final futures = <Future<void>>[];
+    for (final i in needsFetch) {
+      final ref = photosJson[i]['name'] as String?;
+      if (ref == null || ref.isEmpty) continue;
+
+      futures.add(() async {
+        final url = i == 0
+            ? await _downloadAndUploadImage(ref, locationId)
+            : await _downloadAndUploadExtraPhoto(
+                photoReference: ref,
+                locationId: locationId,
+                index: i,
+              );
+        if (url != null) {
+          results[i] = url;
+          if (i == 0) primaryWasFetched = true;
+          emit();
+        }
+      }());
+    }
+
+    await Future.wait(futures);
+
+    // ─── Persist state back to the DB ───────────────────────────────────
+    // Primary upload → mark_location_image_uploaded. We only call this if
+    // we had to actually fetch the primary; otherwise image_stored was
+    // already true and the photos jsonb is already persisted.
+    if (primaryWasFetched) {
+      final primaryRef = photosJson[0]['name'] as String?;
+      try {
+        await _client.rpc('mark_location_image_uploaded', params: {
+          'p_location_id': locationId,
+          'p_photos': photosJson,
+          'p_photo_reference': primaryRef,
+        });
+      } catch (e) {
+        if (kDebugMode) {
+          print(
+              '[Gallery] [$locationId] mark_location_image_uploaded failed: $e');
+        }
+      }
+    }
+
+    // Count the largest contiguous run of extras we now have, to bump
+    // extra_photos_stored. Because uploads land in parallel a failure at
+    // any one index leaves a gap — we intentionally only count up to the
+    // gap so next open can retry the hole (which is a Media call at most,
+    // not a billed Details call).
+    var highestContiguousExtra = 0;
+    for (var i = 1; i <= desired - 1; i++) {
+      if (results[i] == null) break;
+      highestContiguousExtra = i;
+    }
+    if (highestContiguousExtra > alreadyStored) {
+      try {
+        await _client.rpc('mark_location_extra_photos_stored', params: {
+          'p_location_id': locationId,
+          'p_count': highestContiguousExtra,
+        });
+        if (kDebugMode) {
+          print(
+              '[Gallery] [$locationId] extras_stored updated to $highestContiguousExtra');
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print(
+              '[Gallery] [$locationId] mark_location_extra_photos_stored failed: $e');
+        }
+      }
+    }
+
+    return contiguousPrefix();
+  }
+
+  /// Fetch one extra photo via the Media API and upload it as
+  /// `{locationId}_{index}.jpg`. Returns the public URL on success.
+  Future<String?> _downloadAndUploadExtraPhoto({
+    required String photoReference,
+    required int locationId,
+    required int index,
+  }) async {
+    try {
+      final tempImageUrl = await _tryMediaApi(photoReference);
+      if (tempImageUrl == null) return null;
+
+      final response = await http.get(Uri.parse(tempImageUrl));
+      if (response.statusCode != 200) return null;
+
+      final filename = '${locationId}_$index.jpg';
+      await _client.storage.from('location_photos').uploadBinary(
+            filename,
+            response.bodyBytes,
+            fileOptions: const FileOptions(upsert: true),
+          );
+      return _client.storage.from('location_photos').getPublicUrl(filename);
+    } catch (e) {
+      if (kDebugMode) {
+        print('[Image] [$locationId] Extra photo #$index upload failed: $e');
+      }
+      return null;
+    }
   }
 
   // Helper function to download image from Google and upload to Supabase Storage

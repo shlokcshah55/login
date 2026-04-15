@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:login/pages/home/filter_types.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/supabase/helpers/tags.dart';
 import 'package:login/themes/app_typography.dart';
@@ -10,16 +11,21 @@ class HomeFilterSheetResult {
   const HomeFilterSheetResult({
     required this.vibeTagIds,
     required this.cuisineTagIds,
+    this.availabilityFilter = AvailabilityFilter.any,
     this.vibeTagNames = const [],
     this.cuisineTagNames = const [],
   });
 
   final Set<String> vibeTagIds;
   final Set<String> cuisineTagIds;
+  final AvailabilityFilter availabilityFilter;
   final List<String> vibeTagNames;
   final List<String> cuisineTagNames;
 
-  int get totalSelectedCount => vibeTagIds.length + cuisineTagIds.length;
+  int get totalSelectedCount =>
+      vibeTagIds.length +
+      cuisineTagIds.length +
+      (availabilityFilter == AvailabilityFilter.any ? 0 : 1);
 }
 
 enum _HomeFilterCategory {
@@ -58,15 +64,18 @@ class HomeFilterSheet extends StatefulWidget {
     super.key,
     required this.initialVibeTagIds,
     required this.initialCuisineTagIds,
+    this.initialAvailabilityFilter = AvailabilityFilter.any,
   });
 
   final Set<String> initialVibeTagIds;
   final Set<String> initialCuisineTagIds;
+  final AvailabilityFilter initialAvailabilityFilter;
 
   static Future<HomeFilterSheetResult?> show(
     BuildContext context, {
     required Set<String> initialVibeTagIds,
     required Set<String> initialCuisineTagIds,
+    AvailabilityFilter initialAvailabilityFilter = AvailabilityFilter.any,
   }) {
     return showModalBottomSheet<HomeFilterSheetResult>(
       context: context,
@@ -76,6 +85,7 @@ class HomeFilterSheet extends StatefulWidget {
       builder: (_) => HomeFilterSheet(
         initialVibeTagIds: initialVibeTagIds,
         initialCuisineTagIds: initialCuisineTagIds,
+        initialAvailabilityFilter: initialAvailabilityFilter,
       ),
     );
   }
@@ -85,6 +95,16 @@ class HomeFilterSheet extends StatefulWidget {
 }
 
 class _HomeFilterSheetState extends State<HomeFilterSheet> {
+  static const Map<AvailabilityFilter, ({String label, IconData icon})>
+      _availabilityOptions = {
+    AvailabilityFilter.any: (label: 'Any time', icon: FeatherIcons.clock),
+    AvailabilityFilter.openNow: (label: 'Open now', icon: FeatherIcons.sun),
+    AvailabilityFilter.closedNow: (
+      label: 'Closed now',
+      icon: FeatherIcons.moon,
+    ),
+  };
+
   static const List<Map<String, String>> _staticCuisineTags = [
     {'tag_id': 'italian', 'text': 'italian'},
     {'tag_id': 'indian', 'text': 'indian'},
@@ -115,6 +135,7 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
 
   late Set<String> _selectedVibeTagIds;
   late Set<String> _selectedCuisineTagIds;
+  late AvailabilityFilter _selectedAvailabilityFilter;
 
   List<Map<String, dynamic>> _vibeTags = const [];
   List<Map<String, dynamic>> _cuisineTags = const [];
@@ -126,6 +147,7 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
     super.initState();
     _selectedVibeTagIds = Set<String>.from(widget.initialVibeTagIds);
     _selectedCuisineTagIds = Set<String>.from(widget.initialCuisineTagIds);
+    _selectedAvailabilityFilter = widget.initialAvailabilityFilter;
     _loadTags();
   }
 
@@ -173,6 +195,7 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
     setState(() {
       _selectedVibeTagIds.clear();
       _selectedCuisineTagIds.clear();
+      _selectedAvailabilityFilter = AvailabilityFilter.any;
     });
   }
 
@@ -196,11 +219,21 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
     };
   }
 
+  int get _availabilitySelectionCount =>
+      _selectedAvailabilityFilter == AvailabilityFilter.any ? 0 : 1;
+
+  void _setAvailabilityFilter(AvailabilityFilter filter) {
+    setState(() {
+      _selectedAvailabilityFilter = filter;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
-    final totalSelectedCount =
-        _selectedVibeTagIds.length + _selectedCuisineTagIds.length;
+    final totalSelectedCount = _selectedVibeTagIds.length +
+        _selectedCuisineTagIds.length +
+        _availabilitySelectionCount;
     final activeTags = _tagsFor(_activeCategory);
     final activeSelected = _selectedFor(_activeCategory);
 
@@ -292,6 +325,34 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
                       ),
                     ),
                   ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Text(
+                'AVAILABILITY',
+                style: GoogleFonts.dmSans(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: PinitColors.aubergineSoft,
+                  letterSpacing: 1.4,
+                  height: 1.0,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  for (final entry in _availabilityOptions.entries) ...[
+                    Expanded(
+                      child: _AvailabilityOptionPill(
+                        label: entry.value.label,
+                        icon: entry.value.icon,
+                        isSelected: _selectedAvailabilityFilter == entry.key,
+                        onTap: () => _setAvailabilityFilter(entry.key),
+                      ),
+                    ),
+                    if (entry.key != _availabilityOptions.keys.last)
+                      const SizedBox(width: 8),
+                  ],
                 ],
               ),
               const SizedBox(height: 18),
@@ -518,19 +579,19 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
                   onPressed: () {
                     // Resolve tag names from IDs for the scoring logic
                     final vibeNames = _vibeTags
-                        .where((t) =>
-                            _selectedVibeTagIds.contains(_tagId(t)))
+                        .where((t) => _selectedVibeTagIds.contains(_tagId(t)))
                         .map((t) => _tagLabel(t))
                         .toList();
                     final cuisineNames = _cuisineTags
-                        .where((t) =>
-                            _selectedCuisineTagIds.contains(_tagId(t)))
+                        .where(
+                            (t) => _selectedCuisineTagIds.contains(_tagId(t)))
                         .map((t) => _tagLabel(t))
                         .toList();
                     Navigator.of(context).pop(
                       HomeFilterSheetResult(
                         vibeTagIds: Set<String>.from(_selectedVibeTagIds),
                         cuisineTagIds: Set<String>.from(_selectedCuisineTagIds),
+                        availabilityFilter: _selectedAvailabilityFilter,
                         vibeTagNames: vibeNames,
                         cuisineTagNames: cuisineNames,
                       ),
@@ -562,6 +623,79 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
                 ),
               ),
               SizedBox(height: bottomInset),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AvailabilityOptionPill extends StatelessWidget {
+  const _AvailabilityOptionPill({
+    required this.label,
+    required this.icon,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+          decoration: BoxDecoration(
+            color: isSelected ? PinitColors.aubergine : PinitColors.creamSunk,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: isSelected ? PinitColors.aubergine : PinitColors.creamDeep,
+              width: 1.5,
+            ),
+            boxShadow: isSelected
+                ? const [
+                    BoxShadow(
+                      color: Color(0x1441133D),
+                      blurRadius: 12,
+                      offset: Offset(0, 4),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 14,
+                color: isSelected ? PinitColors.cream : PinitColors.aubergine,
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color:
+                        isSelected ? PinitColors.cream : PinitColors.aubergine,
+                    letterSpacing: -0.15,
+                  ),
+                ),
+              ),
             ],
           ),
         ),

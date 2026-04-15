@@ -18,6 +18,12 @@ import 'package:provider/provider.dart';
 import 'pinit_colors.dart';
 
 // Maps auto-generated collection labels to their bundled asset paths.
+// Auto-generated collections whose cover is a bundled SVG illustration.
+const Map<String, String> _kCollectionSvgAssets = {
+  'Shared Finds': 'lib/assets/illustrations/Untitled design-3.svg',
+  'Been To': 'lib/assets/illustrations/Brazuca - Date Night.svg',
+};
+
 const Map<String, String> _kCollectionAssets = {
   'Date Night 🌹': 'lib/assets/collection/date_night.png',
   'Brunch O\'Clock 🍳': 'lib/assets/collection/lunch.png',
@@ -945,6 +951,14 @@ class _CollectionCard extends StatelessWidget {
 
   Widget _buildImage(
       String? assetPath, String? coverColor, String? networkPhoto) {
+    final svgAsset = _kCollectionSvgAssets[collection.name];
+    if (svgAsset != null) {
+      return SvgPicture.asset(
+        svgAsset,
+        fit: BoxFit.cover,
+        width: double.infinity,
+      );
+    }
     if (assetPath != null) {
       return Image.asset(assetPath, fit: BoxFit.cover, width: double.infinity);
     }
@@ -1781,10 +1795,13 @@ class _EditCollectionSheetState extends State<_EditCollectionSheet> {
 
   Widget _buildCoverPreview() {
     final assetPath = _kCollectionAssets[widget.collection.name];
+    final svgAsset = _kCollectionSvgAssets[widget.collection.name];
 
     Widget image;
     if (_pendingPhoto != null) {
       image = Image.file(_pendingPhoto!, fit: BoxFit.cover);
+    } else if (svgAsset != null) {
+      image = SvgPicture.asset(svgAsset, fit: BoxFit.cover);
     } else if (assetPath != null) {
       image = Image.asset(assetPath, fit: BoxFit.cover);
     } else {

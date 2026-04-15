@@ -17,8 +17,9 @@ class UserModel {
   final bool wizardCompleted;
   final String? username;
 
-  /// User’s vibe-tag affinity vector (integer[]; indices match tag order).
-  final List<int>? vibeTagAffinity;
+  /// User's vibe-tag affinity vector (real[] on the server; indices match tag order).
+  /// Stored as doubles end-to-end to avoid rounding on every client/server round-trip.
+  final List<double>? vibeTagAffinity;
 
   /// User’s dietary-requirement affinity vector (integer[]).
   final List<int>? dietaryRequirementTagAffinity;
@@ -55,7 +56,7 @@ class UserModel {
     final len = math.min(vibeTagAffinity!.length, locationVibeVector.length);
     double dot = 0, magA = 0, magB = 0;
     for (var i = 0; i < len; i++) {
-      final a = vibeTagAffinity![i].toDouble();
+      final a = vibeTagAffinity![i];
       final b = locationVibeVector[i];
       dot += a * b;
       magA += a * a;
@@ -93,8 +94,8 @@ class UserModel {
     final len = math.min(a.length, b.length);
     double dot = 0, magA = 0, magB = 0;
     for (var i = 0; i < len; i++) {
-      final x = a[i].toDouble();
-      final y = b[i].toDouble();
+      final x = a[i];
+      final y = b[i];
       dot += x * y;
       magA += x * x;
       magB += y * y;
@@ -128,9 +129,10 @@ class UserModel {
       wizardCompleted: json[SupabaseConstants.columnWizardCompleted] ?? false,
       username: json[SupabaseConstants.columnUsername] ?? '',
       vibeTagAffinity: json[SupabaseConstants.columnVibeTagAffinity] != null
-          ? List<int>.from(
-              (json[SupabaseConstants.columnVibeTagAffinity] as List)
-                  .map((e) => (e as num).toInt()))
+          ? <double>[
+              for (final e in (json[SupabaseConstants.columnVibeTagAffinity] as List))
+                (e as num).toDouble(),
+            ]
           : null,
       dietaryRequirementTagAffinity:
           json[SupabaseConstants.columnDietaryRequirementTagAffinity] != null
@@ -177,7 +179,7 @@ class UserModel {
     int? spiceTolerance,
     bool? wizardCompleted,
     String? username,
-    List<int>? vibeTagAffinity,
+    List<double>? vibeTagAffinity,
     List<int>? dietaryRequirementTagAffinity,
     bool? generatedCollections,
   }) {

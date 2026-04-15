@@ -86,6 +86,8 @@ class SupabaseConstants {
       'photo_reference_valid_until';
   static const String columnPhotoReferenceScore = 'photo_reference_score';
   static const String columnImageStored = 'image_stored';
+  static const String columnImageUnavailable = 'image_unavailable';
+  static const String columnExtraPhotosStored = 'extra_photos_stored';
   static const String columnEmoji = 'emoji';
   static const String columnGoogleMapsUri = 'google_maps_uri';
   static const String columnPhotos = 'photos';

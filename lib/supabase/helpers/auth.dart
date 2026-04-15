@@ -1109,7 +1109,7 @@ class AuthHelper {
 
   /// Replaces the user's full vibe-tag affinity vector with [affinity].
   /// Writes directly to the users row (no RPC needed).
-  Future<bool> updateVibeTagAffinity(String userId, List<int> affinity) async {
+  Future<bool> updateVibeTagAffinity(String userId, List<double> affinity) async {
     try {
       await _client
           .from(SupabaseConstants.tableUsers)

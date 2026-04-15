@@ -250,7 +250,8 @@ class _BubblesPageState extends State<BubblesPage>
                 const SizedBox(height: 8),
                 Text(
                   'Create a shared space for your group',
-                  style: GoogleFonts.dmSans(fontSize: 14, color: PinitColors.mute),
+                  style:
+                      GoogleFonts.dmSans(fontSize: 14, color: PinitColors.mute),
                 ),
                 const SizedBox(height: 24),
                 // Name field
@@ -260,21 +261,34 @@ class _BubblesPageState extends State<BubblesPage>
                   decoration: InputDecoration(
                     hintText: 'Bubble name',
                     labelText: 'Name',
+                    hintStyle: GoogleFonts.dmSans(
+                      color: PinitColors.mute,
+                    ),
+                    labelStyle: GoogleFonts.dmSans(
+                      color: PinitColors.aubergineSoft,
+                    ),
+                    floatingLabelStyle: GoogleFonts.dmSans(
+                      color: PinitColors.aubergine,
+                      fontWeight: FontWeight.w600,
+                    ),
                     prefixIcon: const Icon(Icons.bubble_chart_rounded,
                         color: PinitColors.aubergineSoft),
                     filled: true,
                     fillColor: PinitColors.creamSunk,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(20),
-                      borderSide: const BorderSide(color: PinitColors.creamDeep, width: 1),
+                      borderSide: const BorderSide(
+                          color: PinitColors.creamDeep, width: 1),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(20),
-                      borderSide: const BorderSide(color: PinitColors.creamDeep, width: 1),
+                      borderSide: const BorderSide(
+                          color: PinitColors.creamDeep, width: 1),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(20),
-                      borderSide: const BorderSide(color: PinitColors.aubergine, width: 1.5),
+                      borderSide: const BorderSide(
+                          color: PinitColors.aubergine, width: 1.5),
                     ),
                   ),
                   autofocus: true,
@@ -288,6 +302,16 @@ class _BubblesPageState extends State<BubblesPage>
                   decoration: InputDecoration(
                     hintText: 'What\'s this bubble about?',
                     labelText: 'Description (optional)',
+                    hintStyle: GoogleFonts.dmSans(
+                      color: PinitColors.mute,
+                    ),
+                    labelStyle: GoogleFonts.dmSans(
+                      color: PinitColors.aubergineSoft,
+                    ),
+                    floatingLabelStyle: GoogleFonts.dmSans(
+                      color: PinitColors.aubergine,
+                      fontWeight: FontWeight.w600,
+                    ),
                     prefixIcon: const Padding(
                       padding: EdgeInsets.only(bottom: 24),
                       child: Icon(Icons.description_outlined,
@@ -297,15 +321,18 @@ class _BubblesPageState extends State<BubblesPage>
                     fillColor: PinitColors.creamSunk,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(20),
-                      borderSide: const BorderSide(color: PinitColors.creamDeep, width: 1),
+                      borderSide: const BorderSide(
+                          color: PinitColors.creamDeep, width: 1),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(20),
-                      borderSide: const BorderSide(color: PinitColors.creamDeep, width: 1),
+                      borderSide: const BorderSide(
+                          color: PinitColors.creamDeep, width: 1),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(20),
-                      borderSide: const BorderSide(color: PinitColors.aubergine, width: 1.5),
+                      borderSide: const BorderSide(
+                          color: PinitColors.aubergine, width: 1.5),
                     ),
                   ),
                 ),
@@ -396,10 +423,13 @@ class _BubblesPageState extends State<BubblesPage>
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.add_rounded, size: 18, color: PinitColors.cream),
+                            const Icon(Icons.add_rounded,
+                                size: 18, color: PinitColors.cream),
                             const SizedBox(width: 8),
                             Text('Create Bubble',
-                                style: GoogleFonts.dmSans(fontWeight: FontWeight.w600, color: PinitColors.cream)),
+                                style: GoogleFonts.dmSans(
+                                    fontWeight: FontWeight.w600,
+                                    color: PinitColors.cream)),
                           ],
                         ),
                       ),
@@ -553,7 +583,8 @@ class _BubblesPageState extends State<BubblesPage>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.add_rounded, size: 18, color: PinitColors.cream),
+                  const Icon(Icons.add_rounded,
+                      size: 18, color: PinitColors.cream),
                   const SizedBox(width: 8),
                   Text(
                     'Create Your First Bubble',
@@ -640,43 +671,48 @@ class _BubblesPageState extends State<BubblesPage>
           ],
           Expanded(
             child: TextField(
-        controller: _searchController,
-        focusNode: _searchFocusNode,
-        style: GoogleFonts.dmSans(color: PinitColors.aubergine),
-        decoration: InputDecoration(
-          hintText: 'Search users to add...',
-          hintStyle: GoogleFonts.dmSans(color: PinitColors.mute),
-          prefixIcon: Container(
-            padding: const EdgeInsets.all(12),
-            child: const Icon(Icons.search_rounded, color: PinitColors.mute, size: 22),
-          ),
-          suffixIcon: _searchController.text.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.close_rounded, color: PinitColors.mute),
-                  onPressed: () {
-                    _searchController.clear();
-                    _searchFocusNode.unfocus();
-                  },
-                )
-              : null,
-          filled: true,
-          fillColor: PinitColors.creamSunk,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(20),
-            borderSide: const BorderSide(color: PinitColors.creamDeep, width: 1),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(20),
-            borderSide: const BorderSide(color: PinitColors.creamDeep, width: 1),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(20),
-            borderSide: const BorderSide(color: PinitColors.aubergine, width: 1.5),
-          ),
-        ),
-      ),
+              controller: _searchController,
+              focusNode: _searchFocusNode,
+              style: GoogleFonts.dmSans(color: PinitColors.aubergine),
+              decoration: InputDecoration(
+                hintText: 'Search users to add...',
+                hintStyle: GoogleFonts.dmSans(color: PinitColors.mute),
+                prefixIcon: Container(
+                  padding: const EdgeInsets.all(12),
+                  child: const Icon(Icons.search_rounded,
+                      color: PinitColors.mute, size: 22),
+                ),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.close_rounded,
+                            color: PinitColors.mute),
+                        onPressed: () {
+                          _searchController.clear();
+                          _searchFocusNode.unfocus();
+                        },
+                      )
+                    : null,
+                filled: true,
+                fillColor: PinitColors.creamSunk,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  borderSide:
+                      const BorderSide(color: PinitColors.creamDeep, width: 1),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  borderSide:
+                      const BorderSide(color: PinitColors.creamDeep, width: 1),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  borderSide: const BorderSide(
+                      color: PinitColors.aubergine, width: 1.5),
+                ),
+              ),
+            ),
           ),
         ],
       ),

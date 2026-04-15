@@ -237,15 +237,16 @@ class TagsHelper {
       if (tagNames.isEmpty) return false;
 
       // 2. Build a fresh default vector (matches initialize_vibe_tags_for_user).
-      final affinity = List<int>.filled(_vibeTagOrder.length, 50);
-      affinity[20] = 0; // grocery_store
+      //    Column is real[] so we write doubles end-to-end — no rounding.
+      final affinity = List<double>.filled(_vibeTagOrder.length, 50.0);
+      affinity[20] = 0.0; // grocery_store
 
       // 3. Bump matched indices to 80.
       var applied = 0;
       for (final name in tagNames) {
         final idx = _vibeTagOrder.indexOf(name);
         if (idx >= 0) {
-          affinity[idx] = 80;
+          affinity[idx] = 80.0;
           applied++;
         }
       }

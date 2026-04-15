@@ -211,19 +211,28 @@ class _PinitMapState extends State<PinitMap> {
 
   /// Update locations using GeoJSON source (new approach).
   /// Mapbox handles clustering and text collision detection natively.
+  String _buildGeoJsonSyncKey(
+    List<LocationModel> locations,
+    Set<int> beenToLocationIds,
+  ) {
+    final itemIds = locations.map((location) => location.locationId).toList()
+      ..sort();
+    final visitedIds = itemIds
+        .where((locationId) => beenToLocationIds.contains(locationId))
+        .toList();
+
+    return 'items:${itemIds.join(",")}|visited:${visitedIds.join(",")}';
+  }
+
   void _updateGeoJsonLocations(
     Map<dynamic, MapMarkerData> currentItems,
     MapStateProvider mapStateProvider,
+    Set<int> beenToLocationIds,
   ) {
     if (!mapStateProvider.useGeoJsonLayers) return;
 
-    // Generate a key to detect changes
-    final itemIds = currentItems.keys.map((e) {
-      if (e is LocationModel) return e.locationId.toString();
-      return e.toString();
-    }).toList()
-      ..sort();
-    final syncKey = '${itemIds.length}_${itemIds.hashCode}';
+    final locations = currentItems.keys.whereType<LocationModel>().toList();
+    final syncKey = _buildGeoJsonSyncKey(locations, beenToLocationIds);
 
     if (syncKey == _lastGeoJsonSyncKey) {
       // No change, skip update
@@ -232,12 +241,14 @@ class _PinitMapState extends State<PinitMap> {
 
     print('PinitMap: Updating GeoJSON with ${currentItems.length} locations');
 
-    // Extract LocationModel instances
-    final locations = currentItems.keys.whereType<LocationModel>().toList();
-
     // Update via provider (which delegates to GeoJsonMapLayerService)
     // Only mark as synced if the update actually succeeded
-    mapStateProvider.updateMapLocations(locations).then((success) {
+    mapStateProvider
+        .updateMapLocations(
+      locations,
+      beenToLocationIds: beenToLocationIds,
+    )
+        .then((success) {
       if (success) {
         _lastGeoJsonSyncKey = syncKey;
         print('PinitMap: GeoJSON sync successful, key set to $syncKey');
@@ -416,6 +427,7 @@ class _PinitMapState extends State<PinitMap> {
       _updateGeoJsonLocations(
         locationListManager.currentItems,
         mapStateProvider,
+        locationListManager.beenToLocationIds,
       );
     } else {
       _applyClusteringAsync(
@@ -588,14 +600,15 @@ class _PinitMapState extends State<PinitMap> {
     if (mapState.useGeoJsonLayers && locationManager.currentItems.isNotEmpty) {
       final locations =
           locationManager.currentItems.keys.whereType<LocationModel>().toList();
-      final success = await mapState.updateMapLocations(locations);
+      final success = await mapState.updateMapLocations(
+        locations,
+        beenToLocationIds: locationManager.beenToLocationIds,
+      );
       if (success) {
-        // Update sync key to match current state
-        final itemIds = locationManager.currentItems.keys
-            .map((location) => location.locationId.toString())
-            .toList()
-          ..sort();
-        _lastGeoJsonSyncKey = '${itemIds.length}_${itemIds.hashCode}';
+        _lastGeoJsonSyncKey = _buildGeoJsonSyncKey(
+          locations,
+          locationManager.beenToLocationIds,
+        );
         print(
             'PinitMap: Initial GeoJSON sync after map created, ${locations.length} locations');
       }

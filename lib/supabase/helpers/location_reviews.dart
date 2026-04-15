@@ -7,6 +7,30 @@ import '../supabase_client.dart';
 class LocationReviewsHelper {
   final SupabaseClient _client = SupabaseClientManager().client;
 
+  Future<Set<int>> getUserBeenToLocationIds({
+    required String userId,
+  }) async {
+    try {
+      final response = await _client
+          .from(SupabaseConstants.tableLocationReviews)
+          .select(SupabaseConstants.columnLocationId)
+          .eq(SupabaseConstants.columnUserId, userId);
+
+      return (response as List)
+          .map((row) => row[SupabaseConstants.columnLocationId])
+          .whereType<num>()
+          .map((id) => id.toInt())
+          .toSet();
+    } catch (e) {
+      if (kDebugMode) {
+        print(
+          'LocationReviewsHelper: getUserBeenToLocationIds failed: $e',
+        );
+      }
+      rethrow;
+    }
+  }
+
   Future<Map<String, dynamic>?> getUserReview({
     required int locationId,
     required String userId,
@@ -196,7 +220,8 @@ class LocationReviewsHelper {
           .or('${SupabaseConstants.columnPrivate}.is.null,${SupabaseConstants.columnPrivate}.eq.false');
 
       final ratings = (response as List)
-          .map((r) => (r[SupabaseConstants.columnRatingReview] as num?)?.toDouble())
+          .map((r) =>
+              (r[SupabaseConstants.columnRatingReview] as num?)?.toDouble())
           .whereType<double>()
           .toList();
 
@@ -226,7 +251,8 @@ class LocationReviewsHelper {
       );
     } catch (e) {
       if (kDebugMode) {
-        print('LocationReviewsHelper: addLocationToBeenToCollection failed: $e');
+        print(
+            'LocationReviewsHelper: addLocationToBeenToCollection failed: $e');
       }
       rethrow;
     }

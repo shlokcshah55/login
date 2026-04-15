@@ -3,10 +3,25 @@ import 'dart:async';
 
 class BottomNavVisibilityProvider with ChangeNotifier {
   bool _isVisible = true;
+  bool _isLocked = false;
   Timer? _hideTimer;
-  final Duration _hideDelay = const Duration(milliseconds: 2000); // 2 seconds delay before hiding
+  final Duration _hideDelay =
+      const Duration(milliseconds: 2000); // 2 seconds delay before hiding
 
   bool get isVisible => _isVisible;
+  bool get isLocked => _isLocked;
+
+  /// Locks the nav bar hidden state until unlocked.
+  void setLocked(bool locked) {
+    if (_isLocked == locked) return;
+
+    _isLocked = locked;
+    if (_isLocked) {
+      _isVisible = false;
+      _cancelHideTimer();
+    }
+    notifyListeners();
+  }
 
   /// Hides the bottom navigation bar immediately
   void hide() {
@@ -19,6 +34,7 @@ class BottomNavVisibilityProvider with ChangeNotifier {
 
   /// Shows the bottom navigation bar immediately
   void show() {
+    if (_isLocked) return;
     if (!_isVisible) {
       _isVisible = true;
       _cancelHideTimer();
@@ -28,6 +44,7 @@ class BottomNavVisibilityProvider with ChangeNotifier {
 
   /// Shows the bottom navigation bar temporarily, then hides it after a delay
   void showTemporarily() {
+    if (_isLocked) return;
     _isVisible = true;
     _startHideTimer();
     notifyListeners();

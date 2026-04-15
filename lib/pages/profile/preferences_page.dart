@@ -28,7 +28,7 @@ class _PreferencesPageState extends State<PreferencesPage> {
   /// NEVER pad or default this list: that would silently overwrite real
   /// affinities with placeholder values the moment the user touched any
   /// +/- button.
-  late final List<int> _localAffinity;
+  late final List<double> _localAffinity;
 
   Timer? _saveDebounce;
   bool _dirty = false;
@@ -46,7 +46,7 @@ class _PreferencesPageState extends State<PreferencesPage> {
       'PreferencesPage opened before vibe affinities loaded — gate the '
       'navigation upstream so this never happens.',
     );
-    _localAffinity = List<int>.from(fromProvider ?? const <int>[]);
+    _localAffinity = List<double>.from(fromProvider ?? const <double>[]);
   }
 
   @override
@@ -68,6 +68,9 @@ class _PreferencesPageState extends State<PreferencesPage> {
     _scheduleSave();
   }
 
+  // The affinity vector is a real[] server-side so values are doubles; the UI
+  // only ever nudges by whole numbers so int deltas are fine here.
+
   void _scheduleSave() {
     _saveDebounce?.cancel();
     _saveDebounce =
@@ -78,7 +81,7 @@ class _PreferencesPageState extends State<PreferencesPage> {
     if (!_dirty) return;
     _dirty = false;
     final provider = context.read<UserDataProvider>();
-    await provider.updateVibeTagAffinity(List<int>.from(_localAffinity));
+    await provider.updateVibeTagAffinity(List<double>.from(_localAffinity));
   }
 
   @override
@@ -171,7 +174,7 @@ class _PreferencesPageState extends State<PreferencesPage> {
         return _VibeRow(
           label: vibeDisplayName(rawText),
           icon: vibeIcons[rawText] ?? Icons.local_offer_rounded,
-          value: value,
+          value: value.round(),
           onMinus: () => _adjust(index, -_step),
           onPlus: () => _adjust(index, _step),
         );

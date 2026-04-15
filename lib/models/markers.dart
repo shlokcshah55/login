@@ -518,13 +518,16 @@ class PinitMarkers {
 
   static Future<Uint8List> createCompactMapDot({
     double devicePixelRatio = 3.0,
+    bool hasBeenTo = false,
   }) async {
-    final key = 'compact-dot|${devicePixelRatio.toStringAsFixed(2)}';
+    final key =
+        'compact-dot|${devicePixelRatio.toStringAsFixed(2)}|been:$hasBeenTo';
     final cached = _cache.get(key);
     if (cached != null) return cached;
 
     final b = await _renderCompactMapDot(
       dpr: devicePixelRatio,
+      hasBeenTo: hasBeenTo,
     );
     _cache.set(key, b);
     return b;
@@ -548,6 +551,7 @@ class PinitMarkers {
     double? rating,
     List<double>? vibeVector,
     int fallbackSeed = 0,
+    bool hasBeenTo = false,
   }) async {
     final fillColor = surfaceColor ?? _pinFillColor;
     final isAccent = _isAccentMarker(rating);
@@ -570,7 +574,7 @@ class PinitMarkers {
         '|${devicePixelRatio.toStringAsFixed(2)}|${fillColor.toARGB32()}'
         '|${shadowStyle.key}|$avatarKey'
         '|${wavyScore.toStringAsFixed(2)}|${bossmanScore.toStringAsFixed(2)}'
-        '|$savedCount|$pointCount';
+        '|$savedCount|$pointCount|been:$hasBeenTo';
 
     final cached = _cache.get(key);
     if (cached != null) return cached;
@@ -586,6 +590,7 @@ class PinitMarkers {
       bossmanScore: bossmanScore,
       savedCount: savedCount,
       pointCount: pointCount,
+      hasBeenTo: hasBeenTo,
     );
     _cache.set(key, b);
     return b;
@@ -941,6 +946,7 @@ class PinitMarkers {
     required double radius,
     required double dpr,
     required int pointCount,
+    required Color fillColor,
   }) {
     final dotCount = _overflowDotCountForClusterSize(pointCount);
     if (dotCount == 0) return;
@@ -954,9 +960,8 @@ class PinitMarkers {
     final dotStepX = 3.8 * dpr;
     final dotStepY = 2.4 * dpr;
     final shadowOffset = _hardShadowOffsetFor(dpr) * 0.32;
-    final shadowPaint = Paint()
-      ..color = pinit.PinitColors.aubergine.withValues(alpha: 0.26);
-    final fillPaint = Paint()..color = pinit.PinitColors.aubergine;
+    final shadowPaint = Paint()..color = fillColor.withValues(alpha: 0.26);
+    final fillPaint = Paint()..color = fillColor;
     final strokePaint = Paint()
       ..color = Colors.white.withValues(alpha: 0.92)
       ..style = PaintingStyle.stroke
@@ -1244,6 +1249,7 @@ class PinitMarkers {
     required double bossmanScore,
     required int savedCount,
     required int pointCount,
+    required bool hasBeenTo,
   }) async {
     // ── Vibe mode ──
     final Color effectiveFillColor = fillColor;
@@ -1346,6 +1352,8 @@ class PinitMarkers {
       radius: bubR,
       dpr: dpr,
       pointCount: pointCount,
+      fillColor:
+          hasBeenTo ? pinit.PinitColors.warning : pinit.PinitColors.aubergine,
     );
 
     return _rasterise(rec, outW, outH);
@@ -1357,7 +1365,10 @@ class PinitMarkers {
 
   static Future<Uint8List> _renderCompactMapDot({
     required double dpr,
+    required bool hasBeenTo,
   }) async {
+    final fillColor =
+        hasBeenTo ? pinit.PinitColors.warning : pinit.PinitColors.aubergine;
     final dotRadius = 4.0 * dpr;
     final strokeWidth = 1.0 * dpr;
     final shadowRadius = dotRadius + 0.8 * dpr;
@@ -1377,13 +1388,13 @@ class PinitMarkers {
     canvas.drawCircle(
       center + shadowOffset,
       shadowRadius,
-      Paint()..color = pinit.PinitColors.aubergine.withValues(alpha: 0.18),
+      Paint()..color = fillColor.withValues(alpha: 0.18),
     );
 
     canvas.drawCircle(
       center,
       dotRadius,
-      Paint()..color = pinit.PinitColors.aubergine,
+      Paint()..color = fillColor,
     );
 
     canvas.drawCircle(

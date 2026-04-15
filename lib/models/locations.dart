@@ -181,6 +181,8 @@ class LocationModel {
   final DateTime? photoReferenceValidUntil;
   final String? photoReferenceScore;
   final bool? imageStored;
+  final bool? imageUnavailable;
+  final int? extraPhotosStored;
   final DateTime? updatedAt;
   final String? googleMapsUri;
   final List<Map<String, dynamic>>? photos; // jsonb[]
@@ -271,6 +273,8 @@ class LocationModel {
     this.photoReferenceValidUntil,
     this.photoReferenceScore,
     this.imageStored,
+    this.imageUnavailable,
+    this.extraPhotosStored,
     this.updatedAt,
     this.googleMapsUri,
     this.photos,
@@ -381,6 +385,10 @@ class LocationModel {
       photoReferenceScore:
           json[SupabaseConstants.columnPhotoReferenceScore]?.toString(),
       imageStored: _safeBool(json[SupabaseConstants.columnImageStored]),
+      imageUnavailable:
+          _safeBool(json[SupabaseConstants.columnImageUnavailable]),
+      extraPhotosStored:
+          (json[SupabaseConstants.columnExtraPhotosStored] as num?)?.toInt(),
       updatedAt: json[SupabaseConstants.columnUpdatedAt] != null
           ? DateTime.tryParse(
               json[SupabaseConstants.columnUpdatedAt].toString())
@@ -639,6 +647,8 @@ class LocationModel {
     DateTime? photoReferenceValidUntil,
     String? photoReferenceScore,
     bool? imageStored,
+    bool? imageUnavailable,
+    int? extraPhotosStored,
     DateTime? updatedAt,
     String? googleMapsUri,
     List<Map<String, dynamic>>? photos,
@@ -717,6 +727,8 @@ class LocationModel {
           photoReferenceValidUntil ?? this.photoReferenceValidUntil,
       photoReferenceScore: photoReferenceScore ?? this.photoReferenceScore,
       imageStored: imageStored ?? this.imageStored,
+      imageUnavailable: imageUnavailable ?? this.imageUnavailable,
+      extraPhotosStored: extraPhotosStored ?? this.extraPhotosStored,
       updatedAt: updatedAt ?? this.updatedAt,
       googleMapsUri: googleMapsUri ?? this.googleMapsUri,
       photos: photos ?? this.photos,
@@ -768,7 +780,7 @@ class LocationModel {
   /// Uses weighted sum of vibe and dietary match scores.
   /// Returns 0.0 if user has no affinity data or location lacks vectors.
   static double calculateMatchScore({
-    required List<int>? userVibeAffinity,
+    required List<double>? userVibeAffinity,
     required List<int>? userDietaryAffinity,
     required List<double>? locationVibeVector,
     required List<int>? locationDietaryVector,
@@ -783,7 +795,7 @@ class LocationModel {
     double vibeScore = 0.0;
     double dietaryScore = 0.0;
 
-    // Vibe match: dot product of user affinity (int) and location vector (double)
+    // Vibe match: cosine similarity between user affinity and location vector.
     if (userVibeAffinity != null &&
         userVibeAffinity.isNotEmpty &&
         locationVibeVector != null &&
@@ -791,7 +803,7 @@ class LocationModel {
       double dot = 0, magA = 0, magB = 0;
       final len = math.min(userVibeAffinity.length, locationVibeVector.length);
       for (var i = 0; i < len; i++) {
-        final a = userVibeAffinity[i].toDouble();
+        final a = userVibeAffinity[i];
         final b = locationVibeVector[i];
         dot += a * b;
         magA += a * a;

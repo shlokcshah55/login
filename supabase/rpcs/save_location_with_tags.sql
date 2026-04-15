@@ -46,7 +46,11 @@ BEGIN
 
     SELECT calculate_interaction_weight(p_user_id) INTO v_interaction_weight;
 
-    -- Step 5: Update User Vibe Vector
+    -- Step 5: Update User Vibe Vector — but only if BOTH the user and the
+    -- location have populated vibe vectors. When the location has no
+    -- vibe_vector (hasn't been classified yet) the arithmetic below would
+    -- propagate NULLs and wipe the user's whole affinity array to NULL.
+    -- Same guard protects against unseeded users.
     SELECT vibe_vector INTO v_location_vibes FROM locations WHERE location_id = v_location_id;
     SELECT vibe_tag_affinity INTO v_user_vibes FROM users WHERE supabase_id = p_user_id;
 
@@ -56,17 +60,22 @@ BEGIN
         v_multiplier := 3.0;
     END IF;
 
-    UPDATE users
-    SET vibe_tag_affinity = (
-        SELECT array_agg(
-            LEAST(100.0, GREATEST(0.0,
-                v_user_vibes[i] + ((v_location_vibes[i] - v_user_vibes[i]) / 100.0) * v_multiplier * v_interaction_weight
-            ))
-            ORDER BY i
+    IF v_user_vibes IS NOT NULL
+       AND v_location_vibes IS NOT NULL
+       AND array_length(v_user_vibes, 1) >= 25
+       AND array_length(v_location_vibes, 1) >= 25 THEN
+        UPDATE users
+        SET vibe_tag_affinity = (
+            SELECT array_agg(
+                LEAST(100.0, GREATEST(0.0,
+                    v_user_vibes[i] + ((v_location_vibes[i] - v_user_vibes[i]) / 100.0) * v_multiplier * v_interaction_weight
+                ))
+                ORDER BY i
+            )
+            FROM generate_series(1, 25) AS i
         )
-        FROM generate_series(1, 25) AS i
-    )
-    WHERE supabase_id = p_user_id;
+        WHERE supabase_id = p_user_id;
+    END IF;
 
     -- Step 5b: Auto-add to "Shared Finds" collection for social saves.
     -- Non-fatal: a failure here must never roll back the save itself.

@@ -10,7 +10,9 @@ import 'package:login/services/google_place_service.dart';
 import 'package:login/services/location_service.dart';
 import 'package:login/services/natural_language_search_service.dart';
 import 'package:login/services/proximity_notification_service.dart';
+import 'package:login/pages/home/filter_types.dart';
 import 'package:login/supabase/constants.dart';
+import 'package:login/supabase/helpers/location_reviews.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:login/utils/marker_clustering.dart';
@@ -30,6 +32,7 @@ class LocationListManager with ChangeNotifier {
       ProximityNotificationService();
   final NaturalLanguageSearchService _naturalLanguageSearchService =
       NaturalLanguageSearchService();
+  final LocationReviewsHelper _locationReviewsHelper = LocationReviewsHelper();
 
   String? _userId;
   MapStateProvider? _mapStateProvider;
@@ -51,6 +54,7 @@ class LocationListManager with ChangeNotifier {
   List<String> _cuisineTagIds = [];
   List<String> _vibeTagNames = []; // resolved text values for vibe tags
   List<String> _cuisineTagNames = []; // resolved text values for cuisine tags
+  AvailabilityFilter _availabilityFilter = AvailabilityFilter.any;
 
   // Cached unfiltered locations for client-side filtering (per list type)
   List<LocationModel> _allRecommendedLocations = [];
@@ -70,6 +74,7 @@ class LocationListManager with ChangeNotifier {
   bool _isSubscribed = false;
   bool _isLoadingPopular = false;
   bool _isLoadingHiddenGems = false;
+  Set<int> _beenToLocationIds = <int>{};
 
   LocationListManager(this._googlePlacesService);
 
@@ -110,10 +115,14 @@ class LocationListManager with ChangeNotifier {
   LocationListType get currentListType => _currentListType;
   List<String> get vibeTagIds => List.unmodifiable(_vibeTagIds);
   List<String> get cuisineTagIds => List.unmodifiable(_cuisineTagIds);
+  AvailabilityFilter get availabilityFilter => _availabilityFilter;
   bool get hasActiveFilters =>
-      _vibeTagIds.isNotEmpty || _cuisineTagIds.isNotEmpty;
+      _vibeTagIds.isNotEmpty ||
+      _cuisineTagIds.isNotEmpty ||
+      _availabilityFilter != AvailabilityFilter.any;
   bool get isLoadingSaved => _isLoadingSaved;
   bool get hasLoadedSavedLocations => _savedLocationsLoaded;
+  Set<int> get beenToLocationIds => Set.unmodifiable(_beenToLocationIds);
 
   // Device location getters - delegate to LocationService
   LatLng? get currentPosition => _locationService.currentPosition;
@@ -149,6 +158,8 @@ class LocationListManager with ChangeNotifier {
   bool get isMagicSearching => _isMagicSearching;
   LatLng? get lastSearchedCenter => _lastSearchedCenter;
   double? get lastSearchedRadius => _lastSearchedRadius;
+  bool isLocationBeenToSync(int locationId) =>
+      _beenToLocationIds.contains(locationId);
 
   void _resetUserScopedState({
     bool notify = false,
@@ -183,6 +194,7 @@ class LocationListManager with ChangeNotifier {
     _cuisineTagIds = [];
     _vibeTagNames = [];
     _cuisineTagNames = [];
+    _availabilityFilter = AvailabilityFilter.any;
 
     _currentViewportBounds = null;
     _lastSelectedIds = null;
@@ -193,6 +205,7 @@ class LocationListManager with ChangeNotifier {
     _isLoadingSaved = false;
     _isLoadingPopular = false;
     _isLoadingHiddenGems = false;
+    _beenToLocationIds = <int>{};
 
     invalidateAllCollectionCaches();
     _proximityNotificationService.clear();
@@ -250,6 +263,7 @@ class LocationListManager with ChangeNotifier {
       fetchSavedLocations();
       fetchPopularLocations();
       fetchHiddenGems();
+      unawaited(refreshBeenToLocationIds());
 
       // Subscribe to realtime updates for this user
       // This will handle all future changes without needing to refetch
@@ -388,6 +402,30 @@ class LocationListManager with ChangeNotifier {
     } catch (e) {
       print('Error adding location realtime: $e');
     }
+  }
+
+  Future<void> refreshBeenToLocationIds() async {
+    final requestUserId = _userId;
+    if (requestUserId == null) return;
+
+    try {
+      final updatedIds = await _locationReviewsHelper.getUserBeenToLocationIds(
+        userId: requestUserId,
+      );
+      if (_userId != requestUserId) return;
+      if (setEquals(_beenToLocationIds, updatedIds)) return;
+
+      _beenToLocationIds = updatedIds;
+      notifyListeners();
+    } catch (e) {
+      print('Failed to refresh been-to locations: $e');
+    }
+  }
+
+  void markLocationBeenTo(int locationId) {
+    if (_beenToLocationIds.contains(locationId)) return;
+    _beenToLocationIds = {..._beenToLocationIds, locationId};
+    notifyListeners();
   }
 
   /// Remove a location from saved list
@@ -1187,6 +1225,11 @@ class LocationListManager with ChangeNotifier {
         .toList();
     final cuisineLower =
         _cuisineTagNames.map((name) => name.toLowerCase()).toList();
+    final availabilityLabel = switch (_availabilityFilter) {
+      AvailabilityFilter.any => 'any',
+      AvailabilityFilter.openNow => 'open now',
+      AvailabilityFilter.closedNow => 'closed now',
+    };
 
     print("🔍 [Filter] ────────────────────────────────────");
     print("🔍 [Filter] Applying filters to $type");
@@ -1195,16 +1238,32 @@ class LocationListManager with ChangeNotifier {
         "${vibeKeys.isEmpty ? '(none)' : vibeKeys.join(', ')}");
     print("🔍 [Filter]   cuisine tags (${cuisineLower.length}): "
         "${cuisineLower.isEmpty ? '(none)' : cuisineLower.join(', ')}");
+    print("🔍 [Filter]   availability: $availabilityLabel");
 
     // Score every location and record per-criterion match counts for
     // observability — lets us tell at a glance whether the cuisine filter
     // or the vibe filter is the one eliminating results.
     int cuisineMatches = 0;
     int vibeMatches = 0;
+    int availabilityMatches = 0;
     int missingVibeVector = 0;
     final scored = <MapEntry<LocationModel, double>>[];
 
     for (final loc in source) {
+      final isOpenNow = loc.openNow;
+      final matchesAvailability = switch (_availabilityFilter) {
+        AvailabilityFilter.any => true,
+        AvailabilityFilter.openNow => isOpenNow == true,
+        AvailabilityFilter.closedNow => isOpenNow == false,
+      };
+
+      if (!matchesAvailability) {
+        continue;
+      }
+      if (_availabilityFilter != AvailabilityFilter.any) {
+        availabilityMatches++;
+      }
+
       double score = 0.0;
 
       if (cuisineLower.isNotEmpty) {
@@ -1237,7 +1296,8 @@ class LocationListManager with ChangeNotifier {
         }
       }
 
-      if (score > 0) {
+      final hasTagFilters = cuisineLower.isNotEmpty || vibeKeys.isNotEmpty;
+      if (score > 0 || !hasTagFilters) {
         scored.add(MapEntry(loc, score));
       }
     }
@@ -1248,6 +1308,10 @@ class LocationListManager with ChangeNotifier {
     print("🔍 [Filter]   cuisine hits: $cuisineMatches/${source.length}");
     print("🔍 [Filter]   vibe hits:    $vibeMatches/${source.length}"
         "${missingVibeVector > 0 ? ' (missing vibe vector: $missingVibeVector)' : ''}");
+    if (_availabilityFilter != AvailabilityFilter.any) {
+      print(
+          "🔍 [Filter]   availability hits: $availabilityMatches/${source.length}");
+    }
     print("🔍 [Filter]   ✅ passing:   ${filtered.length}/${source.length}");
 
     if (scored.isNotEmpty) {
@@ -1358,12 +1422,14 @@ class LocationListManager with ChangeNotifier {
   Future<void> applyFilters({
     required List<String> vibeTagIds,
     required List<String> cuisineTagIds,
+    AvailabilityFilter availabilityFilter = AvailabilityFilter.any,
     List<String> vibeTagNames = const [],
     List<String> cuisineTagNames = const [],
   }) async {
     // Update filter state
     _vibeTagIds = List.from(vibeTagIds);
     _cuisineTagIds = List.from(cuisineTagIds);
+    _availabilityFilter = availabilityFilter;
     _vibeTagNames = List.from(vibeTagNames);
     _cuisineTagNames = List.from(cuisineTagNames);
 
@@ -1372,6 +1438,7 @@ class LocationListManager with ChangeNotifier {
     print("   Vibe tag names: $_vibeTagNames");
     print("   Cuisine tag IDs (${_cuisineTagIds.length}): $_cuisineTagIds");
     print("   Cuisine tag names: $_cuisineTagNames");
+    print("   Availability filter: $_availabilityFilter");
     print("   Current list type: $_currentListType");
 
     final hasCuisine = _cuisineTagIds.isNotEmpty;

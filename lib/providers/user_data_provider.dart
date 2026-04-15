@@ -26,7 +26,7 @@ class UserDataProvider with ChangeNotifier {
       _supabaseProvider.users.isAuthenticated;
 
   /// User's vibe-tag affinity vector (null until profile is loaded).
-  List<int>? get vibeTagAffinity => _supabaseUserData?.vibeTagAffinity;
+  List<double>? get vibeTagAffinity => _supabaseUserData?.vibeTagAffinity;
 
   /// User's dietary-requirement affinity vector.
   List<int>? get dietaryRequirementTagAffinity =>
@@ -177,7 +177,7 @@ class UserDataProvider with ChangeNotifier {
 
   /// Optimistically replaces the user's vibe-tag affinity vector and persists
   /// to Supabase. Reverts on failure.
-  Future<bool> updateVibeTagAffinity(List<int> newAffinity) async {
+  Future<bool> updateVibeTagAffinity(List<double> newAffinity) async {
     final current = _supabaseUserData;
     if (current == null || current.supabaseId == null) return false;
 

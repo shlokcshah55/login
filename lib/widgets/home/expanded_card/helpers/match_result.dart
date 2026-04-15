@@ -49,7 +49,7 @@ class MatchResult {
 MatchResult buildMatchResult({
   required double? matchScore,
   required VibeVector? locationVibe,
-  required List<int>? userVibeAffinity,
+  required List<double>? userVibeAffinity,
   required List<int>? locationDietary,
   required List<int>? userDietary,
 }) {
@@ -68,7 +68,7 @@ MatchResult buildMatchResult({
 
     // Find top contributors: element-wise product, sorted descending.
     for (int i = 0; i < len && i < vibeTagsByIndex.length; i++) {
-      final contribution = locVals[i] * userVibeAffinity[i].toDouble();
+      final contribution = locVals[i] * userVibeAffinity[i];
       if (contribution > 0) {
         contributors.add(MapEntry(vibeTagsByIndex[i], contribution));
       }
