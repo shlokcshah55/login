@@ -5,6 +5,7 @@ import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/users.dart';
 import 'package:login/models/locations.dart';
+import 'package:login/services/fcm_service.dart';
 import 'package:login/supabase/helpers/collections.dart';
 import 'package:login/supabase/service.dart';
 import 'package:provider/provider.dart';
@@ -17,10 +18,12 @@ import 'widgets/collections_grid.dart';
 
 class OtherUserProfilePage extends StatefulWidget {
   final UserModel user;
+  final bool highlightPendingRequest;
 
   const OtherUserProfilePage({
     Key? key,
     required this.user,
+    this.highlightPendingRequest = false,
   }) : super(key: key);
 
   @override
@@ -36,6 +39,8 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
   List<CollectionItem> _publicCollections = [];
   String _followStatus = 'idle'; // idle, requested, accepted, blocked
   late UserModel _user;
+  bool _pendingIncomingRequest = false;
+  bool _processingRequestAction = false;
 
   final CollectionsHelper _collectionsHelper = CollectionsHelper();
   final List<String> _tabs = ['Pins', 'Map'];
@@ -69,7 +74,12 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
         supabaseService.users.getFollowStatus(widget.user.supabaseId!),
         _collectionsHelper.getUserPublicCollections(widget.user.supabaseId!),
         supabaseService.users.getUserProfileById(widget.user.supabaseId!),
+        supabaseService.users.getIncomingFollowRequests(),
       ]);
+
+      final incoming = (results[4] as List<UserModel>);
+      final hasPendingFromThisUser =
+          incoming.any((u) => u.supabaseId == widget.user.supabaseId);
 
       if (mounted) {
         setState(() {
@@ -78,12 +88,77 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
           _publicCollections = results[2] as List<CollectionItem>;
           final fullUser = results[3] as UserModel?;
           if (fullUser != null) _user = fullUser;
+          _pendingIncomingRequest = hasPendingFromThisUser;
           _isLoading = false;
         });
       }
     } catch (e) {
       debugPrint('Error loading user data: $e');
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _acceptIncomingRequest() async {
+    if (_processingRequestAction) return;
+    HapticFeedback.selectionClick();
+    setState(() => _processingRequestAction = true);
+    try {
+      final supabaseService =
+          Provider.of<SupabaseService>(context, listen: false);
+      await supabaseService.users.acceptFollowRequest(widget.user.supabaseId!);
+      await FCMService().markFollowRequestAsReadFrom(widget.user.supabaseId!);
+      if (!mounted) return;
+      setState(() {
+        _pendingIncomingRequest = false;
+        _processingRequestAction = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Accepted ${_user.name ?? "request"}'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: PinitColors.aubergine,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _processingRequestAction = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not accept request: $e')),
+      );
+    }
+  }
+
+  Future<void> _rejectIncomingRequest() async {
+    if (_processingRequestAction) return;
+    HapticFeedback.selectionClick();
+    setState(() => _processingRequestAction = true);
+    try {
+      final supabaseService =
+          Provider.of<SupabaseService>(context, listen: false);
+      await supabaseService.users.rejectFollowRequest(widget.user.supabaseId!);
+      await FCMService().markFollowRequestAsReadFrom(widget.user.supabaseId!);
+      if (!mounted) return;
+      setState(() {
+        _pendingIncomingRequest = false;
+        _processingRequestAction = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Declined ${_user.name ?? "request"}'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: PinitColors.aubergine,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _processingRequestAction = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not decline request: $e')),
+      );
     }
   }
 
@@ -287,6 +362,13 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
                       left: 0,
                       right: 0,
                       child: _buildCollapsedHeader(),
+                    ),
+                  if (_pendingIncomingRequest)
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: _buildPendingRequestBar(),
                     ),
                 ],
               ),
@@ -675,6 +757,115 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPendingRequestBar() {
+    final topPadding = MediaQuery.of(context).padding.top;
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        padding: EdgeInsets.fromLTRB(14, topPadding + 10, 14, 12),
+        decoration: BoxDecoration(
+          color: PinitColors.cream,
+          border: const Border(
+            bottom: BorderSide(color: PinitColors.aubergine, width: 1.5),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: PinitColors.aubergine.withValues(alpha: 0.18),
+              blurRadius: 0,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: PinitColors.aubergine.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+                border:
+                    Border.all(color: PinitColors.aubergine, width: 1.4),
+              ),
+              child: const Icon(
+                Icons.person_add_alt_1_rounded,
+                size: 18,
+                color: PinitColors.aubergine,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Wants to follow you',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.1,
+                      color: PinitColors.aubergineSoft,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _user.name ?? _user.username ?? 'New follower',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: PinitColors.aubergine,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            _buildRequestActionButton(
+              label: 'Decline',
+              filled: false,
+              onTap: _processingRequestAction ? null : _rejectIncomingRequest,
+            ),
+            const SizedBox(width: 8),
+            _buildRequestActionButton(
+              label: 'Accept',
+              filled: true,
+              onTap: _processingRequestAction ? null : _acceptIncomingRequest,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRequestActionButton({
+    required String label,
+    required bool filled,
+    required VoidCallback? onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        decoration: BoxDecoration(
+          color: filled ? PinitColors.aubergine : PinitColors.cream,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: PinitColors.aubergine, width: 1.4),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.dmSans(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: filled ? PinitColors.cream : PinitColors.aubergine,
+          ),
+        ),
       ),
     );
   }

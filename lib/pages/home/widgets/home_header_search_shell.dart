@@ -438,7 +438,8 @@ class _SearchOverlayState extends State<_SearchOverlay>
                           const SizedBox(height: 18),
                           Expanded(
                             child: _PlaceResultsList(
-                              section: _placeSection,
+                              items: widget.state.result.placeItems,
+                              isLoading: widget.state.result.isLoading,
                               query: widget.state.result.query,
                               pulse: pulse,
                               onSuggestionSelected: widget.onSuggestionSelected,
@@ -461,14 +462,6 @@ class _SearchOverlayState extends State<_SearchOverlay>
     );
   }
 
-  HeaderSearchSectionModel? get _placeSection {
-    for (final section in widget.state.result.sections) {
-      if (section.type == SearchSectionType.places) {
-        return section;
-      }
-    }
-    return null;
-  }
 }
 
 class _SearchBackdrop extends StatelessWidget {
@@ -742,7 +735,8 @@ class _SearchErrorBanner extends StatelessWidget {
 }
 
 class _PlaceResultsList extends StatefulWidget {
-  final HeaderSearchSectionModel? section;
+  final List<SearchSuggestionItem> items;
+  final bool isLoading;
   final String query;
   final double pulse;
   final ValueChanged<SearchSuggestionItem> onSuggestionSelected;
@@ -751,7 +745,8 @@ class _PlaceResultsList extends StatefulWidget {
   final VoidCallback onPreviewEnd;
 
   const _PlaceResultsList({
-    required this.section,
+    required this.items,
+    required this.isLoading,
     required this.query,
     required this.pulse,
     required this.onSuggestionSelected,
@@ -902,8 +897,8 @@ class _PlaceResultsListState extends State<_PlaceResultsList> {
   Widget build(BuildContext context) {
     final bottomPadding = MediaQuery.of(context).padding.bottom + 32;
     final hasQuery = widget.query.trim().isNotEmpty;
-    final items = widget.section?.items ?? const <SearchSuggestionItem>[];
-    final isLoading = widget.section?.isLoading ?? false;
+    final items = widget.items;
+    final isLoading = widget.isLoading;
 
     if (isLoading && items.isEmpty) {
       return ListView.separated(

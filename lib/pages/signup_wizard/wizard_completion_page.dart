@@ -10,7 +10,7 @@ import '../auth_handler.dart';
 import '../profile/widgets/pinit_colors.dart';
 import 'steps/dietary_step.dart';
 import 'steps/vibe_step.dart';
-import 'steps/restaurant_swipe_step.dart';
+import 'steps/top_places_step.dart';
 
 class WizardCompletionPage extends StatelessWidget {
   const WizardCompletionPage({super.key});
@@ -122,36 +122,49 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
 
       final userId = wizardState.userId!;
 
-      print(wizardState.selectedVibeTagIds);
-      // Add dietary tags and spice tolerance and update the vibe tags
-      await supabase.users
-          .addUserTags(userId, wizardState.selectedDietaryTagIds);
-      await supabase.users.AddSpiceTolerance(
+      // Step 1: Atomically mark the wizard complete + persist spice
+      // tolerance + seed dietary tag affinities. Vibe tags were already
+      // written by vibe_step via updateUserTagsPhotos.
+      await supabase.users.finalizeSignupWizard(
         userId,
-        wizardState.spiceTolerance,
+        spiceTolerance: wizardState.spiceTolerance,
+        dietaryTagIds: wizardState.selectedDietaryTagIds,
       );
 
-      // TODO: Update based on the vibes selected
-      //await supabase.tags.updateUserTagsPhotos(userId, wizardState.selectedVibeTagIds);
+      // Step 2: Persist place actions in parallel. Collect failures instead
+      // of aborting the batch.
+      final failures = <String>[];
+      Future<void> guard(String label, Future<dynamic> fut) =>
+          fut.then((_) {}).catchError((e) {
+            failures.add('$label: $e');
+          });
 
-      // Step 2: Process restaurant decisions
+      await Future.wait([
+        for (final id in wizardState.addedLocationIds)
+          guard(
+            'save $id',
+            supabase.locations.saveLocation(
+              id,
+              savedMethod: SupabaseConstants.savedMethodInApp,
+            ),
+          ),
+        for (final id in wizardState.beenToLocationIds)
+          guard('been-to $id', supabase.reviews.markBeenTo(locationId: id)),
+      ]);
 
-      for (final entry in wizardState.restaurantDecisions.entries) {
-        final locationId = entry.key;
-        final saved = entry.value;
-
-        if (saved) {
-          await supabase.locations.saveLocation(
-            locationId,
-            savedMethod: SupabaseConstants.savedMethodInApp,
-          );
-        } else {
-          await supabase.locations.dislikeLocation(locationId);
-        }
+      if (failures.isNotEmpty && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${failures.length} place(s) didn\'t save — you can add them later.',
+            ),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 3),
+          ),
+        );
       }
 
-      // Step 3: Mark wizard as complete
-      await supabase.users.completeSignupWizard(wizardState.userId!);
+      // wizard_completed already flipped by finalizeSignupWizard above.
       if (mounted) {
         context.read<UserDataProvider>().setWizardCompleted(true);
       }
@@ -258,11 +271,11 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
                     onNextWithRestaurants: _nextStepWithRestaurants,
                     isLoadingRestaurants: _isLoadingRestaurants,
                   ),
-                  RestaurantSwipeStep(
+                  TopPlacesStep(
                     onBack: _previousStep,
                     onComplete: _completeWizard,
                     isCompleting: _isCompletingWizard,
-                    restaurants: _restaurants ?? [],
+                    recommendations: _restaurants ?? [],
                   ),
                 ],
               ),

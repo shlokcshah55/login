@@ -1,35 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:login/models/locations.dart';
-import 'package:login/models/users.dart';
-
-enum SearchIntentType {
-  place,
-  naturalLanguage,
-  people,
-  mixed,
-}
-
-enum SearchSectionType {
-  places,
-  naturalLanguage,
-  people,
-}
-
-enum WaterfallStage {
-  inlineCompletion,
-  personalSuggestions,
-  databaseMatches,
-  fullResults,
-  googleAutocompleteResults,
-  naturalLanguage,
-}
 
 enum SearchSuggestionKind {
   recentQuery,
   personalPrompt,
   place,
-  naturalLanguage,
-  person,
 }
 
 @immutable
@@ -40,7 +15,6 @@ class SearchSuggestionItem {
   final String? subtitle;
   final String? queryValue;
   final LocationModel? location;
-  final UserModel? user;
   final bool isPersonalized;
   final bool isGoogleResult;
   final double? distanceMeters;
@@ -52,7 +26,6 @@ class SearchSuggestionItem {
     this.subtitle,
     this.queryValue,
     this.location,
-    this.user,
     this.isPersonalized = false,
     this.isGoogleResult = false,
     this.distanceMeters,
@@ -93,154 +66,48 @@ class SearchSuggestionItem {
       distanceMeters: distanceMeters,
     );
   }
-
-  factory SearchSuggestionItem.naturalLanguageResult(
-    LocationModel location, {
-    String? subtitle,
-  }) {
-    return SearchSuggestionItem(
-      id: 'natural:${location.locationId}',
-      kind: SearchSuggestionKind.naturalLanguage,
-      title: location.name,
-      subtitle: subtitle ?? location.editorialSummary ?? location.vicinity,
-      queryValue: location.name,
-      location: location,
-      isPersonalized: true,
-    );
-  }
-
-  factory SearchSuggestionItem.person(
-    UserModel user, {
-    bool isPersonalized = false,
-  }) {
-    final username =
-        (user.username?.isNotEmpty ?? false) ? '@${user.username}' : null;
-    return SearchSuggestionItem(
-      id: 'person:${user.supabaseId ?? user.email}',
-      kind: SearchSuggestionKind.person,
-      title: user.name ?? username ?? user.email,
-      subtitle: username ?? user.email,
-      queryValue: user.name ?? user.username ?? user.email,
-      user: user,
-      isPersonalized: isPersonalized,
-    );
-  }
-}
-
-@immutable
-class HeaderSearchSectionModel {
-  final SearchSectionType type;
-  final String title;
-  final List<SearchSuggestionItem> items;
-  final bool isLoading;
-
-  /// Optional message displayed alongside the loading shimmer to give the
-  /// user context about what's running. Used by the natural-language stage
-  /// to signal that an LLM-backed magic search is in flight.
-  final String? loadingMessage;
-
-  const HeaderSearchSectionModel({
-    required this.type,
-    required this.title,
-    this.items = const [],
-    this.isLoading = false,
-    this.loadingMessage,
-  });
-
-  HeaderSearchSectionModel copyWith({
-    SearchSectionType? type,
-    String? title,
-    List<SearchSuggestionItem>? items,
-    bool? isLoading,
-    String? loadingMessage,
-    bool clearLoadingMessage = false,
-  }) {
-    return HeaderSearchSectionModel(
-      type: type ?? this.type,
-      title: title ?? this.title,
-      items: items ?? this.items,
-      isLoading: isLoading ?? this.isLoading,
-      loadingMessage:
-          clearLoadingMessage ? null : loadingMessage ?? this.loadingMessage,
-    );
-  }
 }
 
 @immutable
 class HeaderSearchResultModel {
-  final SearchIntentType intent;
   final String query;
   final String? inlineCompletion;
   final List<SearchSuggestionItem> quickSuggestions;
-  final List<SearchSuggestionItem> databaseMatches;
-  final List<SearchSuggestionItem> databasePlaceItems;
-  final List<SearchSuggestionItem> googlePlaceItems;
-  final List<HeaderSearchSectionModel> sections;
-  final Set<WaterfallStage> completedStages;
-  final bool isSearching;
+  final List<SearchSuggestionItem> placeItems;
+  final bool isLoading;
   final String? errorMessage;
 
   const HeaderSearchResultModel({
-    this.intent = SearchIntentType.mixed,
     this.query = '',
     this.inlineCompletion,
     this.quickSuggestions = const [],
-    this.databaseMatches = const [],
-    this.databasePlaceItems = const [],
-    this.googlePlaceItems = const [],
-    this.sections = const [],
-    this.completedStages = const {},
-    this.isSearching = false,
+    this.placeItems = const [],
+    this.isLoading = false,
     this.errorMessage,
   });
 
   factory HeaderSearchResultModel.initial() {
-    return const HeaderSearchResultModel(
-      sections: [
-        HeaderSearchSectionModel(
-          type: SearchSectionType.places,
-          title: 'Places',
-        ),
-        HeaderSearchSectionModel(
-          type: SearchSectionType.naturalLanguage,
-          title: 'Recommended',
-        ),
-        HeaderSearchSectionModel(
-          type: SearchSectionType.people,
-          title: 'People',
-        ),
-      ],
-    );
+    return const HeaderSearchResultModel();
   }
 
   HeaderSearchResultModel copyWith({
-    SearchIntentType? intent,
     String? query,
     String? inlineCompletion,
     bool clearInlineCompletion = false,
     List<SearchSuggestionItem>? quickSuggestions,
-    List<SearchSuggestionItem>? databaseMatches,
-    List<SearchSuggestionItem>? databasePlaceItems,
-    List<SearchSuggestionItem>? googlePlaceItems,
-    List<HeaderSearchSectionModel>? sections,
-    Set<WaterfallStage>? completedStages,
-    bool? isSearching,
+    List<SearchSuggestionItem>? placeItems,
+    bool? isLoading,
     String? errorMessage,
     bool clearErrorMessage = false,
   }) {
     return HeaderSearchResultModel(
-      intent: intent ?? this.intent,
       query: query ?? this.query,
       inlineCompletion: clearInlineCompletion
           ? null
           : inlineCompletion ?? this.inlineCompletion,
       quickSuggestions: quickSuggestions ?? this.quickSuggestions,
-      databaseMatches: databaseMatches ?? this.databaseMatches,
-      databasePlaceItems: databasePlaceItems ?? this.databasePlaceItems,
-      googlePlaceItems: googlePlaceItems ?? this.googlePlaceItems,
-      sections: sections ?? this.sections,
-      completedStages: completedStages ?? this.completedStages,
-      isSearching: isSearching ?? this.isSearching,
+      placeItems: placeItems ?? this.placeItems,
+      isLoading: isLoading ?? this.isLoading,
       errorMessage:
           clearErrorMessage ? null : errorMessage ?? this.errorMessage,
     );

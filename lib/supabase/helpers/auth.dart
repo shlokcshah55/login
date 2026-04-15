@@ -987,60 +987,28 @@ class AuthHelper {
     }
   }
 
-  /// Add multiple tags for a user (used for signup wizard)
-  /// Batch inserts tags into user_tags table
-  Future<void> addUserTags(String userId, List<String> tagIds) async {
-    try {
-      if (tagIds.isEmpty) return;
-
-      await _client.rpc('add_user_tags_batch', params: {
-        'p_user_id': userId,
-        'p_tag_ids': tagIds,
-      });
-
-      if (kDebugMode) {
-        print('Added ${tagIds.length} tags for user $userId');
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('Error adding user tags: $e');
-      }
-      rethrow;
-    }
-  }
-
-  /// Complete wizard onboarding for a user
-  /// Updates user profile with spice tolerance and marks wizard as completed
-  Future<void> AddSpiceTolerance(String userId, int spiceTolerance) async {
+  /// Complete wizard onboarding: marks wizard_completed = true, sets
+  /// spice tolerance, and seeds dietary tag affinities — all atomically
+  /// in a single RPC call.
+  Future<void> finalizeSignupWizard(
+    String userId, {
+    required int spiceTolerance,
+    required List<String> dietaryTagIds,
+  }) async {
     try {
       await _client.rpc('complete_signup_wizard', params: {
         'p_user_id': userId,
         'p_spice_tolerance': spiceTolerance,
+        'p_dietary_tag_ids': dietaryTagIds,
       });
 
       if (kDebugMode) {
-        print('Added spice for $userId');
+        print('Finalized wizard for $userId '
+            '(spice=$spiceTolerance, dietary=${dietaryTagIds.length})');
       }
     } catch (e) {
       if (kDebugMode) {
-        print('Error completing wizard onboarding: $e');
-      }
-      rethrow;
-    }
-  }
-
-  Future<void> completeSignupWizard(String userId) async {
-    try {
-      await _client.rpc('complete_signup_wizard', params: {
-        'p_user_id': userId,
-      });
-
-      if (kDebugMode) {
-        print('Wizard completed for $userId');
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('Error updating spice tolerance: $e');
+        print('Error finalizing wizard: $e');
       }
       rethrow;
     }

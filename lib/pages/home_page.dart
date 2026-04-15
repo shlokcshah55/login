@@ -16,6 +16,7 @@ import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
 import 'package:login/themes/app_typography.dart';
 import 'package:login/themes/pinit_colors.dart';
 import 'package:login/pages/home/widgets/mode_toggle.dart';
+import 'package:login/pages/home/widgets/search_result_action_sheet.dart';
 import 'package:login/pages/home/carousel_list_page.dart';
 import 'package:login/pages/home/widgets/decide_bottom_sheet.dart';
 import 'package:login/pages/home/widgets/shortlist_pill.dart';
@@ -27,7 +28,6 @@ import 'package:login/providers/shortlist_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:login/providers/bubble_mode_provider.dart';
 import 'package:login/providers/navigation_provider.dart';
-import 'package:login/pages/profile/other_user_profile_page.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/widgets/home/bubble_mode_overlay.dart';
 import 'package:login/widgets/home/no_recommendations_popover.dart';
@@ -667,7 +667,50 @@ class _TopPanel extends StatelessWidget {
     BuildContext context,
     LocationModel location,
   ) async {
+    final needsHydration = location.locationId <= 0;
+
+    if (!needsHydration) {
+      await _showExpandedLocationDialog(context, location);
+      return;
+    }
+
+    final hydrationFuture =
+        SearchResultActionHandler.ensureLocationReady(location);
+
     await showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+      barrierColor: Colors.black.withValues(alpha: 0.35),
+      transitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (ctx, _, __) => _LocationDetailsLoadingScreen(
+        placeName: location.name,
+        hydration: hydrationFuture,
+        onReady: (hydrated) async {
+          Navigator.of(ctx).pop();
+          if (hydrated == null || !context.mounted) return;
+          await _showExpandedLocationDialog(context, hydrated);
+        },
+        onFailed: () {
+          Navigator.of(ctx).pop();
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('We could not load that place just yet.'),
+            ),
+          );
+        },
+      ),
+      transitionBuilder: (ctx, anim, _, child) =>
+          FadeTransition(opacity: anim, child: child),
+    );
+  }
+
+  Future<void> _showExpandedLocationDialog(
+    BuildContext context,
+    LocationModel location,
+  ) {
+    return showGeneralDialog<void>(
       context: context,
       barrierDismissible: true,
       barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
@@ -765,7 +808,6 @@ class _TopPanel extends StatelessWidget {
                       );
                       break;
                     case SearchSuggestionKind.place:
-                    case SearchSuggestionKind.naturalLanguage:
                       final resolved = item.location;
                       if (resolved == null) return;
                       await viewModel.rememberHeaderSearchQuery(
@@ -777,31 +819,13 @@ class _TopPanel extends StatelessWidget {
                       if (!context.mounted) return;
                       await _openExpandedSearchLocation(context, resolved);
                       break;
-                    case SearchSuggestionKind.person:
-                      if (item.user == null) return;
-                      await viewModel.rememberHeaderSearchQuery(
-                        viewModel.headerSearchState.query.isNotEmpty
-                            ? viewModel.headerSearchState.query
-                            : (item.queryValue ?? item.title),
-                      );
-                      viewModel.closeHeaderSearch();
-                      if (!context.mounted) return;
-                      await Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) =>
-                              OtherUserProfilePage(user: item.user!),
-                        ),
-                      );
-                      break;
                   }
                 }());
               },
               onPreviewStart: (location) {
-                viewModel.startHeaderSearchPreview(location);
+                unawaited(viewModel.selectHeaderSearchLocation(location));
               },
-              onPreviewEnd: () {
-                viewModel.endHeaderSearchPreview();
-              },
+              onPreviewEnd: () {},
               footer: HomeChipRow(
                 currentMode: viewModel.homeMode,
                 onModeChanged: viewModel.setHomeMode,
@@ -1145,6 +1169,193 @@ class _MagicSearchActivatedToastState extends State<_MagicSearchActivatedToast>
           ),
         );
       },
+    );
+  }
+}
+
+class _LocationDetailsLoadingScreen extends StatefulWidget {
+  const _LocationDetailsLoadingScreen({
+    required this.placeName,
+    required this.hydration,
+    required this.onReady,
+    required this.onFailed,
+  });
+
+  final String placeName;
+  final Future<LocationModel?> hydration;
+  final ValueChanged<LocationModel?> onReady;
+  final VoidCallback onFailed;
+
+  @override
+  State<_LocationDetailsLoadingScreen> createState() =>
+      _LocationDetailsLoadingScreenState();
+}
+
+class _LocationDetailsLoadingScreenState
+    extends State<_LocationDetailsLoadingScreen>
+    with TickerProviderStateMixin {
+  static const List<String> _quips = [
+    'Peeking through the window…',
+    'Sniffing the kitchen…',
+    'Tasting the vibe…',
+    'Counting the candles…',
+    'Charming the host…',
+  ];
+
+  late final AnimationController _spinController;
+  late final AnimationController _bounceController;
+  Timer? _quipTimer;
+  int _quipIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _spinController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat();
+    _bounceController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+    _quipTimer = Timer.periodic(const Duration(milliseconds: 1400), (_) {
+      if (!mounted) return;
+      setState(() => _quipIndex = (_quipIndex + 1) % _quips.length);
+    });
+
+    widget.hydration.then((hydrated) {
+      if (!mounted) return;
+      if (hydrated == null || hydrated.locationId <= 0) {
+        widget.onFailed();
+      } else {
+        widget.onReady(hydrated);
+      }
+    }).catchError((_) {
+      if (!mounted) return;
+      widget.onFailed();
+    });
+  }
+
+  @override
+  void dispose() {
+    _quipTimer?.cancel();
+    _spinController.dispose();
+    _bounceController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      type: MaterialType.transparency,
+      child: Center(
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 36),
+          padding: const EdgeInsets.fromLTRB(28, 32, 28, 28),
+          decoration: BoxDecoration(
+            color: pinit.PinitColors.cream,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: pinit.PinitColors.aubergine,
+              width: 1.5,
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: pinit.PinitColors.aubergine,
+                offset: Offset(6, 6),
+                blurRadius: 0,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: 88,
+                width: 88,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    RotationTransition(
+                      turns: _spinController,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: pinit.PinitColors.aubergine,
+                            width: 3,
+                          ),
+                          gradient: SweepGradient(
+                            colors: [
+                              pinit.PinitColors.cream,
+                              pinit.PinitColors.accent,
+                              pinit.PinitColors.aubergine,
+                              pinit.PinitColors.cream,
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    ScaleTransition(
+                      scale: Tween<double>(begin: 0.92, end: 1.08)
+                          .animate(CurvedAnimation(
+                        parent: _bounceController,
+                        curve: Curves.easeInOut,
+                      )),
+                      child: Container(
+                        height: 54,
+                        width: 54,
+                        decoration: BoxDecoration(
+                          color: pinit.PinitColors.cream,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: pinit.PinitColors.aubergine,
+                            width: 2,
+                          ),
+                        ),
+                        alignment: Alignment.center,
+                        child: const Icon(
+                          FeatherIcons.mapPin,
+                          size: 26,
+                          color: pinit.PinitColors.aubergine,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 22),
+              Text(
+                widget.placeName,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.sans(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: pinit.PinitColors.aubergine,
+                  height: 1.2,
+                ),
+              ),
+              const SizedBox(height: 10),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 320),
+                child: Text(
+                  _quips[_quipIndex],
+                  key: ValueKey<int>(_quipIndex),
+                  textAlign: TextAlign.center,
+                  style: AppTypography.sans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: pinit.PinitColors.mute,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

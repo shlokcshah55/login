@@ -124,15 +124,38 @@ class NotificationsHelper {
     }
   }
 
-  /// Setup Realtime subscription for new notifications
-  /// Calls [onNewNotification] when a new notification is inserted for the current user
+  /// Setup Realtime subscription for notification inserts, updates, and deletes.
+  /// Calls [onChange] whenever any notification row for the current user changes.
   /// Note: User must be logged in before calling this method
   RealtimeChannel setupRealtimeSubscription(
-    Function(BaseNotification) onNewNotification,
+    Function(BaseNotification?) onChange,
   ) {
     final userId = SupabaseClientManager().currentUser!.id;
 
     print('📲 Setting up Realtime subscription for user $userId');
+
+    final filter = PostgresChangeFilter(
+      type: PostgresChangeFilterType.eq,
+      column: 'user_id',
+      value: userId,
+    );
+
+    void handle(PostgresChangePayload payload) {
+      print('📲 Realtime notification ${payload.eventType}: '
+          'new=${payload.newRecord} old=${payload.oldRecord}');
+      try {
+        final record = payload.newRecord.isNotEmpty
+            ? payload.newRecord
+            : payload.oldRecord;
+        final notification = record.isNotEmpty
+            ? BaseNotification.fromSupabase(record)
+            : null;
+        onChange(notification);
+      } catch (e) {
+        print('📲 Error parsing Realtime notification: $e');
+        onChange(null);
+      }
+    }
 
     final channel = _client
         .channel('notifications:user_id=eq.$userId')
@@ -140,23 +163,22 @@ class NotificationsHelper {
           event: PostgresChangeEvent.insert,
           schema: 'public',
           table: 'notifications',
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'user_id',
-            value: userId,
-          ),
-          callback: (payload) {
-            print('📲 Realtime notification received: ${payload.newRecord}');
-            try {
-              final notification =
-                  BaseNotification.fromSupabase(payload.newRecord);
-              if (notification != null) {
-                onNewNotification(notification);
-              }
-            } catch (e) {
-              print('📲 Error parsing Realtime notification: $e');
-            }
-          },
+          filter: filter,
+          callback: handle,
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'notifications',
+          filter: filter,
+          callback: handle,
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.delete,
+          schema: 'public',
+          table: 'notifications',
+          filter: filter,
+          callback: handle,
         )
         .subscribe();
 

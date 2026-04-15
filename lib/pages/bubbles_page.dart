@@ -175,6 +175,29 @@ class _BubblesPageState extends State<BubblesPage>
               ],
             ),
           ),
+          // Refresh button
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _refreshBubbles,
+              borderRadius: BorderRadius.circular(999),
+              child: Ink(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: PinitColors.aubergine.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: PinitColors.creamDeep, width: 1.5),
+                ),
+                child: const Icon(
+                  Icons.refresh_rounded,
+                  color: PinitColors.aubergine,
+                  size: 22,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
           // Create bubble button
           Material(
             color: Colors.transparent,
@@ -198,6 +221,27 @@ class _BubblesPageState extends State<BubblesPage>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _refreshBubbles() async {
+    await _bubblesProvider.loadBubbles();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Row(
+          children: [
+            Icon(Icons.refresh_rounded, color: PinitColors.cream),
+            SizedBox(width: 12),
+            Text('Bubbles refreshed'),
+          ],
+        ),
+        backgroundColor: PinitColors.aubergine,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 1),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(999)),
       ),
     );
   }
@@ -477,7 +521,21 @@ class _BubblesPageState extends State<BubblesPage>
 
   Widget _buildBubblesList(ThemeData theme, List<Bubble> bubbles) {
     if (bubbles.isEmpty) {
-      return _buildEmptyState(theme);
+      return RefreshIndicator(
+        onRefresh: () async {
+          await _bubblesProvider.loadBubbles();
+        },
+        color: PinitColors.aubergine,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.7,
+              child: _buildEmptyState(theme),
+            ),
+          ],
+        ),
+      );
     }
 
     return SlideTransition(
@@ -486,9 +544,7 @@ class _BubblesPageState extends State<BubblesPage>
         opacity: _fadeAnimation,
         child: RefreshIndicator(
           onRefresh: () async {
-            final provider =
-                Provider.of<BubblesProvider>(context, listen: false);
-            await provider.loadBubbles();
+            await _bubblesProvider.loadBubbles();
           },
           color: PinitColors.aubergine,
           child: ListView.builder(

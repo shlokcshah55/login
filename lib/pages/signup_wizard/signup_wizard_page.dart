@@ -124,38 +124,49 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
         throw Exception('User ID is required to complete wizard');
       }
 
-      // Step 1: Save tags and spice tolerance in parallel
-      final combinedTags = [
-        ...wizardState.selectedDietaryTagIds,
-        ...wizardState.selectedVibeTagIds,
-      ];
+      // Step 1: Atomically mark the wizard complete + persist spice
+      // tolerance + seed dietary tag affinities. Vibe tags were already
+      // written by vibe_step via updateUserTagsPhotos.
+      await supabase.users.finalizeSignupWizard(
+        wizardState.userId!,
+        spiceTolerance: wizardState.spiceTolerance,
+        dietaryTagIds: wizardState.selectedDietaryTagIds,
+      );
+
+      // Step 2: Persist place actions in parallel. Collect failures instead
+      // of aborting the batch — a single flaky RPC shouldn't block completion.
+      final failures = <String>[];
+      Future<void> guard(String label, Future<dynamic> fut) =>
+          fut.then((_) {}).catchError((e) {
+            failures.add('$label: $e');
+          });
 
       await Future.wait([
-        if (combinedTags.isNotEmpty)
-          supabase.users.addUserTags(wizardState.userId!, combinedTags),
-        supabase.users.AddSpiceTolerance(
-          wizardState.userId!,
-          wizardState.spiceTolerance,
-        ),
-      ]);
-
-      // Step 2: Save the places the user tapped + lightweight "been to" marks.
-      final placeFutures = <Future>[
         for (final id in wizardState.addedLocationIds)
-          supabase.locations.saveLocation(
-            id,
-            savedMethod: SupabaseConstants.savedMethodInApp,
+          guard(
+            'save $id',
+            supabase.locations.saveLocation(
+              id,
+              savedMethod: SupabaseConstants.savedMethodInApp,
+            ),
           ),
         for (final id in wizardState.beenToLocationIds)
-          supabase.reviews.submitBeenTo(locationId: id),
-      ];
+          guard('been-to $id', supabase.reviews.markBeenTo(locationId: id)),
+      ]);
 
-      if (placeFutures.isNotEmpty) {
-        await Future.wait(placeFutures);
+      if (failures.isNotEmpty && mounted) {
+        ScaffoldMessenger.of(this.context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${failures.length} place(s) didn\'t save — you can add them later.',
+            ),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 3),
+          ),
+        );
       }
 
-      // Step 3: Mark wizard as complete
-      await supabase.users.completeSignupWizard(wizardState.userId!);
+      // wizard_completed already flipped by finalizeSignupWizard above.
       if (mounted) {
         this.context.read<UserDataProvider>().setWizardCompleted(true);
       }

@@ -212,6 +212,15 @@ class SupabaseService extends ChangeNotifier {
   Future<void> signOut() async {
     _setLoading(true);
     try {
+      // Clear the FCM token BEFORE tearing down the session. The
+      // `update_fcm_token` RPC runs under the current user's RLS context, so
+      // it has to happen while we're still authenticated. If we defer this
+      // to the signedOut event listener, `currentUser` is already null and
+      // the clear silently becomes a no-op — leaving the device receiving
+      // push notifications for the logged-out account.
+      await FCMService().clearFCMToken();
+      FCMService().cleanupOnLogout();
+
       // Clear all caches before signing out
       _clearAllCaches();
 

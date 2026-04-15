@@ -78,6 +78,8 @@ abstract class BaseNotification {
           return FriendVisitedLocationNotification.fromFCMData(data);
         case 'proximity_location':
           return ProximityLocationNotification.fromFCMData(data);
+        case 'new_message':
+          return BubbleMessageNotification.fromFCMData(data);
         case 'user_added_to_bubble':
           return UserAddedToBubbleNotification.fromFCMData(data);
         case 'notes_import_complete':

@@ -863,11 +863,9 @@ class LocationListManager with ChangeNotifier {
       return orderedLocations;
     }
 
+    _activeCollectionKey = collectionId;
     final locations = await locationsLoader();
-    // A newer collection request superseded this one — discard.
-    if (_activeCollectionKey != null &&
-        _activeCollectionKey != collectionId &&
-        _collectionMarkerCache.containsKey(_activeCollectionKey)) {
+    if (_activeCollectionKey != collectionId) {
       return const [];
     }
 
@@ -878,7 +876,6 @@ class LocationListManager with ChangeNotifier {
     if (validLocations.isEmpty) {
       _searchLocations = {};
       _allSearchLocations = [];
-      _activeCollectionKey = collectionId;
       await setCurrentListType(LocationListType.search);
       return const [];
     }
@@ -930,7 +927,6 @@ class LocationListManager with ChangeNotifier {
       _collectionMarkerCache.remove(_collectionMarkerCache.keys.first);
     }
     _collectionMarkerCache[collectionId] = built;
-    _activeCollectionKey = collectionId;
 
     _searchLocations = Map.of(built);
     _allSearchLocations = validLocations;

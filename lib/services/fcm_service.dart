@@ -1,15 +1,22 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:login/app/app_root.dart';
 import 'package:login/models/notification_type.dart';
+import 'package:login/pages/bubble_messaging_page.dart';
+import 'package:login/pages/profile/other_user_profile_page.dart';
 import 'package:login/providers/navigation_provider.dart';
+import 'package:login/supabase/service.dart';
 import 'package:login/supabase/supabase_client.dart';
 import 'package:login/supabase/helpers/notifications.dart';
 import 'package:login/models/notifications/base_notification.dart';
+import 'package:login/models/notifications/bubble_message_notification.dart';
+import 'package:login/models/notifications/follow_accepted_notification.dart';
+import 'package:login/models/notifications/follow_request_notification.dart';
+import 'package:login/models/notifications/user_added_to_bubble_notification.dart';
 
 class FCMService {
   static final FCMService _instance = FCMService._internal();
@@ -182,7 +189,7 @@ class FCMService {
   }
 
   /// Handle notification tap — navigate to the appropriate screen
-  void _handleNotificationTap(RemoteMessage message) {
+  void _handleNotificationTap(RemoteMessage message) async {
     print('📲 Notification tapped');
 
     final notification = BaseNotification.fromRemoteMessage(message);
@@ -195,26 +202,39 @@ class FCMService {
     switch (notification.type) {
       case NotificationType.followRequest:
       case NotificationType.followAccepted:
-        // Open the dedicated alerts page
-        navigatorKey.currentState?.pushNamed('/alerts');
+        await _openFollowUserProfile(
+          userId: notification is FollowRequestNotification
+              ? notification.userId
+              : (notification as FollowAcceptedNotification).userId,
+          highlightPendingRequest:
+              notification is FollowRequestNotification,
+          notificationId: notification.id,
+          isRead: notification.isRead,
+        );
         break;
 
       case NotificationType.newMessage:
-      case NotificationType.userAddedToBubble:
-        // Switch to the Bubbles tab (index 1 in MainScreen)
-        if (context != null) {
-          try {
-            Provider.of<NavigationProvider>(context, listen: false)
-                .navigateToTab(1);
-            return;
-          } catch (_) {}
+        if (notification is BubbleMessageNotification) {
+          await _openBubbleChat(
+            bubbleId: notification.bubbleId,
+            notificationId: notification.id,
+            isRead: notification.isRead,
+          );
         }
-        navigatorKey.currentState?.pushNamed('/bubbles');
+        break;
+
+      case NotificationType.userAddedToBubble:
+        if (notification is UserAddedToBubbleNotification) {
+          await _openBubbleChat(
+            bubbleId: notification.bubbleId,
+            notificationId: notification.id,
+            isRead: notification.isRead,
+          );
+        }
         break;
 
       case NotificationType.friendVisitedLocation:
       case NotificationType.proximityLocation:
-        // Switch to the Home/Map tab (index 0 in MainScreen)
         if (context != null) {
           try {
             Provider.of<NavigationProvider>(context, listen: false)
@@ -227,7 +247,6 @@ class FCMService {
 
       case NotificationType.videoProcessed:
       case NotificationType.notesImportComplete:
-        // Switch to the Profile tab (index 2 in MainScreen)
         if (context != null) {
           try {
             Provider.of<NavigationProvider>(context, listen: false)
@@ -238,6 +257,90 @@ class FCMService {
         navigatorKey.currentState?.pushNamed('/profile');
         break;
     }
+  }
+
+  /// Deep-link into [BubbleMessagingPage] for the given bubble.
+  Future<void> _openBubbleChat({
+    required String bubbleId,
+    required String notificationId,
+    required bool isRead,
+  }) async {
+    try {
+      final bubble =
+          await SupabaseService().bubbles.getBubbleById(bubbleId);
+      if (bubble == null) {
+        print('📲 Bubble $bubbleId not found — falling back to bubbles tab');
+        _navigateToTabFallback(1, '/bubbles');
+        return;
+      }
+
+      if (!isRead) {
+        await markAsRead(notificationId);
+      }
+
+      final context = navigatorKey.currentContext;
+      if (context != null) {
+        try {
+          Provider.of<NavigationProvider>(context, listen: false)
+              .navigateToTab(1);
+        } catch (_) {}
+      }
+
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(
+          builder: (_) => BubbleMessagingPage(bubble: bubble),
+        ),
+      );
+    } catch (e) {
+      print('📲 Error opening bubble chat: $e');
+      _navigateToTabFallback(1, '/bubbles');
+    }
+  }
+
+  /// Deep-link into [OtherUserProfilePage] for a follow request/accepted.
+  Future<void> _openFollowUserProfile({
+    required String userId,
+    required bool highlightPendingRequest,
+    required String notificationId,
+    required bool isRead,
+  }) async {
+    try {
+      final user =
+          await SupabaseService().users.getUserProfileById(userId);
+      if (user == null) {
+        print('📲 User $userId not found — falling back to profile tab');
+        _navigateToTabFallback(2, '/profile');
+        return;
+      }
+
+      if (!isRead) {
+        await markAsRead(notificationId);
+      }
+
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(
+          builder: (_) => OtherUserProfilePage(
+            user: user,
+            highlightPendingRequest: highlightPendingRequest,
+          ),
+        ),
+      );
+    } catch (e) {
+      print('📲 Error opening user profile: $e');
+      _navigateToTabFallback(2, '/profile');
+    }
+  }
+
+  void _navigateToTabFallback(int tabIndex, String routeName) {
+    final context = navigatorKey.currentContext;
+    if (context != null) {
+      try {
+        Provider.of<NavigationProvider>(context, listen: false)
+            .navigateToTab(tabIndex);
+        return;
+      } catch (_) {}
+    }
+    navigatorKey.currentState?.pushNamed(routeName);
   }
 
   /// Mark notification as read
@@ -252,6 +355,26 @@ class FCMService {
       print('📲 Marked notification $notificationId as read');
     } catch (e) {
       print('📲 Error marking notification as read: $e');
+    }
+  }
+
+  /// Mark any unread followRequest notifications from [requesterId] as read.
+  /// Called after the current user accepts or rejects that user's request.
+  Future<void> markFollowRequestAsReadFrom(String requesterId) async {
+    final matching = _notifications
+        .whereType<FollowRequestNotification>()
+        .where((n) => !n.isRead && n.userId == requesterId)
+        .toList();
+
+    for (final n in matching) {
+      try {
+        await _notificationsHelper.markAsRead(n.id);
+      } catch (e) {
+        print('📲 Error marking follow request ${n.id} as read: $e');
+      }
+    }
+    if (matching.isNotEmpty) {
+      await _loadNotificationsFromDB();
     }
   }
 

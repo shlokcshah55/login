@@ -2,21 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:login/models/locations.dart';
-import 'package:login/models/users.dart';
 import 'package:login/pages/home/search/header_search_repository.dart';
 import 'package:login/pages/home/search/header_search_types.dart';
 
 class HeaderSearchCoordinator extends ChangeNotifier {
   static const int _minGoogleAutocompleteQueryLength = 2;
-
-  /// Friendly status messages cycled into the Recommended section while
-  /// the magic-search endpoint is in flight.
-  static const List<String> magicLoadingMessages = [
-    'Asking the magic search…',
-    'Reading between the lines…',
-    'Finding spots that match your vibe…',
-    'Brewing recommendations…',
-  ];
 
   final HeaderSearchRepository _repository;
   final Duration debounceDuration;
@@ -24,7 +14,6 @@ class HeaderSearchCoordinator extends ChangeNotifier {
   HeaderSearchState _state = HeaderSearchState.initial();
   Timer? _debounce;
   int _requestVersion = 0;
-  int _magicMessageCursor = 0;
 
   HeaderSearchCoordinator({
     HeaderSearchRepository? repository,
@@ -32,233 +21,6 @@ class HeaderSearchCoordinator extends ChangeNotifier {
   }) : _repository = repository ?? const NoopHeaderSearchRepository();
 
   HeaderSearchState get state => _state;
-
-  static SearchIntentType detectIntent(String query) {
-    final normalized = query.trim().toLowerCase();
-    if (normalized.isEmpty) {
-      return SearchIntentType.mixed;
-    }
-
-    const peopleMarkers = [
-      '@',
-      'friend',
-      'friends',
-      'people',
-      'person',
-      'profile',
-      'follow',
-      'following',
-      'who ',
-    ];
-    if (peopleMarkers.any(normalized.contains)) {
-      return SearchIntentType.people;
-    }
-
-    final words = normalized
-        .split(RegExp(r'\s+'))
-        .where((word) => word.isNotEmpty)
-        .toList();
-    final wordCount = words.length;
-
-    const naturalLanguageStarters = [
-      'where',
-      'what',
-      'which',
-      'how',
-      'find',
-      'show',
-      'recommend',
-      'suggest',
-      'looking',
-      'tell',
-      'help',
-      'i want',
-      'i need',
-      'i feel',
-      'we want',
-      'we need',
-      'can i',
-      'can we',
-      'should i',
-      'should we',
-      'take me',
-      'take us',
-    ];
-    final startsLikeAQuestion = naturalLanguageStarters.any(
-      (starter) => normalized == starter || normalized.startsWith('$starter '),
-    );
-    final hasQuestionMark = normalized.contains('?');
-
-    const naturalLanguageMarkers = [
-      'somewhere',
-      'something',
-      'spot with',
-      'spot for',
-      'place with',
-      'place for',
-      'good for',
-      'perfect for',
-      'best for',
-      'vibe',
-      'vibes',
-      'cozy',
-      'romantic',
-      'quiet',
-      'lively',
-      'chill',
-      'relaxed',
-      'aesthetic',
-      'mood',
-      'date night',
-      'first date',
-      'hidden gem',
-      'feels like',
-      'tonight',
-      'this weekend',
-    ];
-    final containsNaturalLanguageCue =
-        naturalLanguageMarkers.any(normalized.contains);
-
-    const placeMarkers = [
-      'near me',
-      'pizza',
-      'coffee',
-      'sushi',
-      'restaurant',
-      'bar',
-      'cafe',
-      'pub',
-      'ramen',
-      'burger',
-      'lunch',
-      'dinner',
-      'breakfast',
-      'brunch',
-      'tacos',
-      'thai',
-      'indian',
-      'chinese',
-      'mexican',
-      'italian',
-      'japanese',
-      'french',
-      'korean',
-      'vegan',
-      'vegetarian',
-      'bakery',
-      'dessert',
-      'wine bar',
-      'cocktail bar',
-    ];
-    final containsPlaceCue = placeMarkers.any(normalized.contains);
-
-    if (startsLikeAQuestion || hasQuestionMark) {
-      return SearchIntentType.naturalLanguage;
-    }
-    if (wordCount >= 6) {
-      return SearchIntentType.naturalLanguage;
-    }
-    if (wordCount >= 4 && containsNaturalLanguageCue) {
-      return SearchIntentType.naturalLanguage;
-    }
-    if (containsNaturalLanguageCue && !containsPlaceCue) {
-      return SearchIntentType.naturalLanguage;
-    }
-    if (containsPlaceCue) {
-      return SearchIntentType.place;
-    }
-    if (wordCount <= 2) {
-      return SearchIntentType.place;
-    }
-
-    return SearchIntentType.mixed;
-  }
-
-  static List<SearchSectionType> sectionOrderForIntent(
-      SearchIntentType intent) {
-    switch (intent) {
-      case SearchIntentType.place:
-        return const [
-          SearchSectionType.places,
-          SearchSectionType.people,
-        ];
-      case SearchIntentType.mixed:
-        return const [
-          SearchSectionType.places,
-          SearchSectionType.naturalLanguage,
-          SearchSectionType.people,
-        ];
-      case SearchIntentType.naturalLanguage:
-        return const [
-          SearchSectionType.naturalLanguage,
-          SearchSectionType.places,
-          SearchSectionType.people,
-        ];
-      case SearchIntentType.people:
-        return const [
-          SearchSectionType.people,
-          SearchSectionType.places,
-        ];
-    }
-  }
-
-  /// Whether the LLM-backed natural-language stage should run for [intent].
-  static bool shouldRunNaturalLanguageStage(SearchIntentType intent) {
-    return intent == SearchIntentType.naturalLanguage ||
-        intent == SearchIntentType.mixed;
-  }
-
-  /// Whether the Google autocomplete stage should run for [intent].
-  static bool shouldRunGoogleAutocompleteStage(SearchIntentType intent) {
-    return intent == SearchIntentType.place || intent == SearchIntentType.mixed;
-  }
-
-  static List<LocationModel> mergePlaceResults({
-    required List<LocationModel> databaseResults,
-    required List<LocationModel> googleResults,
-  }) {
-    final seenKeys = <String>{};
-    final merged = <LocationModel>[];
-
-    void appendAll(List<LocationModel> values) {
-      for (final location in values) {
-        final key = _locationDeduplicationKey(location);
-        if (seenKeys.add(key)) {
-          merged.add(location);
-        }
-      }
-    }
-
-    appendAll(databaseResults);
-    appendAll(googleResults);
-    return merged;
-  }
-
-  static List<UserModel> rankPeopleResults({
-    required String query,
-    required List<UserModel> users,
-    required Map<String, int?> followInfluenceByUserId,
-    required Set<String> suggestedUserIds,
-  }) {
-    final normalizedQuery = query.trim().toLowerCase();
-    final ranked = [...users];
-    ranked.sort((left, right) {
-      final leftScore = _peopleScore(
-        user: left,
-        normalizedQuery: normalizedQuery,
-        followInfluenceByUserId: followInfluenceByUserId,
-        suggestedUserIds: suggestedUserIds,
-      );
-      final rightScore = _peopleScore(
-        user: right,
-        normalizedQuery: normalizedQuery,
-        followInfluenceByUserId: followInfluenceByUserId,
-        suggestedUserIds: suggestedUserIds,
-      );
-      return rightScore.compareTo(leftScore);
-    });
-    return ranked;
-  }
 
   Future<void> open() async {
     if (!_state.isActive) {
@@ -268,9 +30,7 @@ class HeaderSearchCoordinator extends ChangeNotifier {
 
     final requestVersion = ++_requestVersion;
     final recentQueries = await _repository.loadRecentQueries();
-    if (!_isLatestRequest(requestVersion)) {
-      return;
-    }
+    if (!_isLatestRequest(requestVersion)) return;
 
     _state = _state.copyWith(recentQueries: recentQueries);
     notifyListeners();
@@ -278,7 +38,6 @@ class HeaderSearchCoordinator extends ChangeNotifier {
     await _loadSearchState(
       query: '',
       requestVersion: requestVersion,
-      isEmptyState: true,
     );
   }
 
@@ -305,7 +64,6 @@ class HeaderSearchCoordinator extends ChangeNotifier {
         _loadSearchState(
           query: query,
           requestVersion: requestVersion,
-          isEmptyState: query.trim().isEmpty,
         ),
       );
     });
@@ -321,9 +79,7 @@ class HeaderSearchCoordinator extends ChangeNotifier {
   }
 
   void endPreview() {
-    if (!_state.isPreviewingMap && _state.previewedLocation == null) {
-      return;
-    }
+    if (!_state.isPreviewingMap && _state.previewedLocation == null) return;
     _state = _state.copyWith(
       isPreviewingMap: false,
       clearPreviewedLocation: true,
@@ -344,11 +100,9 @@ class HeaderSearchCoordinator extends ChangeNotifier {
   Future<void> _loadSearchState({
     required String query,
     required int requestVersion,
-    required bool isEmptyState,
   }) async {
-    final intent = isEmptyState ? SearchIntentType.mixed : detectIntent(query);
     final personalPrompts = _repository.buildPersonalPrompts();
-    final inlineCompletion = isEmptyState
+    final inlineCompletion = query.trim().isEmpty
         ? null
         : _repository.buildInlineCompletion(
             query: query,
@@ -359,14 +113,11 @@ class HeaderSearchCoordinator extends ChangeNotifier {
     _state = _state.copyWith(
       query: query,
       result: HeaderSearchResultModel(
-        intent: intent,
         query: query,
         inlineCompletion: inlineCompletion,
-        quickSuggestions: const [],
-        databaseMatches: const [],
-        sections: _emptySectionsForIntent(intent),
-        completedStages: {WaterfallStage.inlineCompletion},
-        isSearching: true,
+        quickSuggestions: _state.result.quickSuggestions,
+        placeItems: const [],
+        isLoading: true,
       ),
     );
     notifyListeners();
@@ -379,31 +130,9 @@ class HeaderSearchCoordinator extends ChangeNotifier {
       ),
     );
     unawaited(
-      _runDatabaseMatchesStage(
+      _runPlacesStage(
         query: query,
         requestVersion: requestVersion,
-        intent: intent,
-      ),
-    );
-    unawaited(
-      _runSectionsStage(
-        query: query,
-        requestVersion: requestVersion,
-        intent: intent,
-      ),
-    );
-    unawaited(
-      _runGoogleAutocompleteStage(
-        query: query,
-        requestVersion: requestVersion,
-        intent: intent,
-      ),
-    );
-    unawaited(
-      _runNaturalLanguageStage(
-        query: query,
-        requestVersion: requestVersion,
-        intent: intent,
       ),
     );
   }
@@ -423,332 +152,74 @@ class HeaderSearchCoordinator extends ChangeNotifier {
     } catch (_) {
       suggestions = const [];
     }
-    if (!_isLatestRequest(requestVersion)) {
-      return;
-    }
+    if (!_isLatestRequest(requestVersion)) return;
 
     _state = _state.copyWith(
-      result: _state.result.copyWith(
-        quickSuggestions: suggestions,
-        completedStages: {
-          ..._state.result.completedStages,
-          WaterfallStage.personalSuggestions,
-        },
-      ),
+      result: _state.result.copyWith(quickSuggestions: suggestions),
     );
     notifyListeners();
   }
 
-  Future<void> _runDatabaseMatchesStage({
+  /// Runs the Supabase and Google Places lookups in parallel and publishes
+  /// them in a single batch — DB results first, Google results appended
+  /// below — so the list renders all items at once with no jolts.
+  Future<void> _runPlacesStage({
     required String query,
     required int requestVersion,
-    required SearchIntentType intent,
-  }) async {
-    List<SearchSuggestionItem> matches;
-    try {
-      matches = await _repository.loadDatabaseMatches(
-        query: query,
-        intent: intent,
-      );
-    } catch (_) {
-      matches = const [];
-    }
-    if (!_isLatestRequest(requestVersion)) {
-      return;
-    }
-
-    _state = _state.copyWith(
-      result: _state.result.copyWith(
-        databaseMatches: matches,
-        completedStages: {
-          ..._state.result.completedStages,
-          WaterfallStage.databaseMatches,
-        },
-      ),
-    );
-    notifyListeners();
-  }
-
-  Future<void> _runSectionsStage({
-    required String query,
-    required int requestVersion,
-    required SearchIntentType intent,
-  }) async {
-    try {
-      final sectionsByType = await _repository.loadSections(
-        query: query,
-        intent: intent,
-      );
-      if (!_isLatestRequest(requestVersion)) {
-        return;
-      }
-
-      // Only update sections that this stage actually loaded. The
-      // natural-language section is filled by _runNaturalLanguageStage in
-      // parallel and must keep its current loading state until that stage
-      // resolves — otherwise we'd clobber the magic-search shimmer.
-      final updatedSections = _state.result.sections.map((section) {
-        if (section.type == SearchSectionType.places) {
-          return section;
-        }
-        if (!sectionsByType.containsKey(section.type)) {
-          return section;
-        }
-        return section.copyWith(
-          items: sectionsByType[section.type] ?? const [],
-          isLoading: false,
-          clearLoadingMessage: true,
-        );
-      }).toList();
-
-      final completedStages = {
-        ..._state.result.completedStages,
-        WaterfallStage.fullResults,
-      };
-      final nextResult = _state.result.copyWith(
-        databasePlaceItems:
-            sectionsByType[SearchSectionType.places] ?? const [],
-        sections: _syncPlacesSection(
-          result: _state.result.copyWith(
-            databasePlaceItems:
-                sectionsByType[SearchSectionType.places] ?? const [],
-            completedStages: completedStages,
-          ),
-          sections: updatedSections,
-        ),
-        completedStages: completedStages,
-        isSearching: false,
-      );
-
-      _state = _state.copyWith(
-        result: nextResult,
-      );
-      notifyListeners();
-    } catch (_) {
-      if (!_isLatestRequest(requestVersion)) {
-        return;
-      }
-
-      final completedStages = {
-        ..._state.result.completedStages,
-        WaterfallStage.fullResults,
-      };
-      final clearedSections = _state.result.sections.map((section) {
-        if (section.type == SearchSectionType.places) {
-          return section;
-        }
-        return section.copyWith(isLoading: false);
-      }).toList();
-      _state = _state.copyWith(
-        result: _state.result.copyWith(
-          databasePlaceItems: const [],
-          sections: _syncPlacesSection(
-            result: _state.result.copyWith(
-              databasePlaceItems: const [],
-              completedStages: completedStages,
-            ),
-            sections: clearedSections,
-          ),
-          completedStages: completedStages,
-          isSearching: false,
-          errorMessage: 'Search is temporarily unavailable.',
-        ),
-      );
-      notifyListeners();
-    }
-  }
-
-  Future<void> _runGoogleAutocompleteStage({
-    required String query,
-    required int requestVersion,
-    required SearchIntentType intent,
   }) async {
     final trimmed = query.trim();
-    if (trimmed.length < _minGoogleAutocompleteQueryLength) {
-      if (!_isLatestRequest(requestVersion)) return;
-      _completeGoogleAutocompleteStage(
-        liveItems: const [],
-      );
-      return;
-    }
-    // Skip autocomplete for clearly conversational queries — magic search will
-    // handle those — and for people-only queries.
-    if (!shouldRunGoogleAutocompleteStage(intent)) {
-      if (!_isLatestRequest(requestVersion)) return;
-      _completeGoogleAutocompleteStage(
-        liveItems: const [],
-      );
-      return;
+    final runGoogle = trimmed.length >= _minGoogleAutocompleteQueryLength;
+
+    final dbFuture = _safeLoadDatabasePlaces(query);
+    Future<List<SearchSuggestionItem>> googleFuture;
+    if (runGoogle) {
+      googleFuture = _safeLoadGooglePlaces(query);
+    } else {
+      googleFuture = Future.value(const <SearchSuggestionItem>[]);
     }
 
-    List<SearchSuggestionItem> liveItems;
+    final results = await Future.wait([dbFuture, googleFuture]);
+    if (!_isLatestRequest(requestVersion)) return;
+
+    final merged = _mergeSuggestionLists(
+      primary: results[0],
+      secondary: results[1],
+    );
+
+    _state = _state.copyWith(
+      result: _state.result.copyWith(
+        placeItems: merged,
+        isLoading: false,
+        clearErrorMessage: true,
+      ),
+    );
+    notifyListeners();
+  }
+
+  Future<List<SearchSuggestionItem>> _safeLoadDatabasePlaces(
+    String query,
+  ) async {
+    try {
+      return await _repository.loadDatabasePlaces(query: query);
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<List<SearchSuggestionItem>> _safeLoadGooglePlaces(String query) async {
     try {
       final proximity = await _repository.currentProximity();
-      if (!_isLatestRequest(requestVersion)) return;
-      liveItems = await _repository.loadGoogleAutocompleteSuggestions(
+      return await _repository.loadGoogleAutocompleteSuggestions(
         query: query,
         proximity: proximity,
       );
     } catch (_) {
-      liveItems = const [];
+      return const [];
     }
-    if (!_isLatestRequest(requestVersion)) return;
-
-    _completeGoogleAutocompleteStage(liveItems: liveItems);
-  }
-
-  Future<void> _runNaturalLanguageStage({
-    required String query,
-    required int requestVersion,
-    required SearchIntentType intent,
-  }) async {
-    if (query.trim().isEmpty) return;
-    if (!shouldRunNaturalLanguageStage(intent)) return;
-    // Bail if the section isn't even rendered for this intent.
-    final hasNaturalSection = _state.result.sections
-        .any((section) => section.type == SearchSectionType.naturalLanguage);
-    if (!hasNaturalSection) return;
-
-    List<SearchSuggestionItem> items;
-    try {
-      items = await _repository.loadNaturalLanguageSection(
-        query: query,
-        intent: intent,
-      );
-    } catch (_) {
-      items = const [];
-    }
-    if (!_isLatestRequest(requestVersion)) return;
-
-    final updated = _state.result.sections.map((section) {
-      if (section.type != SearchSectionType.naturalLanguage) return section;
-      return section.copyWith(
-        items: items,
-        isLoading: false,
-        clearLoadingMessage: true,
-      );
-    }).toList();
-
-    _state = _state.copyWith(
-      result: _state.result.copyWith(
-        sections: updated,
-        completedStages: {
-          ..._state.result.completedStages,
-          WaterfallStage.naturalLanguage,
-        },
-      ),
-    );
-    notifyListeners();
   }
 
   bool _isLatestRequest(int requestVersion) =>
       requestVersion == _requestVersion;
-
-  String _nextMagicLoadingMessage() {
-    final message =
-        magicLoadingMessages[_magicMessageCursor % magicLoadingMessages.length];
-    _magicMessageCursor++;
-    return message;
-  }
-
-  List<HeaderSearchSectionModel> _emptySectionsForIntent(
-    SearchIntentType intent,
-  ) {
-    final showMagicMessage = shouldRunNaturalLanguageStage(intent);
-    return sectionOrderForIntent(intent).map((type) {
-      final isMagicSection = type == SearchSectionType.naturalLanguage;
-      return HeaderSearchSectionModel(
-        type: type,
-        title: _titleForSection(type),
-        items: const [],
-        isLoading: true,
-        loadingMessage: isMagicSection && showMagicMessage
-            ? _nextMagicLoadingMessage()
-            : null,
-      );
-    }).toList();
-  }
-
-  static String _titleForSection(SearchSectionType type) {
-    switch (type) {
-      case SearchSectionType.places:
-        return 'Places';
-      case SearchSectionType.naturalLanguage:
-        return 'Recommended';
-      case SearchSectionType.people:
-        return 'People';
-    }
-  }
-
-  void _completeGoogleAutocompleteStage({
-    required List<SearchSuggestionItem> liveItems,
-  }) {
-    final completedStages = {
-      ..._state.result.completedStages,
-      WaterfallStage.googleAutocompleteResults,
-    };
-    final nextResult = _state.result.copyWith(
-      googlePlaceItems: liveItems,
-      sections: _syncPlacesSection(
-        result: _state.result.copyWith(
-          googlePlaceItems: liveItems,
-          completedStages: completedStages,
-        ),
-      ),
-      completedStages: completedStages,
-    );
-
-    _state = _state.copyWith(result: nextResult);
-    notifyListeners();
-  }
-
-  List<HeaderSearchSectionModel> _syncPlacesSection({
-    required HeaderSearchResultModel result,
-    List<HeaderSearchSectionModel>? sections,
-  }) {
-    final combinedItems = _mergeSuggestionLists(
-      primary: result.databasePlaceItems,
-      secondary: result.googlePlaceItems,
-    );
-    final isLoading = _isPlacesSectionLoading(
-      result: result,
-      combinedItems: combinedItems,
-    );
-
-    return (sections ?? result.sections).map((section) {
-      if (section.type != SearchSectionType.places) {
-        return section;
-      }
-      return section.copyWith(
-        items: combinedItems,
-        isLoading: isLoading,
-        clearLoadingMessage: true,
-      );
-    }).toList();
-  }
-
-  bool _isPlacesSectionLoading({
-    required HeaderSearchResultModel result,
-    required List<SearchSuggestionItem> combinedItems,
-  }) {
-    if (combinedItems.isNotEmpty) {
-      return false;
-    }
-
-    final databaseDone =
-        result.completedStages.contains(WaterfallStage.fullResults);
-    final googleDone = !_shouldRunGoogleAutocompleteForResult(result) ||
-        result.completedStages
-            .contains(WaterfallStage.googleAutocompleteResults);
-
-    return !databaseDone || !googleDone;
-  }
-
-  bool _shouldRunGoogleAutocompleteForResult(HeaderSearchResultModel result) {
-    final trimmed = result.query.trim();
-    return trimmed.length >= _minGoogleAutocompleteQueryLength &&
-        shouldRunGoogleAutocompleteStage(result.intent);
-  }
 
   static List<SearchSuggestionItem> _mergeSuggestionLists({
     required List<SearchSuggestionItem> primary,
@@ -766,43 +237,6 @@ class HeaderSearchCoordinator extends ChangeNotifier {
       }
     }
     return merged;
-  }
-
-  static int _peopleScore({
-    required UserModel user,
-    required String normalizedQuery,
-    required Map<String, int?> followInfluenceByUserId,
-    required Set<String> suggestedUserIds,
-  }) {
-    final name = user.name?.toLowerCase() ?? '';
-    final username = user.username?.toLowerCase() ?? '';
-    final email = user.email.toLowerCase();
-    final userId = user.supabaseId ?? user.email;
-
-    var score = 0;
-
-    if (normalizedQuery.isNotEmpty) {
-      if (name == normalizedQuery || username == normalizedQuery) {
-        score += 400;
-      } else if (name.startsWith(normalizedQuery) ||
-          username.startsWith(normalizedQuery)) {
-        score += 250;
-      } else if (name.contains(normalizedQuery) ||
-          username.contains(normalizedQuery) ||
-          email.contains(normalizedQuery)) {
-        score += 150;
-      }
-    }
-
-    final followInfluence = followInfluenceByUserId[userId] ?? 0;
-    score += followInfluence * 20;
-
-    if (suggestedUserIds.contains(userId)) {
-      score += 500;
-    }
-
-    score += user.followersCount;
-    return score;
   }
 
   static String _locationDeduplicationKey(LocationModel location) {

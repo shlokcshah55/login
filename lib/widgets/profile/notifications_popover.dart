@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/notification_type.dart';
 import 'package:login/models/notifications/base_notification.dart';
+import 'package:login/models/notifications/follow_accepted_notification.dart';
 import 'package:login/models/notifications/follow_request_notification.dart';
 import 'package:login/models/notifications/video_processed_notification.dart';
 import 'package:login/pages/profile/other_user_profile_page.dart';
@@ -12,6 +13,9 @@ import 'package:login/services/fcm_service.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:provider/provider.dart';
+
+List<BaseNotification> _visibleNotifications(List<BaseNotification> all) =>
+    all.where((n) => n.type != NotificationType.newMessage).toList();
 
 class NotificationsPopover extends StatefulWidget {
   const NotificationsPopover({Key? key}) : super(key: key);
@@ -27,15 +31,21 @@ class _NotificationsPopoverState extends State<NotificationsPopover> {
   @override
   void initState() {
     super.initState();
-    _notifications = FCMService().notifications;
+    _notifications = _visibleNotifications(FCMService().notifications);
 
     _notificationSubscription =
         FCMService().notificationStream.listen((notification) {
       if (!mounted) return;
       setState(() {
-        _notifications = FCMService().notifications;
+        _notifications = _visibleNotifications(FCMService().notifications);
       });
     });
+  }
+
+  @override
+  void dispose() {
+    _notificationSubscription.cancel();
+    super.dispose();
   }
 
   Future<void> _handleRefresh() async {
@@ -43,7 +53,7 @@ class _NotificationsPopoverState extends State<NotificationsPopover> {
 
     if (!mounted) return;
     setState(() {
-      _notifications = FCMService().notifications;
+      _notifications = _visibleNotifications(FCMService().notifications);
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -63,7 +73,7 @@ class _NotificationsPopoverState extends State<NotificationsPopover> {
 
     if (!mounted) return;
     setState(() {
-      _notifications = FCMService().notifications;
+      _notifications = _visibleNotifications(FCMService().notifications);
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -79,14 +89,61 @@ class _NotificationsPopoverState extends State<NotificationsPopover> {
   }
 
   Future<void> _handleNotificationTap(BaseNotification notification) async {
-    if (notification.isRead) return;
+    String? targetUserId;
+    bool highlightPending = false;
 
-    await FCMService().markAsRead(notification.id);
+    if (notification is FollowRequestNotification) {
+      targetUserId = notification.userId;
+      highlightPending = true;
+    } else if (notification is FollowAcceptedNotification) {
+      targetUserId = notification.userId;
+    }
 
-    if (!mounted) return;
-    setState(() {
-      _notifications = FCMService().notifications;
-    });
+    try {
+      if (targetUserId != null) {
+        final auth = Provider.of<SupabaseService>(context, listen: false).users;
+        final user = await auth.getUserProfileById(targetUserId);
+        if (!mounted) return;
+        if (user == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not load user profile')),
+          );
+          return;
+        }
+
+        if (!notification.isRead) {
+          await FCMService().markAsRead(notification.id);
+        }
+        if (!mounted) return;
+
+        setState(() {
+          _notifications = _visibleNotifications(FCMService().notifications);
+        });
+
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => OtherUserProfilePage(
+              user: user,
+              highlightPendingRequest: highlightPending,
+            ),
+          ),
+        );
+        return;
+      }
+
+      if (!notification.isRead) {
+        await FCMService().markAsRead(notification.id);
+        if (!mounted) return;
+        setState(() {
+          _notifications = _visibleNotifications(FCMService().notifications);
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not open notification: $e')),
+      );
+    }
   }
 
   Future<void> _handleAction(BaseNotification notification) async {
@@ -156,14 +213,8 @@ class _NotificationsPopoverState extends State<NotificationsPopover> {
   }
 
   @override
-  void dispose() {
-    _notificationSubscription.cancel();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final unreadCount = FCMService().unreadCount;
+    final unreadCount = _notifications.where((n) => !n.isRead).length;
     final bottomInset = MediaQuery.of(context).padding.bottom;
 
     return Scaffold(

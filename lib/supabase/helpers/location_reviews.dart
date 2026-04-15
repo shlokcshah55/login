@@ -106,6 +106,20 @@ class LocationReviewsHelper {
     }
   }
 
+  /// Mark a location as "been to" without creating a review row.
+  /// Calls create_user_location_action with action='been_to' (idempotent).
+  Future<void> markBeenTo({required int locationId}) async {
+    final user = SupabaseClientManager().currentUser;
+    if (user == null) {
+      throw Exception('User not authenticated');
+    }
+    await _client.rpc('create_user_location_action', params: {
+      'p_user_id': user.id,
+      'p_location_id': locationId,
+      'p_action': 'been_to',
+    });
+  }
+
   /// Submit a "been to" review via RPC (atomic: review + action insert)
   /// Rating is 1.0-10.0 with 0.1 increments. Gatekeep maps to the private column.
   Future<Map<String, dynamic>?> submitBeenTo({

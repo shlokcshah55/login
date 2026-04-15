@@ -162,7 +162,11 @@ class _ProfilePageState extends State<ProfilePage>
           children: [
             NotificationListener<ScrollNotification>(
               onNotification: (notification) => false,
-              child: CustomScrollView(
+              child: RefreshIndicator(
+                onRefresh: _loadFollowCounts,
+                color: PinitColors.aubergine,
+                backgroundColor: PinitColors.cream,
+                child: CustomScrollView(
                 controller: _scrollController,
                 physics: const BouncingScrollPhysics(
                   parent: AlwaysScrollableScrollPhysics(),
@@ -202,6 +206,7 @@ class _ProfilePageState extends State<ProfilePage>
                     child: SizedBox(height: 100),
                   ),
                 ],
+                ),
               ),
             ),
             if (collapsedHeader)

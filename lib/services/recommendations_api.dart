@@ -53,7 +53,7 @@ class RecommendationsApi {
       userId: userId,
       latitude: latitude,
       longitude: longitude,
-      radiusKm: radiusKm,
+      radiusKm: 8,
       maxResults: effectiveMaxResults,
       qualityWeight: qualityWeight,
       vibeWeight: vibeWeight,

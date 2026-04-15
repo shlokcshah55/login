@@ -20,22 +20,8 @@ abstract class HeaderSearchRepository {
     required List<String> personalPrompts,
   });
 
-  Future<List<SearchSuggestionItem>> loadDatabaseMatches({
+  Future<List<SearchSuggestionItem>> loadDatabasePlaces({
     required String query,
-    required SearchIntentType intent,
-  });
-
-  Future<Map<SearchSectionType, List<SearchSuggestionItem>>> loadSections({
-    required String query,
-    required SearchIntentType intent,
-  });
-
-  /// Runs the LLM-backed magic-search endpoint. The coordinator only calls
-  /// this when intent detection signals a natural-language query, so it
-  /// must NOT be invoked unconditionally.
-  Future<List<SearchSuggestionItem>> loadNaturalLanguageSection({
-    required String query,
-    required SearchIntentType intent,
   });
 
   Future<List<SearchSuggestionItem>> loadGoogleAutocompleteSuggestions({
@@ -54,20 +40,11 @@ class NoopHeaderSearchRepository implements HeaderSearchRepository {
     required String query,
     required List<String> recentQueries,
     required List<String> personalPrompts,
-  }) {
-    return null;
-  }
+  }) =>
+      null;
 
   @override
   List<String> buildPersonalPrompts() => const [];
-
-  @override
-  Future<List<SearchSuggestionItem>> loadDatabaseMatches({
-    required String query,
-    required SearchIntentType intent,
-  }) async {
-    return const [];
-  }
 
   @override
   Future<List<String>> loadRecentQueries() async => const [];
@@ -77,33 +54,21 @@ class NoopHeaderSearchRepository implements HeaderSearchRepository {
     required String query,
     required List<String> recentQueries,
     required List<String> personalPrompts,
-  }) async {
-    return const [];
-  }
+  }) async =>
+      const [];
 
   @override
-  Future<Map<SearchSectionType, List<SearchSuggestionItem>>> loadSections({
+  Future<List<SearchSuggestionItem>> loadDatabasePlaces({
     required String query,
-    required SearchIntentType intent,
-  }) async {
-    return const {};
-  }
-
-  @override
-  Future<List<SearchSuggestionItem>> loadNaturalLanguageSection({
-    required String query,
-    required SearchIntentType intent,
-  }) async {
-    return const [];
-  }
+  }) async =>
+      const [];
 
   @override
   Future<List<SearchSuggestionItem>> loadGoogleAutocompleteSuggestions({
     required String query,
     LatLng? proximity,
-  }) async {
-    return const [];
-  }
+  }) async =>
+      const [];
 
   @override
   Future<LatLng?> currentProximity() async => null;
