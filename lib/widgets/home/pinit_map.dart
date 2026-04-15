@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 import 'package:login/models/locations.dart';
 import 'package:login/pages/home/home_view_model.dart';
+import 'package:login/pages/home/widgets/home_map_sync_gate.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
@@ -40,6 +41,7 @@ class _PinitMapState extends State<PinitMap> {
   bool _viewportRefreshPendingInteracting = false;
   bool _viewportRefreshInFlight = false;
   bool _mapInteractionActive = false;
+  bool _geoJsonMapLoaded = false;
 
   // Legacy fields for PointAnnotation-based rendering (when useGeoJsonLayers is false)
   // ignore: unused_field
@@ -259,6 +261,26 @@ class _PinitMapState extends State<PinitMap> {
     });
   }
 
+  void _syncGeoJsonLocationsIfReady(
+    LocationListManager locationListManager,
+    MapStateProvider mapStateProvider,
+  ) {
+    if (!shouldSyncGeoJsonPins(
+      useGeoJsonLayers: mapStateProvider.useGeoJsonLayers,
+      isMapLoaded: _geoJsonMapLoaded,
+      currentListType: locationListManager.currentListType,
+      hasLoadedSavedLocations: locationListManager.hasLoadedSavedLocations,
+    )) {
+      return;
+    }
+
+    _updateGeoJsonLocations(
+      locationListManager.currentItems,
+      mapStateProvider,
+      locationListManager.beenToLocationIds,
+    );
+  }
+
   /// Legacy: Apply manual clustering (old approach).
   /// Only used when useGeoJsonLayers is false.
   void _applyClusteringAsync(
@@ -424,10 +446,9 @@ class _PinitMapState extends State<PinitMap> {
 
     // Update map based on current approach
     if (mapStateProvider.useGeoJsonLayers) {
-      _updateGeoJsonLocations(
-        locationListManager.currentItems,
+      _syncGeoJsonLocationsIfReady(
+        locationListManager,
         mapStateProvider,
-        locationListManager.beenToLocationIds,
       );
     } else {
       _applyClusteringAsync(
@@ -456,6 +477,7 @@ class _PinitMapState extends State<PinitMap> {
           ),
           styleUri: "mapbox://styles/srishlok/cmlpttggl000p01rz51whgzk9",
           onMapCreated: _onMapCreated,
+          onMapLoadedListener: _onMapLoaded,
           onTapListener: (mapbox.MapContentGestureContext tapContext) {
             // Handle GeoJSON layer tap events
             if (mapStateProvider.useGeoJsonLayers) {
@@ -592,27 +614,25 @@ class _PinitMapState extends State<PinitMap> {
     print('Setting initial location in onMapCreated: $initialLocation');
     mapState.setLastFocusedUserLocation(initialLocation);
     _mapReady = true;
+    _geoJsonMapLoaded = false;
 
-    // Reset sync key to force an update now that the map is ready
+    // Reset sync key so the first post-load sync always runs.
+    _lastGeoJsonSyncKey = '';
+  }
+
+  void _onMapLoaded(mapbox.MapLoadedEventData _) {
+    _geoJsonMapLoaded = true;
     _lastGeoJsonSyncKey = '';
 
-    // Trigger initial location update for GeoJSON mode
-    if (mapState.useGeoJsonLayers && locationManager.currentItems.isNotEmpty) {
-      final locations =
-          locationManager.currentItems.keys.whereType<LocationModel>().toList();
-      final success = await mapState.updateMapLocations(
-        locations,
-        beenToLocationIds: locationManager.beenToLocationIds,
-      );
-      if (success) {
-        _lastGeoJsonSyncKey = _buildGeoJsonSyncKey(
-          locations,
-          locationManager.beenToLocationIds,
-        );
-        print(
-            'PinitMap: Initial GeoJSON sync after map created, ${locations.length} locations');
-      }
+    if (!mounted) {
+      return;
     }
+
+    final locationManager = context.read<LocationListManager>();
+    final mapState = context.read<MapStateProvider>();
+
+    setState(() {});
+    _syncGeoJsonLocationsIfReady(locationManager, mapState);
   }
 
   Future<void> _onCameraChanged(
