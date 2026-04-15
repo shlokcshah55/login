@@ -169,6 +169,7 @@ class AuthHelper {
           .select()
           .eq(SupabaseConstants.columnSupabaseId, user.id)
           .maybeSingle();
+      print('Checked for existing user record for ${user.email}, found: $existingUser');
 
       // If user doesn't exist, create a new record
       if (existingUser == null) {

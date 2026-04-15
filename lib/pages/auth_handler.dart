@@ -239,6 +239,11 @@ class _AuthHandlerState extends State<AuthHandler> {
     }
 
     if (!supabaseProvider.isAuthenticated) {
+      _hasInitializedData = false;
+      _isInitializing = false;
+      _isCheckingLegalConsent = false;
+      _legalConsentCheckedUserId = null;
+      _hasAcceptedLegalConsent = null;
       _scheduleLoggedOutCleanup();
     }
 
