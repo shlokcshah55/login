@@ -39,7 +39,7 @@ class CollectionGenerator:
 
     def __init__(self, user_id: str):
         self.supabase_url = os.getenv('SUPABASE_URL')
-        self.supabase_key = os.getenv('SUPABASE_KEY')
+        self.supabase_key = os.getenv('SUPABASE_SERVICE_KEY')
         self.xai_api_key = os.getenv('XAI_API_KEY')
         self.user_id = user_id
 
@@ -77,8 +77,11 @@ class CollectionGenerator:
 
         if since:
             query = query.gt('created_at', since)
+        
+        
 
         actions_response = query.execute()
+        logger.info(f"Fetched {(actions_response.data or [])} location actions")
 
         if not actions_response.data:
             raise ValueError('Not enough saved locations to generate collections (minimum 2 required)')

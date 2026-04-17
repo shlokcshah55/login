@@ -17,6 +17,7 @@ import 'package:login/models/notifications/bubble_message_notification.dart';
 import 'package:login/models/notifications/follow_accepted_notification.dart';
 import 'package:login/models/notifications/follow_request_notification.dart';
 import 'package:login/models/notifications/user_added_to_bubble_notification.dart';
+import 'package:login/models/notifications/video_processed_notification.dart';
 
 class FCMService {
   static final FCMService _instance = FCMService._internal();
@@ -26,6 +27,10 @@ class FCMService {
   // Notification stream for UI
   final _notificationController = StreamController<BaseNotification>.broadcast();
   Stream<BaseNotification> get notificationStream => _notificationController.stream;
+
+  // Stream for location-saved events (emits locationId when a video is processed)
+  final _locationSavedController = StreamController<int>.broadcast();
+  Stream<int> get locationSavedStream => _locationSavedController.stream;
 
   List<BaseNotification> _notifications = [];
   List<BaseNotification> get notifications => List.unmodifiable(_notifications);
@@ -169,6 +174,13 @@ class FCMService {
 
     final notification = BaseNotification.fromRemoteMessage(message);
     if (notification != null) {
+      // Emit location-saved event so the location list updates immediately
+      if (notification.type == NotificationType.videoProcessed &&
+          notification is VideoProcessedNotification) {
+        final locationId = int.tryParse(notification.locationId);
+        if (locationId != null) _locationSavedController.add(locationId);
+      }
+
       // Save to database first
       try {
         await _notificationsHelper.saveNotification(notification);
@@ -246,6 +258,20 @@ class FCMService {
         break;
 
       case NotificationType.videoProcessed:
+        if (notification is VideoProcessedNotification) {
+          final locationId = int.tryParse(notification.locationId);
+          if (locationId != null) _locationSavedController.add(locationId);
+        }
+        if (context != null) {
+          try {
+            Provider.of<NavigationProvider>(context, listen: false)
+                .navigateToTab(2);
+            return;
+          } catch (_) {}
+        }
+        navigatorKey.currentState?.pushNamed('/profile');
+        break;
+
       case NotificationType.notesImportComplete:
         if (context != null) {
           try {
@@ -456,5 +482,6 @@ class FCMService {
   void dispose() {
     _realtimeChannel?.unsubscribe();
     _notificationController.close();
+    _locationSavedController.close();
   }
 }

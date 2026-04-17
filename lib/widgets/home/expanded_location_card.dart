@@ -726,9 +726,17 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                 pinitAvgRating: _pinitAvgRating,
                 pinitReviewCount: _pinitReviewCount,
               ),
-
+              
               // Layer 3 — editorial body.
               const SizedBox(height: 32),
+
+                          DetailsSection(
+                location: widget.location,
+                onOpenInMaps: _openInGoogleMaps,
+                onOpenWebsite: _openWebsite,
+              ),
+                            const SizedBox(height: 32),
+
               WhyGoSection(
                 generatedSummary: widget.location.generatedSummary,
                 editorialSummary: widget.location.editorialSummary,
@@ -746,13 +754,8 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                 similarPlaces: _similarPlaces,
                 onSimilarPlaceTap: (_) => _handleClose(),
               ),
-              const SizedBox(height: 32),
-              DetailsSection(
-                location: widget.location,
-                onOpenInMaps: _openInGoogleMaps,
-                onOpenWebsite: _openWebsite,
-              ),
-              SizedBox(height: dockBottomInset),
+                          SizedBox(height: dockBottomInset),
+
             ],
           ),
         ),

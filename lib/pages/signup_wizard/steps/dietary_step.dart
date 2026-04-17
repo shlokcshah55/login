@@ -69,13 +69,7 @@ class _DietaryStepState extends State<DietaryStep> {
     final wizardState = Provider.of<SignupWizardState>(context);
 
     return Container(
-      decoration: const BoxDecoration(
-        color: PinitColors.cream,
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(30),
-          topRight: Radius.circular(30),
-        ),
-      ),
+      color: PinitColors.surfaceLight,
       child: Column(
         children: [
           Expanded(
@@ -104,49 +98,27 @@ class _DietaryStepState extends State<DietaryStep> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Title at the top
-                            const Text(
-                              'Dietary Preferences',
-                              style: TextStyle(
-                                fontFamily: 'Rova',
-                                fontSize: 32,
-                                fontWeight: FontWeight.w100,
-                                color: PinitColors.aubergine,
-                                letterSpacing: 1.5,
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-
                             // Subtitle with avatar
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                SvgPicture.asset(
-                                  'lib/assets/illustrations/Avatars - Default.svg',
-                                  width: 48,
-                                  height: 48,
-                                ),
-                                const SizedBox(width: 16),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       const SizedBox(height: 4),
                                       Text(
-                                        'Tell us about your dietary needs',
-                                        style: GoogleFonts.dmSans(
-                                          fontSize: 15,
-                                          color: PinitColors.aubergine,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Select all that apply (optional)',
-                                        style: GoogleFonts.dmSans(
-                                          fontSize: 13,
-                                          color: PinitColors.aubergineSoft,
-                                        ),
+                                        'Which of these apply to you?',
+                                        style:
+                                            TextStyle(
+                                                fontFamily: 'Rova',
+                                                fontSize: 20,
+                                                fontWeight: FontWeight.w100,
+                                                color: PinitColors.aubergine,
+                                                letterSpacing: 1.5,
+                                                height: 1.1
+                                                )
+                                                                    
                                       ),
                                     ],
                                   ),
@@ -171,16 +143,22 @@ class _DietaryStepState extends State<DietaryStep> {
                                 return Container(
                                   decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? PinitColors.aubergine
+                                          : PinitColors.black,
+                                      width: 1.5,
+                                    ),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: PinitColors.aubergine,
+                                        color: isSelected ? PinitColors.black : PinitColors.aubergine,
                                         blurRadius: 0,
                                         offset: const Offset(3, 3),
                                       ),
                                     ],
                                   ),
                                   child: Material(
-                                    color: isSelected ? tagColor : tagColor,
+                                    color: isSelected ? PinitColors.aubergine : tagColor,
                                     borderRadius: BorderRadius.circular(12),
                                     child: InkWell(
                                       onTap: () {
@@ -192,29 +170,15 @@ class _DietaryStepState extends State<DietaryStep> {
                                           horizontal: 12,
                                           vertical: 8,
                                         ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            if (isSelected)
-                                              Padding(
-                                                padding: const EdgeInsets.only(right: 6),
-                                                child: Icon(
-                                                  Icons.check,
-                                                  size: 16,
-                                                  color: PinitColors.aubergine,
-                                                ),
-                                              ),
-                                            Text(
-                                              tag['text'] as String,
-                                              style: GoogleFonts.dmSans(
-                                                fontSize: 14,
-                                                color: PinitColors.aubergine,
-                                                fontWeight: isSelected
-                                                    ? FontWeight.w600
-                                                    : FontWeight.normal,
-                                              ),
-                                            ),
-                                          ],
+                                        child: Text(
+                                          tag['text'] as String,
+                                          style: GoogleFonts.dmSans(
+                                            fontSize: 14,
+                                            color: isSelected
+                                                ? PinitColors.cream
+                                                : PinitColors.aubergine,
+                                            fontWeight: FontWeight.normal,
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -222,21 +186,31 @@ class _DietaryStepState extends State<DietaryStep> {
                                 );
                               }).toList(),
                             ),
+                            const SizedBox(height: 20),
 
-                            const SizedBox(height: 16),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 22.0),
+                              child: SvgPicture.asset(
+                                'lib/assets/illustrations/Foodies - Noodle Soup.svg',
+                                width: 170,
+                                height: 170,
+                              ),
+                            ),
+                            
+                            const SizedBox(height: 20),
 
                             // Spice tolerance section
                             const Text(
-                              'How much spice can you handle?',
+                              'How much spice can you handle...',
                               style: TextStyle(
                                 fontFamily: 'Rova',
                                 fontSize: 24,
                                 fontWeight: FontWeight.w100,
                                 color: PinitColors.aubergine,
-                                letterSpacing: 1.5,
+                                letterSpacing: 1.8,
                               ),
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 20),
 
                             // Spice level indicator
                             Center(
@@ -311,6 +285,7 @@ class _DietaryStepState extends State<DietaryStep> {
                                 ),
                               ),
                             ),
+
                           ],
                         ),
                       ),
@@ -320,7 +295,7 @@ class _DietaryStepState extends State<DietaryStep> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: PinitColors.cream,
+              color: PinitColors.surfaceLight,
               boxShadow: [
                 BoxShadow(
                   color: PinitColors.aubergine.withValues(alpha: 0.06),

@@ -29,9 +29,13 @@ class SavedFromBadge extends StatelessWidget {
       (savedMethod ?? '').toLowerCase() == 'tiktok' &&
       (sourceUrl ?? '').trim().isNotEmpty;
 
+  bool get _isInstagram =>
+      (savedMethod ?? '').toLowerCase() == 'instagram' &&
+      (sourceUrl ?? '').trim().isNotEmpty;
+
   @override
   Widget build(BuildContext context) {
-    if (!_isTikTok) return const SizedBox.shrink();
+    if (!_isTikTok && !_isInstagram) return const SizedBox.shrink();
 
     return GestureDetector(
       onTap: onTap,
@@ -52,7 +56,7 @@ class SavedFromBadge extends StatelessWidget {
             ),
             const SizedBox(width: 7),
             Text(
-              'Saved from this TikTok',
+              _isTikTok ? 'Saved from this TikTok' : 'Saved from this Reel',
               style: GoogleFonts.dmSans(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,

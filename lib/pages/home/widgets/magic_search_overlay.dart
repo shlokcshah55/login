@@ -77,7 +77,7 @@ class MagicSearchOverlay extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  "Search in natural language like 'cozy Italian place with outdoor seating' or 'best ramen near me'",
+                  "Search in natural language like 'cozy Italian place with outdoor seating' or 'best ramen near me' and we will find those spots in the part of the map you are looking at.",
                   style: AppTypography.sans(
                     fontSize: 14,
                     color: theme.textTheme.bodyMedium?.color?.withValues(

@@ -219,52 +219,54 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: PinitColors.cream,
+      backgroundColor: PinitColors.surfaceLight,
       body: SafeArea(
-        child: Column(
+        child: Material(
+          color: PinitColors.surfaceLight,
+          child: Column(
           children: [
-            // Progress Indicator
-            Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 24.0, vertical: 5),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _stepTitles[_currentStep],
-                    style: const TextStyle(
-                      fontFamily: 'Rova',
-                      fontSize: 32,
-                      fontWeight: FontWeight.w100,
-                      color: PinitColors.aubergine,
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  // Progress bar
-                  Container(
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: PinitColors.creamDeep,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        return AnimatedContainer(
-                          duration: const Duration(milliseconds: 400),
-                          curve: Curves.easeOutQuint,
-                          width: constraints.maxWidth * _calculateProgress(),
-                          decoration: BoxDecoration(
-                            color: PinitColors.accent,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          //   // Progress Indicator
+          //   Padding(
+          //     padding:
+          //         const EdgeInsets.symmetric(horizontal: 24.0, vertical: 5),
+          //     child: Column(
+          //       crossAxisAlignment: CrossAxisAlignment.start,
+          //       children: [
+          //         Text(
+          //           _stepTitles[_currentStep],
+          //           style: const TextStyle(
+          //             fontFamily: 'Rova',
+          //             fontSize: 32,
+          //             fontWeight: FontWeight.w100,
+          //             color: PinitColors.aubergine,
+          //             letterSpacing: 1.5,
+          //           ),
+          //         ),
+          //         const SizedBox(height: 12),
+          //         // Progress bar
+          //         Container(
+          //           height: 12,
+          //           decoration: BoxDecoration(
+          //             color: PinitColors.creamDeep,
+          //             borderRadius: BorderRadius.circular(4),
+          //           ),
+          //           child: LayoutBuilder(
+          //             builder: (context, constraints) {
+          //               return AnimatedContainer(
+          //                 duration: const Duration(milliseconds: 400),
+          //                 curve: Curves.easeOutQuint,
+          //                 width: constraints.maxWidth * _calculateProgress(),
+          //                 decoration: BoxDecoration(
+          //                   color: PinitColors.accent,
+          //                   borderRadius: BorderRadius.circular(4),
+          //                 ),
+          //               );
+          //             },
+          //           ),
+          //         ),
+          //       ],
+          //     ),
+          //   ),
             // Page Content
             Expanded(
               child: PageView(
@@ -301,6 +303,7 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
               ),
             ),
           ],
+        ),
         ),
       ),
     );

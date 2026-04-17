@@ -32,12 +32,12 @@ class VibeStep extends StatefulWidget {
 class _VibeStepState extends State<VibeStep> {
   // We'll derive the grid images from the `lib/assets/vibe` filenames.
   final Map<String, String> _imageNames = const {
-  'brunchy.png' : 'Weekend brunchie - Trendy weekend spots with a lively, social atmosphere',
-  'cozy.png': 'Quiet comfort - Warm, cozy spots with a relaxed atmosphere',
-  'localSpot.png': 'No-fuss foodie - Comfortable quick-bite spots with a casual, welcoming vibe',
-  'rooftop.jpg': 'Urban socialite - Trendy rooftop bars with skyline views',
-  'rusticLocal.png': 'Rustic Local - Charming local spots with a homey, rustic feel',
-  'upscaleGuy.png': 'High-end enthusiast - Sophisticated venues with upscale ambiance and fine dining',
+  'brunchy.png' : 'Weekend brunchie \n\n  Trendy weekend spots with a lively, social atmosphere',
+  'cozy.png': 'Quiet comfort \n\n Warm, cozy spots with a relaxed atmosphere',
+  'localSpot.png': 'No-fuss foodie \n\n Comfortable quick-bite spots with a casual, welcoming vibe',
+  'rooftop.jpg': 'Urban socialite \n\n Trendy rooftop bars with skyline views',
+  'rusticLocal.png': 'Rustic Local \n\n Charming local spots with a homey, rustic feel',
+  'upscaleGuy.png': 'High-end enthusiast \n\n Sophisticated venues with upscale ambiance and fine dining',
   };
 
   final Map<String, List<String>> _imageTags = const {
@@ -129,29 +129,12 @@ class _VibeStepState extends State<VibeStep> {
 
     await widget.onNextWithRestaurants(() async {
       // Try to get the user's current location; fall back to London center.
-      LatLng? pos = LocationService().currentPosition;
-      pos ??= await LocationService().getCurrentLocation();
-      final lat = pos?.latitude ?? _fallbackLat;
-      final lng = pos?.longitude ?? _fallbackLng;
 
-      final response = await RecommendationsApi().fetchProximal(
-        userId: wizardState.userId!,
-        latitude: lat,
-        longitude: lng,
-        radiusKm: 20,
-        maxResults: 15,
-        qualityWeight: 1.0,
-        vibeWeight: 0.0,
-        dietaryWeight: 0.0,
-        socialWeight: 0.0,
-        collaborativeWeight: 0.0,
-      );
 
-      final ids = response.recommendations
-          .map((r) => r.locationId)
-          .where((id) => id > 0)
-          .toList();
-      if (ids.isEmpty) return <LocationModel>[];
+      List<int> ids = [5853,
+      1757, 142110, 6946, 1773
+];
+
       return supabase.locations.getLocationsByIds(ids);
     });
   }
@@ -162,7 +145,7 @@ class _VibeStepState extends State<VibeStep> {
 
     return Container(
       decoration: const BoxDecoration(
-        color: PinitColors.cream,
+        color: PinitColors.creamSunk,
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(30),
           topRight: Radius.circular(30),
@@ -176,14 +159,12 @@ class _VibeStepState extends State<VibeStep> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 16),
-
                   // Small textbox-like hint area
                   TypingText(
-                      text: 'Of these, which two people are you most like.. (hold for more info)',
+                      text: 'Pick two who you relate to most. (hold for more info)',
                       style: const TextStyle(
                       fontFamily: 'Rova',
-                      fontSize: 28,
+                      fontSize: 20,
                       fontWeight: FontWeight.w100,
                       color: PinitColors.aubergine,
                       letterSpacing: 1.5,
@@ -223,14 +204,6 @@ class _VibeStepState extends State<VibeStep> {
                             } else {
                               if (_selected.length < 2) {
                                 _selected.add(name);
-                              } else {
-                                // show a small toast
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('You can only select exactly 2 items.'),
-                                    duration: Duration(seconds: 2),
-                                  ),
-                                );
                               }
                             }
                           });

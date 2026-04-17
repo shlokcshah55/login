@@ -66,7 +66,7 @@ gcloud run deploy $SERVICE_NAME \
   --cpu 1 \
   --timeout 120s \
   --max-instances 10 \
-  --set-env-vars "SUPABASE_URL=${SUPABASE_URL},SUPABASE_KEY=${SUPABASE_KEY},XAI_API_KEY=${XAI_API_KEY}" \
+  --set-env-vars "SUPABASE_URL=${SUPABASE_URL},SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY},XAI_API_KEY=${XAI_API_KEY}" \
   --project $PROJECT_ID
 
 SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --platform managed --region $REGION --format 'value(status.url)' --project $PROJECT_ID)

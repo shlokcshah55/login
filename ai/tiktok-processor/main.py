@@ -259,10 +259,11 @@ def save_location_to_supabase(user_id: str, place_data: dict, url: str):
 
         # 3. Save location with tag updates using new RPC
         logger.info(type(location_id))
+        # If the url has instagram in it saved method will be instagram, otherwise tiktok (to differentiate from manual saves)
         result = supabase_client.rpc('save_location_with_tags', {
             'p_user_id': user_id,
             'p_location_id': location_id,
-            'p_saved_method': 'tiktok',
+            'p_saved_method': 'instagram' if 'instagram' in url else 'tiktok',
             'p_acked': True,
             'p_source_video_url': str(url)
         }).execute()

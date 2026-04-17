@@ -43,6 +43,12 @@ class _WizardCompletionContent extends StatefulWidget {
 class _WizardCompletionContentState extends State<_WizardCompletionContent> {
   final PageController _pageController = PageController();
   int _currentStep = 0; // 0 = Dietary, 1 = Vibe, 2 = Restaurant
+
+  final List<String> _stepTitles = [
+    'Dietary Preferences',
+    'Your Vibe',
+    'Add Your Favourites',
+  ];
   List<LocationModel>? _restaurants;
   bool _isLoadingRestaurants = false;
   bool _isCompletingWizard = false;
@@ -204,7 +210,7 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: PinitColors.cream,
+      backgroundColor: PinitColors.surfaceLight,
       body: SafeArea(
         child: Column(
           children: [
@@ -212,19 +218,30 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      // Close button
                       IconButton(
                         icon: const Icon(Icons.close,
                             color: PinitColors.aubergine),
                         onPressed: () => Navigator.of(context).pop(),
                       ),
-                      const Spacer(),
+                      const SizedBox(width: 20),
+                      Text(
+                        _stepTitles[_currentStep],
+                        style: const TextStyle(
+                          fontFamily: 'Rova',
+                          fontSize: 22,
+                          fontWeight: FontWeight.w100,
+                          color: PinitColors.aubergine,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 8),
                   Container(
                     height: 4,
                     decoration: BoxDecoration(
@@ -245,7 +262,6 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
                       },
                     ),
                   ),
-                  const SizedBox(height: 12),
                 ],
               ),
             ),

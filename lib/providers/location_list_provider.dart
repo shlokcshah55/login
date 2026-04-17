@@ -17,13 +17,16 @@ import 'package:login/supabase/service.dart';
 import 'package:login/providers/map_state_provider.dart';
 import 'package:login/utils/marker_clustering.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:login/services/fcm_service.dart';
 
 // Enum to represent the different types of location lists
 enum LocationListType { saved, recommended, search, bubble }
 
-class LocationListManager with ChangeNotifier {
+class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
   static const String noRecommendationsInAreaMessage =
       'No recommendations found in this area';
+  static const String noMagicSearchResultsMessage =
+      'No magic search results in this area';
 
   final GooglePlacesService _googlePlacesService;
   final SupabaseService _supabaseService = SupabaseService();
@@ -72,6 +75,7 @@ class LocationListManager with ChangeNotifier {
   bool _isLoadingSaved = false;
   bool _savedLocationsLoaded = false;
   bool _isSubscribed = false;
+  StreamSubscription<int>? _locationSavedSubscription;
   bool _isLoadingPopular = false;
   bool _isLoadingHiddenGems = false;
   Set<int> _beenToLocationIds = <int>{};
@@ -255,6 +259,9 @@ class LocationListManager with ChangeNotifier {
 
     // Potentially clear locations if user logs out (userId is null)
     if (_userId == null) {
+      _locationSavedSubscription?.cancel();
+      _locationSavedSubscription = null;
+      WidgetsBinding.instance.removeObserver(this);
       return;
     } else {
       unawaited(_proximityNotificationService.initializeForUser(_userId!));
@@ -268,6 +275,53 @@ class LocationListManager with ChangeNotifier {
       // Subscribe to realtime updates for this user
       // This will handle all future changes without needing to refetch
       _subscribeToRealtime();
+
+      // Register lifecycle observer for realtime reconnection on app resume
+      WidgetsBinding.instance.addObserver(this);
+
+      // Subscribe to FCM location-saved events (for TikTok/Instagram shares)
+      _locationSavedSubscription?.cancel();
+      _locationSavedSubscription =
+          FCMService().locationSavedStream.listen((locationId) {
+        _addLocationToSaved(locationId);
+      });
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _userId != null) {
+      // Reconnect realtime WebSocket (may have dropped while in background)
+      _isSubscribed = false;
+      _supabaseService.locations.unsubscribeFromUserLocationActions();
+      _subscribeToRealtime();
+      // Sync any locations saved while the app was in the background
+      unawaited(_syncMissedSavedLocations());
+    }
+  }
+
+  /// Fetches all saved location IDs from the DB and adds any not yet in
+  /// [_savedLocations]. Used on app resume to catch events missed while
+  /// the realtime WebSocket was disconnected.
+  Future<void> _syncMissedSavedLocations() async {
+    if (_userId == null) return;
+    try {
+      final rows = await Supabase.instance.client
+          .from('user_location_actions')
+          .select('location_id')
+          .eq('user_id', _userId!)
+          .eq('action', 'save')
+          .eq('acked', true);
+
+      final savedIds = _savedLocations.keys.map((l) => l.locationId).toSet();
+      for (final row in rows) {
+        final id = row['location_id'] as int?;
+        if (id != null && !savedIds.contains(id)) {
+          await _addLocationToSaved(id);
+        }
+      }
+    } catch (e) {
+      print('LocationListManager: Error syncing missed saved locations: $e');
     }
   }
 
@@ -2032,7 +2086,7 @@ class LocationListManager with ChangeNotifier {
         maxResults: maxResults,
         includeTasteBreakdown: includeTasteBreakdown,
       );
-      _error = null;
+      _error = locations.isEmpty ? noMagicSearchResultsMessage : null;
       print(
         "LocationListManager: Loaded ${locations.length} locations from Supabase for magic search",
       );
@@ -2243,6 +2297,8 @@ class LocationListManager with ChangeNotifier {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _locationSavedSubscription?.cancel();
     _locationService.removeListener(_onLocationServiceChanged);
     _locationService.stopLocationUpdates();
     _proximityNotificationService.clear();

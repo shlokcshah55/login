@@ -30,7 +30,9 @@ import 'package:login/providers/bubble_mode_provider.dart';
 import 'package:login/providers/navigation_provider.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/widgets/home/bubble_mode_overlay.dart';
+import 'package:login/widgets/home/no_magic_search_results_popover.dart';
 import 'package:login/widgets/home/no_recommendations_popover.dart';
+import 'package:login/widgets/profile/no_saved_locations_popover.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:login/widgets/swipe_card_stack.dart';
 import 'package:login/widgets/wizard_completion_popover.dart';
@@ -61,8 +63,12 @@ class _HomePageState extends State<HomePage> {
   Set<String> _selectedCuisineTagIds = <String>{};
   bool _wizardPopoverScheduled = false;
   bool _wizardPopoverShown = false;
+  bool _isWizardPopoverVisible = false;
   String? _lastHandledError;
   bool _isNoRecommendationsPopoverVisible = false;
+  bool _isMagicSearchNoResultsPopoverVisible = false;
+  bool _hasShownSavedEmptyPopover = false;
+  bool _isSavedEmptyPopoverVisible = false;
 
   @override
   void initState() {
@@ -129,6 +135,16 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
+    if (error == LocationListManager.noMagicSearchResultsMessage) {
+      if (_isMagicSearchNoResultsPopoverVisible) return;
+      _isMagicSearchNoResultsPopoverVisible = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _showNoMagicSearchResultsPopover();
+      });
+      return;
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(error),
@@ -165,6 +181,93 @@ class _HomePageState extends State<HomePage> {
     );
     if (mounted) {
       _isNoRecommendationsPopoverVisible = false;
+    }
+  }
+
+  Future<void> _showNoMagicSearchResultsPopover() async {
+    await showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Dismiss',
+      barrierColor: Colors.black.withValues(alpha: 0.18),
+      transitionDuration: const Duration(milliseconds: 260),
+      pageBuilder: (dialogContext, _, __) {
+        return const NoMagicSearchResultsPopover();
+      },
+      transitionBuilder: (dialogContext, animation, _, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.94, end: 1.0).animate(curved),
+            child: child,
+          ),
+        );
+      },
+    );
+    if (mounted) {
+      _isMagicSearchNoResultsPopoverVisible = false;
+    }
+  }
+
+  void _scheduleSavedEmptyPopoverIfNeeded() {
+    final hasSaves = _locationListManager.savedLocations.isNotEmpty;
+    if (hasSaves) {
+      _hasShownSavedEmptyPopover = false;
+      return;
+    }
+    if (!widget.isActive ||
+        _locationListManager.isLoadingSaved ||
+        !_locationListManager.hasLoadedSavedLocations ||
+        _hasShownSavedEmptyPopover ||
+        _isSavedEmptyPopoverVisible ||
+        _isWizardPopoverVisible ||
+        (_wizardPopoverScheduled && !_wizardPopoverShown)) {
+      return;
+    }
+    _hasShownSavedEmptyPopover = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (ModalRoute.of(context)?.isCurrent != true) {
+        _hasShownSavedEmptyPopover = false;
+        return;
+      }
+      _showSavedEmptyPopover();
+    });
+  }
+
+  Future<void> _showSavedEmptyPopover() async {
+    _isSavedEmptyPopoverVisible = true;
+    await showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Dismiss',
+      barrierColor: Colors.black.withValues(alpha: 0.18),
+      transitionDuration: const Duration(milliseconds: 260),
+      pageBuilder: (dialogContext, _, __) {
+        return const NoSavedLocationsPopover();
+      },
+      transitionBuilder: (dialogContext, animation, _, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.94, end: 1.0).animate(curved),
+            child: child,
+          ),
+        );
+      },
+    );
+    if (mounted) {
+      _isSavedEmptyPopoverVisible = false;
     }
   }
 
@@ -208,6 +311,7 @@ class _HomePageState extends State<HomePage> {
       return;
     }
     _wizardPopoverShown = true;
+    _isWizardPopoverVisible = true;
     showDialog<void>(
       context: context,
       barrierDismissible: true,
@@ -221,7 +325,9 @@ class _HomePageState extends State<HomePage> {
           onDismiss: () => Navigator.pop(dialogContext),
         );
       },
-    );
+    ).then((_) {
+      if (mounted) setState(() => _isWizardPopoverVisible = false);
+    });
   }
 
   Future<void> _openHomeFilters() async {
@@ -263,6 +369,7 @@ class _HomePageState extends State<HomePage> {
         builder: (context, viewModel, _) {
           final userDataProvider = context.watch<UserDataProvider>();
           _scheduleWizardPopoverIfNeeded(userDataProvider);
+          _scheduleSavedEmptyPopoverIfNeeded();
           final carouselBottom = viewModel.bottomNavVisible ? 110.0 : 20.0;
           final topPadding = MediaQuery.of(context).padding.top;
 
@@ -551,9 +658,30 @@ class _HomePageState extends State<HomePage> {
                       onPointerDown: (_) {
                         viewModel.dismissMagicSearchActivated();
                       },
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          top: MediaQuery.of(context).viewInsets.bottom + 100,
+                        ),
+                        child: const Center(
+                          child: IgnorePointer(
+                            child: _MagicSearchActivatedToast(),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                // ─── Magic search deactivated toast ────────────
+                if (viewModel.showMagicSearchDeactivated)
+                  Positioned.fill(
+                    child: Listener(
+                      behavior: HitTestBehavior.translucent,
+                      onPointerDown: (_) {
+                        viewModel.dismissMagicSearchDeactivated();
+                      },
                       child: const Center(
                         child: IgnorePointer(
-                          child: _MagicSearchActivatedToast(),
+                          child: _MagicSearchDeactivatedToast(),
                         ),
                       ),
                     ),
@@ -1164,6 +1292,159 @@ class _MagicSearchActivatedToastState extends State<_MagicSearchActivatedToast>
                     ),
                   ),
                 ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _MagicSearchDeactivatedToast extends StatefulWidget {
+  const _MagicSearchDeactivatedToast();
+
+  @override
+  State<_MagicSearchDeactivatedToast> createState() =>
+      _MagicSearchDeactivatedToastState();
+}
+
+class _MagicSearchDeactivatedToastState
+    extends State<_MagicSearchDeactivatedToast>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..forward();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final entrance = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutBack,
+    );
+
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        final safeEntrance = entrance.value.clamp(0.0, 1.0);
+        final shimmer = Curves.easeInOut.transform(
+          (_controller.value * 1.35).clamp(0.0, 1.0),
+        );
+
+        return Transform.translate(
+          offset: Offset(0, (1 - safeEntrance) * -20),
+          child: Transform.scale(
+            scale: 0.92 + (safeEntrance * 0.08),
+            child: Opacity(
+              opacity: safeEntrance,
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 320),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+                decoration: BoxDecoration(
+                  color: pinit.PinitColors.cream,
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(
+                    color: pinit.PinitColors.aubergine,
+                    width: 1.5,
+                  ),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: pinit.PinitColors.aubergine,
+                      blurRadius: 0,
+                      offset: Offset(4, 4),
+                    ),
+                  ],
+                ),
+                child: Stack(
+                  children: [
+                    Positioned(
+                      top: 4,
+                      right: 2,
+                      child: Opacity(
+                        opacity: 0.08 + (shimmer * 0.08),
+                        child: Container(
+                          width: 84,
+                          height: 84,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: pinit.PinitColors.aubergine,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: pinit.PinitColors.creamSunk,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: pinit.PinitColors.aubergine
+                                  .withValues(alpha: 0.3),
+                              width: 1.2,
+                            ),
+                          ),
+                          child: const Icon(
+                            FeatherIcons.search,
+                            color: pinit.PinitColors.aubergine,
+                            size: 18,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'MAGIC SEARCH',
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: pinit.PinitColors.aubergine
+                                      .withValues(alpha: 0.5),
+                                  letterSpacing: 1.6,
+                                  height: 1,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Fine be boring...',
+                                style: AppTypography.brand(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w100,
+                                  color: pinit.PinitColors.aubergine,
+                                  letterSpacing: 0.3,
+                                  height: 1.0,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Magic search is off and you can now search for specific places!',
+                                style: AppTypography.sans(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: pinit.PinitColors.aubergine
+                                      .withValues(alpha: 0.7),
+                                  height: 1.2,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

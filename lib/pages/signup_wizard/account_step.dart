@@ -724,6 +724,7 @@ class _AccountStepState extends State<AccountStep>
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w100,
+                        letterSpacing: 1.3,
                       ),
                     ),
                   ),
@@ -1284,7 +1285,7 @@ class _AccountStepState extends State<AccountStep>
                                   : 'Skip & Create Account',
                               style: const TextStyle(
                                 fontSize: 16,
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.w100,
                               ),
                             ),
                     ),

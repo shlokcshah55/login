@@ -39,8 +39,10 @@ class HomeViewModel extends ChangeNotifier {
   // ── Overlay state ─────────────────────────────────────────────
   bool _showSearchOverlay = false;
   bool _showGavelOverlay = false;
-  bool _isMagicSearchActive = false;
+  bool _isMagicSearchActive = true;
   bool _showMagicSearchActivated = false;
+  bool _showMagicSearchDeactivated = false;
+  bool _hasShownMagicSearchIntro = false;
   double _justDecideMinutes = 15.0;
   bool _showJustDecideSwipeMode = false;
   List<LocationModel> _justDecideLocations = [];
@@ -90,6 +92,7 @@ class HomeViewModel extends ChangeNotifier {
   bool get showGavelOverlay => _showGavelOverlay;
   bool get isMagicSearchActive => _isMagicSearchActive;
   bool get showMagicSearchActivated => _showMagicSearchActivated;
+  bool get showMagicSearchDeactivated => _showMagicSearchDeactivated;
   double get justDecideMinutes => _justDecideMinutes;
   bool get showJustDecideSwipeMode => _showJustDecideSwipeMode;
   List<LocationModel> get justDecideLocations => _justDecideLocations;
@@ -271,6 +274,12 @@ class HomeViewModel extends ChangeNotifier {
   }
 
   void _onHeaderSearchFocusChanged() {
+    if (_isMagicSearchActive &&
+        headerSearchFocusNode.hasFocus &&
+        !_hasShownMagicSearchIntro) {
+      _hasShownMagicSearchIntro = true;
+      _showMagicSearchActivated = true;
+    }
     _syncBottomNavVisibilityForSearch();
     notifyListeners();
   }
@@ -409,8 +418,11 @@ class HomeViewModel extends ChangeNotifier {
     _isMagicSearchActive = !_isMagicSearchActive;
     if (_isMagicSearchActive) {
       _showMagicSearchActivated = true;
+      _showMagicSearchDeactivated = false;
+      _hasShownMagicSearchIntro = true;
     } else {
       _showMagicSearchActivated = false;
+      _showMagicSearchDeactivated = true;
       // Switch back to You mode when exiting magic search.
       setHomeMode(HomeMode.you);
     }
@@ -421,6 +433,12 @@ class HomeViewModel extends ChangeNotifier {
   void dismissMagicSearchActivated() {
     if (!_showMagicSearchActivated) return;
     _showMagicSearchActivated = false;
+    notifyListeners();
+  }
+
+  void dismissMagicSearchDeactivated() {
+    if (!_showMagicSearchDeactivated) return;
+    _showMagicSearchDeactivated = false;
     notifyListeners();
   }
 

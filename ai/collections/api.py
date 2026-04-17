@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-REQUIRED_ENV_VARS = ['SUPABASE_URL', 'SUPABASE_KEY', 'XAI_API_KEY']
+REQUIRED_ENV_VARS = ['SUPABASE_URL', 'SUPABASE_SERVICE_KEY', 'XAI_API_KEY']
 missing_vars = [var for var in REQUIRED_ENV_VARS if not os.getenv(var)]
 if missing_vars:
     logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
@@ -25,7 +25,7 @@ if missing_vars:
 logger.info("Collections Generator API initialized successfully")
 
 SUPABASE_URL = os.getenv('SUPABASE_URL')
-SUPABASE_KEY = os.getenv('SUPABASE_KEY')
+SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_KEY')
 
 
 def _verify_supabase_token(token: str) -> str | None:

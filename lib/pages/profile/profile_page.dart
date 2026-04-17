@@ -23,7 +23,6 @@ import 'preferences_page.dart';
 import 'other_user_profile_page.dart';
 import 'user_list_page.dart';
 import '../../widgets/profile/find_friends_section.dart';
-import '../../widgets/profile/no_saved_locations_popover.dart';
 import '../../widgets/profile/notifications_popover.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -46,9 +45,6 @@ class _ProfilePageState extends State<ProfilePage>
   int _selectedTab = 0;
   int _followersCount = 0;
   int _followingCount = 0;
-  bool _hasShownSavedEmptyPopover = false;
-  bool _isSavedEmptyPopoverVisible = false;
-
   final List<String> _tabs = ['Hot', 'Collections', 'People'];
 
   @override
@@ -148,12 +144,6 @@ class _ProfilePageState extends State<ProfilePage>
     final popularLocations = locationListManager.popularLocations;
     final hiddenGemLocations = locationListManager.hiddenGemLocations;
     final collapsedHeader = _scrollOffset > 120;
-    _scheduleSavedEmptyPopoverIfNeeded(
-      locationListManager: locationListManager,
-      hasNoSavedPins: savedPins.isEmpty,
-      wizardCompleted: user.wizardCompleted,
-    );
-
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
@@ -260,64 +250,6 @@ class _ProfilePageState extends State<ProfilePage>
         );
       },
     );
-  }
-
-  void _scheduleSavedEmptyPopoverIfNeeded({
-    required LocationListManager locationListManager,
-    required bool hasNoSavedPins,
-    required bool wizardCompleted,
-  }) {
-    if (!hasNoSavedPins) {
-      _hasShownSavedEmptyPopover = false;
-      return;
-    }
-
-    if (!widget.isActive ||
-        !wizardCompleted ||
-        locationListManager.isLoadingSaved ||
-        !locationListManager.hasLoadedSavedLocations ||
-        _hasShownSavedEmptyPopover ||
-        _isSavedEmptyPopoverVisible) {
-      return;
-    }
-
-    _hasShownSavedEmptyPopover = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _showSavedEmptyPopover();
-    });
-  }
-
-  Future<void> _showSavedEmptyPopover() async {
-    _isSavedEmptyPopoverVisible = true;
-    await showGeneralDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: 'Dismiss',
-      barrierColor: Colors.black.withValues(alpha: 0.18),
-      transitionDuration: const Duration(milliseconds: 260),
-      pageBuilder: (dialogContext, _, __) {
-        return const NoSavedLocationsPopover();
-      },
-      transitionBuilder: (dialogContext, animation, _, child) {
-        final curved = CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeOutCubic,
-          reverseCurve: Curves.easeInCubic,
-        );
-        return FadeTransition(
-          opacity: curved,
-          child: ScaleTransition(
-            scale: Tween<double>(begin: 0.94, end: 1.0).animate(curved),
-            child: child,
-          ),
-        );
-      },
-    );
-
-    if (mounted) {
-      _isSavedEmptyPopoverVisible = false;
-    }
   }
 
   Widget _buildCollapsedHeader(UserModel user) {
