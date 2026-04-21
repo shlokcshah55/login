@@ -34,6 +34,7 @@ class SummarySlabSection extends StatelessWidget {
     required this.onBeenTo,
     this.pinitAvgRating,
     this.pinitReviewCount = 0,
+    this.creatorHandle,
   });
 
   final LocationModel location;
@@ -46,6 +47,7 @@ class SummarySlabSection extends StatelessWidget {
   final VoidCallback onBeenTo;
   final double? pinitAvgRating;
   final int pinitReviewCount;
+  final String? creatorHandle;
 
   String _formatCount(int count) {
     if (count < 1000) return count.toString();
@@ -59,8 +61,9 @@ class SummarySlabSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasMatch = match.score > 0;
     final hasVicinity = location.vicinity != null;
-    final isFromTikTok = (location.savedMethod ?? '').toLowerCase() ==
-            'tiktok' &&
+    final isFromTikTok = ((location.savedMethod ?? '').toLowerCase() ==
+                'tiktok' ||
+            (location.savedMethod ?? '').toLowerCase() == 'instagram') &&
         (location.savedFrom ?? '').trim().isNotEmpty;
 
     return Column(
@@ -76,6 +79,7 @@ class SummarySlabSection extends StatelessWidget {
               savedMethod: location.savedMethod,
               sourceUrl: location.savedFrom,
               onTap: onSavedFromTap,
+              creatorHandle: creatorHandle,
             ),
           ),
           const SizedBox(height: 14),

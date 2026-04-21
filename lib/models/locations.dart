@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:login/models/markers.dart';
+import 'package:login/models/video_extras.dart';
 
 import '../supabase/constants.dart';
 import 'package:login/utils/geo_types.dart';
@@ -228,6 +229,11 @@ class LocationModel {
   /// is returned by a saved-locations query. Null in other contexts.
   final String? savedMethod;
 
+  /// Per-user video extras (special offers, personal notes) from the TikTok
+  /// that this location was saved from. Pulled from
+  /// `user_location_actions.video_extras` when loading saved locations.
+  final VideoExtras? videoExtras;
+
   LocationPreference? preference;
 
   LocationModel({
@@ -308,6 +314,7 @@ class LocationModel {
     this.matchScore,
     this.savedFrom,
     this.savedMethod,
+    this.videoExtras,
   });
 
   factory LocationModel.fromJson(
@@ -682,6 +689,7 @@ class LocationModel {
     double? matchScore,
     String? savedFrom,
     String? savedMethod,
+    VideoExtras? videoExtras,
   }) {
     return LocationModel(
       locationId: locationId ?? this.locationId,
@@ -765,6 +773,7 @@ class LocationModel {
       matchScore: matchScore ?? this.matchScore,
       savedFrom: savedFrom ?? this.savedFrom,
       savedMethod: savedMethod ?? this.savedMethod,
+      videoExtras: videoExtras ?? this.videoExtras,
     );
   }
 

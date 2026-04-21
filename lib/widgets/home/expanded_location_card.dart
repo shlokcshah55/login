@@ -5,11 +5,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/models/markers.dart';
+import 'package:login/models/video_insights.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:login/supabase/helpers/location.dart';
 import 'package:login/supabase/helpers/location_reviews.dart';
+import 'package:login/supabase/helpers/video_insights_helper.dart';
 import 'package:login/supabase/supabase_client.dart';
 import 'package:login/widgets/home/been_to_review_sheet.dart';
 import 'package:login/widgets/home/been_to_swipe_ranker.dart';
@@ -23,6 +25,7 @@ import 'package:login/widgets/home/expanded_card/sections/persistent_action_dock
 import 'package:login/widgets/home/expanded_card/sections/recommended_dishes_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/social_proof_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/summary_slab_section.dart';
+import 'package:login/widgets/home/expanded_card/sections/tiktok_insights_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/why_go_section.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -86,6 +89,10 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   // ── Similar places ──
   List<SimilarPlace> _similarPlaces = [];
 
+  // ── TikTok video insights (lazy-loaded) ──
+  VideoInsight? _videoInsight;
+  final VideoInsightsHelper _videoInsightsHelper = VideoInsightsHelper();
+
   @override
   void initState() {
     super.initState();
@@ -137,6 +144,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     _checkBeenToStatus();
     _fetchPinitAvgRating();
     _findSimilarPlaces();
+    _fetchVideoInsight();
   }
 
   @override
@@ -436,6 +444,26 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   }
 
   // ─────────────────────────────────────────────────────────────
+  //  TikTok video insights
+  // ─────────────────────────────────────────────────────────────
+
+  /// Lazily fetch video insight data when the card opens for a
+  /// TikTok/Instagram-saved location.
+  Future<void> _fetchVideoInsight() async {
+    final sourceUrl = widget.location.savedFrom;
+    if (sourceUrl == null || sourceUrl.trim().isEmpty) return;
+
+    final insight = await _videoInsightsHelper.getInsight(
+      locationId: widget.location.locationId,
+      sourceVideoUrl: sourceUrl,
+    );
+
+    if (mounted && insight != null) {
+      setState(() => _videoInsight = insight);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
   //  URL launchers
   // ─────────────────────────────────────────────────────────────
 
@@ -725,8 +753,18 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                 onBeenTo: _onBeenToTap,
                 pinitAvgRating: _pinitAvgRating,
                 pinitReviewCount: _pinitReviewCount,
+                creatorHandle: _videoInsight?.creatorHandle,
               ),
               
+              // Layer 2b — TikTok insights (only for social-video saves)
+              if (_videoInsight != null) ...[
+                const SizedBox(height: 28),
+                TikTokInsightsSection(
+                  insight: _videoInsight!,
+                  videoExtras: widget.location.videoExtras,
+                ),
+              ],
+
               // Layer 3 — editorial body.
               const SizedBox(height: 32),
 

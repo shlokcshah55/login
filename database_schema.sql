@@ -262,9 +262,26 @@ CREATE TABLE public.user_location_actions (
   user_id uuid,
   source_video_url text,
   acked boolean,
+  video_extras jsonb,
   CONSTRAINT user_location_actions_pkey PRIMARY KEY (action_id),
   CONSTRAINT user_location_actions_location_id_fkey FOREIGN KEY (location_id) REFERENCES public.locations(location_id),
   CONSTRAINT user_location_actions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(supabase_id)
+);
+CREATE TABLE public.video_insights (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  source_video_url text NOT NULL,
+  location_id bigint NOT NULL,
+  key_dishes jsonb,
+  creator_notes text,
+  vibe_signals jsonb,
+  sentiment text,
+  creator_handle text,
+  video_description text,
+  extracted_at timestamp with time zone NOT NULL DEFAULT now(),
+  extraction_model text,
+  CONSTRAINT video_insights_pkey PRIMARY KEY (id),
+  CONSTRAINT video_insights_location_id_fkey FOREIGN KEY (location_id) REFERENCES public.locations(location_id),
+  CONSTRAINT video_insights_unique_url_location UNIQUE (source_video_url, location_id)
 );
 CREATE TABLE public.user_recommendations (
   user_id uuid NOT NULL,

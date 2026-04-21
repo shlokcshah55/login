@@ -8,6 +8,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import '../constants.dart';
 import '../../models/locations.dart';
+import '../../models/video_extras.dart';
 import '../supabase_client.dart';
 
 // Service for handling Supabase location operations
@@ -379,16 +380,20 @@ class LocationHelper {
       // multiple save actions for the same location, the most recently seen
       // entry wins.
       final actionMetaByLocationId =
-          <int, ({String? savedFrom, String? savedMethod})>{};
+          <int, ({String? savedFrom, String? savedMethod, VideoExtras? videoExtras})>{};
       final locationIds = <int>[];
       for (final action in (savedActions as List)) {
         final id = action[SupabaseConstants.columnLocationId] as int;
         if (!actionMetaByLocationId.containsKey(id)) {
           locationIds.add(id);
         }
+        final rawExtras = action[SupabaseConstants.columnVideoExtras];
         actionMetaByLocationId[id] = (
           savedFrom: action[SupabaseConstants.columnSourceVideoUrl] as String?,
           savedMethod: action[SupabaseConstants.columnSavedMethod] as String?,
+          videoExtras: rawExtras is Map<String, dynamic>
+              ? VideoExtras.fromJson(rawExtras)
+              : null,
         );
       }
       developer.log(
@@ -434,6 +439,7 @@ class LocationHelper {
         return loc.copyWith(
           savedFrom: meta.savedFrom,
           savedMethod: meta.savedMethod,
+          videoExtras: meta.videoExtras,
         );
       }).toList();
 
@@ -464,7 +470,8 @@ class LocationHelper {
           .select(
             '${SupabaseConstants.columnLocationId}, '
             '${SupabaseConstants.columnSourceVideoUrl}, '
-            '${SupabaseConstants.columnSavedMethod}',
+            '${SupabaseConstants.columnSavedMethod}, '
+            '${SupabaseConstants.columnVideoExtras}',
           )
           .eq(SupabaseConstants.columnUserId, userId)
           .eq(SupabaseConstants.columnAction, SupabaseConstants.actionSave)
@@ -477,16 +484,20 @@ class LocationHelper {
       // Build a per-locationId map of (savedFrom, savedMethod) so we can stamp
       // each LocationModel after the batch processor returns.
       final actionMetaByLocationId =
-          <int, ({String? savedFrom, String? savedMethod})>{};
+          <int, ({String? savedFrom, String? savedMethod, VideoExtras? videoExtras})>{};
       final locationIds = <int>[];
       for (final action in (savedActions as List)) {
         final id = action[SupabaseConstants.columnLocationId] as int;
         if (!actionMetaByLocationId.containsKey(id)) {
           locationIds.add(id);
         }
+        final rawExtras = action[SupabaseConstants.columnVideoExtras];
         actionMetaByLocationId[id] = (
           savedFrom: action[SupabaseConstants.columnSourceVideoUrl] as String?,
           savedMethod: action[SupabaseConstants.columnSavedMethod] as String?,
+          videoExtras: rawExtras is Map<String, dynamic>
+              ? VideoExtras.fromJson(rawExtras)
+              : null,
         );
       }
 
@@ -508,6 +519,7 @@ class LocationHelper {
         return loc.copyWith(
           savedFrom: meta.savedFrom,
           savedMethod: meta.savedMethod,
+          videoExtras: meta.videoExtras,
         );
       }).toList();
     } catch (e) {

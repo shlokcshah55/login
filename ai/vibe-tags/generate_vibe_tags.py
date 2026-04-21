@@ -52,6 +52,10 @@ VIBE_TAGS_ORDERED = [
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
+# Weight for blending TikTok vibe signals into the LLM-scored vibe vector.
+# 0.15 means: 85% LLM-scored + 15% TikTok-crowdsourced.
+TIKTOK_BLEND_WEIGHT = 0.4
+
 # Get directory containing this script
 SCRIPT_DIR = Path(__file__).parent
 
@@ -205,9 +209,54 @@ async def call_llm(
         raise e
 
 
+def get_tiktok_vibe_aggregate(
+    supabase_url: str,
+    supabase_key: str,
+    location_id: int,
+) -> Optional[dict[str, float]]:
+    """
+    Aggregate vibe_signals from all video_insights for this location.
+    Each unique video contributes equally (one row per video).
+    Returns averaged vibe dict or None.
+    """
+    try:
+        sb = create_client(supabase_url, supabase_key)
+        results = (
+            sb.table('video_insights')
+            .select('vibe_signals')
+            .eq('location_id', location_id)
+            .not_.is_('vibe_signals', 'null')
+            .execute()
+        )
+
+        if not results.data:
+            return None
+
+        aggregated: dict[str, list[float]] = {}
+        for row in results.data:
+            signals = row.get('vibe_signals')
+            if not signals or not isinstance(signals, dict):
+                continue
+            for tag, score in signals.items():
+                aggregated.setdefault(tag, []).append(float(score))
+
+        if not aggregated:
+            return None
+
+        return {
+            tag: sum(scores) / len(scores)
+            for tag, scores in aggregated.items()
+        }
+    except Exception as e:
+        logger.warning(f"Failed to fetch TikTok vibe aggregate for location {location_id}: {e}")
+        return None
+
+
 async def analyze_restaurant_vibes(
     restaurant: dict,
     client: AsyncOpenAI,
+    supabase_url: str = None,
+    supabase_key: str = None,
 ) -> dict[str, float]:
     """
     Complete 3-stage analysis pipeline for a single restaurant.
@@ -215,6 +264,8 @@ async def analyze_restaurant_vibes(
     Args:
         restaurant: Complete restaurant record from Supabase
         client: AsyncOpenAI client
+        supabase_url: Supabase URL for fetching TikTok vibe aggregates
+        supabase_key: Supabase key for fetching TikTok vibe aggregates
 
     Returns:
         Dict mapping tag names to scores (0-100)
@@ -271,10 +322,23 @@ async def analyze_restaurant_vibes(
     # Combine scores
     combined_scores = {**relevant_scores, **irrelevant_scores}
 
-    # Ensure all 21 tags are present (fill missing with 0)
+    # Ensure all 22 tags are present (fill missing with 0)
     for tag in VIBE_TAGS_ORDERED:
         if tag not in combined_scores:
             combined_scores[tag] = 0.0
+
+    # ── Blend TikTok vibe signals (if available) ─────────────────────────
+    location_id = restaurant.get("location_id")
+    if location_id and supabase_url and supabase_key:
+        tiktok_vibes = get_tiktok_vibe_aggregate(supabase_url, supabase_key, location_id)
+        if tiktok_vibes:
+            logger.info(f"  Blending TikTok vibe signals: {tiktok_vibes}")
+            for tag, tiktok_score in tiktok_vibes.items():
+                if tag in combined_scores:
+                    combined_scores[tag] = (
+                        (1 - TIKTOK_BLEND_WEIGHT) * combined_scores[tag]
+                        + TIKTOK_BLEND_WEIGHT * (tiktok_score * 100)  # normalize 0-1 → 0-100
+                    )
 
     # Log individual tag scores
     logger.info(f"  ✓ Analysis complete. Total points: {sum(combined_scores.values()):.0f}")
@@ -287,6 +351,7 @@ async def analyze_restaurant_vibes(
             logger.info(f"    {tag:20s} = {score:3.0f}")
 
     return combined_scores
+
 
 
 def scores_to_vibe_vector(scores: dict[str, float]) -> list[float]:
@@ -338,7 +403,7 @@ async def process_with_multiple_runs(
 
     for run_num in range(num_runs):
         try:
-            scores = await analyze_restaurant_vibes(restaurant, client)
+            scores = await analyze_restaurant_vibes(restaurant, client, supabase_url=SUPABASE_URL, supabase_key=SUPABASE_KEY)
             all_scores.append(scores)
         except Exception as e:
             logger.warning(f"    Run {run_num + 1}/{num_runs} failed: {e}")
@@ -529,7 +594,7 @@ async def process_restaurants_without_summary(
 
             try:
                 # Run once
-                scores = await analyze_restaurant_vibes(restaurant, client)
+                scores = await analyze_restaurant_vibes(restaurant, client, supabase_url=SUPABASE_URL, supabase_key=SUPABASE_KEY)
                 vibe_vector = scores_to_vibe_vector(scores)
 
                 # Update database
@@ -681,7 +746,7 @@ async def process_restaurants(
 
         try:
             # Analyze and get scores
-            scores = await analyze_restaurant_vibes(restaurant, client)
+            scores = await analyze_restaurant_vibes(restaurant, client, supabase_url=SUPABASE_URL, supabase_key=SUPABASE_KEY)
 
             # Convert to vibe_vector array
             vibe_vector = scores_to_vibe_vector(scores)
@@ -786,7 +851,7 @@ async def test_multiple_runs(
         logger.info(f"{'─' * 70}")
 
         try:
-            scores = await analyze_restaurant_vibes(restaurant, client)
+            scores = await analyze_restaurant_vibes(restaurant, client, supabase_url=SUPABASE_URL, supabase_key=SUPABASE_KEY)
             vibe_vector = scores_to_vibe_vector(scores)
 
             all_scores.append(scores)
@@ -949,7 +1014,7 @@ async def test_single_restaurant(
 
     # Analyze the restaurant
     try:
-        scores = await analyze_restaurant_vibes(restaurant, client)
+        scores = await analyze_restaurant_vibes(restaurant, client, supabase_url=SUPABASE_URL, supabase_key=SUPABASE_KEY)
         vibe_vector = scores_to_vibe_vector(scores)
 
         result = {

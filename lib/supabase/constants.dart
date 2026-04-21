@@ -23,6 +23,7 @@ class SupabaseConstants {
   static const String tableMessages = 'messages';
   static const String tableUserChatState = 'user_chat_state';
   static const String tableLocationReviews = 'location_reviews';
+  static const String tableVideoInsights = 'video_insights';
 
   // Column names - users
   static const String columnSupabaseId = 'supabase_id';
@@ -140,6 +141,7 @@ class SupabaseConstants {
   static const String columnPreference = 'preference';
   static const String columnUserId = 'user_id';
   static const String columnAcked = 'acked';
+  static const String columnVideoExtras = 'video_extras';
 
   // Column names - location_popularity_app
   static const String columnSavesCount = 'saves_count';

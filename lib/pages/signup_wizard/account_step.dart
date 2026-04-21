@@ -1013,7 +1013,7 @@ class _AccountStepState extends State<AccountStep>
                 const SizedBox(height: 8),
                 // Quote text
                 Text(
-                  'Did you know 73% of the time people report on settling for a restaurant because they cba',
+                  '73% of people end up settling for a restaurant simply because it’s easier than deciding.',
                   style: const TextStyle(
                     fontSize: 16,
                     fontStyle: FontStyle.italic,

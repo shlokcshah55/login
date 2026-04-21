@@ -11,6 +11,10 @@ from urllib.parse import urlparse
 from flask import Flask, request, jsonify
 from processor import TikTokProcessor
 from supabase import create_client, Client
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 # Configure logging
@@ -30,6 +34,13 @@ SUPABASE_URL = os.environ.get('SUPABASE_URL')
 SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY')
 APPIFY_KEY = os.environ.get('APPIFY_KEY')
 SEND_PUSH_NOTIF_SECRET = os.environ.get('SEND_PUSH_NOTIF_SECRET')
+
+# locations/add endpoint — override with LOCATIONS_ADD_URL env var for local testing
+# e.g. LOCATIONS_ADD_URL=http://localhost:8000/locations/add
+LOCATIONS_ADD_URL = os.environ.get(
+    'LOCATIONS_ADD_URL',
+    'https://pinit-recommendations-api-1070859807237.europe-west2.run.app/locations/add',
+)
 DEFAULT_PUSH_NOTIFICATION_URL = (
     'https://europe-west1-project-add4b0f5-0080-47ef-80f.cloudfunctions.net/send-push-notifications'
 )
@@ -218,8 +229,77 @@ def send_success_notification(user_id: str, saved_locations: list):
         logger.error(f"Error sending success notification: {e}", exc_info=True)
 
 
-def save_location_to_supabase(user_id: str, place_data: dict, url: str):
-    """Save location to Supabase database"""
+def save_video_insights(location_id: int, url: str, loc_data: dict, video_data: dict):
+    """
+    Upsert global video insights (shared across all users who save the same
+    video) and write per-user video_extras (special offers) onto the action row.
+    """
+    try:
+        if not supabase_client:
+            return
+
+        # ── Global: upsert video_insights ─────────────────────────────────
+        insight_row = {
+            'source_video_url': url,
+            'location_id': location_id,
+            'key_dishes': loc_data.get('key_dishes') or [],
+            'special_offers': loc_data.get('special_offers') or [],
+            'creator_notes': loc_data.get('creator_notes'),
+            'vibe_signals': loc_data.get('vibe_signals') or {},
+            'sentiment': loc_data.get('sentiment'),
+            'creator_handle': (video_data or {}).get('creator_handle'),
+            'video_description': (video_data or {}).get('description', ''),
+            'extraction_model': 'gpt-4o-mini',
+        }
+
+        supabase_client.table('video_insights').upsert(
+            insight_row,
+            on_conflict='source_video_url,location_id',
+        ).execute()
+
+        logger.info(f"Upserted video_insights for location {location_id}, url={url}")
+
+    except Exception as e:
+        # Non-fatal — the location is already saved, insights are bonus
+        logger.warning(f"Failed to upsert video_insights: {e}", exc_info=True)
+
+
+def save_video_extras(user_id: str, location_id: int, url: str, loc_data: dict):
+    """
+    Write per-user video_extras (special offers, personal notes) onto the
+    user_location_actions row that was just created.
+    """
+    try:
+        if not supabase_client:
+            return
+
+        special_offers = loc_data.get('special_offers') or []
+        if not special_offers:
+            return
+
+        video_extras = {
+            'special_offers': special_offers,
+        }
+
+        supabase_client.table('user_location_actions').update({
+            'video_extras': video_extras,
+        }).eq('user_id', user_id) \
+          .eq('location_id', location_id) \
+          .eq('source_video_url', url) \
+          .execute()
+
+        logger.info(f"Updated video_extras for user {user_id}, location {location_id}")
+
+    except Exception as e:
+        logger.warning(f"Failed to update video_extras: {e}", exc_info=True)
+
+
+def save_location_to_supabase(user_id: str, place_data: dict, url: str,
+                              loc_data: dict = None, video_data: dict = None):
+    """
+    Save location to Supabase database, then persist video insights
+    and per-user video extras.
+    """
     try:
         if not supabase_client:
             logger.error("Supabase client not initialized")
@@ -228,15 +308,17 @@ def save_location_to_supabase(user_id: str, place_data: dict, url: str):
         place_id = place_data['place_id']
 
         # Always call locations/add to ensure vibe tags and data are populated
+        # Derive source from the video URL
+        source = 'instagram' if 'instagram' in url else 'tiktok'
         try:
-            api_url = "https://pinit-recommendations-api-1070859807237.europe-west2.run.app/locations/add"
             payload = {
                 'google_place_id': place_id,
-                'classify_photo': True
+                'source': source,
+                'classify_photo': True,
             }
 
             with httpx.Client(timeout=30.0) as client:
-                response = client.post(api_url, json=payload)
+                response = client.post(LOCATIONS_ADD_URL, json=payload)
                 response.raise_for_status()
 
             api_result = response.json()
@@ -273,6 +355,12 @@ def save_location_to_supabase(user_id: str, place_data: dict, url: str):
         if response and response.get('success'):
             tag_count = response.get('tag_count', 0)
             logger.info(f"Saved location {location_id} with {tag_count} tag updates (TikTok method)")
+
+            # ── Persist video insights & per-user extras ──────────────
+            if loc_data:
+                save_video_insights(location_id, url, loc_data, video_data or {})
+                save_video_extras(user_id, location_id, url, loc_data)
+
             return {
                 'location_id': location_id,
                 'name': place_data.get('name'),
@@ -313,11 +401,12 @@ def process_and_save_async(url: str, user_id: str):
                         loc_row = supabase_client.table('locations').select('google_place_id').eq('location_id', location_id).maybe_single().execute()
                         if loc_row and loc_row.data and loc_row.data.get('google_place_id'):
                             try:
-                                api_url = "https://pinit-recommendations-api-1070859807237.europe-west2.run.app/locations/add"
+                                source = 'instagram' if 'instagram' in url else 'tiktok'
                                 with httpx.Client(timeout=30.0) as client:
-                                    resp = client.post(api_url, json={
+                                    resp = client.post(LOCATIONS_ADD_URL, json={
                                         'google_place_id': loc_row.data['google_place_id'],
-                                        'classify_photo': True
+                                        'source': source,
+                                        'classify_photo': True,
                                     })
                                     resp.raise_for_status()
                                 logger.info(f"Ensured location {location_id} has vibe tags via /locations/add")
@@ -373,7 +462,10 @@ def process_and_save_async(url: str, user_id: str):
                 location = save_location_to_supabase(
                     user_id=user_id,
                     place_data=loc_data['place'],
-                    url=url,                )
+                    url=url,
+                    loc_data=loc_data,
+                    video_data=loc_data.get('video_data'),
+                )
                 if location:
                     # Check if this was an "already saved" error
                     if 'error' in location and 'Location already saved' in location.get('error', ''):

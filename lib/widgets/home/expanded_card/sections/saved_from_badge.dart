@@ -19,11 +19,13 @@ class SavedFromBadge extends StatelessWidget {
     required this.savedMethod,
     required this.sourceUrl,
     required this.onTap,
+    this.creatorHandle,
   });
 
   final String? savedMethod;
   final String? sourceUrl;
   final VoidCallback onTap;
+  final String? creatorHandle;
 
   bool get _isTikTok =>
       (savedMethod ?? '').toLowerCase() == 'tiktok' &&
@@ -32,6 +34,20 @@ class SavedFromBadge extends StatelessWidget {
   bool get _isInstagram =>
       (savedMethod ?? '').toLowerCase() == 'instagram' &&
       (sourceUrl ?? '').trim().isNotEmpty;
+
+  String get _label {
+    final handle = creatorHandle?.trim();
+    final hasHandle = handle != null && handle.isNotEmpty;
+
+    if (_isTikTok) {
+      return hasHandle
+          ? 'Saved from @$handle\u2019s TikTok'
+          : 'Saved from this TikTok';
+    }
+    return hasHandle
+        ? 'Saved from @$handle\u2019s Reel'
+        : 'Saved from this Reel';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -55,13 +71,17 @@ class SavedFromBadge extends StatelessWidget {
               color: PinitColors.cream,
             ),
             const SizedBox(width: 7),
-            Text(
-              _isTikTok ? 'Saved from this TikTok' : 'Saved from this Reel',
-              style: GoogleFonts.dmSans(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: PinitColors.cream,
-                letterSpacing: 0.3,
+            Flexible(
+              child: Text(
+                _label,
+                style: GoogleFonts.dmSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: PinitColors.cream,
+                  letterSpacing: 0.3,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             const SizedBox(width: 6),
@@ -76,3 +96,4 @@ class SavedFromBadge extends StatelessWidget {
     );
   }
 }
+
