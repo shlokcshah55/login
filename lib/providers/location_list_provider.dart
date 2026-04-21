@@ -1985,6 +1985,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       try {
         await _recommendationsApi.addLocationByGooglePlaceId(
           googlePlaceId: location.googlePlaceId!,
+          source: 'in-app',
         );
         print("Populated vibe data for location: ${location.name}");
       } catch (e) {

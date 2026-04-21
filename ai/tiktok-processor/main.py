@@ -299,6 +299,13 @@ def save_location_to_supabase(user_id: str, place_data: dict, url: str,
     """
     Save location to Supabase database, then persist video insights
     and per-user video extras.
+
+    Order of operations:
+    1. Call /locations/add with video_insights inline — the API upserts the
+       insights to the DB *before* triggering the vibe blend, so the blend
+       always has data to read. Single HTTP call, no race condition.
+    2. Save the user action via save_location_with_tags RPC.
+    3. Write per-user video_extras (special offers) to user_location_actions.
     """
     try:
         if not supabase_client:
@@ -306,16 +313,33 @@ def save_location_to_supabase(user_id: str, place_data: dict, url: str,
             return None
 
         place_id = place_data['place_id']
-
-        # Always call locations/add to ensure vibe tags and data are populated
-        # Derive source from the video URL
         source = 'instagram' if 'instagram' in url else 'tiktok'
+
+        # Build the video_insights payload to send inline (if available)
+        video_insights_payload = None
+        if loc_data:
+            video_insights_payload = {
+                'source_video_url': url,
+                'key_dishes': loc_data.get('key_dishes') or [],
+                'special_offers': loc_data.get('special_offers') or [],
+                'creator_notes': loc_data.get('creator_notes'),
+                'vibe_signals': loc_data.get('vibe_signals') or {},
+                'sentiment': loc_data.get('sentiment'),
+                'creator_handle': (video_data or {}).get('creator_handle'),
+                'video_description': (video_data or {}).get('description', ''),
+                'extraction_model': 'gpt-4o-mini',
+            }
+
+        # ── Step 1: Single call to /locations/add ─────────────────────────────
+        # The API will: upsert video_insights → then trigger vibe blend.
         try:
             payload = {
                 'google_place_id': place_id,
                 'source': source,
                 'classify_photo': True,
             }
+            if video_insights_payload:
+                payload['video_insights'] = video_insights_payload
 
             with httpx.Client(timeout=30.0) as client:
                 response = client.post(LOCATIONS_ADD_URL, json=payload)
@@ -328,20 +352,18 @@ def save_location_to_supabase(user_id: str, place_data: dict, url: str,
                 logger.error(f"API response missing location_id: {api_result}")
                 return None
 
-            logger.info(f"Location via /locations/add API: {location_id}")
+            logger.info(f"Location via /locations/add: {location_id} (insights embedded)")
         except httpx.HTTPStatusError as e:
             logger.error(f"API request failed with status {e.response.status_code}: {e.response.text}")
             return None
         except Exception as e:
             logger.error(f"Error calling location API: {e}", exc_info=True)
             return None
-            
-        logger.info(f"Using location tiktok url: {str(url)}")
-        logger.info(f"All parameters to rpc: 'user_id': {user_id}, 'location_id': {location_id}, 'saved_method': 'tiktok', 'acked': True, 'source_video_url': {str(url)}")
 
-        # 3. Save location with tag updates using new RPC
+        logger.info(f"Using location url: {str(url)}")
+
+        # ── Step 2: Save user action via RPC ──────────────────────────────────
         logger.info(type(location_id))
-        # If the url has instagram in it saved method will be instagram, otherwise tiktok (to differentiate from manual saves)
         result = supabase_client.rpc('save_location_with_tags', {
             'p_user_id': user_id,
             'p_location_id': location_id,
@@ -354,13 +376,9 @@ def save_location_to_supabase(user_id: str, place_data: dict, url: str,
 
         if response and response.get('success'):
             tag_count = response.get('tag_count', 0)
-            logger.info(f"Saved location {location_id} with {tag_count} tag updates (TikTok method)")
-
-            # ── Persist video insights & per-user extras ──────────────
-            if loc_data:
-                save_video_insights(location_id, url, loc_data, video_data or {})
-                save_video_extras(user_id, location_id, url, loc_data)
-
+            logger.info(f"Saved location {location_id} with {tag_count} tag updates")
+            # special_offers already persisted to video_insights.special_offers
+            # via the /locations/add video_insights payload above
             return {
                 'location_id': location_id,
                 'name': place_data.get('name'),
@@ -368,8 +386,6 @@ def save_location_to_supabase(user_id: str, place_data: dict, url: str,
         else:
             error = response.get('error', 'Unknown error') if response else 'No response'
             logger.error(f"Failed to save location via RPC: {error}")
-
-            # Return error info so caller can handle "already saved" case
             return {
                 'error': error,
                 'location_id': location_id
@@ -378,6 +394,7 @@ def save_location_to_supabase(user_id: str, place_data: dict, url: str,
     except Exception as e:
         logger.error(f"Error saving location to Supabase: {e}", exc_info=True)
         return None
+
 
 
 def process_and_save_async(url: str, user_id: str):

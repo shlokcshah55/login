@@ -185,6 +185,7 @@ class RecommendationsApi {
   Future<int?> addLocationByGooglePlaceId({
     required String googlePlaceId,
     bool classifyPhoto = true,
+    String source = 'in-app',
   }) async {
     final trimmed = googlePlaceId.trim();
     if (trimmed.isEmpty) {
@@ -200,6 +201,7 @@ class RecommendationsApi {
       body: jsonEncode({
         'google_place_id': trimmed,
         'classify_photo': classifyPhoto,
+        'source': source,
       }),
     );
 

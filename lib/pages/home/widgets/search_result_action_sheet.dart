@@ -33,6 +33,7 @@ class SearchResultActionHandler {
 
     final locationId = await _recommendationsApi.addLocationByGooglePlaceId(
       googlePlaceId: googlePlaceId,
+      source: 'in-app',
     );
     if (locationId == null) {
       return null;
