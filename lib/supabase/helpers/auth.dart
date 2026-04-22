@@ -496,26 +496,21 @@ class AuthHelper {
     }
   }
 
-  /// Get suggested users (returns random users excluding current user)
-  /// TODO: Implement logic to fetch suggested users based on user interests or other criteria
+  /// Returns users ranked by centered cosine similarity of vibe_tag_affinity.
+  /// Users already in any friendship relation are excluded.
   Future<List<UserModel>> getSuggestedUsers() async {
     try {
       final user = currentUser;
       if (user == null) return [];
 
-      final response = await _client
-          .from(SupabaseConstants.tableUsers)
-          .select()
-          .neq(SupabaseConstants.columnSupabaseId, user.id)
-          .limit(10);
+      final response = await _client.rpc('get_suggested_users', params: {
+        'p_supabase_id': user.id,
+        'p_limit': 10,
+      });
 
-      final futures = (response as List)
-          .map((e) => getUserProfileById(
-              e[SupabaseConstants.columnSupabaseId] as String))
+      return (response as List)
+          .map((e) => UserModel.fromJson(e as Map<String, dynamic>))
           .toList();
-
-      final users = await Future.wait(futures);
-      return users.whereType<UserModel>().toList();
     } catch (e) {
       if (kDebugMode) {
         print('Error getting suggested users: $e');
@@ -1123,16 +1118,28 @@ class AuthHelper {
         if (kDebugMode) print('Upload failed: No authenticated user found.');
         throw Exception('You must be logged in to upload a profile picture.');
       }
-      // Upload file to Supabase storage
-      final response = await _client.storage
-          .from(SupabaseConstants.supabaseStorageBucketProfileImages)
-          .upload(filePath, file);
 
-      print(response);
-      // Get public URL for the uploaded file
-      final publicUrl = _client.storage
+      final contentType = _profileImageContentType(filePath);
+
+      // Overwrite the user's current profile image at a stable storage path.
+      await _client.storage
+          .from(SupabaseConstants.supabaseStorageBucketProfileImages)
+          .upload(
+            filePath,
+            file,
+            fileOptions: FileOptions(
+              upsert: true,
+              contentType: contentType,
+            ),
+          );
+
+      // Append a version query param so Flutter doesn't keep showing a cached
+      // older avatar when the storage path stays the same across uploads.
+      final storageUrl = _client.storage
           .from(SupabaseConstants.supabaseStorageBucketProfileImages)
           .getPublicUrl(filePath);
+      final publicUrl =
+          '$storageUrl?v=${DateTime.now().millisecondsSinceEpoch}';
 
       await _client.rpc('update_user_profile', params: {
         'p_user_id': userId,
@@ -1150,5 +1157,13 @@ class AuthHelper {
       }
       rethrow;
     }
+  }
+
+  String _profileImageContentType(String path) {
+    final lower = path.toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.heic')) return 'image/heic';
+    return 'image/jpeg';
   }
 }

@@ -55,7 +55,7 @@ class BubblesProvider with ChangeNotifier {
 
     try {
       final bubbles = await _bubbleHelper.getUserBubbles(userId);
-      _bubbles = bubbles;
+      _bubbles = List<Bubble>.from(bubbles)..sort(_compareByLastActivity);
 
       if (kDebugMode) {
         print('BubblesProvider: Loaded ${bubbles.length} bubbles');
@@ -159,6 +159,7 @@ class BubblesProvider with ChangeNotifier {
       final bubble = await _bubbleHelper.getBubbleById(bubbleId);
       if (bubble != null) {
         _bubbles.insert(0, bubble);
+        _sortBubblesByActivity();
         notifyListeners();
       }
     } catch (e) {
@@ -207,6 +208,7 @@ class BubblesProvider with ChangeNotifier {
         final updatedBubble = await _bubbleHelper.getBubbleById(bubbleId);
         if (updatedBubble != null) {
           _bubbles[index] = updatedBubble;
+          _sortBubblesByActivity();
           notifyListeners();
         }
       }
@@ -237,6 +239,7 @@ class BubblesProvider with ChangeNotifier {
         final updatedBubble = await _bubbleHelper.getBubbleById(bubbleId);
         if (updatedBubble != null) {
           _bubbles[index] = updatedBubble;
+          _sortBubblesByActivity();
           notifyListeners();
         }
       }
@@ -252,11 +255,14 @@ class BubblesProvider with ChangeNotifier {
     try {
       final bubbleId =
           payload.newRecord[SupabaseConstants.columnBubbleId] as String?;
-      final content = payload.newRecord['content'] as String?;
+      final content =
+          (payload.newRecord[SupabaseConstants.columnContent] as String?)
+              ?.trim();
       final createdAt =
           payload.newRecord[SupabaseConstants.columnCreatedAt] as String?;
+      final hasLocation = payload.newRecord['location_id'] != null;
 
-      if (bubbleId == null || content == null || createdAt == null) return;
+      if (bubbleId == null || createdAt == null) return;
 
       if (kDebugMode) {
         print('BubblesProvider: New message in bubble $bubbleId');
@@ -267,14 +273,16 @@ class BubblesProvider with ChangeNotifier {
       if (index != -1) {
         // Update last message and time
         final updatedBubble = _bubbles[index].copyWith(
-          lastMessage: content,
+          lastMessage: (content != null && content.isNotEmpty)
+              ? content
+              : (hasLocation ? 'Shared a place' : _bubbles[index].lastMessage),
           lastMessageTime: _getTimeAgo(DateTime.parse(createdAt)),
+          lastActivityAt: DateTime.parse(createdAt),
           unreadCount: _bubbles[index].unreadCount + 1,
         );
 
-        // Move to top of list
-        _bubbles.removeAt(index);
-        _bubbles.insert(0, updatedBubble);
+        _bubbles[index] = updatedBubble;
+        _sortBubblesByActivity();
         notifyListeners();
       }
     } catch (e) {
@@ -318,6 +326,7 @@ class BubblesProvider with ChangeNotifier {
         final index = _bubbles.indexWhere((b) => b.id == bubbleId);
         if (index != -1) {
           _bubbles[index] = updatedBubble;
+          _sortBubblesByActivity();
           notifyListeners();
         }
       }
@@ -361,5 +370,15 @@ class BubblesProvider with ChangeNotifier {
     }
 
     super.dispose();
+  }
+
+  void _sortBubblesByActivity() {
+    _bubbles.sort(_compareByLastActivity);
+  }
+
+  int _compareByLastActivity(Bubble a, Bubble b) {
+    final aTime = a.lastActivityAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+    final bTime = b.lastActivityAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+    return bTime.compareTo(aTime);
   }
 }

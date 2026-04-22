@@ -1,5 +1,6 @@
 enum NotificationType {
   videoProcessed,
+  processingError,
   followRequest,
   followAccepted,
   friendVisitedLocation,

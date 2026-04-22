@@ -8,6 +8,7 @@ import 'package:login/models/notifications/bubble_message_notification.dart';
 import 'package:login/models/notifications/proximity_location_notification.dart';
 import 'package:login/models/notifications/user_added_to_bubble_notification.dart';
 import 'package:login/models/notifications/notes_import_complete_notification.dart';
+import 'package:login/models/notifications/processing_error_notification.dart';
 
 abstract class BaseNotification {
   final String id;
@@ -69,7 +70,10 @@ abstract class BaseNotification {
     try {
       switch (type) {
         case 'video_processed':
+        case 'location_saved':
           return VideoProcessedNotification.fromFCMData(data);
+        case 'processing_error':
+          return ProcessingErrorNotification.fromFCMData(data);
         case 'follow_request':
           return FollowRequestNotification.fromFCMData(data);
         case 'follow_accepted':
@@ -119,7 +123,10 @@ abstract class BaseNotification {
       // Route to appropriate subclass based on type
       switch (type) {
         case 'video_processed':
+        case 'location_saved':
           return VideoProcessedNotification.fromFCMData(data);
+        case 'processing_error':
+          return ProcessingErrorNotification.fromFCMData(data);
         case 'follow_request':
           return FollowRequestNotification.fromFCMData(data);
         case 'follow_accepted':

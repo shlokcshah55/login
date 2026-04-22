@@ -179,6 +179,16 @@ class SmartNotificationListItem extends StatelessWidget {
             ],
           ),
         );
+      case NotificationType.processingError:
+        return Text(
+          notification.getMessage(),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: Colors.black87,
+            height: 1.3,
+          ),
+        );
 
       case NotificationType.followRequest:
         final followReqNotif = notification as FollowRequestNotification;

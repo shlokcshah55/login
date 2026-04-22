@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:login/widgets/feedback/app_feedback.dart';
 import 'package:login/models/notification.dart';
 
 class NotificationListItem extends StatelessWidget {
@@ -101,12 +102,10 @@ class NotificationListItem extends StatelessWidget {
               const SizedBox(width: 12),
               ElevatedButton(
                 onPressed: onActionTap ?? () {
-                  // Show toast message for now
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('${notification.actionLabel} action pressed'),
-                      duration: const Duration(seconds: 1),
-                    ),
+                  AppFeedback.showSuccess(
+                    context,
+                    message: '${notification.actionLabel} tapped',
+                    duration: const Duration(seconds: 1),
                   );
                 },
                 style: ElevatedButton.styleFrom(

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,6 +10,7 @@ import 'package:login/models/locations.dart';
 import 'package:login/services/fcm_service.dart';
 import 'package:login/supabase/helpers/collections.dart';
 import 'package:login/supabase/service.dart';
+import 'package:login/widgets/feedback/app_feedback.dart';
 import 'package:provider/provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'widgets/pinit_colors.dart';
@@ -70,7 +73,8 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
           Provider.of<SupabaseService>(context, listen: false);
 
       final results = await Future.wait([
-        supabaseService.locations.getUserSavedLocations(widget.user.supabaseId!),
+        supabaseService.locations
+            .getUserSavedLocations(widget.user.supabaseId!),
         supabaseService.users.getFollowStatus(widget.user.supabaseId!),
         _collectionsHelper.getUserPublicCollections(widget.user.supabaseId!),
         supabaseService.users.getUserProfileById(widget.user.supabaseId!),
@@ -112,20 +116,15 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
         _pendingIncomingRequest = false;
         _processingRequestAction = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Accepted ${_user.name ?? "request"}'),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: PinitColors.aubergine,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _processingRequestAction = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not accept request: $e')),
+      unawaited(
+        AppFeedback.showError(
+          context,
+          title: 'Couldn’t accept',
+          message: 'Please try again in a moment.',
+        ),
       );
     }
   }
@@ -144,20 +143,15 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
         _pendingIncomingRequest = false;
         _processingRequestAction = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Declined ${_user.name ?? "request"}'),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: PinitColors.aubergine,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _processingRequestAction = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not decline request: $e')),
+      unawaited(
+        AppFeedback.showError(
+          context,
+          title: 'Couldn’t decline',
+          message: 'Please try again in a moment.',
+        ),
       );
     }
   }
@@ -178,12 +172,11 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
+        unawaited(
+          AppFeedback.showError(
+            context,
+            title: 'Couldn’t update follow',
+            message: 'Please try again in a moment.',
           ),
         );
       }
@@ -197,15 +190,16 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
       await supabaseService.users.blockUser(widget.user.supabaseId!);
       if (mounted) {
         setState(() => _followStatus = 'blocked');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Blocked ${widget.user.name ?? "user"}')),
-        );
         Navigator.of(context).pop();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not block user: $e')),
+        unawaited(
+          AppFeedback.showError(
+            context,
+            title: 'Couldn’t block user',
+            message: 'Please try again in a moment.',
+          ),
         );
       }
     }
@@ -218,14 +212,15 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
       await supabaseService.users.unblockUser(widget.user.supabaseId!);
       if (mounted) {
         setState(() => _followStatus = 'idle');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('User unblocked')),
-        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not unblock user: $e')),
+        unawaited(
+          AppFeedback.showError(
+            context,
+            title: 'Couldn’t unblock user',
+            message: 'Please try again in a moment.',
+          ),
         );
       }
     }
@@ -468,8 +463,8 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
   }
 
   Widget _buildAvatar({required double size}) {
-    final hasImage = _user.profileImageUrl != null &&
-        _user.profileImageUrl!.isNotEmpty;
+    final hasImage =
+        _user.profileImageUrl != null && _user.profileImageUrl!.isNotEmpty;
     return Container(
       width: size,
       height: size,
@@ -642,9 +637,8 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
         children: _tabs.asMap().entries.map((entry) {
           final isSelected = entry.key == _selectedTab;
           final isLast = entry.key == _tabs.length - 1;
-          final icon = entry.key == 0
-              ? Icons.push_pin_rounded
-              : Icons.map_rounded;
+          final icon =
+              entry.key == 0 ? Icons.push_pin_rounded : Icons.map_rounded;
 
           return Padding(
             padding: EdgeInsets.only(right: isLast ? 0 : 10),
@@ -788,8 +782,7 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
               decoration: BoxDecoration(
                 color: PinitColors.aubergine.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
-                border:
-                    Border.all(color: PinitColors.aubergine, width: 1.4),
+                border: Border.all(color: PinitColors.aubergine, width: 1.4),
               ),
               child: const Icon(
                 Icons.person_add_alt_1_rounded,
@@ -1115,7 +1108,7 @@ class _PublicCollectionsSection extends StatelessWidget {
             children: [
               const Expanded(
                 child: Text(
-                  'Collections',
+                  'Eat-Lists',
                   style: TextStyle(
                     fontFamily: 'Rova',
                     fontSize: 24,
@@ -1132,8 +1125,7 @@ class _PublicCollectionsSection extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: PinitColors.creamSunk,
                   borderRadius: BorderRadius.circular(999),
-                  border:
-                      Border.all(color: PinitColors.creamDeep, width: 1.5),
+                  border: Border.all(color: PinitColors.creamDeep, width: 1.5),
                 ),
                 child: Text(
                   '${collections.length} public',
@@ -1186,59 +1178,59 @@ class _PublicCollectionCard extends StatelessWidget {
     return GestureDetector(
       onTap: () => _openDetails(context),
       child: Container(
-      width: 150,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: PinitColors.aubergine, width: 1.5),
-        boxShadow: const [
-          BoxShadow(
-            color: PinitColors.aubergine,
-            blurRadius: 0,
-            offset: Offset(4, 4),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(14.5),
-        child: Container(
-          color: PinitColors.creamSunk,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: _buildCover()),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      collection.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.dmSans(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: PinitColors.aubergine,
-                        letterSpacing: 0.2,
-                        height: 1.15,
+        width: 150,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: PinitColors.aubergine, width: 1.5),
+          boxShadow: const [
+            BoxShadow(
+              color: PinitColors.aubergine,
+              blurRadius: 0,
+              offset: Offset(4, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14.5),
+          child: Container(
+            color: PinitColors.creamSunk,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: _buildCover()),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        collection.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.dmSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: PinitColors.aubergine,
+                          letterSpacing: 0.2,
+                          height: 1.15,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      '${collection.placeCount} place${collection.placeCount == 1 ? "" : "s"}',
-                      style: GoogleFonts.dmSans(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: PinitColors.mute,
+                      const SizedBox(height: 3),
+                      Text(
+                        '${collection.placeCount} place${collection.placeCount == 1 ? "" : "s"}',
+                        style: GoogleFonts.dmSans(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: PinitColors.mute,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
-      ),
       ),
     );
   }

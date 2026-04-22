@@ -67,7 +67,7 @@ class PersistentActionDock extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: _DockMediumButton(
-              label: 'Collection',
+              label: 'Eat-List',
               icon: Icons.collections_bookmark_rounded,
               onTap: onAddToCollection,
             ),

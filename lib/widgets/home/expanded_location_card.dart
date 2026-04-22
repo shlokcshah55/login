@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -27,6 +28,7 @@ import 'package:login/widgets/home/expanded_card/sections/social_proof_section.d
 import 'package:login/widgets/home/expanded_card/sections/summary_slab_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/tiktok_insights_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/why_go_section.dart';
+import 'package:login/widgets/feedback/app_feedback.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -303,8 +305,12 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     } catch (_) {
       if (mounted) {
         setState(() => _isSaved = wasSaved);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to ${wasSaved ? 'unsave' : 'save'}')),
+        unawaited(
+          AppFeedback.showError(
+            context,
+            title: 'Couldn’t update save',
+            message: 'Failed to ${wasSaved ? 'unsave' : 'save'}.',
+          ),
         );
       }
     } finally {
@@ -319,15 +325,26 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
       final mgr = Provider.of<LocationListManager>(context, listen: false);
       final ok = await mgr.dislikeLocation(widget.location);
       if (ok && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Hidden from recommendations')),
+        AppFeedback.showSuccess(
+          context,
+          message: 'Hidden from recommendations',
+          leading: const Icon(
+            Icons.visibility_off_rounded,
+            color: PinitColors.cream,
+            size: 18,
+          ),
+          duration: const Duration(seconds: 2),
         );
         _handleClose();
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to hide location')),
+        unawaited(
+          AppFeedback.showError(
+            context,
+            title: 'Couldn’t hide this',
+            message: 'Failed to hide location.',
+          ),
         );
       }
     } finally {
@@ -363,15 +380,27 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
 
     if (!mounted || sentCount == null) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          sentCount > 0
-              ? 'Sent to $sentCount ${sentCount == 1 ? 'bubble' : 'bubbles'}'
-              : 'Could not send to bubble',
+    if (sentCount > 0) {
+      AppFeedback.showSuccess(
+        context,
+        message:
+            'Sent to $sentCount ${sentCount == 1 ? 'bubble' : 'bubbles'}',
+        leading: const Icon(
+          Icons.send_rounded,
+          color: PinitColors.cream,
+          size: 18,
         ),
-      ),
-    );
+        duration: const Duration(seconds: 2),
+      );
+    } else {
+      unawaited(
+        AppFeedback.showError(
+          context,
+          title: 'Couldn’t send',
+          message: 'Could not send to bubble.',
+        ),
+      );
+    }
   }
 
   // ─────────────────────────────────────────────────────────────

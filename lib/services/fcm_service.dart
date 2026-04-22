@@ -18,6 +18,7 @@ import 'package:login/models/notifications/follow_accepted_notification.dart';
 import 'package:login/models/notifications/follow_request_notification.dart';
 import 'package:login/models/notifications/user_added_to_bubble_notification.dart';
 import 'package:login/models/notifications/video_processed_notification.dart';
+import 'package:login/widgets/profile/notifications_popover.dart';
 
 class FCMService {
   static final FCMService _instance = FCMService._internal();
@@ -211,6 +212,30 @@ class FCMService {
 
     final context = navigatorKey.currentContext;
 
+    // For most notification taps, open the in-app notifications layover so the
+    // user lands in the same inbox experience as the bell in Profile.
+    //
+    // Keep message-style notifications deep-linking directly to the chat/bubble.
+    if (notification.type != NotificationType.newMessage &&
+        notification.type != NotificationType.userAddedToBubble) {
+      await refreshFromDB();
+
+      if (context != null) {
+        try {
+          Provider.of<NavigationProvider>(context, listen: false)
+              .navigateToTab(2);
+        } catch (_) {}
+      }
+
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(
+          builder: (_) => const NotificationsPopover(),
+          fullscreenDialog: true,
+        ),
+      );
+      return;
+    }
+
     switch (notification.type) {
       case NotificationType.followRequest:
       case NotificationType.followAccepted:
@@ -272,6 +297,7 @@ class FCMService {
         navigatorKey.currentState?.pushNamed('/profile');
         break;
 
+      case NotificationType.processingError:
       case NotificationType.notesImportComplete:
         if (context != null) {
           try {

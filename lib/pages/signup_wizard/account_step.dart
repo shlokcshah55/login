@@ -383,7 +383,7 @@ class _AccountStepState extends State<AccountStep>
 
         // Upload the image (user-selected or default)
         final fileExt = imageToUpload.path.split('.').last;
-        final filePath = '${wizardState.userId}.$fileExt';
+        final filePath = '${wizardState.userId}/${wizardState.userId}.$fileExt';
 
         String profilePictureUrl = await supabaseService.users
             .uploadImage(imageToUpload, filePath, wizardState.userId!);

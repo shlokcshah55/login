@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/users.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/supabase/service.dart';
+import 'package:login/widgets/feedback/app_feedback.dart';
 import 'package:provider/provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:login/providers/location_list_provider.dart';
@@ -45,7 +46,7 @@ class _ProfilePageState extends State<ProfilePage>
   int _selectedTab = 0;
   int _followersCount = 0;
   int _followingCount = 0;
-  final List<String> _tabs = ['Hot', 'Collections', 'People'];
+  final List<String> _tabs = ['Hot', 'Eat-Lists', 'People'];
 
   @override
   void initState() {
@@ -114,12 +115,11 @@ class _ProfilePageState extends State<ProfilePage>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error signing out: $e'),
-            behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        unawaited(
+          AppFeedback.showError(
+            context,
+            title: 'Couldn’t sign out',
+            message: 'Please try again in a moment.',
           ),
         );
       }
@@ -157,45 +157,46 @@ class _ProfilePageState extends State<ProfilePage>
                 color: PinitColors.aubergine,
                 backgroundColor: PinitColors.cream,
                 child: CustomScrollView(
-                controller: _scrollController,
-                physics: const BouncingScrollPhysics(
-                  parent: AlwaysScrollableScrollPhysics(),
-                ),
-                slivers: [
-                  SliverToBoxAdapter(
-                    child: ProfileHeader(
-                      user: user,
-                      scrollOffset: _scrollOffset,
-                      onNotificationsTap: () => _showNotifications(context),
-                      onSettingsTap: () => _showSettingsSheet(context, user),
-                      unreadCount: FCMService().unreadCount,
-                      followersCount: _followersCount,
-                      followingCount: _followingCount,
-                      pinsCount: savedPins.length,
-                      onFollowersTap: () => _openFollowers(context),
-                      onFollowingTap: () => _openFollowing(context),
+                  controller: _scrollController,
+                  physics: const BouncingScrollPhysics(
+                    parent: AlwaysScrollableScrollPhysics(),
+                  ),
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: ProfileHeader(
+                        user: user,
+                        scrollOffset: _scrollOffset,
+                        onNotificationsTap: () => _showNotifications(context),
+                        onSettingsTap: () => _showSettingsSheet(context, user),
+                        unreadCount: FCMService().unreadCount,
+                        followersCount: _followersCount,
+                        followingCount: _followingCount,
+                        pinsCount: savedPins.length,
+                        onFollowersTap: () => _openFollowers(context),
+                        onFollowingTap: () => _openFollowing(context),
+                      ),
                     ),
-                  ),
-                  const SliverToBoxAdapter(
-                    child: SizedBox(height: 20),
-                  ),
-                  SliverAppBar(
-                    pinned: true,
-                    elevation: 4,
-                    shadowColor: PinitColors.aubergine.withValues(alpha: 0.06),
-                    backgroundColor: PinitColors.cream,
-                    automaticallyImplyLeading: false,
-                    toolbarHeight: 20,
-                    flexibleSpace: _buildPinnedTabs(),
-                  ),
-                  SliverToBoxAdapter(
-                    child: _buildTabContent(
-                        user, savedPins, popularLocations, hiddenGemLocations),
-                  ),
-                  const SliverToBoxAdapter(
-                    child: SizedBox(height: 100),
-                  ),
-                ],
+                    const SliverToBoxAdapter(
+                      child: SizedBox(height: 20),
+                    ),
+                    SliverAppBar(
+                      pinned: true,
+                      elevation: 4,
+                      shadowColor:
+                          PinitColors.aubergine.withValues(alpha: 0.06),
+                      backgroundColor: PinitColors.cream,
+                      automaticallyImplyLeading: false,
+                      toolbarHeight: 20,
+                      flexibleSpace: _buildPinnedTabs(),
+                    ),
+                    SliverToBoxAdapter(
+                      child: _buildTabContent(user, savedPins, popularLocations,
+                          hiddenGemLocations),
+                    ),
+                    const SliverToBoxAdapter(
+                      child: SizedBox(height: 100),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -653,9 +654,11 @@ class _ProfilePageState extends State<ProfilePage>
           // edit and any save would risk overwriting real values.
           final affinity = context.read<UserDataProvider>().vibeTagAffinity;
           if (affinity == null || affinity.isEmpty) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Loading your vibes — try again in a moment.'),
+            unawaited(
+              AppFeedback.showError(
+                context,
+                title: 'Still loading',
+                message: 'Loading your vibes — try again in a moment.',
               ),
             );
             return;

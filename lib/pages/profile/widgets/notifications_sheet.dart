@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:login/models/notification_type.dart';
+import 'package:login/models/notifications/processing_error_notification.dart';
 import 'package:login/services/fcm_service.dart';
+import 'package:login/themes/app_colors.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:login/widgets/feedback/app_feedback.dart';
 import 'pinit_colors.dart';
 
 /// Notifications bottom sheet - cleaner, more modern than popover
@@ -77,6 +82,13 @@ class NotificationsSheet extends StatelessWidget {
                         isRead: notification.isRead,
                         timeAgo: notification.getFormattedTimestamp(),
                         type: _getNotificationType(notification),
+                        actionLabel: notification is ProcessingErrorNotification
+                            ? notification.getActionLabel()
+                            : null,
+                        onActionTap: notification is ProcessingErrorNotification &&
+                                notification.hasAction()
+                            ? () => _openSourceUrl(context, notification.sourceUrl!)
+                            : null,
                       );
                     },
                   ),
@@ -87,11 +99,26 @@ class NotificationsSheet extends StatelessWidget {
   }
 
   String _getNotificationType(dynamic notification) {
+    if (notification.type == NotificationType.processingError) return 'error';
     final title = notification.getNotificationTitle().toLowerCase();
     if (title.contains('follow')) return 'follow';
     if (title.contains('save') || title.contains('pin')) return 'save';
     if (title.contains('collection')) return 'collection';
     return 'general';
+  }
+
+  Future<void> _openSourceUrl(BuildContext context, String sourceUrl) async {
+    final parsed = Uri.tryParse(sourceUrl);
+    if (parsed == null) return;
+
+    final launched = await launchUrl(parsed, mode: LaunchMode.externalApplication);
+    if (!launched && context.mounted) {
+      await AppFeedback.showError(
+        context,
+        title: 'Couldn’t open link',
+        message: 'Please try again in a moment.',
+      );
+    }
   }
 }
 
@@ -101,6 +128,8 @@ class _NotificationItem extends StatelessWidget {
   final bool isRead;
   final String timeAgo;
   final String type;
+  final String? actionLabel;
+  final VoidCallback? onActionTap;
 
   const _NotificationItem({
     required this.title,
@@ -108,6 +137,8 @@ class _NotificationItem extends StatelessWidget {
     required this.isRead,
     required this.timeAgo,
     required this.type,
+    this.actionLabel,
+    this.onActionTap,
   });
 
   @override
@@ -192,6 +223,32 @@ class _NotificationItem extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
+                if (actionLabel != null && onActionTap != null) ...[
+                  const SizedBox(height: 10),
+                  TextButton(
+                    onPressed: onActionTap,
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      backgroundColor: Theme.of(context)
+                          .colorScheme
+                          .tertiary
+                          .withValues(alpha: 0.12),
+                      foregroundColor: Theme.of(context).colorScheme.tertiary,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: Text(
+                      actionLabel!,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -220,6 +277,8 @@ class _NotificationItem extends StatelessWidget {
         return Icons.push_pin_outlined;
       case 'collection':
         return Icons.folder_outlined;
+      case 'error':
+        return Icons.link_outlined;
       default:
         return Icons.notifications_outlined;
     }
@@ -233,6 +292,8 @@ class _NotificationItem extends StatelessWidget {
         return PinitColors.accentSoft;
       case 'collection':
         return const Color(0xFFFFF3E0);
+      case 'error':
+        return AppColors.info.withValues(alpha: 0.14);
       default:
         return PinitColors.surfaceLight;
     }
@@ -246,6 +307,8 @@ class _NotificationItem extends StatelessWidget {
         return PinitColors.primary;
       case 'collection':
         return const Color(0xFFE65100);
+      case 'error':
+        return AppColors.info;
       default:
         return PinitColors.textSecondary;
     }

@@ -1,0 +1,167 @@
+[
+  {
+    "case_id": "carbone_clear",
+    "name": "Clear location + dishes + offer",
+    "video_data": {
+      "id": "7001",
+      "url": "https://www.tiktok.com/@foodie/video/7001",
+      "description": "went to Carbone in Greenwich Village last night and honestly one of the best meals I've had in NYC. the spicy rigatoni is a MUST order, so good. meatballs are $18 and worth every penny. mention this video at the door and get a free tiramisu!!",
+      "hashtags": ["carbone", "nyceats", "italianfood", "nyc"],
+      "comments": [],
+      "creator_handle": "foodie_nyc"
+    },
+    "expected": {
+      "locations": [
+        {
+          "location_name": "Carbone",
+          "confidence": "high"
+        }
+      ],
+      "key_dishes": [
+        {"name": "Spicy Rigatoni"},
+        {"name": "Meatballs", "price": "$18"}
+      ],
+      "special_offers": [
+        {"offer": "mention this video at the door for a free tiramisu"}
+      ],
+      "vibe_signals": {"elegant": 0.7, "romantic": 0.6},
+      "sentiment": "positive"
+    }
+  },
+  {
+    "case_id": "multi_location",
+    "name": "Multi-location food tour",
+    "video_data": {
+      "id": "7002",
+      "url": "https://www.tiktok.com/@guide/video/7002",
+      "description": "NYC pizza tour pt 1! First stop was Joe's Pizza in Greenwich Village - classic NY slice, can't beat it. Then we hit Lucali in Carroll Gardens Brooklyn for the best pie in the city, get there early they don't take reservations",
+      "hashtags": ["nycpizza", "joespizza", "lucali", "nyceats"],
+      "comments": [],
+      "creator_handle": "nyc_guide"
+    },
+    "expected": {
+      "locations": [
+        {"location_name": "Joe's Pizza"},
+        {"location_name": "Lucali"}
+      ],
+      "key_dishes": [],
+      "special_offers": [],
+      "vibe_signals": {"casual": 0.7},
+      "sentiment": "positive"
+    }
+  },
+  {
+    "case_id": "location_from_comments",
+    "name": "Location only findable from comments",
+    "video_data": {
+      "id": "7003",
+      "url": "https://www.tiktok.com/@user/video/7003",
+      "description": "tried this amazing ramen spot in London today 🍜 the broth was unreal, been looking for something like this for ages",
+      "hashtags": ["ramen", "londonfood", "londoneats"],
+      "comments": [
+        "omg is this Bone Daddies in Soho??",
+        "Bone Daddies!! I go there every week",
+        "yes it's Bone Daddies on Poland Street, so good",
+        "what's the name of this place?"
+      ],
+      "creator_handle": "london_food"
+    },
+    "expected": {
+      "locations": [
+        {"location_name": "Bone Daddies", "source": "comments"}
+      ],
+      "key_dishes": [],
+      "special_offers": [],
+      "vibe_signals": {"casual": 0.6, "cozy": 0.5},
+      "sentiment": "positive"
+    }
+  },
+  {
+    "case_id": "no_location",
+    "name": "Food hack video with no restaurant",
+    "video_data": {
+      "id": "7004",
+      "url": "https://www.tiktok.com/@chef/video/7004",
+      "description": "the easiest pasta you'll ever make!! just butter, pasta water, and parmesan. no restaurant needed, make this at home tonight 🍝",
+      "hashtags": ["cooking", "pasta", "easyrecipe", "homecooking"],
+      "comments": ["omg making this tonight", "game changer recipe"],
+      "creator_handle": "home_chef"
+    },
+    "expected": {
+      "locations": [],
+      "key_dishes": [],
+      "special_offers": [],
+      "vibe_signals": {},
+      "sentiment": "positive"
+    }
+  },
+  {
+    "case_id": "speakeasy_vibes",
+    "name": "Late night bar with strong vibe signals",
+    "video_data": {
+      "id": "7005",
+      "url": "https://www.tiktok.com/@nightlife/video/7005",
+      "description": "found this hidden speakeasy bar in Shoreditch called Evans & Peel Detective Agency, you have to solve a mystery to get in 😭 SO romantic for a date night, incredible cocktails, open till 2am. the most unique bar I've ever been to",
+      "hashtags": ["speakeasy", "london", "shoreditch", "dateideas", "cocktails"],
+      "comments": ["been there it's incredible!", "perfect date spot"],
+      "creator_handle": "london_nightlife"
+    },
+    "expected": {
+      "locations": [
+        {"location_name": "Evans & Peel Detective Agency", "confidence": "high"}
+      ],
+      "key_dishes": [],
+      "special_offers": [],
+      "vibe_signals": {"romantic": 0.9, "bar": 0.8, "late_night": 0.7, "wavy": 0.8},
+      "sentiment": "positive"
+    }
+  },
+  {
+    "case_id": "instagram_location_meta",
+    "name": "Instagram post with locationCreated metadata",
+    "video_data": {
+      "id": "8001",
+      "url": "https://www.instagram.com/reel/abc123",
+      "description": "Sunday brunch hit different today ☀️ bottomless mimosas and the eggs benny were perfect. highly recommend for a lazy weekend morning",
+      "hashtags": ["brunch", "sundayvibes", "londoneats"],
+      "comments": [],
+      "locationCreated": "Dishoom King's Cross",
+      "creator_handle": "brunch_lover"
+    },
+    "expected": {
+      "locations": [
+        {"location_name": "Dishoom King's Cross", "source": "location_metadata", "confidence": "high"}
+      ],
+      "key_dishes": [
+        {"name": "Eggs Benedict"}
+      ],
+      "special_offers": [],
+      "vibe_signals": {"brunch": 0.9, "casual": 0.6, "outdoor_dining": 0.3},
+      "sentiment": "positive"
+    }
+  },
+  {
+    "case_id": "mixed_sentiment",
+    "name": "Mixed review with dishes but criticism",
+    "video_data": {
+      "id": "7006",
+      "url": "https://www.tiktok.com/@critic/video/7006",
+      "description": "Nobu Downtown NYC... honestly mixed feelings. the black cod miso is still a 10/10 every time, incredible. but the service was really slow tonight and $45 for that wagyu was not it. beautiful restaurant though, would still go back for the cod",
+      "hashtags": ["nobu", "nobudowntown", "nyc", "japanesefood"],
+      "comments": [],
+      "creator_handle": "nyc_critic"
+    },
+    "expected": {
+      "locations": [
+        {"location_name": "Nobu Downtown", "confidence": "high"}
+      ],
+      "key_dishes": [
+        {"name": "Black Cod Miso"},
+        {"name": "Wagyu", "price": "$45"}
+      ],
+      "special_offers": [],
+      "vibe_signals": {"elegant": 0.8, "fine_dining": 0.7},
+      "sentiment": "mixed"
+    }
+  }
+]

@@ -4,7 +4,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:login/pages/home/filter_types.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/supabase/helpers/tags.dart';
-import 'package:login/themes/app_typography.dart';
 import 'package:login/widgets/home/expanded_card/helpers/vibe_display.dart';
 
 class HomeFilterSheetResult {
@@ -14,6 +13,7 @@ class HomeFilterSheetResult {
     this.availabilityFilter = AvailabilityFilter.any,
     this.vibeTagNames = const [],
     this.cuisineTagNames = const [],
+    this.launchSweetTreat = false,
   });
 
   final Set<String> vibeTagIds;
@@ -21,6 +21,7 @@ class HomeFilterSheetResult {
   final AvailabilityFilter availabilityFilter;
   final List<String> vibeTagNames;
   final List<String> cuisineTagNames;
+  final bool launchSweetTreat;
 
   int get totalSelectedCount =>
       vibeTagIds.length +
@@ -95,16 +96,6 @@ class HomeFilterSheet extends StatefulWidget {
 }
 
 class _HomeFilterSheetState extends State<HomeFilterSheet> {
-  static const Map<AvailabilityFilter, ({String label, IconData icon})>
-      _availabilityOptions = {
-    AvailabilityFilter.any: (label: 'Any time', icon: FeatherIcons.clock),
-    AvailabilityFilter.openNow: (label: 'Open now', icon: FeatherIcons.sun),
-    AvailabilityFilter.closedNow: (
-      label: 'Closed now',
-      icon: FeatherIcons.moon,
-    ),
-  };
-
   static const List<Map<String, String>> _staticCuisineTags = [
     {'tag_id': 'italian', 'text': 'italian'},
     {'tag_id': 'indian', 'text': 'indian'},
@@ -147,7 +138,11 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
     super.initState();
     _selectedVibeTagIds = Set<String>.from(widget.initialVibeTagIds);
     _selectedCuisineTagIds = Set<String>.from(widget.initialCuisineTagIds);
-    _selectedAvailabilityFilter = widget.initialAvailabilityFilter;
+    // We no longer expose "Closed now" in this sheet.
+    _selectedAvailabilityFilter =
+        widget.initialAvailabilityFilter == AvailabilityFilter.closedNow
+            ? AvailabilityFilter.any
+            : widget.initialAvailabilityFilter;
     _loadTags();
   }
 
@@ -228,6 +223,26 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
     });
   }
 
+  HomeFilterSheetResult _buildResult({bool launchSweetTreat = false}) {
+    final vibeNames = _vibeTags
+        .where((t) => _selectedVibeTagIds.contains(_tagId(t)))
+        .map((t) => _tagLabel(t))
+        .toList();
+    final cuisineNames = _cuisineTags
+        .where((t) => _selectedCuisineTagIds.contains(_tagId(t)))
+        .map((t) => _tagLabel(t))
+        .toList();
+
+    return HomeFilterSheetResult(
+      vibeTagIds: Set<String>.from(_selectedVibeTagIds),
+      cuisineTagIds: Set<String>.from(_selectedCuisineTagIds),
+      availabilityFilter: _selectedAvailabilityFilter,
+      vibeTagNames: vibeNames,
+      cuisineTagNames: cuisineNames,
+      launchSweetTreat: launchSweetTreat,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
@@ -288,9 +303,9 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
                         const SizedBox(height: 8),
                         Text(
                           'Refine the map.',
-                          style: AppTypography.brand(
+                          style: GoogleFonts.dmSans(
                             fontSize: 30,
-                            fontWeight: FontWeight.w100,
+                            fontWeight: FontWeight.w700,
                             color: PinitColors.aubergine,
                             height: 0.98,
                           ),
@@ -298,7 +313,7 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
                         const SizedBox(height: 6),
                         Text(
                           'Pick a vibe or cuisine, then apply when you are ready.',
-                          style: AppTypography.sans(
+                          style: GoogleFonts.dmSans(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                             color: PinitColors.aubergineSoft,
@@ -328,32 +343,64 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
                 ],
               ),
               const SizedBox(height: 18),
-              Text(
-                'AVAILABILITY',
-                style: GoogleFonts.dmSans(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: PinitColors.aubergineSoft,
-                  letterSpacing: 1.4,
-                  height: 1.0,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  for (final entry in _availabilityOptions.entries) ...[
-                    Expanded(
-                      child: _AvailabilityOptionPill(
-                        label: entry.value.label,
-                        icon: entry.value.icon,
-                        isSelected: _selectedAvailabilityFilter == entry.key,
-                        onTap: () => _setAvailabilityFilter(entry.key),
+              SizedBox(
+                width: double.infinity,
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: PinitColors.aubergine,
+                        blurRadius: 0,
+                        offset: Offset(3, 3),
+                      ),
+                    ],
+                  ),
+                  child: Material(
+                    color: PinitColors.accent,
+                    borderRadius: BorderRadius.circular(20),
+                    child: InkWell(
+                      onTap: () {
+                        Navigator.of(
+                          context,
+                        ).pop(_buildResult(launchSweetTreat: true));
+                      },
+                      borderRadius: BorderRadius.circular(20),
+                      splashColor: PinitColors.cream.withValues(alpha: 0.08),
+                      highlightColor: PinitColors.cream.withValues(alpha: 0.05),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: PinitColors.aubergine,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.cake_rounded,
+                              size: 18,
+                              color: PinitColors.cream,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Sweet Treat',
+                              style: GoogleFonts.dmSans(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: PinitColors.cream,
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                    if (entry.key != _availabilityOptions.keys.last)
-                      const SizedBox(width: 8),
-                  ],
-                ],
+                  ),
+                ),
               ),
               const SizedBox(height: 18),
               Container(
@@ -408,7 +455,7 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
                               const SizedBox(width: 8),
                               Text(
                                 category.title,
-                                style: AppTypography.sans(
+                                style: GoogleFonts.dmSans(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w700,
                                   color: PinitColors.aubergine,
@@ -427,7 +474,7 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
                                   ),
                                   child: Text(
                                     '$count',
-                                    style: AppTypography.sans(
+                                    style: GoogleFonts.dmSans(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w800,
                                       color: PinitColors.cream,
@@ -471,7 +518,7 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
                       ),
                       child: Text(
                         'Clear',
-                        style: AppTypography.sans(
+                        style: GoogleFonts.dmSans(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
                           color: PinitColors.aubergine,
@@ -524,7 +571,7 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
                                   const SizedBox(height: 14),
                                   Text(
                                     _activeCategory.emptyTitle,
-                                    style: AppTypography.sans(
+                                    style: GoogleFonts.dmSans(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w700,
                                       color: PinitColors.aubergine,
@@ -534,7 +581,7 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
                                   Text(
                                     _activeCategory.emptySubtitle,
                                     textAlign: TextAlign.center,
-                                    style: AppTypography.sans(
+                                    style: GoogleFonts.dmSans(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w600,
                                       color: PinitColors.aubergineSoft,
@@ -573,29 +620,43 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
                           ),
               ),
               const SizedBox(height: 18),
+              Text(
+                'AVAILABILITY',
+                style: GoogleFonts.dmSans(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: PinitColors.aubergineSoft,
+                  letterSpacing: 1.4,
+                  height: 1.0,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: _AvailabilityOptionPill(
+                      label: 'Open now',
+                      icon: FeatherIcons.sun,
+                      isSelected: _selectedAvailabilityFilter ==
+                          AvailabilityFilter.openNow,
+                      onTap: () {
+                        _setAvailabilityFilter(
+                          _selectedAvailabilityFilter ==
+                                  AvailabilityFilter.openNow
+                              ? AvailabilityFilter.any
+                              : AvailabilityFilter.openNow,
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    // Resolve tag names from IDs for the scoring logic
-                    final vibeNames = _vibeTags
-                        .where((t) => _selectedVibeTagIds.contains(_tagId(t)))
-                        .map((t) => _tagLabel(t))
-                        .toList();
-                    final cuisineNames = _cuisineTags
-                        .where(
-                            (t) => _selectedCuisineTagIds.contains(_tagId(t)))
-                        .map((t) => _tagLabel(t))
-                        .toList();
-                    Navigator.of(context).pop(
-                      HomeFilterSheetResult(
-                        vibeTagIds: Set<String>.from(_selectedVibeTagIds),
-                        cuisineTagIds: Set<String>.from(_selectedCuisineTagIds),
-                        availabilityFilter: _selectedAvailabilityFilter,
-                        vibeTagNames: vibeNames,
-                        cuisineTagNames: cuisineNames,
-                      ),
-                    );
+                    Navigator.of(context).pop(_buildResult());
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: PinitColors.aubergine,
@@ -614,7 +675,7 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
                     totalSelectedCount > 0
                         ? 'Apply $totalSelectedCount filter${totalSelectedCount == 1 ? '' : 's'}'
                         : 'Apply filters',
-                    style: AppTypography.sans(
+                    style: GoogleFonts.dmSans(
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
                       color: PinitColors.cream,

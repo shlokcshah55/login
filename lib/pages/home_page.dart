@@ -8,17 +8,16 @@ import 'package:login/pages/home/home_view_model.dart';
 import 'package:login/pages/home/quick_picks/quick_picks_distance_page.dart';
 import 'package:login/pages/home/search/header_search_types.dart';
 import 'package:login/pages/home/widgets/home_carousel.dart';
+import 'package:login/pages/home/widgets/feature_intro_overlay.dart';
 import 'package:login/pages/home/widgets/home_filter_sheet.dart';
 import 'package:login/pages/home/widgets/home_header_search_shell.dart';
 import 'package:login/pages/home/widgets/home_map_layer.dart';
-import 'package:login/pages/home/widgets/gavel_overlay.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
 import 'package:login/themes/app_typography.dart';
 import 'package:login/themes/pinit_colors.dart';
 import 'package:login/pages/home/widgets/mode_toggle.dart';
 import 'package:login/pages/home/widgets/search_result_action_sheet.dart';
 import 'package:login/pages/home/carousel_list_page.dart';
-import 'package:login/pages/home/widgets/decide_bottom_sheet.dart';
 import 'package:login/pages/home/widgets/shortlist_pill.dart';
 import 'package:login/pages/home/widgets/shortlist_carousel_sheet.dart';
 import 'package:login/providers/location_list_provider.dart';
@@ -34,6 +33,7 @@ import 'package:login/widgets/home/no_magic_search_results_popover.dart';
 import 'package:login/widgets/home/no_recommendations_popover.dart';
 import 'package:login/widgets/profile/no_saved_locations_popover.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
+import 'package:login/widgets/feedback/app_feedback.dart';
 import 'package:login/widgets/swipe_card_stack.dart';
 import 'package:login/widgets/wizard_completion_popover.dart';
 import 'package:provider/provider.dart';
@@ -145,13 +145,10 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(error),
-        backgroundColor: Colors.red,
-        duration: const Duration(seconds: 4),
-      ),
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(AppFeedback.showError(context, message: error));
+    });
   }
 
   Future<void> _showNoRecommendationsPopover() async {
@@ -278,12 +275,15 @@ class _HomePageState extends State<HomePage> {
       _bubbleModeProvider.clearPendingBubble();
       await _viewModel.activateBubbleMode(bubble);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Bubble mode activated for ${bubble.name}'),
-            backgroundColor: PinitColors.dark.primaryPurple,
-            duration: const Duration(seconds: 2),
+        AppFeedback.showSuccess(
+          context,
+          message: 'Bubble mode activated for ${bubble.name}',
+          leading: const Icon(
+            Icons.bubble_chart_rounded,
+            color: pinit.PinitColors.cream,
+            size: 18,
           ),
+          duration: const Duration(seconds: 2),
         );
       }
     }
@@ -338,6 +338,10 @@ class _HomePageState extends State<HomePage> {
       initialAvailabilityFilter: _locationListManager.availabilityFilter,
     );
     if (!mounted || result == null) return;
+    if (result.launchSweetTreat) {
+      unawaited(_viewModel.submitDefaultSweetTreatSearch());
+      return;
+    }
     setState(() {
       _selectedVibeTagIds = result.vibeTagIds;
       _selectedCuisineTagIds = result.cuisineTagIds;
@@ -348,6 +352,29 @@ class _HomePageState extends State<HomePage> {
       availabilityFilter: result.availabilityFilter,
       vibeTagNames: result.vibeTagNames,
       cuisineTagNames: result.cuisineTagNames,
+    );
+  }
+
+  Future<void> _showDealADeckIntro() {
+    return FeatureIntroOverlay.show(
+      context,
+      eyebrow: 'DEAL A DECK',
+      title: 'Stop Umming and Ahhing.',
+      description:
+          'We will deal you a deck of 10 options so you can stop spiralling, pick one fast, and head out.',
+      primaryLabel: 'DEAL A DECK',
+      illustrationPath: 'lib/assets/illustrations/Beep Beep - Campervan 2.svg',
+      icon: Icons.gavel_rounded,
+      iconBackgroundColor: pinit.PinitColors.accent,
+      primaryColor: pinit.PinitColors.accent,
+      onPrimaryTap: () {
+        unawaited(
+          QuickPicksDistancePage.show(
+            context,
+            viewModel: _viewModel,
+          ),
+        );
+      },
     );
   }
 
@@ -416,8 +443,11 @@ class _HomePageState extends State<HomePage> {
                               left: 16, right: 16, bottom: 8),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              Row(
+                              Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   // ── Location pill ──
                                   GestureDetector(
@@ -450,7 +480,7 @@ class _HomePageState extends State<HomePage> {
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(width: 10),
+                                  const SizedBox(height: 10),
                                   GestureDetector(
                                     onTap: _openHomeFilters,
                                     child: Stack(
@@ -529,81 +559,128 @@ class _HomePageState extends State<HomePage> {
                                   ),
                                 ],
                               ),
-                              Row(
+                              Column(
                                 mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
-                                  if (viewModel.locations.isNotEmpty &&
-                                      viewModel.shortlistIsNotEmpty) ...[
-                                    ShortlistPill(
-                                      count: viewModel.shortlistCount,
-                                      onTap: () => ShortlistCarouselSheet.show(
-                                        context,
-                                        currentMode: viewModel.homeMode,
-                                        onReturnToMode: viewModel.setHomeMode,
-                                      ),
+                                  if (viewModel.homeMode == HomeMode.explore &&
+                                      viewModel.locations.isNotEmpty) ...[
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        _HomeActionPill(
+                                          label: 'Deal a deck',
+                                          icon: Icons.gavel_rounded,
+                                          backgroundColor:
+                                              pinit.PinitColors.accent,
+                                          foregroundColor:
+                                              pinit.PinitColors.cream,
+                                          borderColor:
+                                              pinit.PinitColors.aubergine,
+                                          shadowColor:
+                                              pinit.PinitColors.aubergine,
+                                          onTap: () {
+                                            unawaited(_showDealADeckIntro());
+                                          },
+                                        ),
+                                      ],
                                     ),
-                                    const SizedBox(width: 10),
+                                    const SizedBox(height: 10),
                                   ],
-                                  if (viewModel.locations.isNotEmpty)
-                                    GestureDetector(
-                                      onTap: () => Navigator.of(context).push(
-                                        MaterialPageRoute(
-                                          builder: (_) => CarouselListPage(
-                                            locations: viewModel.locations,
-                                            title: switch (viewModel.homeMode) {
-                                              HomeMode.you => 'Your Saves',
-                                              HomeMode.explore => 'Top Picks',
-                                              HomeMode.bubble => 'Bubble Picks',
-                                            },
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (viewModel.locations.isNotEmpty &&
+                                          viewModel.shortlistIsNotEmpty) ...[
+                                        ShortlistPill(
+                                          count: viewModel.shortlistCount,
+                                          onTap: () =>
+                                              ShortlistCarouselSheet.show(
+                                            context,
+                                            currentMode: viewModel.homeMode,
+                                            onReturnToMode:
+                                                viewModel.setHomeMode,
                                           ),
                                         ),
-                                      ),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 14,
-                                          vertical: 8,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: pinit.PinitColors.cream,
-                                          borderRadius:
-                                              BorderRadius.circular(999),
-                                          border: Border.all(
-                                            color: pinit.PinitColors.aubergine,
-                                            width: 1.5,
-                                          ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color:
-                                                  pinit.PinitColors.aubergine,
-                                              blurRadius: 0,
-                                              offset: const Offset(3, 3),
-                                            ),
-                                          ],
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(
-                                              FeatherIcons.list,
-                                              size: 13,
-                                              color:
-                                                  pinit.PinitColors.aubergine,
-                                            ),
-                                            const SizedBox(width: 6),
-                                            Text(
-                                              'See All',
-                                              style: GoogleFonts.dmSans(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w700,
-                                                color:
-                                                    pinit.PinitColors.aubergine,
-                                                letterSpacing: 0.4,
+                                        const SizedBox(width: 10),
+                                      ],
+                                      if (viewModel.locations.isNotEmpty)
+                                        GestureDetector(
+                                          onTap: () =>
+                                              Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (_) => CarouselListPage(
+                                                locations: viewModel.locations,
+                                                title: switch (
+                                                    viewModel.homeMode) {
+                                                  HomeMode.you => 'Your Saves',
+                                                  HomeMode.explore =>
+                                                    'Top Picks',
+                                                  HomeMode.bubble =>
+                                                    'Bubble Picks',
+                                                },
+                                                listType: switch (
+                                                    viewModel.homeMode) {
+                                                  HomeMode.you =>
+                                                    LocationListType.saved,
+                                                  HomeMode.explore =>
+                                                    LocationListType
+                                                        .recommended,
+                                                  HomeMode.bubble =>
+                                                    LocationListType.bubble,
+                                                },
                                               ),
                                             ),
-                                          ],
+                                          ),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 14,
+                                              vertical: 8,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: pinit.PinitColors.cream,
+                                              borderRadius:
+                                                  BorderRadius.circular(999),
+                                              border: Border.all(
+                                                color:
+                                                    pinit.PinitColors.aubergine,
+                                                width: 1.5,
+                                              ),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: pinit
+                                                      .PinitColors.aubergine,
+                                                  blurRadius: 0,
+                                                  offset: const Offset(3, 3),
+                                                ),
+                                              ],
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(
+                                                  FeatherIcons.list,
+                                                  size: 13,
+                                                  color: pinit
+                                                      .PinitColors.aubergine,
+                                                ),
+                                                const SizedBox(width: 6),
+                                                Text(
+                                                  '   See All    ',
+                                                  style: GoogleFonts.dmSans(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: pinit
+                                                        .PinitColors.aubergine,
+                                                    letterSpacing: 0.4,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
                                         ),
-                                      ),
-                                    ),
+                                    ],
+                                  ),
                                 ],
                               ),
                             ],
@@ -635,13 +712,6 @@ class _HomePageState extends State<HomePage> {
                   ),
 
                 // ─── Overlays (unchanged) ──────────────────────
-                if (viewModel.showGavelOverlay)
-                  GavelOverlay(
-                    selectedMinutes: viewModel.justDecideMinutes,
-                    onMinutesChanged: viewModel.setJustDecideMinutes,
-                    onClose: () => viewModel.toggleJustDecideOverlay(false),
-                    onSubmit: viewModel.submitJustDecide,
-                  ),
                 // ─── Bubble mode overlay ───────────────────────
                 if (viewModel.isBubbleModeActive &&
                     viewModel.activeBubble != null)
@@ -782,6 +852,67 @@ class _HomePageState extends State<HomePage> {
 //  display title in Rova, then search shell + chip row. Matches the
 //  bubbles / profile / carousel aesthetic.
 // ─────────────────────────────────────────────────────────────────
+class _HomeActionPill extends StatelessWidget {
+  const _HomeActionPill({
+    required this.label,
+    required this.icon,
+    required this.backgroundColor,
+    required this.foregroundColor,
+    required this.borderColor,
+    required this.shadowColor,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color backgroundColor;
+  final Color foregroundColor;
+  final Color borderColor;
+  final Color shadowColor;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: borderColor,
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: shadowColor,
+              blurRadius: 0,
+              offset: const Offset(3, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: foregroundColor),
+            const SizedBox(width: 7),
+            Text(
+              label,
+              style: GoogleFonts.dmSans(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: foregroundColor,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _TopPanel extends StatelessWidget {
   final double topPadding;
   final HomeViewModel viewModel;
@@ -822,9 +953,11 @@ class _TopPanel extends StatelessWidget {
         onFailed: () {
           Navigator.of(ctx).pop();
           if (!context.mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('We could not load that place just yet.'),
+          unawaited(
+            AppFeedback.showError(
+              context,
+              title: 'Not ready yet',
+              message: 'We could not load that place just yet.',
             ),
           );
         },
@@ -970,29 +1103,14 @@ class _TopPanel extends StatelessWidget {
                       collection,
                     );
                     if (!context.mounted || shown) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'No places found in ${collection.name}',
-                        ),
-                        backgroundColor: pinit.PinitColors.aubergine,
+                    unawaited(
+                      AppFeedback.showError(
+                        context,
+                        title: 'Nothing in there',
+                        message: 'No places found in ${collection.name}.',
                       ),
                     );
                   }());
-                },
-                onDecideTap: () {
-                  DecideBottomSheet.show(
-                    context,
-                    onQuickPicks: () {
-                      QuickPicksDistancePage.show(
-                        context,
-                        viewModel: viewModel,
-                      );
-                    },
-                    onSweetTreat: () {
-                      unawaited(viewModel.submitDefaultSweetTreatSearch());
-                    },
-                  );
                 },
               ),
             ),
@@ -1473,8 +1591,7 @@ class _LocationDetailsLoadingScreen extends StatefulWidget {
 }
 
 class _LocationDetailsLoadingScreenState
-    extends State<_LocationDetailsLoadingScreen>
-    with TickerProviderStateMixin {
+    extends State<_LocationDetailsLoadingScreen> with TickerProviderStateMixin {
   static const List<String> _quips = [
     'Peeking through the window…',
     'Sniffing the kitchen…',

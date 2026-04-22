@@ -12,6 +12,7 @@ import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/services/fcm_service.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
+import 'package:login/widgets/feedback/app_feedback.dart';
 import 'package:provider/provider.dart';
 
 List<BaseNotification> _visibleNotifications(List<BaseNotification> all) =>
@@ -56,15 +57,10 @@ class _NotificationsPopoverState extends State<NotificationsPopover> {
       _notifications = _visibleNotifications(FCMService().notifications);
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: PinitColors.aubergine,
-        content: Text(
-          'Notifications refreshed',
-          style: GoogleFonts.dmSans(color: PinitColors.cream),
-        ),
-        duration: const Duration(seconds: 1),
-      ),
+    AppFeedback.showSuccess(
+      context,
+      message: 'Notifications refreshed',
+      duration: const Duration(seconds: 1),
     );
   }
 
@@ -76,15 +72,10 @@ class _NotificationsPopoverState extends State<NotificationsPopover> {
       _notifications = _visibleNotifications(FCMService().notifications);
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: PinitColors.aubergine,
-        content: Text(
-          'All notifications marked as read',
-          style: GoogleFonts.dmSans(color: PinitColors.cream),
-        ),
-        duration: const Duration(seconds: 1),
-      ),
+    AppFeedback.showSuccess(
+      context,
+      message: 'All notifications marked as read',
+      duration: const Duration(seconds: 1),
     );
   }
 
@@ -105,8 +96,10 @@ class _NotificationsPopoverState extends State<NotificationsPopover> {
         final user = await auth.getUserProfileById(targetUserId);
         if (!mounted) return;
         if (user == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Could not load user profile')),
+          await AppFeedback.showError(
+            context,
+            title: 'Couldn’t open profile',
+            message: 'Could not load user profile.',
           );
           return;
         }
@@ -140,8 +133,12 @@ class _NotificationsPopoverState extends State<NotificationsPopover> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not open notification: $e')),
+      unawaited(
+        AppFeedback.showError(
+          context,
+          title: 'Couldn’t open notification',
+          message: 'Please try again in a moment.',
+        ),
       );
     }
   }
@@ -174,8 +171,12 @@ class _NotificationsPopoverState extends State<NotificationsPopover> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not accept request: $e')),
+      unawaited(
+        AppFeedback.showError(
+          context,
+          title: 'Couldn’t accept request',
+          message: 'Please try again in a moment.',
+        ),
       );
     }
   }
@@ -206,8 +207,12 @@ class _NotificationsPopoverState extends State<NotificationsPopover> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not open location: $e')),
+      unawaited(
+        AppFeedback.showError(
+          context,
+          title: 'Couldn’t open location',
+          message: 'Please try again in a moment.',
+        ),
       );
     }
   }
@@ -513,6 +518,11 @@ class _NotificationCard extends StatelessWidget {
         return const _NotificationMeta(
           label: 'VIDEO READY',
           accentColor: PinitColors.primary,
+        );
+      case NotificationType.processingError:
+        return const _NotificationMeta(
+          label: 'PROCESSING ERROR',
+          accentColor: Color(0xFFE85D4C),
         );
       case NotificationType.followRequest:
         return const _NotificationMeta(

@@ -10,6 +10,7 @@ import 'package:login/utils/geo_types.dart';
 import 'package:login/models/markers.dart';
 import 'package:login/models/proximal_models.dart';
 import 'package:login/services/recommendations_api.dart';
+import 'package:login/widgets/feedback/app_feedback.dart';
 
 class MapScreenSearchArea extends StatefulWidget {
   final String currentUserId;
@@ -184,11 +185,10 @@ class _MapScreenSearchAreaState extends State<MapScreenSearchArea> {
       _syncAnnotations();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Search failed: $e'),
-          backgroundColor: Colors.red,
-        ),
+      await AppFeedback.showError(
+        context,
+        title: 'Search failed',
+        message: 'Please try again in a moment.',
       );
     } finally {
       if (mounted) {

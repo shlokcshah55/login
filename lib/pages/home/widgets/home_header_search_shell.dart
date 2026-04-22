@@ -13,6 +13,7 @@ import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/nav_bar/visibility_provider.dart';
 import 'package:login/themes/app_typography.dart';
+import 'package:login/widgets/feedback/app_feedback.dart';
 import 'package:provider/provider.dart';
 
 class HomeHeaderSearchShell extends StatelessWidget {
@@ -461,7 +462,6 @@ class _SearchOverlayState extends State<_SearchOverlay>
       },
     );
   }
-
 }
 
 class _SearchBackdrop extends StatelessWidget {
@@ -886,9 +886,11 @@ class _PlaceResultsListState extends State<_PlaceResultsList> {
   }
 
   void _showActionError(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('We could not prepare that place just yet.'),
+    unawaited(
+      AppFeedback.showError(
+        context,
+        title: 'Not ready yet',
+        message: 'We could not prepare that place just yet.',
       ),
     );
   }
@@ -1470,7 +1472,7 @@ class _SearchResultActionRail extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           _SearchActionButton(
-            tooltip: 'Add to collection',
+            tooltip: 'Add to eat-list',
             icon: Icons.add_box_outlined,
             isBusy: pendingAction == _InlineSearchAction.add,
             onTap: onAddTap,

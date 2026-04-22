@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../pages/profile/widgets/pinit_colors.dart';
+import '../feedback/app_feedback.dart';
 
 class LegalConsentSection extends StatelessWidget {
   const LegalConsentSection({
@@ -34,10 +35,10 @@ class LegalConsentSection extends StatelessWidget {
   Future<void> _openLink(BuildContext context, Uri uri) async {
     final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!launched && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Unable to open link right now.'),
-        ),
+      await AppFeedback.showError(
+        context,
+        title: 'Couldn’t open link',
+        message: 'Unable to open link right now.',
       );
     }
   }

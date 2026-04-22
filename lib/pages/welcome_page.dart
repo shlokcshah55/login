@@ -7,6 +7,7 @@ import 'signup_wizard/signup_wizard_page.dart';
 import '../supabase/service.dart';
 import '../services/apple_auth_service.dart';
 import 'auth_handler.dart';
+import '../widgets/feedback/app_feedback.dart';
 
 class WelcomePage extends StatefulWidget {
   const WelcomePage({super.key});
@@ -31,22 +32,20 @@ class _WelcomePageState extends State<WelcomePage> {
       } else {
         // Show error to user
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to start Google sign in'),
-              backgroundColor: Colors.red,
-            ),
+          await AppFeedback.showError(
+            context,
+            title: 'Google sign-in',
+            message: 'Failed to start Google sign in.',
           );
         }
       }
     } catch (e) {
       print("Google sign in error: $e");
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Google sign in failed: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
+        await AppFeedback.showError(
+          context,
+          title: 'Google sign-in failed',
+          message: 'Please try again in a moment.',
         );
       }
     }
@@ -91,30 +90,32 @@ class _WelcomePageState extends State<WelcomePage> {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.message),
-          action: SnackBarAction(
-            label: 'Retry',
-            onPressed: () => _signInWithApple(context),
-          ),
-        ),
+      await AppFeedback.showError(
+        context,
+        title: 'Apple sign-in',
+        message: error.message,
+        actionLabel: 'Retry',
+        onAction: () => _signInWithApple(context),
       );
     } on AuthException catch (error) {
       if (!mounted) {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message)),
+      await AppFeedback.showError(
+        context,
+        title: 'Apple sign-in',
+        message: error.message,
       );
     } catch (error) {
       if (!mounted) {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Apple sign in failed: $error')),
+      await AppFeedback.showError(
+        context,
+        title: 'Apple sign-in failed',
+        message: 'Please try again in a moment.',
       );
     } finally {
       if (mounted) {

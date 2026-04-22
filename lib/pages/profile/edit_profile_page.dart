@@ -107,7 +107,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       if (_pendingPhoto != null) {
         uploadedUrl = await supabase.users.uploadImage(
           _pendingPhoto!,
-          '${user.supabaseId}.jpg',
+          '${user.supabaseId}/${user.supabaseId}.jpg',
           user.supabaseId!,
         );
       }
@@ -241,16 +241,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
       if (!mounted) return;
 
-      messenger.showSnackBar(
-        SnackBar(
-          content: const Text('Account deleted'),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
-
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const AuthHandler()),
         (route) => false,
@@ -263,25 +253,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
         if (!mounted) return;
 
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(
-              'Signed out, but account deletion failed. ${e.toString()}',
-            ),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        );
-
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const AuthHandler()),
           (route) => false,
         );
       } else {
         setState(() {
-          _error = 'Could not delete account. ${e.toString()}';
+          _error = 'Could not delete account. We’re working hard to fix this — sorry.';
         });
       }
     } finally {

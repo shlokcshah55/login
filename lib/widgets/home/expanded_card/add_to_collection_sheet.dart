@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/supabase/helpers/collections.dart';
 import 'package:login/supabase/supabase_client.dart';
+import 'package:login/widgets/feedback/app_feedback.dart';
 
 /// Bottom sheet that lists the user's collections and lets them add the
 /// current location to one. Mirrors the styling of the rest of the
@@ -59,7 +60,8 @@ class _AddToCollectionSheetState extends State<AddToCollectionSheet> {
         'get_location_collection_ids',
         params: {'p_location_id': widget.locationId},
       ) as List;
-      final addedIds = addedRaw.map((row) => row['collection_id'] as String).toSet();
+      final addedIds =
+          addedRaw.map((row) => row['collection_id'] as String).toSet();
       if (mounted) setState(() => _alreadyAdded = addedIds);
     } catch (_) {
       // RPC not yet deployed — collections still show, just without greying out
@@ -79,25 +81,16 @@ class _AddToCollectionSheetState extends State<AddToCollectionSheet> {
       );
       final success = (result as Map)['success'] == true;
       if (mounted) {
+        // No success snackbar; just close the sheet.
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              success
-                  ? 'Added to collection'
-                  : (result['message'] ?? 'Already in collection'),
-            ),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
-          ),
-        );
       }
     } catch (_) {
       if (mounted) {
         setState(() => _addingId = null);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to add to collection')),
+        await AppFeedback.showError(
+          context,
+          title: 'Couldn’t add',
+          message: 'Failed to add to eat-list.',
         );
       }
     }
@@ -147,7 +140,7 @@ class _AddToCollectionSheetState extends State<AddToCollectionSheet> {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Add to Collection',
+                  'Add to Eat-List',
                   style: TextStyle(
                     fontFamily: 'Rova',
                     fontSize: 28,
@@ -193,8 +186,7 @@ class _AddToCollectionSheetState extends State<AddToCollectionSheet> {
                 decoration: BoxDecoration(
                   color: PinitColors.creamSunk,
                   borderRadius: BorderRadius.circular(20),
-                  border:
-                      Border.all(color: PinitColors.creamDeep, width: 1.5),
+                  border: Border.all(color: PinitColors.creamDeep, width: 1.5),
                 ),
                 child: Column(
                   children: [
@@ -202,7 +194,7 @@ class _AddToCollectionSheetState extends State<AddToCollectionSheet> {
                         size: 36, color: PinitColors.aubergineSoft),
                     const SizedBox(height: 14),
                     const Text(
-                      'No collections yet',
+                      'No eat-lists yet',
                       style: TextStyle(
                         fontFamily: 'Rova',
                         fontSize: 22,
@@ -213,7 +205,7 @@ class _AddToCollectionSheetState extends State<AddToCollectionSheet> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Create a collection from your profile',
+                      'Create an eat-list from your profile',
                       style: GoogleFonts.dmSans(
                         fontSize: 13,
                         color: PinitColors.mute,
@@ -245,7 +237,9 @@ class _AddToCollectionSheetState extends State<AddToCollectionSheet> {
                   return Opacity(
                     opacity: alreadyIn ? 0.45 : 1.0,
                     child: GestureDetector(
-                      onTap: disabled ? null : () => _addToCollection(c.collectionId),
+                      onTap: disabled
+                          ? null
+                          : () => _addToCollection(c.collectionId),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         child: Row(

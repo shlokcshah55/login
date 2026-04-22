@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
+import 'package:login/providers/location_list_provider.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+
+enum _SavedSort { none, lastAdded, alphabetical, highestRated }
 
 // ─────────────────────────────────────────────────────────────
 //  Vibe tag display config – mirrors location_carousel.dart
@@ -43,18 +46,99 @@ const Map<String, _VibeTagStyle> _vibeStyles = {
   'bossman': _VibeTagStyle('Bossman', FeatherIcons.shield),
 };
 
-class CarouselListPage extends StatelessWidget {
+class CarouselListPage extends StatefulWidget {
   final List<LocationModel> locations;
   final String title;
+  final LocationListType? listType;
 
   const CarouselListPage({
     Key? key,
     required this.locations,
     required this.title,
+    this.listType,
   }) : super(key: key);
 
   @override
+  State<CarouselListPage> createState() => _CarouselListPageState();
+}
+
+class _CarouselListPageState extends State<CarouselListPage> {
+  final TextEditingController _searchController = TextEditingController();
+  String _query = '';
+  _SavedSort _savedSort = _SavedSort.none;
+
+  bool get _isSavedSeeAll => widget.listType == LocationListType.saved;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<LocationModel> get _visibleLocations {
+    final query = _query.trim().toLowerCase();
+    final filtered = query.isEmpty
+        ? List<LocationModel>.from(widget.locations)
+        : widget.locations
+            .where((loc) => loc.name.toLowerCase().contains(query))
+            .toList();
+
+    if (!_isSavedSeeAll) return filtered;
+
+    switch (_savedSort) {
+      case _SavedSort.none:
+        return filtered;
+      case _SavedSort.lastAdded:
+        return filtered;
+      case _SavedSort.alphabetical:
+        filtered.sort(
+          (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+        );
+        return filtered;
+      case _SavedSort.highestRated:
+        filtered.sort((a, b) {
+          final aRating = a.rating;
+          final bRating = b.rating;
+          if (aRating == null && bRating == null) return 0;
+          if (aRating == null) return 1;
+          if (bRating == null) return -1;
+          final ratingCompare = bRating.compareTo(aRating);
+          if (ratingCompare != 0) return ratingCompare;
+          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        });
+        return filtered;
+    }
+  }
+
+  String _labelForSavedSort(_SavedSort sort) {
+    switch (sort) {
+      case _SavedSort.none:
+        return 'None';
+      case _SavedSort.lastAdded:
+        return 'Last added';
+      case _SavedSort.alphabetical:
+        return 'Alphabetical';
+      case _SavedSort.highestRated:
+        return 'Highest rated';
+    }
+  }
+
+  _SavedSort _nextSavedSort(_SavedSort current) {
+    switch (current) {
+      case _SavedSort.none:
+        return _SavedSort.lastAdded;
+      case _SavedSort.lastAdded:
+        return _SavedSort.alphabetical;
+      case _SavedSort.alphabetical:
+        return _SavedSort.highestRated;
+      case _SavedSort.highestRated:
+        return _SavedSort.none;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final visible = _visibleLocations;
     return Scaffold(
       backgroundColor: PinitColors.cream,
       appBar: AppBar(
@@ -72,7 +156,7 @@ class CarouselListPage extends StatelessWidget {
           ),
         ),
         title: Text(
-          title,
+          widget.title,
           style: const TextStyle(
             fontFamily: 'Rova',
             fontSize: 24,
@@ -84,10 +168,142 @@ class CarouselListPage extends StatelessWidget {
         centerTitle: false,
         automaticallyImplyLeading: false,
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-        itemCount: locations.length,
-        itemBuilder: (context, index) => _ListCard(location: locations[index]),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (value) => setState(() => _query = value),
+                    textInputAction: TextInputAction.search,
+                    cursorColor: PinitColors.aubergine,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: PinitColors.aubergine,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Search by name',
+                      hintStyle: GoogleFonts.dmSans(
+                        fontSize: 14,
+                        color: PinitColors.mute,
+                      ),
+                      prefixIcon: const Icon(
+                        Icons.search_rounded,
+                        color: PinitColors.aubergineSoft,
+                      ),
+                      suffixIcon: _query.trim().isEmpty
+                          ? null
+                          : IconButton(
+                              icon: const Icon(
+                                Icons.close_rounded,
+                                color: PinitColors.aubergineSoft,
+                              ),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _query = '');
+                              },
+                            ),
+                      filled: true,
+                      fillColor: PinitColors.creamSunk,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 16,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(18),
+                        borderSide: const BorderSide(
+                          color: PinitColors.creamDeep,
+                          width: 1.5,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(18),
+                        borderSide: const BorderSide(
+                          color: PinitColors.aubergine,
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                if (_isSavedSeeAll) ...[
+                  const SizedBox(width: 10),
+                  GestureDetector(
+                    onTap: () {
+                      setState(() => _savedSort = _nextSavedSort(_savedSort));
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 11,
+                      ),
+                      decoration: BoxDecoration(
+                        color: PinitColors.cream,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: PinitColors.aubergine,
+                          width: 1.5,
+                        ),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: PinitColors.aubergine,
+                            blurRadius: 0,
+                            offset: Offset(3, 3),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.swap_vert_rounded,
+                            size: 14,
+                            color: PinitColors.aubergine,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _labelForSavedSort(_savedSort),
+                            style: GoogleFonts.dmSans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: PinitColors.aubergine,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          Expanded(
+            child: visible.isEmpty
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 40, 24, 40),
+                      child: Text(
+                        'No matches.',
+                        style: GoogleFonts.dmSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: PinitColors.mute,
+                        ),
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+                    itemCount: visible.length,
+                    itemBuilder: (context, index) =>
+                        _ListCard(location: visible[index]),
+                  ),
+          ),
+        ],
       ),
     );
   }

@@ -37,24 +37,30 @@ class BubbleHelper {
       for (var item in response as List) {
         final bubble = item[SupabaseConstants.tableBubbles];
         final bubbleId = bubble[SupabaseConstants.columnBubbleId];
+        final bubbleCreatedAt =
+            DateTime.parse(bubble[SupabaseConstants.columnCreatedAt]);
 
-        // Fetch members, locations, and compatibility score in parallel
+        // Fetch bubble metadata in parallel so list ordering can follow
+        // actual conversation activity instead of creation order.
         final results = await Future.wait([
           _getBubbleMembers(bubbleId),
           _getBubbleLocations(bubbleId),
           _getCompatibilityScore(bubbleId),
+          _getLatestMessagePreview(bubbleId),
         ]);
 
         final members = results[0] as List<Map<String, dynamic>>;
         final locations = results[1] as List<LocationModel>;
         final score = results[2] as int?;
+        final latestMessage = results[3] as _BubbleMessagePreview?;
+        final lastActivityAt = latestMessage?.createdAt ?? bubbleCreatedAt;
 
         bubbles.add(Bubble(
           id: bubbleId,
           name: bubble[SupabaseConstants.columnName] ?? 'Unnamed Bubble',
-          lastMessage: 'Tap to view locations',
-          lastMessageTime: _getTimeAgo(
-              DateTime.parse(bubble[SupabaseConstants.columnCreatedAt])),
+          lastMessage: latestMessage?.content ?? 'Tap to view locations',
+          lastMessageTime: _getTimeAgo(lastActivityAt),
+          lastActivityAt: lastActivityAt,
           memberCount: members.length,
           memberAvatars: members
               .map((m) =>
@@ -67,7 +73,7 @@ class BubbleHelper {
           unreadCount: 0,
           groupLocations: locations,
           description:
-              'Created ${_getTimeAgo(DateTime.parse(bubble[SupabaseConstants.columnCreatedAt]))}',
+              'Created ${_getTimeAgo(bubbleCreatedAt)}',
           memberIds: members
               .map((m) =>
                   m[SupabaseConstants.columnUserId] ??
@@ -84,6 +90,7 @@ class BubbleHelper {
         ));
       }
 
+      bubbles.sort(_compareByLastActivity);
       return bubbles;
     } catch (e) {
       if (kDebugMode) {
@@ -104,6 +111,45 @@ class BubbleHelper {
     } catch (e) {
       if (kDebugMode) {
         print('Error fetching compatibility score for bubble $bubbleId: $e');
+      }
+      return null;
+    }
+  }
+
+  Future<_BubbleMessagePreview?> _getLatestMessagePreview(String bubbleId) async {
+    try {
+      final response = await _client
+          .from(SupabaseConstants.tableMessages)
+          .select('content, location_id, created_at')
+          .eq(SupabaseConstants.columnBubbleId, bubbleId)
+          .eq(SupabaseConstants.columnIsDeleted, false)
+          .order(SupabaseConstants.columnCreatedAt, ascending: false)
+          .limit(1)
+          .maybeSingle();
+
+      if (response == null) {
+        return null;
+      }
+
+      final createdAtRaw = response[SupabaseConstants.columnCreatedAt];
+      if (createdAtRaw == null) {
+        return null;
+      }
+
+      final content = (response[SupabaseConstants.columnContent] as String?)
+              ?.trim() ??
+          '';
+      final hasLocation = response['location_id'] != null;
+
+      return _BubbleMessagePreview(
+        content: content.isNotEmpty
+            ? content
+            : (hasLocation ? 'Shared a place' : 'Tap to view locations'),
+        createdAt: DateTime.parse(createdAtRaw as String),
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error fetching latest message preview for $bubbleId: $e');
       }
       return null;
     }
@@ -205,23 +251,28 @@ class BubbleHelper {
           .select()
           .eq(SupabaseConstants.columnBubbleId, bubbleId)
           .single();
+      final bubbleCreatedAt =
+          DateTime.parse(bubbleResponse[SupabaseConstants.columnCreatedAt]);
 
       final results = await Future.wait([
         _getBubbleMembers(bubbleId),
         _getBubbleLocations(bubbleId),
         _getCompatibilityScore(bubbleId),
+        _getLatestMessagePreview(bubbleId),
       ]);
 
       final members = results[0] as List<Map<String, dynamic>>;
       final locations = results[1] as List<LocationModel>;
       final score = results[2] as int?;
+      final latestMessage = results[3] as _BubbleMessagePreview?;
+      final lastActivityAt = latestMessage?.createdAt ?? bubbleCreatedAt;
 
       return Bubble(
         id: bubbleId,
         name: bubbleResponse[SupabaseConstants.columnName] ?? 'Unnamed Bubble',
-        lastMessage: 'Tap to view locations',
-        lastMessageTime: _getTimeAgo(
-            DateTime.parse(bubbleResponse[SupabaseConstants.columnCreatedAt])),
+        lastMessage: latestMessage?.content ?? 'Tap to view locations',
+        lastMessageTime: _getTimeAgo(lastActivityAt),
+        lastActivityAt: lastActivityAt,
         memberCount: members.length,
         memberAvatars: members
             .map((m) =>
@@ -234,7 +285,7 @@ class BubbleHelper {
         unreadCount: 0,
         groupLocations: locations,
         description:
-            'Created ${_getTimeAgo(DateTime.parse(bubbleResponse[SupabaseConstants.columnCreatedAt]))}',
+            'Created ${_getTimeAgo(bubbleCreatedAt)}',
         memberIds: members
             .map((m) =>
                 m[SupabaseConstants.columnUserId] ??
@@ -450,4 +501,20 @@ class BubbleHelper {
       return 'now';
     }
   }
+
+  int _compareByLastActivity(Bubble a, Bubble b) {
+    final aTime = a.lastActivityAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+    final bTime = b.lastActivityAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+    return bTime.compareTo(aTime);
+  }
+}
+
+class _BubbleMessagePreview {
+  final String content;
+  final DateTime createdAt;
+
+  const _BubbleMessagePreview({
+    required this.content,
+    required this.createdAt,
+  });
 }

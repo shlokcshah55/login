@@ -8,6 +8,7 @@ import '../../../services/location_service.dart';
 import '../../../services/recommendations_api.dart';
 import '../../../supabase/service.dart';
 import '../../../utils/geo_types.dart';
+import '../../../widgets/feedback/app_feedback.dart';
 import '../../../widgets/spinnable_tile.dart';
 import '../../profile/widgets/pinit_colors.dart';
 
@@ -87,11 +88,10 @@ class _VibeStepState extends State<VibeStep> {
   
   Future<void> _handleNext() async {
     if (!_hasTwoSelected) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select exactly 2 items before continuing.'),
-          duration: Duration(seconds: 2),
-        ),
+      await AppFeedback.showError(
+        context,
+        title: 'Pick two',
+        message: 'Please select exactly 2 items before continuing.',
       );
       return;
     }

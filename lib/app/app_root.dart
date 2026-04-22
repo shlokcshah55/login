@@ -10,6 +10,7 @@ import 'package:login/pages/signup_wizard/wizard_completion_page.dart';
 import 'package:login/pages/splash_screen.dart';
 import 'package:login/supabase/supabase_client.dart';
 import 'package:login/themes/pinit_theme.dart';
+import 'package:login/widgets/profile/notifications_popover.dart';
 
 class AppRoot extends StatelessWidget {
   final AppDependencies dependencies;
@@ -94,6 +95,7 @@ class _MyAppState extends State<MyApp> {
         '/profile': (context) => const ProfilePage(),
         '/alerts': (context) => const AlertsPage(),
         '/bubbles': (context) => const BubblesPage(),
+        '/notifications': (context) => const NotificationsPopover(),
         '/wizardCompletion': (context) => const WizardCompletionPage(),
       },
     );

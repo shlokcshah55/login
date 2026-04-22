@@ -5,6 +5,7 @@ Workflow: TikTok API → OpenAI LLM → Google Places API
 import json
 import logging
 import asyncio
+from pathlib import Path
 from typing import Dict, Optional, List
 import httpx
 from openai import OpenAI
@@ -12,6 +13,7 @@ from apify_client import ApifyClient
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+SCRIPT_DIR = Path(__file__).resolve().parent
 
 
 class TikTokProcessor:
@@ -22,43 +24,53 @@ class TikTokProcessor:
 
     async def process_url(self, tiktok_url: str) -> Dict:
         try:
-            # First check if its instagram or tiktok
-            if "instagram.com" in tiktok_url:
-                video_data = await self._get_instagram_data_appify(tiktok_url)
+            is_instagram = "instagram.com" in tiktok_url
 
+            # 1. Fetch video data (without comments first — faster)
+            if is_instagram:
+                video_data = await self._get_instagram_data_appify(tiktok_url)
             else:
                 video_data = await self._get_tiktok_data_appify(tiktok_url, fetch_comments=False)
-                logger.info("Extracted location information", video_data)
 
-            # Extracting location without comments — now returns full
-            # location dicts with rich insights (dishes, vibes, etc.)
-            logger.info("Sending to OpenAI")
-            location_dicts = self._extract_location_with_llm(video_data)
-            logger.info(f"OpenAI extracted locations: {location_dicts}")
+            # 2. Extract location only (Call 1)
+            logger.info("Extracting location...")
+            location_dicts = await asyncio.to_thread(self._extract_locations, video_data, False)
+            logger.info(f"Location extraction result: {location_dicts}")
 
-            # If location found, proceed immediately
-            if location_dicts:
-                logger.info(f"✅ Location found without comments! Count: {len(location_dicts)}")
-                location = self._search_and_return_locations(location_dicts, video_data)
-                logger.info("Completed Google Places search")
-                return location
-
-           # No location found, retry with comments
-            if "instagram.com" in tiktok_url:
-                video_data_with_comments = await self._get_instagram_data_appify(tiktok_url, fetch_comments=True)
-            else:
-                video_data_with_comments = await self._get_tiktok_data_appify(tiktok_url, fetch_comments=True)
-            location_dicts = self._extract_location_with_llm(video_data_with_comments)
-            logger.info(f"OpenAI extracted locations with comments: {location_dicts}")
-
+            # 3. If no location found, retry with comments
             if not location_dicts:
-                return {
-                    "success": False,
-                    "error": "Could not extract location from video even with comments"
-                }
+                logger.info("No location found, retrying with comments...")
+                if is_instagram:
+                    video_data = await self._get_instagram_data_appify(tiktok_url, fetch_comments=True)
+                else:
+                    video_data = await self._get_tiktok_data_appify(tiktok_url, fetch_comments=True)
 
-            logger.info(f"✅ Location found with comments! Count: {len(location_dicts)}")
-            return self._search_and_return_locations(location_dicts, video_data_with_comments)
+                location_dicts = await asyncio.to_thread(self._extract_locations, video_data, True)
+                logger.info(f"Location extraction with comments: {location_dicts}")
+
+                if not location_dicts:
+                    return {
+                        "success": False,
+                        "error": "Could not extract location from video even with comments"
+                    }
+
+            logger.info(f"✅ Location found! Count: {len(location_dicts)}")
+
+            # 4. Extract insights in parallel (Calls 2a + 2b)
+            logger.info("Extracting insights in parallel...")
+            factual, interpretive = await asyncio.gather(
+                asyncio.to_thread(self._extract_factual_insights, video_data),
+                asyncio.to_thread(self._extract_interpretive_signals, video_data),
+            )
+            insights = {**factual, **interpretive}
+            logger.info(f"Insights extracted: {insights}")
+
+            # Merge insights onto each location dict
+            for loc in location_dicts:
+                loc.update(insights)
+
+            logger.info("Completed Google Places search")
+            return self._search_and_return_locations(location_dicts, video_data)
 
         except Exception as e:
             logger.error(f"Error processing TikTok URL: {e}", exc_info=True)
@@ -189,14 +201,11 @@ class TikTokProcessor:
 
         return to_return
 
-    def _extract_location_with_llm(self, video_data: Dict) -> Optional[List[Dict]]:
+    def _extract_locations(self, video_data: Dict, with_comments: bool) -> Optional[List[Dict]]:
         """
-        Use OpenAI to extract location information AND rich insights from
-        comprehensive video data including description, hashtags, and comments.
-
-        Returns a list of location dicts, each containing:
-          - location_name, search_query, confidence, source, reasoning
-          - key_dishes, special_offers, creator_notes, vibe_signals, sentiment
+        Call 1: Extract venue name(s) only — no insight fields.
+        Returns a list of dicts with location_name, search_query, confidence,
+        source, reasoning.
         """
         try:
             video_desc = video_data.get("description", "")
@@ -204,97 +213,40 @@ class TikTokProcessor:
             comments = video_data.get("comments", [])
             location_created = video_data.get("locationCreated")
 
-            # The 22 vibe tags the app uses (must match VIBE_TAGS_ORDERED)
-            vibe_tags_list = (
-                "cafe, casual, cozy, coffee_shop, bar, elegant, fine_dining, "
-                "food_truck, hole_in_the_wall, late_night, live_music, modern, "
-                "fast_food, romantic, sports_bar, takeout_friendly, pub, "
-                "grocery_store, brunch, outdoor_dining, wavy, bossman"
-            )
+            extra_bit  = "When using the comments field, be extra cautious and only return locations if there are multiple corroborating comments mentioning the same place. Comments are often speculative or questions, so require strong signals to trust them." 
 
-            # Build comprehensive prompt with all available data
+
             prompt = f"""
+# Role
+You are a location extraction tool. Your only job is to identify specific restaurant or venue names from TikTok/Reel video metadata so they can be looked up in the Google Places API.
 
-# Role and Objective
-You are a specialized location extraction AND insight analysis tool. Your job is to analyze TikTok/Reel video metadata and:
-1. Extract specific restaurant/venue names that can be queried in the Google Places API
-2. Extract key dishes, special offers, vibes, and the creator's take on the place
-
-There may be more than one restaurant within the tiktok so be prepared to return more than one result.
-Be liberal with trying to extract the locations, it is not the worst thing if they are incorrect.
+There may be more than one venue in the video — return all of them.
+Be liberal: it is not the worst thing if a result is slightly incorrect.
 
 # Available Data
 - Video Description: "{video_desc}"
 - Hashtags: {', '.join(hashtags) if hashtags else 'None'}
 - Top Comments: {json.dumps(comments) if comments else 'None'}
-- Video Created Location Metadata: "{location_created if location_created else 'None'}"
+- Location Metadata: "{location_created if location_created else 'None'}"
 
+# Source Priority
+1. Location metadata — use if it names a specific venue (not just a city)
+2. Video description — most common; look for restaurant/venue names, addresses, neighborhoods
+   - High confidence: name + neighborhood (e.g. "Carbone in Greenwich Village")
+   - Medium confidence: name only (e.g. "went to Carbone today")
+3. Hashtags — venue-specific only (e.g. #nobudowntown); generic tags like #foodie are not enough
+4. Comments — last resort only; require multiple corroborating comments naming the same place
 
-# Extraction Priority (for location identification)
-You should check the metadata in the following order:
+{extra_bit if with_comments else ""}
 
-1. Location metadata (confidence: "high"): 
-- If the location is provided you should use this as the primary source
-- Validate this is a specific venue and not a generic city
+# Search Query Format
+[Venue Name] [Neighborhood/District] [City]
+- Include neighborhood/district when mentioned
+- Avoid generic category words like "restaurant" or "cafe"
 
-2. Video Description (confidence: "high" or "medium"): 
-- Most common source of location information
-- Look for: restaurant names, addresses, cross-streets, neighborhoods
-- High confidence: Name + neighborhood/area (e.g., "Carbone in Greenwich Village")
-- Medium confidence: Name only (e.g., "Went to Carbone today")
+# Output — JSON only
 
-3. Hashtags (confidence: "medium")
-- Look for venue-specific hashtags (e.g., #nobudowntown, #joespizzanyc)
-- Generic hashtags alone are insufficient (#foodie, #restaurant)
-
-4. Top Comments (confidence: "low" - use as LAST RESORT)
-- Only if NO location found in metadata, description, or hashtags
-- Require MULTIPLE corroborating comments with the same location
-- Ignore: single-word answers, jokes, vague responses, conflicting information
-- Prioritize: comments from video creator, detailed responses with context
-
-# Rich Insight Extraction (for each location found)
-For EACH location you identify, also extract:
-
-## key_dishes
-Specific menu items or dishes the creator mentions or shows. Include:
-- The dish name
-- Any description the creator gives (e.g., "best I've ever had", "hidden gem on the menu")
-- Price if mentioned
-Return as a list of objects. If no dishes mentioned, return an empty list.
-
-## special_offers
-Any deals, discounts, promotions, or tips the creator shares. Examples:
-- "Mention this TikTok for 20% off"
-- "Happy hour 5-7pm half price cocktails"
-- "Use code FOODIE for free delivery"
-- "Ask for the secret menu item"
-Include any dates, codes, or conditions. Return as a list of objects with offer, valid_until (null if unknown), and code (null if none). If no offers, return an empty list.
-
-## creator_notes
-A concise 1-2 sentence summary of the creator's overall take on the place. Capture their genuine opinion and key highlights. This should feel like a friend telling you about the spot.
-
-## vibe_signals
-Based on the video content, score any relevant vibes from this fixed vocabulary:
-{vibe_tags_list}
-
-Only include vibes that the video content clearly suggests. Score each 0.0-1.0 where 1.0 means the video strongly conveys this vibe. Usually 2-5 vibes are relevant. Do NOT include vibes with no evidence.
-
-## sentiment
-The creator's overall sentiment: "positive", "negative", or "mixed".
-
-## Search Query Optimization for Google Places API
-Format Pattern:
-[Restaurant Name] [Neighborhood/District] [City]
-
-- Include neighborhood/district when mentioned (e.g., "SoHo", "Downtown", "Shibuya")
-- Include city and country
-- For chains: include neighborhood, cross-streets, or landmark
-- Avoid generic terms like "restaurant", "cafe" (Google infers this)
-
-Return Valid JSON:
-
-### Locations Found
+## Locations found
 {{
   "locations": [
     {{
@@ -302,24 +254,14 @@ Return Valid JSON:
       "search_query": "Carbone Greenwich Village NYC",
       "confidence": "high",
       "source": "description",
-      "reasoning": "Name explicitly mentioned with neighborhood",
-      "key_dishes": [
-        {{"name": "Spicy Rigatoni", "description": "Creator said 'best pasta in NYC'", "price": "$32"}},
-        {{"name": "Meatballs", "description": "Shown close-up, creator's top pick", "price": null}}
-      ],
-      "special_offers": [
-        {{"offer": "Mention this TikTok for free dessert", "valid_until": null, "code": null}}
-      ],
-      "creator_notes": "Late-night gem with incredible pasta. Creator went three times in one week and says it's their go-to date spot.",
-      "vibe_signals": {{"romantic": 0.7, "late_night": 0.9, "elegant": 0.6, "cozy": 0.5}},
-      "sentiment": "positive"
+      "reasoning": "Name explicitly mentioned with neighborhood"
     }}
   ]
 }}
 
-### No locations found
+## No locations found
 {{
-    "locations": []
+  "locations": []
 }}
 """
 
@@ -329,16 +271,153 @@ Return Valid JSON:
                 response_format={"type": "json_object"}
             )
             result = self._safe_parse_json(response.choices[0].message.content)
-
-            if "locations" in result and result["locations"]:
-                # Return the full location dicts (not just search queries)
-                return result["locations"]
-
-            return []
+            return result.get("locations") or []
 
         except Exception as e:
-            logger.error(f"Error extracting location with OpenAI: {e}")
+            logger.error(f"Error extracting locations: {e}")
             return None
+
+    def _extract_factual_insights(self, video_data: Dict) -> Dict:
+        """
+        Call 2a (parallel): Extract factual claims — key dishes and special offers.
+        Every item requires a verbatim evidence quote from the source text.
+        If no quote can be found, the array stays empty.
+        """
+        try:
+            video_desc = video_data.get("description", "")
+            hashtags = video_data.get("hashtags", [])
+            comments = video_data.get("comments", [])
+
+            prompt = f"""
+# Role
+You are a factual claim extractor. Your job is to find specific dishes and special offers that are EXPLICITLY mentioned in TikTok/Reel video metadata.
+
+# Source Data
+- Video Description: "{video_desc}"
+- Hashtags: {', '.join(hashtags) if hashtags else 'None'}
+- Comments: {json.dumps(comments) if comments else 'None'}
+
+For every item you extract, you MUST include an "evidence" field containing the exact verbatim text from the source data that supports it. If you cannot find a direct quote, do not include the item. Return an empty array rather than fabricating claims.
+
+# What to Extract
+
+## key_dishes
+Specific menu items or dishes that the creator mentions or describes with a positive sentiment. Include name, description (creator's words and the verbatim evidence quote).
+
+## special_offers
+Deals, discounts, promo codes, or tips the creator explicitly shares (e.g. "mention this TikTok for 20% off", "happy hour 5-7pm"). Include the offer text, valid_until (null if unknown), code (null if none), and verbatim evidence quote.
+
+Please note that comments are less reliable sources of information, so only include details from comments when they are making factual claims not questions or speculations.
+# Output — JSON only
+
+## Example: video with content worth extracting
+{{
+  "key_dishes": [
+    {{"evidence": "the spicy rigatoni here is literally the best pasta in NYC, get it every time", "name": "Spicy Rigatoni", "description": "Creator's favourite, says it's the best pasta in NYC", "price": null}},
+    {{"evidence": "meatballs are $18 and absolutely worth it", "name": "Meatballs", "description": "Worth it according to creator"}}
+  ],
+  "special_offers": [
+    {{"evidence": "mention this video at the door and get a free dessert", "offer": "Mention this video at the door for a free dessert", "valid_until": null, "code": null}}
+  ]
+}}
+
+## Example: video with nothing to extract
+{{
+  "key_dishes": [],
+  "special_offers": []
+}}
+"""
+
+            response = self.openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"}
+            )
+            result = self._safe_parse_json(response.choices[0].message.content)
+            return {
+                "key_dishes": result.get("key_dishes") or [],
+                "special_offers": result.get("special_offers") or [],
+            }
+
+        except Exception as e:
+            logger.error(f"Error extracting factual insights: {e}")
+            return {"key_dishes": [], "special_offers": []}
+
+    def _extract_interpretive_signals(self, video_data: Dict) -> Dict:
+        """
+        Call 2b (parallel): Extract interpretive signals — vibe scores, sentiment,
+        and a creator summary. These are impression-based, not factual claims,
+        so evidence quoting is not required — but only include vibes with clear
+        support from the content.
+        """
+        try:
+            video_desc = video_data.get("description", "")
+            hashtags = video_data.get("hashtags", [])
+            comments = video_data.get("comments", [])
+
+            # Load the fixed vibe vocabulary from the checked-in table file.
+            with open(SCRIPT_DIR / "vibe_table.txt", "r") as f:
+                vibe_tags_list = f.read().strip()
+
+    
+            prompt = f"""
+# Role
+You are an atmosphere and sentiment analyser. Given TikTok/Reel video metadata about a venue, extract:
+1. vibe_signals — scored impressions of the venue's atmosphere
+2. sentiment — the creator's overall tone
+3. creator_notes — a short summary of the creator's take
+
+# Source Data
+- Video Description: "{video_desc}"
+- Hashtags: {', '.join(hashtags) if hashtags else 'None'}
+- Comments: {json.dumps(comments) if comments else 'None'}
+
+# Instructions
+
+## vibe_signals
+Score relevant vibes from this fixed vocabulary ONLY:
+{vibe_tags_list}
+
+Score each 0.0–1.0. Only include vibes with clear evidence in the content — typically 2–5. Do NOT invent vibes.
+
+## sentiment
+The creator's overall tone: "positive", "negative", or "mixed".
+
+## creator_notes
+1–2 sentences capturing the creator's genuine opinion and key highlights. Write it like a friend's recommendation. If the content is too sparse to form an opinion, write a single brief sentence.
+
+# Output — JSON only
+
+## Example: expressive video
+{{
+  "vibe_signals": {{"romantic": 0.8, "elegant": 0.7, "late_night": 0.6}},
+  "sentiment": "positive",
+  "creator_notes": "A go-to date spot with impeccable pasta. The creator has been three times and can't stop raving about the atmosphere."
+}}
+
+## Example: sparse/minimal video
+{{
+  "vibe_signals": {{"casual": 0.6}},
+  "sentiment": "positive",
+  "creator_notes": "Creator recommends this spot for a casual meal."
+}}
+"""
+
+            response = self.openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"}
+            )
+            result = self._safe_parse_json(response.choices[0].message.content)
+            return {
+                "vibe_signals": result.get("vibe_signals") or {},
+                "sentiment": result.get("sentiment"),
+                "creator_notes": result.get("creator_notes"),
+            }
+
+        except Exception as e:
+            logger.error(f"Error extracting interpretive signals: {e}")
+            return {"vibe_signals": {}, "sentiment": None, "creator_notes": None}
 
     def _search_and_return_locations(self, location_dicts: List[Dict], video_data: Dict) -> Dict:
         """

@@ -6,6 +6,7 @@ import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:provider/provider.dart';
 
 import '../../supabase/service.dart';
+import '../feedback/app_feedback.dart';
 
 @visibleForTesting
 List<UserModel> filterAddableBubbleFriends({
@@ -127,22 +128,18 @@ class _AddMembersDialogState extends State<AddMembersDialog> {
       }
 
       widget.onMembersAdded();
-      Navigator.of(context).pop();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
+      AppFeedback.showSuccess(
+        context,
+        message:
             'Added ${_selectedUserIds.length} member(s) to ${widget.bubble.name}',
-          ),
-          backgroundColor: Colors.green,
-        ),
+        duration: const Duration(seconds: 2),
       );
+      Navigator.of(context).pop();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error adding members: $e'),
-          backgroundColor: Colors.red,
-        ),
+      await AppFeedback.showError(
+        context,
+        title: 'Couldn’t add members',
+        message: 'We’re working hard to fix this — sorry.',
       );
     } finally {
       if (!mounted) return;

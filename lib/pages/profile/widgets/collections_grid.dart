@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +14,7 @@ import 'package:login/providers/navigation_provider.dart';
 import 'package:login/supabase/helpers/collections.dart';
 import 'package:login/supabase/supabase_client.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
+import 'package:login/widgets/feedback/app_feedback.dart';
 import 'package:provider/provider.dart';
 
 import 'pinit_colors.dart';
@@ -202,18 +204,24 @@ class _CollectionsGridState extends State<CollectionsGrid>
     } on CollectionsGenerationException catch (e) {
       if (mounted) {
         _fillController.stop();
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e.message),
-          backgroundColor: Colors.orange,
-        ));
+        unawaited(
+          AppFeedback.showError(
+            context,
+            title: 'Couldn’t generate',
+            message: e.message,
+          ),
+        );
       }
     } catch (e) {
       debugPrint('[CollectionsGrid] generate error: $e');
       if (mounted) {
         _fillController.stop();
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Something went wrong. Please try again.'),
-        ));
+        unawaited(
+          AppFeedback.showError(
+            context,
+            message: 'Something went wrong. Please try again.',
+          ),
+        );
       }
     } finally {
       if (mounted) {
@@ -346,7 +354,7 @@ class _CollectionsGridState extends State<CollectionsGrid>
                 children: [
                   const Expanded(
                     child: Text(
-                      'Your Lists',
+                      'Your Eat-Lists',
                       style: TextStyle(
                         fontFamily: 'Rova',
                         fontSize: 24,
@@ -502,7 +510,7 @@ class _CollectionsGridState extends State<CollectionsGrid>
                     color: Colors.red, size: 28),
                 const SizedBox(height: 12),
                 const Text(
-                  'Failed to load collections',
+                  'Failed to load eat-lists',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
@@ -547,7 +555,7 @@ class _CollectionsGridState extends State<CollectionsGrid>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Explore Collections',
+                  'Explore Eat-Lists',
                   style: TextStyle(
                     fontFamily: 'Rova',
                     fontSize: 24,
@@ -639,7 +647,7 @@ class _CreateCollectionSheetState extends State<_CreateCollectionSheet> {
 
             // Title
             const Text(
-              'New Collection',
+              'New Eat-List',
               style: TextStyle(
                 fontFamily: 'Rova',
                 fontSize: 28,
@@ -766,7 +774,7 @@ class _CreateCollectionSheetState extends State<_CreateCollectionSheet> {
                             ),
                           )
                         : Text(
-                            'Create Collection',
+                            'Create Eat-List',
                             style: GoogleFonts.dmSans(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
@@ -998,7 +1006,7 @@ class _EmptyCollections extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           const Text(
-            'Waiting for your first collection...',
+            'Waiting for your first eat-list...',
             style: TextStyle(
               fontFamily: 'Rova',
               fontSize: 28,
@@ -1011,7 +1019,7 @@ class _EmptyCollections extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'We know you have great taste - Create a collection to organise your saved places and share them with your friends!',
+            'We know you have great taste - Create an eat-list to organise your saved places and share them with your friends!',
             style: GoogleFonts.dmSans(
               fontSize: 14,
               color: PinitColors.aubergineSoft,
@@ -1029,7 +1037,7 @@ class _EmptyCollections extends StatelessWidget {
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Text(
-                'Create a collection',
+                'Create an eat-list',
                 style: GoogleFonts.dmSans(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
@@ -1089,7 +1097,11 @@ class CollectionDetailSheetState extends State<CollectionDetailSheet> {
           _isLoading = false;
         });
     } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _isLoading = false; });
+      if (mounted)
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
     }
   }
 
@@ -1099,9 +1111,9 @@ class CollectionDetailSheetState extends State<CollectionDetailSheet> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete collection?'),
+        title: const Text('Delete eat-list?'),
         content: Text(
-          'This will permanently delete "${widget.collection.name}" and remove all its places from the collection. Your saved places themselves are not deleted.',
+          'This will permanently delete "${widget.collection.name}" and remove all its places from the eat-list. Your saved places themselves are not deleted.',
         ),
         actions: [
           TextButton(
@@ -1131,8 +1143,12 @@ class CollectionDetailSheetState extends State<CollectionDetailSheet> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isDeleting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to delete collection: $e')),
+      unawaited(
+        AppFeedback.showError(
+          context,
+          title: 'Couldn’t delete',
+          message: 'Failed to delete eat-list.',
+        ),
       );
     }
   }
@@ -1144,9 +1160,11 @@ class CollectionDetailSheetState extends State<CollectionDetailSheet> {
         _locations.where((location) => location.position != null).toList();
 
     if (validLocations.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No mappable places in this collection yet.'),
+      unawaited(
+        AppFeedback.showError(
+          context,
+          title: 'Nothing to map',
+          message: 'No mappable places in this eat-list yet.',
         ),
       );
       return;
@@ -1379,7 +1397,7 @@ class CollectionDetailSheetState extends State<CollectionDetailSheet> {
                       : _locations.isEmpty
                           ? const Center(
                               child: Text(
-                                'No places in this collection yet.',
+                                'No places in this eat-list yet.',
                                 style:
                                     TextStyle(color: PinitColors.textSecondary),
                               ),
@@ -1716,9 +1734,9 @@ class _EditCollectionSheetState extends State<_EditCollectionSheet> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete collection?'),
+        title: const Text('Delete eat-list?'),
         content: Text(
-          'This will permanently delete "${widget.collection.name}" and remove all its places from the collection. Your saved places themselves are not deleted.',
+          'This will permanently delete "${widget.collection.name}" and remove all its places from the eat-list. Your saved places themselves are not deleted.',
         ),
         actions: [
           TextButton(
@@ -1736,7 +1754,10 @@ class _EditCollectionSheetState extends State<_EditCollectionSheet> {
 
     if (confirmed != true || !mounted) return;
 
-    setState(() { _deleting = true; _error = null; });
+    setState(() {
+      _deleting = true;
+      _error = null;
+    });
     try {
       await _helper.deleteCollection(widget.collection.id);
       if (!mounted) return;
@@ -1750,7 +1771,7 @@ class _EditCollectionSheetState extends State<_EditCollectionSheet> {
       if (!mounted) return;
       setState(() {
         _deleting = false;
-        _error = 'Could not delete collection. Please try again.';
+        _error = 'Could not delete eat-list. Please try again.';
       });
     }
   }
@@ -1889,7 +1910,7 @@ class _EditCollectionSheetState extends State<_EditCollectionSheet> {
 
             // Title
             const Text(
-              'Edit Collection',
+              'Edit Eat-List',
               style: TextStyle(
                 fontFamily: 'Rova',
                 fontSize: 28,
@@ -1935,7 +1956,7 @@ class _EditCollectionSheetState extends State<_EditCollectionSheet> {
                 fontWeight: FontWeight.w500,
               ),
               decoration: InputDecoration(
-                hintText: 'Collection name',
+                hintText: 'Eat-list name',
                 hintStyle: TextStyle(
                   color: PinitColors.textMuted.withValues(alpha: 0.6),
                   fontWeight: FontWeight.normal,
@@ -2011,7 +2032,8 @@ class _EditCollectionSheetState extends State<_EditCollectionSheet> {
             ),
 
             // Delete button (hidden for auto-generated collections)
-            if (!_kUndeletableCollectionNames.contains(widget.collection.name)) ...[
+            if (!_kUndeletableCollectionNames
+                .contains(widget.collection.name)) ...[
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
@@ -2047,7 +2069,7 @@ class _EditCollectionSheetState extends State<_EditCollectionSheet> {
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  'Delete Collection',
+                                  'Delete Eat-List',
                                   style: GoogleFonts.dmSans(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w700,

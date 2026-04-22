@@ -13,7 +13,6 @@ class HomeChipRow extends StatefulWidget {
     super.key,
     required this.currentMode,
     required this.onModeChanged,
-    required this.onDecideTap,
     required this.collections,
     required this.isLoadingCollections,
     required this.onCollectionMenuOpened,
@@ -24,7 +23,6 @@ class HomeChipRow extends StatefulWidget {
 
   final HomeMode currentMode;
   final ValueChanged<HomeMode> onModeChanged;
-  final VoidCallback onDecideTap;
   final List<CollectionItem> collections;
   final bool isLoadingCollections;
   final VoidCallback onCollectionMenuOpened;
@@ -60,90 +58,75 @@ class _HomeChipRowState extends State<HomeChipRow> {
     final bubbleActive = widget.activeBubbleName != null;
     final collectionActive = !bubbleActive &&
         (_showCollections || widget.activeCollectionId != null);
+    final chips = <Widget>[
+      if (bubbleActive)
+        _Chip(
+          label: 'BUBBLE',
+          icon: FeatherIcons.users,
+          state: widget.currentMode == HomeMode.bubble
+              ? _ChipState.filled
+              : _ChipState.normal,
+          onTap: () {
+            _closeCollections();
+            widget.onModeChanged(HomeMode.bubble);
+          },
+        )
+      else ...[
+        _Chip(
+          label: 'SAVED',
+          icon: FeatherIcons.user,
+          state: widget.currentMode == HomeMode.you && !collectionActive
+              ? _ChipState.filled
+              : _ChipState.normal,
+          onTap: () {
+            _closeCollections();
+            widget.onModeChanged(HomeMode.you);
+          },
+        ),
+        _Chip(
+          label: 'PICKS',
+          icon: FeatherIcons.compass,
+          state: widget.currentMode == HomeMode.explore && !collectionActive
+              ? _ChipState.filled
+              : _ChipState.normal,
+          onTap: () {
+            _closeCollections();
+            widget.onModeChanged(HomeMode.explore);
+          },
+        ),
+        _Chip(
+          label: 'EAT-LISTS',
+          icon: FeatherIcons.bookmark,
+          state: collectionActive ? _ChipState.filled : _ChipState.normal,
+          trailing: Icon(
+            _showCollections
+                ? FeatherIcons.chevronUp
+                : FeatherIcons.chevronDown,
+            size: 11,
+            color: collectionActive ? PinitColors.cream : PinitColors.aubergine,
+          ),
+          onTap: _toggleCollections,
+        ),
+      ],
+    ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4),
           child: Row(
+            mainAxisAlignment: chips.length == 1
+                ? MainAxisAlignment.center
+                : MainAxisAlignment.start,
             children: [
-              if (bubbleActive) ...[
-                _Chip(
-                  label: 'BUBBLE',
-                  icon: FeatherIcons.users,
-                  state: widget.currentMode == HomeMode.bubble
-                      ? _ChipState.filled
-                      : _ChipState.normal,
-                  onTap: () {
-                    _closeCollections();
-                    widget.onModeChanged(HomeMode.bubble);
-                  },
-                ),
-                const SizedBox(width: 8),
-                _Chip(
-                  label: 'DECIDE',
-                  icon: FeatherIcons.zap,
-                  state: _ChipState.accent,
-                  onTap: () {
-                    _closeCollections();
-                    widget.onDecideTap();
-                  },
-                ),
-              ] else ...[
-                _Chip(
-                  label: 'SAVED',
-                  icon: FeatherIcons.user,
-                  state: widget.currentMode == HomeMode.you && !collectionActive
-                      ? _ChipState.filled
-                      : _ChipState.normal,
-                  onTap: () {
-                    _closeCollections();
-                    widget.onModeChanged(HomeMode.you);
-                  },
-                ),
-                const SizedBox(width: 8),
-                _Chip(
-                  label: 'PICKS',
-                  icon: FeatherIcons.compass,
-                  state: widget.currentMode == HomeMode.explore &&
-                          !collectionActive
-                      ? _ChipState.filled
-                      : _ChipState.normal,
-                  onTap: () {
-                    _closeCollections();
-                    widget.onModeChanged(HomeMode.explore);
-                  },
-                ),
-                const SizedBox(width: 8),
-                _Chip(
-                  label: 'DECIDE',
-                  icon: FeatherIcons.zap,
-                  state: _ChipState.accent,
-                  onTap: () {
-                    _closeCollections();
-                    widget.onDecideTap();
-                  },
-                ),
-                const SizedBox(width: 8),
-                _Chip(
-                  label: 'EAT-LISTS',
-                  icon: FeatherIcons.bookmark,
-                  state:
-                      collectionActive ? _ChipState.filled : _ChipState.normal,
-                  trailing: Icon(
-                    _showCollections
-                        ? FeatherIcons.chevronUp
-                        : FeatherIcons.chevronDown,
-                    size: 11,
-                    color: collectionActive
-                        ? PinitColors.cream
-                        : PinitColors.aubergine,
-                  ),
-                  onTap: _toggleCollections,
-                ),
+              for (var i = 0; i < chips.length; i++) ...[
+                if (chips.length > 1)
+                  Expanded(child: chips[i])
+                else
+                  chips[i],
+                if (i < chips.length - 1) const SizedBox(width: 6),
               ],
-              const SizedBox(width: 8),
             ],
           ),
         ),
@@ -194,7 +177,7 @@ class _HomeChipRowState extends State<HomeChipRow> {
                             ? Padding(
                                 padding: const EdgeInsets.fromLTRB(4, 8, 4, 10),
                                 child: Text(
-                                  'No collections yet.',
+                                  'No eat-lists yet.',
                                   style: GoogleFonts.dmSans(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
@@ -303,7 +286,8 @@ class _ChipStateState extends State<_Chip> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
           decoration: BoxDecoration(
             color: bg,
             borderRadius: BorderRadius.circular(999),
@@ -318,26 +302,29 @@ class _ChipStateState extends State<_Chip> {
                   ]
                 : null,
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(widget.icon, size: 12, color: fg),
-              const SizedBox(width: 7),
-              Text(
-                widget.label,
-                style: GoogleFonts.dmSans(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  color: fg,
-                  letterSpacing: 1.2,
-                  height: 1.0,
-                ),
-              ),
-              if (widget.trailing != null) ...[
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(widget.icon, size: 12, color: fg),
                 const SizedBox(width: 6),
-                widget.trailing!,
+                Text(
+                  widget.label,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: fg,
+                    letterSpacing: 1.0,
+                    height: 1.0,
+                  ),
+                ),
+                if (widget.trailing != null) ...[
+                  const SizedBox(width: 4),
+                  widget.trailing!,
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

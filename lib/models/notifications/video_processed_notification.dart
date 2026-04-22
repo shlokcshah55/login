@@ -4,6 +4,7 @@ import 'package:login/models/notification_type.dart';
 class VideoProcessedNotification extends BaseNotification {
   final String locationName;
   final String locationId;
+  final String platform;
 
   VideoProcessedNotification({
     required String id,
@@ -11,6 +12,7 @@ class VideoProcessedNotification extends BaseNotification {
     required bool isRead,
     required this.locationName,
     required this.locationId,
+    required this.platform,
   }) : super(
           id: id,
           timestamp: timestamp,
@@ -20,16 +22,21 @@ class VideoProcessedNotification extends BaseNotification {
 
   /// Factory constructor from FCM data payload
   factory VideoProcessedNotification.fromFCMData(Map<String, dynamic> data) {
+    final rawLocationName = data['locationName'];
+    final rawLocationId = data['locationId'];
+    final rawPlatform = data['platform'];
+
     return VideoProcessedNotification(
-      id: data['id'] as String,
+      id: data['id'].toString(),
       // Handle both String (FCM) and DateTime (DB)
       timestamp: data['timestamp'] is String
           ? DateTime.parse(data['timestamp'] as String)
           : data['timestamp'] as DateTime,
       // Handle both explicit false and missing field
       isRead: data['isRead'] == true || data['isRead'] == 'true',
-      locationName: data['locationName'] as String,
-      locationId: data['locationId'] as String,
+      locationName: rawLocationName?.toString() ?? 'a location',
+      locationId: rawLocationId?.toString() ?? '',
+      platform: rawPlatform?.toString() ?? 'TikTok',
     );
   }
 
@@ -43,7 +50,7 @@ class VideoProcessedNotification extends BaseNotification {
   String? getActionLabel() => 'View';
 
   @override
-  bool hasAction() => true;
+  bool hasAction() => locationId.isNotEmpty;
 
   @override
   Map<String, dynamic> toFCMData() {

@@ -92,6 +92,12 @@ if SUPABASE_URL and SUPABASE_SERVICE_KEY:
 
 # ===== Helper Functions =====
 
+def _platform_from_url(url: str | None) -> str:
+    """Infer the source platform for a shared URL."""
+    normalized = (url or "").lower()
+    return "instagram" if "instagram" in normalized else "tiktok"
+
+
 def send_error_notification(user_id: str, error_type: str = "generic", tiktok_url: str = None):
     """
     Send push notification to user when processing fails
@@ -147,6 +153,7 @@ def send_error_notification(user_id: str, error_type: str = "generic", tiktok_ur
             "body": body,
             "metadata": {
                 "errorType": error_type,
+                "platform": _platform_from_url(tiktok_url),
                 **({"tiktokUrl": tiktok_url} if tiktok_url else {}),
             },
         }
@@ -164,7 +171,7 @@ def send_error_notification(user_id: str, error_type: str = "generic", tiktok_ur
         logger.error(f"Error sending push notification: {e}", exc_info=True)
 
 
-def send_success_notification(user_id: str, saved_locations: list):
+def send_success_notification(user_id: str, saved_locations: list, source_url: str | None = None):
     """
     Send a single push notification when one or more locations are successfully saved.
     If multiple locations, clusters them into one notification.
@@ -213,6 +220,7 @@ def send_success_notification(user_id: str, saved_locations: list):
                 "locationId": saved_locations[0].get('location_id'),
                 "locationName": first_name,
                 "totalLocations": len(saved_locations),
+                "platform": _platform_from_url(source_url),
             },
         }
 
@@ -412,36 +420,19 @@ def process_and_save_async(url: str, user_id: str):
             if existing_actions and hasattr(existing_actions, 'data') and existing_actions.data:
                 location_ids = list(set([action['location_id'] for action in existing_actions.data]))
                 saved_locations = []
+                source = 'instagram' if 'instagram' in url else 'tiktok'
                 for location_id in location_ids:
                     try:
-                        # Call locations/add to ensure vibe tags and data are populated
-                        loc_row = supabase_client.table('locations').select('google_place_id').eq('location_id', location_id).maybe_single().execute()
-                        if loc_row and loc_row.data and loc_row.data.get('google_place_id'):
-                            try:
-                                source = 'instagram' if 'instagram' in url else 'tiktok'
-                                with httpx.Client(timeout=30.0) as client:
-                                    resp = client.post(LOCATIONS_ADD_URL, json={
-                                        'google_place_id': loc_row.data['google_place_id'],
-                                        'source': source,
-                                        'classify_photo': True,
-                                    })
-                                    resp.raise_for_status()
-                                logger.info(f"Ensured location {location_id} has vibe tags via /locations/add")
-                            except Exception as e:
-                                logger.warning(f"locations/add call failed for {location_id}, continuing: {e}")
-
                         result = supabase_client.rpc('save_location_with_tags', {
                             'p_user_id': user_id,
                             'p_location_id': location_id,
-                            'p_saved_method': 'tiktok',
+                            'p_saved_method': source,
                             'p_acked': True,
                             'p_source_video_url': url
                         }).execute()
 
                         if result.data and result.data.get('success'):
-                            name_row = supabase_client.table('locations').select('name').eq('location_id', location_id).maybe_single().execute()
-                            loc_name = name_row.data.get('name') if name_row and name_row.data else None
-                            saved_locations.append({'location_id': location_id, 'name': loc_name})
+                            saved_locations.append({'location_id': location_id, 'name': None})
                             logger.info(f"Saved existing location {location_id} for user {user_id}")
                     except Exception as e:
                         logger.error(f"Error saving existing location {location_id}: {e}", exc_info=True)
@@ -449,7 +440,7 @@ def process_and_save_async(url: str, user_id: str):
 
                 if saved_locations:
                     logger.info(f"Successfully saved {len(saved_locations)} existing locations for user {user_id}")
-                    send_success_notification(user_id, saved_locations)
+                    send_success_notification(user_id, saved_locations, source_url=url)
                     return
                 else:
                     logger.warning(f"Failed to save any existing locations for user {user_id}. Will re-process video.")
@@ -506,7 +497,7 @@ def process_and_save_async(url: str, user_id: str):
             return
 
         logger.info(f"Successfully saved {len(saved_locations)} locations for user {user_id}")
-        send_success_notification(user_id, saved_locations)
+        send_success_notification(user_id, saved_locations, source_url=url)
 
     except Exception as e:
         logger.error(f"Error in background processing: {e}", exc_info=True)

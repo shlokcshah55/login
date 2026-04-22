@@ -1,0 +1,26 @@
+[
+  {
+    "case_id": "coffee-shop-example",
+    "location_id": 12345,
+    "expected_collections": [
+      {
+        "id": "grab_a_coffee",
+        "reason": "Cafe with strong coffee and pastry signals, suited to working or casual catch-ups."
+      }
+    ]
+  },
+  {
+    "case_id": "late-night-bar-example",
+    "location_id": 67890,
+    "expected_collections": [
+      {
+        "id": "drinks_up",
+        "reason": "Primarily a drinks-led venue with strong bar signals rather than a restaurant-first vibe."
+      },
+      {
+        "id": "midnight_munchies",
+        "reason": "Open late enough to fit a post-drinks or after-hours food use case."
+      }
+    ]
+  }
+]

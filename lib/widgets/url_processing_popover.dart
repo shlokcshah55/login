@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/themes/app_colors.dart';
+import 'package:login/widgets/feedback/app_feedback.dart';
 import 'package:provider/provider.dart';
 
 /// A popover widget that processes a URL and displays a loading animation
@@ -228,14 +229,10 @@ class _UrlProcessingPopoverState extends State<UrlProcessingPopover>
 
       // Show success message
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Successfully added locations'
-            ),
-            backgroundColor: AppColors.success,
-            duration: Duration(seconds: 3),
-          ),
+        AppFeedback.showSuccess(
+          context,
+          message: 'Successfully added locations',
+          duration: const Duration(seconds: 2),
         );
 
         // Close the popover
@@ -246,11 +243,11 @@ class _UrlProcessingPopoverState extends State<UrlProcessingPopover>
       print("❌ SAVE Stack trace: $stackTrace");
       
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error saving locations: $e'),
-            backgroundColor: AppColors.error,
-            duration: Duration(seconds: 3),
+        unawaited(
+          AppFeedback.showError(
+            context,
+            title: 'Couldn’t save',
+            message: 'We’re working hard to fix this — sorry.',
           ),
         );
       }

@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="700" viewBox="0 0 900 700">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F7F0E6"/>
+      <stop offset="1" stop-color="#FFFFFF"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="45%" r="55%">
+      <stop offset="0" stop-color="#7B1FA2" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#7B1FA2" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect x="0" y="0" width="900" height="700" rx="48" fill="url(#bg)"/>
+  <circle cx="450" cy="320" r="260" fill="url(#glow)"/>
+
+  <!-- Soft blob -->
+  <path d="M214 520c-36-84 6-214 98-282 120-89 300-58 372 73 72 132 8 294-124 335-148 46-301-6-346-126z"
+        fill="#2F1536" opacity="0.06"/>
+
+  <!-- Main badge -->
+  <circle cx="450" cy="320" r="162" fill="#2F1536" opacity="0.08"/>
+  <circle cx="450" cy="320" r="138" fill="#F7F0E6" stroke="#2F1536" stroke-opacity="0.22" stroke-width="10"/>
+
+  <!-- Exclamation mark -->
+  <rect x="430" y="235" width="40" height="150" rx="20" fill="#2F1536" opacity="0.86"/>
+  <circle cx="450" cy="415" r="22" fill="#2F1536" opacity="0.86"/>
+
+  <!-- Small stars -->
+  <path d="M642 238l9 18 20 3-14 14 3 20-18-9-18 9 3-20-14-14 20-3z" fill="#7B1FA2" opacity="0.24"/>
+  <path d="M270 275l7 14 15 2-11 11 3 15-14-7-14 7 3-15-11-11 15-2z" fill="#7B1FA2" opacity="0.20"/>
+  <path d="M610 438l6 12 13 2-10 9 2 13-11-6-11 6 2-13-10-9 13-2z" fill="#2F1536" opacity="0.18"/>
+</svg>
+

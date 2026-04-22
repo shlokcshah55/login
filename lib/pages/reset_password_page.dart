@@ -60,15 +60,6 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
       await supabaseService.signOut();
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Password updated. Please sign in with your new password.',
-            style: GoogleFonts.dmSans(),
-          ),
-          backgroundColor: PinitColors.aubergine,
-        ),
-      );
 
       // Pop back to whatever was beneath us. AuthHandler will rebuild and
       // show the WelcomePage now that signOut has cleared the session.

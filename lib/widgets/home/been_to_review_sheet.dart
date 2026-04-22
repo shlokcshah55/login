@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
+import 'package:login/widgets/feedback/app_feedback.dart';
 
 class BeenToReviewSheet extends StatefulWidget {
   final String locationName;
@@ -42,8 +43,10 @@ class _BeenToReviewSheetState extends State<BeenToReviewSheet> {
       if (mounted) Navigator.pop(context);
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to log visit')),
+        await AppFeedback.showError(
+          context,
+          title: 'Couldn’t log visit',
+          message: 'Please try again in a moment.',
         );
       }
     } finally {

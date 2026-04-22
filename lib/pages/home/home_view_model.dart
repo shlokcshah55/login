@@ -285,9 +285,8 @@ class HomeViewModel extends ChangeNotifier {
   }
 
   void _syncBottomNavVisibilityForSearch() {
-    final shouldLock = headerSearchState.isActive ||
-        _isMagicSearchActive ||
-        headerSearchFocusNode.hasFocus;
+    final shouldLock =
+        headerSearchState.isActive || headerSearchFocusNode.hasFocus;
     bottomNavVisibilityProvider.setLocked(shouldLock);
   }
 
@@ -637,7 +636,8 @@ class HomeViewModel extends ChangeNotifier {
 
   /// Saves a location that was liked in the quick-picks deck.
   void saveQuickPick(LocationModel location) {
-    log("HomeViewModel: Quick pick saved → ${location.name}");
+    log("HomeViewModel: Quick pick liked → ${location.name} (save + shortlist)");
+    shortlistProvider.add(location);
     locationListManager.saveLocation(location);
   }
 
@@ -710,6 +710,11 @@ class HomeViewModel extends ChangeNotifier {
     _homeMode = HomeMode.bubble;
     _activeCollectionId = null;
     print('activated bubble mode for bubble: ${chatGroup.name}');
+
+    // Clear any previously loaded bubble locations and switch the carousel to
+    // the bubble list immediately so we don't show stale items while loading.
+    locationListManager.clearBubbleLocations(notify: false);
+    await locationListManager.setCurrentListType(LocationListType.bubble);
 
     final currentLocation = locationListManager.currentPosition ??
         await locationListManager.getCurrentLocation();

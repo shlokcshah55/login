@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
+import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -17,6 +18,7 @@ import 'package:login/providers/navigation_provider.dart';
 import 'package:login/pages/bubble_messaging_page.dart';
 import 'package:login/pages/profile/other_user_profile_page.dart';
 import 'package:login/widgets/chat/bubble_discover_view.dart';
+import 'package:login/widgets/feedback/app_feedback.dart';
 
 class BubblesPage extends StatefulWidget {
   const BubblesPage({Key? key}) : super(key: key);
@@ -228,21 +230,15 @@ class _BubblesPageState extends State<BubblesPage>
   Future<void> _refreshBubbles() async {
     await _bubblesProvider.loadBubbles();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Row(
-          children: [
-            Icon(Icons.refresh_rounded, color: PinitColors.cream),
-            SizedBox(width: 12),
-            Text('Bubbles refreshed'),
-          ],
-        ),
-        backgroundColor: PinitColors.aubergine,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 1),
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(999)),
+    AppFeedback.showSuccess(
+      context,
+      message: 'Bubbles refreshed',
+      leading: const Icon(
+        Icons.refresh_rounded,
+        color: PinitColors.cream,
+        size: 18,
       ),
+      duration: const Duration(seconds: 1),
     );
   }
 
@@ -427,30 +423,17 @@ class _BubblesPageState extends State<BubblesPage>
                           Navigator.of(context).pop();
 
                           if (bubbleId != null) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: const Row(
-                                  children: [
-                                    Icon(Icons.check_circle,
-                                        color: PinitColors.cream),
-                                    SizedBox(width: 12),
-                                    Text('Bubble created successfully!'),
-                                  ],
-                                ),
-                                backgroundColor: PinitColors.aubergine,
-                                behavior: SnackBarBehavior.floating,
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(999)),
-                              ),
+                            AppFeedback.showSuccess(
+                              context,
+                              message: 'Bubble created',
+                              duration: const Duration(seconds: 2),
                             );
                           } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: const Text('Failed to create bubble'),
-                                backgroundColor: PinitColors.accent,
-                                behavior: SnackBarBehavior.floating,
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(999)),
+                            unawaited(
+                              AppFeedback.showError(
+                                context,
+                                title: 'Couldn’t create bubble',
+                                message: 'Please try again in a moment.',
                               ),
                             );
                           }
@@ -687,19 +670,15 @@ class _BubblesPageState extends State<BubblesPage>
     bubbleModeProvider.requestBubbleMode(bubble);
     navigationProvider.navigateToTab(0);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.bubble_chart_rounded, color: PinitColors.cream),
-            const SizedBox(width: 12),
-            Text('Activating ${bubble.name}...'),
-          ],
-        ),
-        backgroundColor: PinitColors.aubergine,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+    AppFeedback.showSuccess(
+      context,
+      message: 'Activating ${bubble.name}…',
+      leading: const Icon(
+        Icons.bubble_chart_rounded,
+        color: PinitColors.cream,
+        size: 18,
       ),
+      duration: const Duration(seconds: 2),
     );
   }
 
@@ -708,7 +687,7 @@ class _BubblesPageState extends State<BubblesPage>
   Widget _buildSearchField(ThemeData theme) {
     final bool isSearching =
         _searchFocusNode.hasFocus || _searchController.text.isNotEmpty;
-    return Container(
+    return Padding(
       padding: EdgeInsets.fromLTRB(isSearching ? 8 : 20, 8, 20, 8),
       child: Row(
         children: [
@@ -726,47 +705,64 @@ class _BubblesPageState extends State<BubblesPage>
             ),
           ],
           Expanded(
-            child: TextField(
-              controller: _searchController,
-              focusNode: _searchFocusNode,
-              style: GoogleFonts.dmSans(color: PinitColors.aubergine),
-              decoration: InputDecoration(
-                hintText: 'Search users to add...',
-                hintStyle: GoogleFonts.dmSans(color: PinitColors.mute),
-                prefixIcon: Container(
-                  padding: const EdgeInsets.all(12),
-                  child: const Icon(Icons.search_rounded,
-                      color: PinitColors.mute, size: 22),
-                ),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.close_rounded,
-                            color: PinitColors.mute),
-                        onPressed: () {
-                          _searchController.clear();
-                          _searchFocusNode.unfocus();
-                        },
-                      )
-                    : null,
-                filled: true,
-                fillColor: PinitColors.creamSunk,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  borderSide:
-                      const BorderSide(color: PinitColors.creamDeep, width: 1),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  borderSide:
-                      const BorderSide(color: PinitColors.creamDeep, width: 1),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  borderSide: const BorderSide(
-                      color: PinitColors.aubergine, width: 1.5),
-                ),
+            child: Container(
+              decoration: BoxDecoration(
+                color: PinitColors.cream,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: PinitColors.aubergine, width: 1.5),
+                boxShadow: const [
+                  BoxShadow(
+                    color: PinitColors.aubergine,
+                    blurRadius: 0,
+                    offset: Offset(3, 3),
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: Row(
+                children: [
+                  const Icon(FeatherIcons.search,
+                      size: 16, color: PinitColors.aubergine),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      focusNode: _searchFocusNode,
+                      style: GoogleFonts.dmSans(
+                        fontSize: 13,
+                        color: PinitColors.aubergine,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                      ),
+                      decoration: InputDecoration(
+                        isCollapsed: true,
+                        contentPadding:
+                            const EdgeInsets.symmetric(vertical: 16),
+                        border: InputBorder.none,
+                        hintText: 'SEARCH USERS',
+                        hintStyle: GoogleFonts.dmSans(
+                          fontSize: 11,
+                          color: PinitColors.aubergineSoft,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.0,
+                          height: 1.0,
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (_searchController.text.isNotEmpty)
+                    GestureDetector(
+                      onTap: () {
+                        _searchController.clear();
+                        _searchFocusNode.unfocus();
+                      },
+                      child: const Padding(
+                        padding: EdgeInsets.only(left: 8),
+                        child: Icon(Icons.close_rounded,
+                            size: 16, color: PinitColors.aubergineSoft),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),

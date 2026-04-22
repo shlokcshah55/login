@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/supabase/helpers/notes_import.dart';
+import 'package:login/widgets/feedback/app_feedback.dart';
 
 import 'pinit_colors.dart';
 
@@ -64,14 +65,10 @@ class _NotesImportSheetState extends State<NotesImportSheet> {
 
   Future<void> _submit() async {
     if (_selectedFile == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Choose a file to import first.'),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
+      await AppFeedback.showError(
+        context,
+        title: 'No file selected',
+        message: 'Choose a file to import first.',
       );
       return;
     }
@@ -91,21 +88,6 @@ class _NotesImportSheetState extends State<NotesImportSheet> {
 
       if (!mounted) return;
 
-      final messenger = ScaffoldMessenger.of(context);
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            response.message.isNotEmpty
-                ? response.message
-                : 'Import started. We will notify you when it is done.',
-          ),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-      );
-
       if (response.queued) {
         Navigator.of(context).pop();
         return;
@@ -116,14 +98,10 @@ class _NotesImportSheetState extends State<NotesImportSheet> {
       });
     } on NotesImportException catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.message),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
+      await AppFeedback.showError(
+        context,
+        title: 'Couldn’t import',
+        message: error.message,
       );
     } finally {
       if (mounted) {

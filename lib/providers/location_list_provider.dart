@@ -165,6 +165,19 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
   bool isLocationBeenToSync(int locationId) =>
       _beenToLocationIds.contains(locationId);
 
+  /// Clears any existing bubble locations so activating a new bubble doesn't
+  /// briefly show stale results from the previously active bubble.
+  void clearBubbleLocations({bool notify = true}) {
+    if (_bubbleLocations.isEmpty && _allBubbleLocations.isEmpty) return;
+    _bubbleLocations.clear();
+    _allBubbleLocations = [];
+    _error = null;
+    _syncBubbleItemsIfActive();
+    if (notify) {
+      notifyListeners();
+    }
+  }
+
   void _resetUserScopedState({
     bool notify = false,
     bool stopLocationTracking = false,
@@ -283,7 +296,10 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       _locationSavedSubscription?.cancel();
       _locationSavedSubscription =
           FCMService().locationSavedStream.listen((locationId) {
-        _addLocationToSaved(locationId);
+        // Fast-path: append immediately, then refresh so `_allSavedLocations`
+        // and any saved-location metadata stay in sync.
+        unawaited(_addLocationToSaved(locationId));
+        unawaited(refreshSavedLocations());
       });
     }
   }
@@ -2310,10 +2326,28 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
     super.dispose();
   }
 
-  /// Force refresh saved locations (use sparingly, realtime handles most updates)
-  Future<void> refreshSavedLocations() async {
+  /// Force-refreshes saved locations from the backend.
+  ///
+  /// Useful when a save happens outside the current realtime subscription
+  /// (e.g. via a share flow that triggers an FCM `location_saved` event).
+  ///
+  /// Note: Realtime handles most updates; use sparingly to avoid extra network.
+  Future<void> refreshSavedLocations({bool clearFirst = false}) async {
+    if (_userId == null) return;
+    if (_isLoadingSaved) return;
+
     print('Force refreshing saved locations');
     _savedLocationsLoaded = false;
+
+    if (clearFirst) {
+      _savedLocations.clear();
+      _allSavedLocations = [];
+      if (_currentListType == LocationListType.saved) {
+        _currentItems = _savedLocations;
+      }
+      notifyListeners();
+    }
+
     await fetchSavedLocations();
   }
 }

@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/users.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/supabase/service.dart';
+import 'package:login/widgets/feedback/app_feedback.dart';
 import 'package:provider/provider.dart';
 
 class UserCard extends StatefulWidget {
@@ -70,11 +73,11 @@ class _UserCardState extends State<UserCard> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        unawaited(
+          AppFeedback.showError(
+            context,
+            title: 'Couldn’t update follow',
+            message: 'Please try again in a moment.',
           ),
         );
       }

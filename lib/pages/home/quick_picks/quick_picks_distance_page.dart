@@ -4,6 +4,7 @@ import 'package:login/pages/home/home_view_model.dart';
 import 'package:login/pages/home/quick_picks/quick_picks_deck_page.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/themes/app_typography.dart';
+import 'package:login/widgets/feedback/app_feedback.dart';
 
 /// Quick Picks walking-range chooser shown as a lightweight modal overlay.
 class QuickPicksDistancePage extends StatefulWidget {
@@ -60,18 +61,10 @@ class _QuickPicksDistancePageState extends State<QuickPicksDistancePage> {
 
     if (picks.isEmpty) {
       setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'No places found within that range. Try widening the walk.',
-            style: AppTypography.sans(
-              fontSize: 13,
-              color: PinitColors.cream,
-            ),
-          ),
-          backgroundColor: PinitColors.aubergine,
-          behavior: SnackBarBehavior.floating,
-        ),
+      await AppFeedback.showError(
+        context,
+        title: 'Nothing nearby',
+        message: 'No places found within that range. Try widening the walk.',
       );
       return;
     }
@@ -108,58 +101,25 @@ class _QuickPicksDistancePageState extends State<QuickPicksDistancePage> {
                 ),
                 boxShadow: PinitColors.elevatedShadow,
               ),
-              child: SafeArea(
-                minimum: const EdgeInsets.fromLTRB(18, 12, 18, 18),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 36,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: PinitColors.creamDeep,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    Row(
+              child: Stack(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'QUICK PICKS',
-                                style: AppTypography.sans(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: PinitColors.aubergineSoft,
-                                  letterSpacing: 1.32,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Walking range.',
-                                style: AppTypography.brand(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.w800,
-                                  color: PinitColors.aubergine,
-                                  height: 1.0,
-                                ),
-                              ),
-                            ],
+                        Center(
+                          child: Container(
+                            width: 36,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: PinitColors.creamDeep,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
                           ),
                         ),
-                        _CloseButton(
-                          onTap: () => Navigator.of(context).pop(),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
+                        const SizedBox(height: 10),
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(
@@ -187,7 +147,7 @@ class _QuickPicksDistancePageState extends State<QuickPicksDistancePage> {
                             'WALKING RANGE',
                             style: AppTypography.sans(
                               fontSize: 11,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w100,
                               color: PinitColors.aubergineSoft,
                               letterSpacing: 1.32,
                             ),
@@ -293,7 +253,7 @@ class _QuickPicksDistancePageState extends State<QuickPicksDistancePage> {
                             curve: Curves.easeOutCubic,
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             decoration: BoxDecoration(
-                              color: PinitColors.aubergine,
+                              color: PinitColors.accent,
                               borderRadius: BorderRadius.circular(999),
                               border: Border.all(
                                 color: PinitColors.aubergine,
@@ -337,11 +297,20 @@ class _QuickPicksDistancePageState extends State<QuickPicksDistancePage> {
                   ],
                 ),
               ),
-            ),
+              Positioned(
+                top: 8,
+                right: 10,
+                child: _CloseButton(
+                  onTap: () => Navigator.of(context).pop(),
+                ),
+              ),
+            ],
           ),
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 }
 

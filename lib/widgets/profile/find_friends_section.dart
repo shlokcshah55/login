@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/users.dart';
@@ -162,16 +163,23 @@ class _FindFriendsSectionState extends State<FindFriendsSection> {
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
           child: Container(
             decoration: BoxDecoration(
-              color: PinitColors.creamSunk,
+              color: PinitColors.cream,
               borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: PinitColors.creamDeep, width: 1.5),
+              border: Border.all(color: PinitColors.aubergine, width: 1.5),
+              boxShadow: const [
+                BoxShadow(
+                  color: PinitColors.aubergine,
+                  blurRadius: 0,
+                  offset: Offset(3, 3),
+                ),
+              ],
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 18),
             child: Row(
               children: [
-                const Icon(Icons.search_rounded,
-                    size: 20, color: PinitColors.aubergineSoft),
-                const SizedBox(width: 10),
+                const Icon(FeatherIcons.search,
+                    size: 16, color: PinitColors.aubergine),
+                const SizedBox(width: 12),
                 Expanded(
                   child: TextField(
                     controller: _searchController,
@@ -179,20 +187,23 @@ class _FindFriendsSectionState extends State<FindFriendsSection> {
                     onChanged: _onSearchChanged,
                     textInputAction: TextInputAction.search,
                     style: GoogleFonts.dmSans(
-                      fontSize: 15,
+                      fontSize: 13,
                       color: PinitColors.aubergine,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
                     ),
                     decoration: InputDecoration(
                       isCollapsed: true,
                       contentPadding:
-                          const EdgeInsets.symmetric(vertical: 14),
+                          const EdgeInsets.symmetric(vertical: 16),
                       border: InputBorder.none,
-                      hintText: 'Search people by name',
+                      hintText: 'SEARCH PEOPLE',
                       hintStyle: GoogleFonts.dmSans(
-                        fontSize: 15,
+                        fontSize: 11,
                         color: PinitColors.aubergineSoft,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.0,
+                        height: 1.0,
                       ),
                     ),
                   ),
@@ -203,7 +214,7 @@ class _FindFriendsSectionState extends State<FindFriendsSection> {
                     child: const Padding(
                       padding: EdgeInsets.only(left: 8),
                       child: Icon(Icons.close_rounded,
-                          size: 18, color: PinitColors.aubergineSoft),
+                          size: 16, color: PinitColors.aubergineSoft),
                     ),
                   ),
               ],

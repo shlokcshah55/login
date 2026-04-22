@@ -479,7 +479,7 @@ class SupabaseService extends ChangeNotifier {
       await tempFile.writeAsBytes(bytes);
 
       final fileExt = fileName.split('.').last;
-      final filePath = '$userId.$fileExt';
+      final filePath = '$userId/$userId.$fileExt';
 
       await _authService.uploadImage(tempFile, filePath, userId);
 

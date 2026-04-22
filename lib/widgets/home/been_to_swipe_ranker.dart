@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/supabase/supabase_client.dart';
+import 'package:login/widgets/feedback/app_feedback.dart';
 
 class BeenToSwipeRanker extends StatefulWidget {
   final LocationModel newLocation;
@@ -189,8 +190,10 @@ class _BeenToSwipeRankerState extends State<BeenToSwipeRanker>
       if (mounted) Navigator.pop(context);
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to log visit')),
+        await AppFeedback.showError(
+          context,
+          title: 'Couldn’t log visit',
+          message: 'Please try again in a moment.',
         );
       }
     } finally {

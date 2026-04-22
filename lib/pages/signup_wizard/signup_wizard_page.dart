@@ -5,6 +5,7 @@ import '../../models/locations.dart';
 import '../../providers/user_data_provider.dart';
 import '../../supabase/service.dart';
 import '../../supabase/constants.dart';
+import '../../widgets/feedback/app_feedback.dart';
 import '../auth_handler.dart';
 import '../profile/widgets/pinit_colors.dart';
 import 'account_step.dart';
@@ -96,11 +97,10 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
         });
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to load restaurants: ${e.toString()}'),
-              backgroundColor: Colors.red,
-            ),
+          await AppFeedback.showError(
+            context,
+            title: 'Couldn’t load',
+            message: 'Please try again in a moment.',
           );
         }
       }
@@ -155,14 +155,11 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
       ]);
 
       if (failures.isNotEmpty && mounted) {
-        ScaffoldMessenger.of(this.context).showSnackBar(
-          SnackBar(
-            content: Text(
+        await AppFeedback.showError(
+          this.context,
+          title: 'Not everything saved',
+          message:
               '${failures.length} place(s) didn\'t save — you can add them later.',
-            ),
-            backgroundColor: Colors.orange,
-            duration: const Duration(seconds: 3),
-          ),
         );
       }
 
@@ -185,12 +182,10 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(this.context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to complete setup: ${e.toString()}'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
-          ),
+        await AppFeedback.showError(
+          this.context,
+          title: 'Setup failed',
+          message: 'We’re working hard to fix this — sorry.',
         );
       }
     }

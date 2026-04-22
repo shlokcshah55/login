@@ -73,13 +73,13 @@ class NotificationsHelper {
       metadata.remove('timestamp');
       metadata.remove('type');
 
-      await _client.from('notifications').insert({
-        'notification_id': notification.id,
-        'type': typeString,
-        'metadata': metadata,
-        'is_read': notification.isRead,
-        'user_id': userId,
-        'created_at': notification.timestamp.toIso8601String(),
+      await _client.from(SupabaseConstants.tableNotifications).insert({
+        SupabaseConstants.columnNotificationId: notification.id,
+        SupabaseConstants.columnType: typeString,
+        SupabaseConstants.columnMetadata: metadata,
+        SupabaseConstants.columnIsRead: notification.isRead,
+        SupabaseConstants.columnUserId: userId,
+        SupabaseConstants.columnCreatedAt: notification.timestamp.toIso8601String(),
       });
 
       print('📲 Saved notification ${notification.id} to DB');
@@ -93,8 +93,9 @@ class NotificationsHelper {
   Future<void> markAsRead(String notificationId) async {
     try {
       await _client
-          .from('notifications')
-          .update({'is_read': true}).eq('notification_id', notificationId);
+          .from(SupabaseConstants.tableNotifications)
+          .update({SupabaseConstants.columnIsRead: true})
+          .eq(SupabaseConstants.columnNotificationId, notificationId);
 
       print('📲 Marked notification $notificationId as read in DB');
     } catch (e) {
@@ -114,8 +115,9 @@ class NotificationsHelper {
       }
 
       await _client
-          .from('notifications')
-          .update({'is_read': true}).eq('user_id', userId);
+          .from(SupabaseConstants.tableNotifications)
+          .update({SupabaseConstants.columnIsRead: true})
+          .eq(SupabaseConstants.columnUserId, userId);
 
       print('📲 Marked all notifications as read in DB');
     } catch (e) {

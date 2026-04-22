@@ -5,6 +5,7 @@ class Bubble {
   final String name;
   final String lastMessage;
   final String lastMessageTime;
+  final DateTime? lastActivityAt;
   final int memberCount;
   final List<String> memberAvatars;
   final String groupAvatar;
@@ -21,6 +22,7 @@ class Bubble {
     required this.name,
     required this.lastMessage,
     required this.lastMessageTime,
+    this.lastActivityAt,
     required this.memberCount,
     required this.memberAvatars,
     required this.groupAvatar,
@@ -39,6 +41,9 @@ class Bubble {
       name: json['name'] ?? '',
       lastMessage: json['last_message'] ?? '',
       lastMessageTime: json['last_message_time'] ?? '',
+      lastActivityAt: json['last_activity_at'] != null
+          ? DateTime.parse(json['last_activity_at'])
+          : null,
       memberCount: json['member_count'] ?? 0,
       memberAvatars: List<String>.from(json['member_avatars'] ?? []),
       groupAvatar: json['group_avatar'] ?? '',
@@ -61,6 +66,7 @@ class Bubble {
       'name': name,
       'last_message': lastMessage,
       'last_message_time': lastMessageTime,
+      'last_activity_at': lastActivityAt?.toIso8601String(),
       'member_count': memberCount,
       'member_avatars': memberAvatars,
       'group_avatar': groupAvatar,
@@ -79,6 +85,7 @@ class Bubble {
     String? name,
     String? lastMessage,
     String? lastMessageTime,
+    DateTime? lastActivityAt,
     int? memberCount,
     List<String>? memberAvatars,
     String? groupAvatar,
@@ -95,6 +102,7 @@ class Bubble {
       name: name ?? this.name,
       lastMessage: lastMessage ?? this.lastMessage,
       lastMessageTime: lastMessageTime ?? this.lastMessageTime,
+      lastActivityAt: lastActivityAt ?? this.lastActivityAt,
       memberCount: memberCount ?? this.memberCount,
       memberAvatars: memberAvatars ?? this.memberAvatars,
       groupAvatar: groupAvatar ?? this.groupAvatar,

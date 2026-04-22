@@ -11,7 +11,7 @@ import 'package:login/widgets/home/expanded_location_card.dart';
 
 /// Step 2 of Quick Picks — Tinder-style deck of nearby recommendations.
 ///
-/// • Swipe right → save the place + "Enjoy ___" banner
+/// • Swipe right → add to shortlist (and save) + "Enjoy ___" banner
 /// • Swipe left  → move to the next top recommendation
 /// • Tap a card  → opens the full [ExpandedLocationCard]
 class QuickPicksDeckPage extends StatefulWidget {
@@ -118,52 +118,8 @@ class _QuickPicksDeckPageState extends State<QuickPicksDeckPage>
   }
 
   void _showEnjoyBanner(String name) {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.clearSnackBars();
-    messenger.showSnackBar(
-      SnackBar(
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: PinitColors.aubergine,
-        margin: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        content: Row(
-          children: [
-            const Icon(
-              FeatherIcons.heart,
-              color: PinitColors.accent,
-              size: 18,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: RichText(
-                text: TextSpan(
-                  style: AppTypography.sans(
-                    fontSize: 14,
-                    color: PinitColors.cream,
-                    height: 1.25,
-                  ),
-                  children: [
-                    const TextSpan(text: 'Enjoy '),
-                    TextSpan(
-                      text: name,
-                      style: AppTypography.sans(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        color: PinitColors.cream,
-                      ),
-                    ),
-                    const TextSpan(text: '!'),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    // Success snackbars are intentionally disabled.
+    return;
   }
 
   void _openExpandedCard(LocationModel location) {

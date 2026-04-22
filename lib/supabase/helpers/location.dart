@@ -589,7 +589,7 @@ class LocationHelper {
     required double longitude,
     double radiusKm = 10,
     int maxResults = 10,
-    int minReviews = 5,
+    int minReviews = 50,
   }) async {
     try {
       final uri = Uri.parse(
