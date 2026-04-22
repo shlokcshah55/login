@@ -494,7 +494,7 @@ class _KeepExploringCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final modeLabel = switch (mode) {
-      HomeMode.you => 'You',
+      HomeMode.you => 'Pinned',
       HomeMode.explore => 'Explore',
       HomeMode.bubble => 'Bubble',
     };

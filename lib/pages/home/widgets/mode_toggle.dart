@@ -92,7 +92,7 @@ class _HomeChipRowState extends State<HomeChipRow> {
                 ),
               ] else ...[
                 _Chip(
-                  label: 'YOU',
+                  label: 'SAVED',
                   icon: FeatherIcons.user,
                   state: widget.currentMode == HomeMode.you && !collectionActive
                       ? _ChipState.filled
@@ -104,7 +104,7 @@ class _HomeChipRowState extends State<HomeChipRow> {
                 ),
                 const SizedBox(width: 8),
                 _Chip(
-                  label: 'EXPLORE',
+                  label: 'PICKS',
                   icon: FeatherIcons.compass,
                   state: widget.currentMode == HomeMode.explore &&
                           !collectionActive
@@ -127,7 +127,7 @@ class _HomeChipRowState extends State<HomeChipRow> {
                 ),
                 const SizedBox(width: 8),
                 _Chip(
-                  label: 'COLLECTION',
+                  label: 'EAT-LISTS',
                   icon: FeatherIcons.bookmark,
                   state:
                       collectionActive ? _ChipState.filled : _ChipState.normal,

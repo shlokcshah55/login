@@ -181,9 +181,9 @@ class _CollapsedSearchEntry extends StatelessWidget {
                   ),
                   decoration: InputDecoration(
                     isCollapsed: true,
-                    hintText: 'Describe a vibe, place, or craving',
-                    hintStyle: AppTypography.sans(
-                      fontSize: 15,
+                    hintText: 'E.g "COZY BRUNCH IN THE SUN"',
+                    hintStyle: GoogleFonts.dmSans(
+                      fontSize: 11,
                       color: pinit.PinitColors.cream.withValues(alpha: 0.74),
                       fontWeight: FontWeight.w500,
                     ),

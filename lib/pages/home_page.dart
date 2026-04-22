@@ -1274,7 +1274,7 @@ class _MagicSearchActivatedToastState extends State<_MagicSearchActivatedToast>
                                   ),
                                   const SizedBox(height: 6),
                                   Text(
-                                    'Welcome to magic search, Search a vibe, a really specific dish or anything you are really craving and we will find it for you.',
+                                    'Search a vibe, a really specific dish or anything you are craving.',
                                     style: AppTypography.sans(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w600,

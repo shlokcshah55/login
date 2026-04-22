@@ -124,14 +124,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
           (newName == (user.name ?? '') &&
               newBio == (user.bio ?? '') &&
               _pendingPhoto == null)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Profile updated'),
-            behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
         Navigator.of(context).pop(true);
       } else {
         setState(() => _error = 'Could not save changes.');
