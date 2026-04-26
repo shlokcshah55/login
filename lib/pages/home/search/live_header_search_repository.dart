@@ -4,32 +4,33 @@ import 'package:login/pages/home/search/header_search_repository.dart';
 import 'package:login/pages/home/search/header_search_types.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
-import 'package:login/services/google_place_service.dart';
-import 'package:login/supabase/constants.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/utils/geo_types.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class LiveHeaderSearchRepository implements HeaderSearchRepository {
+  static const int _searchCacheMaxEntries = 32;
+  static const Duration _searchCacheTtl = Duration(minutes: 2);
+
   final LocationListManager _locationListManager;
   final UserDataProvider _userDataProvider;
   final SupabaseService _supabaseService;
   final HeaderSearchRecentStore _recentStore;
-  GooglePlacesService? _googlePlacesServiceField;
-  GooglePlacesService get _googlePlacesService =>
-      _googlePlacesServiceField ??= GooglePlacesService();
+
+  // Keyed by normalised query + rounded proximity bucket. LinkedHashMap so
+  // we can evict the oldest entry when we exceed the cap.
+  final Map<String, _CachedSearchResult> _searchCache =
+      <String, _CachedSearchResult>{};
 
   LiveHeaderSearchRepository({
     required LocationListManager locationListManager,
     required UserDataProvider userDataProvider,
     required SupabaseService supabaseService,
     HeaderSearchRecentStore? recentStore,
-    GooglePlacesService? googlePlacesService,
   })  : _locationListManager = locationListManager,
         _userDataProvider = userDataProvider,
         _supabaseService = supabaseService,
-        _recentStore = recentStore ?? HeaderSearchRecentStore(),
-        _googlePlacesServiceField = googlePlacesService;
+        _recentStore = recentStore ?? HeaderSearchRecentStore();
 
   @override
   Future<List<String>> loadRecentQueries() {
@@ -129,76 +130,105 @@ class LiveHeaderSearchRepository implements HeaderSearchRepository {
   }
 
   @override
-  Future<List<SearchSuggestionItem>> loadDatabasePlaces({
+  Stream<List<SearchSuggestionItem>> loadDatabasePlaces({
     required String query,
-  }) async {
-    final locations =
-        await _searchPlacesFromDatabase(query: query, limit: 10);
-    return locations.map(SearchSuggestionItem.place).toList();
-  }
+  }) async* {
+    const limit = 10;
+    final proximity = _locationListManager.currentPosition;
+    final normalized = query.trim().toLowerCase();
 
-  @override
-  Future<List<SearchSuggestionItem>> loadGoogleAutocompleteSuggestions({
-    required String query,
-    LatLng? proximity,
-  }) async {
-    if (query.trim().isEmpty) {
-      return const [];
+    if (normalized.isEmpty) {
+      final fallback = [
+        ..._locationListManager.hiddenGemLocations,
+        ..._locationListManager.popularLocations,
+      ].take(limit).map(SearchSuggestionItem.place).toList();
+      yield fallback;
+      return;
     }
 
-    final suggestions = await _googlePlacesService.autocompleteFoodAndDrink(
-      query: query,
-      origin: proximity,
-      limit: 6,
+    final cacheKey = _searchCacheKey(normalized, limit, proximity);
+
+    final cached = _searchCache[cacheKey];
+    if (cached != null && !cached.isExpired) {
+      // Touch for LRU ordering.
+      _searchCache.remove(cacheKey);
+      _searchCache[cacheKey] = cached;
+      yield cached.locations.map(SearchSuggestionItem.place).toList();
+      return;
+    }
+
+    final response = await _fetchRawFromRpc(
+      normalizedQuery: normalized,
+      limit: limit,
+      proximity: proximity,
     );
 
-    return suggestions
-        .map(
-          (suggestion) => SearchSuggestionItem.place(
-            _buildGoogleAutocompleteLocation(suggestion),
-            isGoogleResult: true,
-            distanceMeters: suggestion.distanceMeters,
-          ),
-        )
-        .toList(growable: false);
+    if (response.isEmpty) {
+      yield const [];
+      _storeSearchResult(cacheKey, const []);
+      return;
+    }
+
+    // Stream suggestions as each location's image URL resolves. Cache-hot
+    // rows surface first (Stream.fromFutures emits in completion order),
+    // so the list paints incrementally instead of blocking on the slowest
+    // item in the batch.
+    final accumulator = <LocationModel>[];
+    await for (final location
+        in _supabaseService.locations.streamLocationsWithImages(response)) {
+      accumulator.add(location);
+      yield accumulator.map(SearchSuggestionItem.place).toList(growable: false);
+    }
+
+    _storeSearchResult(cacheKey, accumulator);
   }
 
   @override
   Future<LatLng?> currentProximity() => _currentLocation();
 
-  Future<List<LocationModel>> _searchPlacesFromDatabase({
-    required String query,
+  Future<List<dynamic>> _fetchRawFromRpc({
+    required String normalizedQuery,
     required int limit,
+    required LatLng? proximity,
   }) async {
-    final trimmed = query.trim();
-    if (trimmed.isEmpty) {
-      return [
-        ..._locationListManager.hiddenGemLocations,
-        ..._locationListManager.popularLocations,
-      ].take(limit).toList();
-    }
-
-    final searchTerm = _escapeForIlike(trimmed);
     try {
-      final response = await Supabase.instance.client
-          .from(SupabaseConstants.tableLocations)
-          .select()
-          .or(
-            'name.ilike.%$searchTerm%,'
-            'vicinity.ilike.%$searchTerm%,'
-            'cuisine.ilike.%$searchTerm%',
-          )
-          .limit(limit);
-
-      final processed =
-          await _supabaseService.locations.processLocationsWithImages(
-        response as List,
-        userVibeAffinity: _userDataProvider.vibeTagAffinity,
-        userDietaryAffinity: _userDataProvider.dietaryRequirementTagAffinity,
+      final response = await Supabase.instance.client.rpc(
+        'search_locations',
+        params: {
+          'p_query': normalizedQuery,
+          'p_limit': limit,
+          'p_lat': proximity?.latitude,
+          'p_lng': proximity?.longitude,
+        },
       );
-      return processed;
+
+      if (response is! List) {
+        return const [];
+      }
+      return response;
     } catch (_) {
       return const [];
+    }
+  }
+
+  String _searchCacheKey(String normalized, int limit, LatLng? proximity) {
+    if (proximity == null) {
+      return 'q:$normalized|l:$limit|p:none';
+    }
+    // Round to ~100m so nearby keystrokes still share cache entries.
+    final lat = (proximity.latitude * 1000).round() / 1000;
+    final lng = (proximity.longitude * 1000).round() / 1000;
+    return 'q:$normalized|l:$limit|p:$lat,$lng';
+  }
+
+  void _storeSearchResult(String cacheKey, List<LocationModel> results) {
+    _searchCache.remove(cacheKey);
+    _searchCache[cacheKey] = _CachedSearchResult(
+      locations: results,
+      cachedAt: DateTime.now(),
+    );
+    while (_searchCache.length > _searchCacheMaxEntries) {
+      _searchCache.remove(_searchCache.keys.first);
     }
   }
 
@@ -207,63 +237,15 @@ class LiveHeaderSearchRepository implements HeaderSearchRepository {
         await _locationListManager.getCurrentLocation();
   }
 
-  LocationModel _buildGoogleAutocompleteLocation(
-    GoogleAutocompleteSuggestion suggestion,
-  ) {
-    final name = (suggestion.mainText?.trim().isNotEmpty ?? false)
-        ? suggestion.mainText!.trim()
-        : suggestion.text.trim();
-    final secondaryText = suggestion.secondaryText?.trim();
-    final typeLabel = _displayTypeLabel(suggestion.types);
+}
 
-    return LocationModel(
-      locationId: -suggestion.placeId.hashCode.abs(),
-      name: name,
-      vicinity: secondaryText?.isNotEmpty == true ? secondaryText : null,
-      createdAt: DateTime.now(),
-      googlePlaceId: suggestion.placeId,
-      cuisine: typeLabel,
-      types: suggestion.types.join(','),
-      preference: LocationPreference.search,
-      googleMapsUri:
-          'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(name)}&query_place_id=${suggestion.placeId}',
-    );
-  }
+class _CachedSearchResult {
+  _CachedSearchResult({required this.locations, required this.cachedAt});
 
-  String? _displayTypeLabel(List<String> types) {
-    if (types.isEmpty) {
-      return null;
-    }
+  final List<LocationModel> locations;
+  final DateTime cachedAt;
 
-    const preferredTypes = [
-      'restaurant',
-      'bar',
-      'pub',
-      'cafe',
-      'night_club',
-      'wine_bar',
-      'sports_bar',
-      'cocktail_bar',
-      'bakery',
-    ];
-
-    for (final preferred in preferredTypes) {
-      if (types.contains(preferred)) {
-        return preferred
-            .split('_')
-            .map((part) => part[0].toUpperCase() + part.substring(1))
-            .join(' ');
-      }
-    }
-
-    final first = types.first;
-    return first
-        .split('_')
-        .map((part) => part[0].toUpperCase() + part.substring(1))
-        .join(' ');
-  }
-
-  String _escapeForIlike(String value) {
-    return value.replaceAll(',', ' ').replaceAll('%', '');
-  }
+  bool get isExpired =>
+      DateTime.now().difference(cachedAt) >
+      LiveHeaderSearchRepository._searchCacheTtl;
 }

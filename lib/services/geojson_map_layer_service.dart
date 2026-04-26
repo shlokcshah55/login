@@ -9,6 +9,8 @@ import 'package:flutter/material.dart' show Color, Curves;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 import 'package:login/models/locations.dart';
 import 'package:login/models/markers.dart';
+import 'package:login/models/proximal_models.dart' show FriendSave;
+import 'package:login/utils/friend_avatar_loader.dart';
 import 'package:login/utils/geo_types.dart';
 
 /// Configuration for the GeoJSON map layers.
@@ -523,6 +525,7 @@ class GeoJsonMapLayerService {
       String? badgeType,
       List<double>? vibeVector,
       int fallbackSeed,
+      List<FriendSave> friendSaves,
     })>{};
 
     for (final location in locations) {
@@ -541,6 +544,7 @@ class GeoJsonMapLayerService {
           badgeType: location.markerBadgeType,
           vibeVector: location.vibeVector,
           fallbackSeed: location.locationId,
+          friendSaves: location.friendSaves,
         );
       }
     }
@@ -553,6 +557,23 @@ class GeoJsonMapLayerService {
     for (final iconId in iconKeys) {
       final data = iconData[iconId]!;
       try {
+        // Pre-load friend avatars when this icon's location has any.
+        // Mapbox style images are static bitmaps so the avatars must be
+        // rasterised into the icon at registration time.
+        List<ui.Image?> friendAvatarImages = const [];
+        List<String> friendInitials = const [];
+        String friendAvatarKey = '';
+        if (data.friendSaves.isNotEmpty) {
+          final shown = data.friendSaves.take(3).toList();
+          friendAvatarImages = await FriendAvatarLoader.loadAll(
+            shown.map((f) => f.friendProfileImageUrl),
+          );
+          friendInitials = shown.map((f) => f.friendName).toList();
+          friendAvatarKey = shown
+              .map((f) => f.friendProfileImageUrl ?? f.friendId)
+              .join('|');
+        }
+
         final iconBytes = await PinitMarkers.createPinitMarker(
           emoji: data.emoji,
           name: '',
@@ -567,6 +588,10 @@ class GeoJsonMapLayerService {
           rating: data.rating,
           vibeVector: data.vibeVector,
           fallbackSeed: data.fallbackSeed,
+          friendAvatarImages: friendAvatarImages,
+          friendInitials: friendInitials,
+          friendAvatarCacheKey: friendAvatarKey,
+          totalFriendCount: data.friendSaves.length,
         );
 
         final image = await _createMapboxImage(iconBytes);
@@ -1773,7 +1798,15 @@ class GeoJsonMapLayerService {
     final matchScore = ((location.matchScore ?? 0.0) * 100).round();
     final savedCount = location.savedCount ?? 0;
 
-    return '${visualKey}-${shadowStyle.key}-$colorHex-$badgeType-s$savedCount-w$wavyScore-b$bossmanScore-m$matchScore-sel${selected ? 1 : 0}';
+    // Friend-saves signature: distinct (avatar URLs, total count) tuples
+    // need their own icon so the avatar stack actually appears on the map.
+    // Without this, two locations differing only by friend attribution
+    // collapse to one cached icon and lose their avatars.
+    final friendSig = location.friendSaves.isEmpty
+        ? 'fn0'
+        : 'fn${location.friendSaves.length}_${location.friendSaves.take(3).map((f) => f.friendProfileImageUrl ?? f.friendId).join("|").hashCode}';
+
+    return '${visualKey}-${shadowStyle.key}-$colorHex-$badgeType-s$savedCount-w$wavyScore-b$bossmanScore-m$matchScore-sel${selected ? 1 : 0}-$friendSig';
   }
 
   String _buildInfoSubtitle(LocationModel location) {

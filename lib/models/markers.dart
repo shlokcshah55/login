@@ -461,6 +461,15 @@ class PinitMarkers {
     double? rating,
     List<double>? vibeVector,
     int fallbackSeed = 0,
+    // Friend avatars — small circular profile photos overlaid on the pin
+    // when one or more friends have saved/visited/shared this place.
+    // `friendAvatarImages` are pre-decoded ui.Images (see FriendAvatarLoader);
+    // entries can be null for friends without a profile photo (a coloured
+    // initial circle is drawn as a fallback).
+    List<ui.Image?> friendAvatarImages = const [],
+    List<String> friendInitials = const [],
+    String friendAvatarCacheKey = '',
+    int totalFriendCount = 0,
   }) async {
     final fillColor = surfaceColor ?? _pinFillColor;
     final isAccent = _isAccentMarker(rating);
@@ -486,7 +495,8 @@ class PinitMarkers {
         '|${fillColor.toARGB32()}|${shadowStyle.key}'
         '|${textColor.toARGB32()}|$selected|$showText|$avatarKey'
         '|${wavyScore.toStringAsFixed(2)}|${bossmanScore.toStringAsFixed(2)}'
-        '|$savedCount|${matchScore.toStringAsFixed(2)}|${badgeType ?? 'none'}';
+        '|$savedCount|${matchScore.toStringAsFixed(2)}|${badgeType ?? 'none'}'
+        '|fa:$friendAvatarCacheKey|fc:$totalFriendCount';
 
     final cached = _cache.get(key);
     if (cached != null) return cached;
@@ -507,6 +517,9 @@ class PinitMarkers {
       savedCount: savedCount,
       matchScore: matchScore,
       badgeType: badgeType,
+      friendAvatarImages: friendAvatarImages,
+      friendInitials: friendInitials,
+      totalFriendCount: totalFriendCount,
     );
     _cache.set(key, b);
     return b;
@@ -839,6 +852,119 @@ class PinitMarkers {
     }
   }
 
+  /// Draws up to 3 friend profile photos as overlapping circles at the
+  /// top-right of the pin bubble. If [totalCount] exceeds the rendered
+  /// avatars, a "+N" counter chip is drawn after the last avatar.
+  ///
+  /// `avatars[i]` may be null (image hasn't loaded / friend has no photo);
+  /// in that case we fall back to a coloured initial circle using
+  /// `initials[i]` (first letter, uppercased).
+  static void _drawFriendAvatarStack(
+    Canvas canvas, {
+    required Offset bubbleCentre,
+    required double bubbleRadius,
+    required double dpr,
+    required List<ui.Image?> avatars,
+    required List<String> initials,
+    required int totalCount,
+  }) {
+    final int maxAvatars = math.min(3, avatars.length);
+    if (maxAvatars == 0 && initials.isEmpty) return;
+
+    final double avatarRadius = 5.4 * dpr;
+    final double overlap = avatarRadius * 0.85; // step between avatars
+    final double ringWidth = 1.4 * dpr;
+
+    // Anchor the rightmost avatar just above the top-right edge of the pin.
+    final double anchorX = bubbleCentre.dx + bubbleRadius * 0.78;
+    final double anchorY = bubbleCentre.dy - bubbleRadius * 0.95;
+
+    for (int i = maxAvatars - 1; i >= 0; i--) {
+      final double cx = anchorX - (maxAvatars - 1 - i) * overlap;
+      final Offset c = Offset(cx, anchorY);
+
+      // White ring (separates overlapping avatars)
+      canvas.drawCircle(
+        c,
+        avatarRadius + ringWidth / 2,
+        Paint()..color = pinit.PinitColors.cream,
+      );
+
+      final ui.Image? img = avatars[i];
+      if (img != null) {
+        // Clip a circle and draw the image scaled to fit.
+        canvas.save();
+        final Path circle = Path()
+          ..addOval(Rect.fromCircle(center: c, radius: avatarRadius));
+        canvas.clipPath(circle);
+        final dst = Rect.fromCircle(center: c, radius: avatarRadius);
+        canvas.drawImageRect(
+          img,
+          Rect.fromLTWH(
+            0,
+            0,
+            img.width.toDouble(),
+            img.height.toDouble(),
+          ),
+          dst,
+          Paint()..filterQuality = FilterQuality.medium,
+        );
+        canvas.restore();
+      } else {
+        // Coloured initial fallback.
+        final String letter = (i < initials.length && initials[i].isNotEmpty)
+            ? initials[i][0].toUpperCase()
+            : '?';
+        final Color bg = PinitMarkerPalette
+            .avatarDefaults[i % PinitMarkerPalette.avatarDefaults.length];
+        canvas.drawCircle(c, avatarRadius, Paint()..color = bg);
+        final tp = TextPainter(
+          text: TextSpan(
+            text: letter,
+            style: GoogleFonts.inter(
+              color: Colors.white,
+              fontSize: avatarRadius * 1.05,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          textAlign: TextAlign.center,
+          textDirection: ui.TextDirection.ltr,
+        )..layout();
+        tp.paint(canvas, Offset(c.dx - tp.width / 2, c.dy - tp.height / 2));
+      }
+    }
+
+    // "+N" overflow counter when more friends saved than we rendered.
+    final int overflow = totalCount - maxAvatars;
+    if (overflow > 0) {
+      final double cx = anchorX + overlap;
+      final Offset c = Offset(cx, anchorY);
+      canvas.drawCircle(
+        c,
+        avatarRadius + ringWidth / 2,
+        Paint()..color = pinit.PinitColors.cream,
+      );
+      canvas.drawCircle(
+        c,
+        avatarRadius,
+        Paint()..color = pinit.PinitColors.creamSunk,
+      );
+      final tp = TextPainter(
+        text: TextSpan(
+          text: '+$overflow',
+          style: GoogleFonts.inter(
+            color: _pinLabelColor,
+            fontSize: avatarRadius * 0.85,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        textAlign: TextAlign.center,
+        textDirection: ui.TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(c.dx - tp.width / 2, c.dy - tp.height / 2));
+    }
+  }
+
   /// Draws a single pin circle with gradient, shadow, and inner highlight.
   static Future<void> _drawPinBubble(
     Canvas canvas, {
@@ -1102,6 +1228,9 @@ class PinitMarkers {
     required int savedCount,
     required double matchScore,
     String? badgeType,
+    List<ui.Image?> friendAvatarImages = const [],
+    List<String> friendInitials = const [],
+    int totalFriendCount = 0,
   }) async {
     // ── Determine vibe mode ──
     final bool isBossman = _isBossman(wavyScore, bossmanScore);
@@ -1147,7 +1276,12 @@ class PinitMarkers {
     final double pillH = showText ? textH + pillPadV * 2 : 0;
 
     final double selBorder = selected ? 1.6 * dpr : 0;
-    final double pad = selBorder + ringSpace + shadowExtra + 4;
+    // Friend avatar stack pokes above the pin and to the right; reserve
+    // extra padding when present so the stack isn't clipped.
+    final bool hasFriendAvatars =
+        friendAvatarImages.isNotEmpty || friendInitials.isNotEmpty;
+    final double friendStackExtra = hasFriendAvatars ? 9.0 * dpr : 0.0;
+    final double pad = selBorder + ringSpace + shadowExtra + 4 + friendStackExtra;
 
     final double totalW = showText
         ? bubbleOuterSize.width + textGap + pillW
@@ -1198,6 +1332,19 @@ class PinitMarkers {
       dpr: dpr,
       badgeType: badgeType,
     );
+
+    // 6b. Friend-saves avatar stack (top-right of pin)
+    if (hasFriendAvatars) {
+      _drawFriendAvatarStack(
+        c,
+        bubbleCentre: centre,
+        bubbleRadius: bubR,
+        dpr: dpr,
+        avatars: friendAvatarImages,
+        initials: friendInitials,
+        totalCount: totalFriendCount,
+      );
+    }
 
     // 7. Pill label
     if (showText) {

@@ -787,14 +787,7 @@ class _PlaceResultsListState extends State<_PlaceResultsList> {
   }
 
   void _toggleExpanded(SearchSuggestionItem item) {
-    if (item.location == null || !item.isGoogleResult) {
-      widget.onSuggestionSelected(item);
-      return;
-    }
-
-    setState(() {
-      _expandedItemId = _expandedItemId == item.id ? null : item.id;
-    });
+    widget.onSuggestionSelected(item);
   }
 
   Future<void> _handleAction(
@@ -1202,35 +1195,6 @@ class _SearchResultListTile extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            if (item.isGoogleResult)
-                              Positioned(
-                                top: 8,
-                                left: 8,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 5,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: pinit.PinitColors.cream,
-                                    borderRadius: BorderRadius.circular(999),
-                                    border: Border.all(
-                                      color: pinit.PinitColors.aubergine,
-                                      width: 1.2,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'GOOGLE',
-                                    style: GoogleFonts.dmSans(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w800,
-                                      color: pinit.PinitColors.aubergine,
-                                      letterSpacing: 0.8,
-                                      height: 1.0,
-                                    ),
-                                  ),
-                                ),
-                              ),
                           ],
                         ),
                       ),
@@ -1347,9 +1311,6 @@ class _SearchResultListTile extends StatelessWidget {
   }
 
   String _topStripLabel(SearchSuggestionItem item, LocationModel? location) {
-    if (item.isGoogleResult) {
-      return 'Google Result';
-    }
     if (location?.savedCount != null && location!.savedCount! > 0) {
       return '${location.savedCount} Saves';
     }
@@ -1393,9 +1354,6 @@ class _SearchResultListTile extends StatelessWidget {
     }
     if (item.distanceMeters != null) {
       pills.add(_SearchMetaPill(label: _formatDistance(item.distanceMeters!)));
-    }
-    if (pills.isEmpty && item.isGoogleResult) {
-      pills.add(const _SearchMetaPill(label: 'Google'));
     }
     final limited = pills.take(maxCount).toList(growable: false);
     return [

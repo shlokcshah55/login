@@ -16,7 +16,6 @@ class SearchSuggestionItem {
   final String? queryValue;
   final LocationModel? location;
   final bool isPersonalized;
-  final bool isGoogleResult;
   final double? distanceMeters;
 
   const SearchSuggestionItem({
@@ -27,7 +26,6 @@ class SearchSuggestionItem {
     this.queryValue,
     this.location,
     this.isPersonalized = false,
-    this.isGoogleResult = false,
     this.distanceMeters,
   });
 
@@ -52,7 +50,6 @@ class SearchSuggestionItem {
 
   factory SearchSuggestionItem.place(
     LocationModel location, {
-    bool isGoogleResult = false,
     double? distanceMeters,
   }) {
     return SearchSuggestionItem(
@@ -62,7 +59,6 @@ class SearchSuggestionItem {
       subtitle: location.vicinity ?? location.cuisine,
       queryValue: location.name,
       location: location,
-      isGoogleResult: isGoogleResult,
       distanceMeters: distanceMeters,
     );
   }

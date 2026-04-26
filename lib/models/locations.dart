@@ -1,7 +1,10 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:login/models/markers.dart';
+import 'package:login/models/proximal_models.dart' show FriendSave;
 import 'package:login/models/video_extras.dart';
+import 'package:login/utils/friend_avatar_loader.dart';
 
 import '../supabase/constants.dart';
 import 'package:login/utils/geo_types.dart';
@@ -234,6 +237,12 @@ class LocationModel {
   /// `user_location_actions.video_extras` when loading saved locations.
   final VideoExtras? videoExtras;
 
+  /// Friends who saved/visited/shared this location. Populated by the
+  /// recommender (`Recommendation.friendSaves`) and threaded into the
+  /// LocationModel via `attachFriendSaves`. Drives the avatar stack
+  /// rendered on map pins for places friends already know about.
+  final List<FriendSave> friendSaves;
+
   LocationPreference? preference;
 
   LocationModel({
@@ -315,7 +324,94 @@ class LocationModel {
     this.savedFrom,
     this.savedMethod,
     this.videoExtras,
+    this.friendSaves = const [],
   });
+
+  /// Returns a shallow copy with `friendSaves` replaced. Used by the
+  /// location-list provider when zipping recommendation results onto the
+  /// hydrated LocationModel objects fetched from Supabase.
+  LocationModel copyWithFriendSaves(List<FriendSave> saves) {
+    return LocationModel(
+      locationId: locationId,
+      name: name,
+      vicinity: vicinity,
+      lat: lat,
+      lng: lng,
+      createdAt: createdAt,
+      ingestedAt: ingestedAt,
+      phoneNumber: phoneNumber,
+      cuisine: cuisine,
+      rating: rating,
+      userRatingsTotal: userRatingsTotal,
+      priceLevel: priceLevel,
+      photoReference: photoReference,
+      imageUrl: imageUrl,
+      savedCount: savedCount,
+      googlePlaceId: googlePlaceId,
+      businessStatus: businessStatus,
+      editorialSummary: editorialSummary,
+      website: website,
+      internationalPhoneNumber: internationalPhoneNumber,
+      types: types,
+      openingHoursText: openingHoursText,
+      openNow: openNow,
+      cuisineDetected: cuisineDetected,
+      cuisineSource: cuisineSource,
+      cuisinePrimary: cuisinePrimary,
+      topReviewLanguage: topReviewLanguage,
+      topLanguageShare: topLanguageShare,
+      reviewLanguageCountsJson: reviewLanguageCountsJson,
+      isOpenLate: isOpenLate,
+      isOpenEarly: isOpenEarly,
+      isSundayOpen: isSundayOpen,
+      priceBucket: priceBucket,
+      logReviews: logReviews,
+      dataVersion: dataVersion,
+      emoji: emoji,
+      preference: preference,
+      openingHoursPeriods: openingHoursPeriods,
+      photoReferenceValidUntil: photoReferenceValidUntil,
+      photoReferenceScore: photoReferenceScore,
+      imageStored: imageStored,
+      imageUnavailable: imageUnavailable,
+      extraPhotosStored: extraPhotosStored,
+      updatedAt: updatedAt,
+      googleMapsUri: googleMapsUri,
+      photos: photos,
+      reviews: reviews,
+      reviewSummary: reviewSummary,
+      goodForChildren: goodForChildren,
+      goodForGroups: goodForGroups,
+      goodForWatchingSports: goodForWatchingSports,
+      liveMusic: liveMusic,
+      outdoorSeating: outdoorSeating,
+      servesBeer: servesBeer,
+      servesBreakfast: servesBreakfast,
+      servesBrunch: servesBrunch,
+      servesCocktails: servesCocktails,
+      servesCoffee: servesCoffee,
+      servesDessert: servesDessert,
+      servesDinner: servesDinner,
+      servesLunch: servesLunch,
+      servesVegetarianFood: servesVegetarianFood,
+      servesWine: servesWine,
+      menu: menu,
+      generatedSummary: generatedSummary,
+      recommendedDishes: recommendedDishes,
+      menuAnalysisConfidence: menuAnalysisConfidence,
+      vibeVector: vibeVector,
+      vibe: vibe,
+      updatedVibe: updatedVibe,
+      isTakeaway: isTakeaway,
+      dietaryRequirementVector: dietaryRequirementVector,
+      cuisineScoresJson: cuisineScoresJson,
+      matchScore: matchScore,
+      savedFrom: savedFrom,
+      savedMethod: savedMethod,
+      videoExtras: videoExtras,
+      friendSaves: saves,
+    );
+  }
 
   factory LocationModel.fromJson(
       Map<String, dynamic> json, String? locationImage) {
@@ -963,6 +1059,7 @@ class LocationModel {
   ///  • Wavy places get an iridescent shimmer ring + colour-fringe glow
   ///  • Bossman places are visually de-saturated / muted
   ///  • High saved-count places glow more intensely
+  ///  • Friends who saved the place get a small avatar stack on the pin
   Future<MapMarkerData?> toMarker(double dpr,
       {bool shouldShowName = true}) async {
     if (lat == null || lng == null) return null;
@@ -970,6 +1067,30 @@ class LocationModel {
     // Extract vibe scores — default to 0 when vector is absent.
     final double wavyScore = vibe?.wavyScore ?? 0.0;
     final double bossmanScore = vibe?.bossmanScore ?? 0.0;
+
+    // Pre-load up to 3 friend avatars when this location was attributed
+    // to friends by the recommender. Decoded ui.Images are cached by URL
+    // so map pans don't re-fetch.
+    List<ui.Image?> friendAvatarImages = const [];
+    List<String> friendInitials = const [];
+    String friendAvatarKey = '';
+    if (friendSaves.isNotEmpty) {
+      final shown = friendSaves.take(3).toList();
+      // ignore: avoid_print
+      print('🧑‍🤝‍🧑 [toMarker] $name (#$locationId): '
+          '${friendSaves.length} friend saves, fetching avatars...');
+      friendAvatarImages = await FriendAvatarLoader.loadAll(
+        shown.map((f) => f.friendProfileImageUrl),
+      );
+      final loadedCount = friendAvatarImages.where((i) => i != null).length;
+      // ignore: avoid_print
+      print('🧑‍🤝‍🧑 [toMarker] $name: '
+          '$loadedCount/${friendAvatarImages.length} avatars decoded');
+      friendInitials = shown.map((f) => f.friendName).toList();
+      friendAvatarKey = shown
+          .map((f) => f.friendProfileImageUrl ?? f.friendId)
+          .join('|');
+    }
 
     final imageBytes = await PinitMarkers.createPinitMarker(
       emoji: emoji,
@@ -986,6 +1107,10 @@ class LocationModel {
       rating: rating,
       vibeVector: vibeVector,
       fallbackSeed: locationId,
+      friendAvatarImages: friendAvatarImages,
+      friendInitials: friendInitials,
+      friendAvatarCacheKey: friendAvatarKey,
+      totalFriendCount: friendSaves.length,
     );
 
     return MapMarkerData(

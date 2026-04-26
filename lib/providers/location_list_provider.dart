@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:login/utils/geo_types.dart';
 import 'package:login/models/locations.dart';
+import 'package:login/models/proximal_models.dart' show FriendSave;
 import 'package:login/services/recommendations_api.dart';
 import 'package:login/services/google_place_service.dart';
 import 'package:login/services/location_service.dart';
@@ -1178,7 +1179,36 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
           "${serverFiltered ? ' (server-filtered)' : ''}");
 
       // Fetch full location data
-      final locations = await _fetchLocationsByIdsInOrder(locationIds);
+      final hydrated = await _fetchLocationsByIdsInOrder(locationIds);
+
+      // Attach friend_saves attribution from each Recommendation onto the
+      // hydrated LocationModel. The map widget renders an avatar stack on
+      // pins for any location with a non-empty friendSaves list.
+      final friendSavesByLocId = <int, List<FriendSave>>{
+        for (final rec in response.recommendations)
+          if (rec.friendSaves.isNotEmpty) rec.locationId: rec.friendSaves,
+      };
+      print(
+          '🧑‍🤝‍🧑 [Recs] API returned ${response.recommendations.length} recs; '
+          '${friendSavesByLocId.length} have friend_saves');
+      if (friendSavesByLocId.isNotEmpty) {
+        final entry = friendSavesByLocId.entries.first;
+        print('🧑‍🤝‍🧑 [Recs]   sample: loc ${entry.key} has '
+            '${entry.value.length} friends; '
+            'first photo=${entry.value.first.friendProfileImageUrl}');
+      }
+      final locations = friendSavesByLocId.isEmpty
+          ? hydrated
+          : hydrated
+              .map((loc) {
+                final saves = friendSavesByLocId[loc.locationId];
+                return saves == null ? loc : loc.copyWithFriendSaves(saves);
+              })
+              .toList();
+      final attached =
+          locations.where((l) => l.friendSaves.isNotEmpty).length;
+      print('🧑‍🤝‍🧑 [Recs] Hydrated $attached locations with friendSaves '
+          '(of ${locations.length} total)');
 
       // Build markers for all locations
       await _buildMarkersAndSync(locations);

@@ -6,18 +6,17 @@ import 'package:login/pages/home/search/header_search_repository.dart';
 import 'package:login/pages/home/search/header_search_types.dart';
 
 class HeaderSearchCoordinator extends ChangeNotifier {
-  static const int _minGoogleAutocompleteQueryLength = 2;
-
   final HeaderSearchRepository _repository;
   final Duration debounceDuration;
 
   HeaderSearchState _state = HeaderSearchState.initial();
   Timer? _debounce;
   int _requestVersion = 0;
+  StreamSubscription<List<SearchSuggestionItem>>? _placesSubscription;
 
   HeaderSearchCoordinator({
     HeaderSearchRepository? repository,
-    this.debounceDuration = const Duration(milliseconds: 180),
+    this.debounceDuration = const Duration(milliseconds: 100),
   }) : _repository = repository ?? const NoopHeaderSearchRepository();
 
   HeaderSearchState get state => _state;
@@ -43,6 +42,8 @@ class HeaderSearchCoordinator extends ChangeNotifier {
 
   void close() {
     _debounce?.cancel();
+    _placesSubscription?.cancel();
+    _placesSubscription = null;
     _requestVersion++;
     _state = _state.copyWith(
       isActive: false,
@@ -129,11 +130,9 @@ class HeaderSearchCoordinator extends ChangeNotifier {
         personalPrompts: personalPrompts,
       ),
     );
-    unawaited(
-      _runPlacesStage(
-        query: query,
-        requestVersion: requestVersion,
-      ),
+    _runPlacesStage(
+      query: query,
+      requestVersion: requestVersion,
     );
   }
 
@@ -160,75 +159,62 @@ class HeaderSearchCoordinator extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Runs the Supabase and Google Places lookups in parallel and publishes
-  /// them in a single batch — DB results first, Google results appended
-  /// below — so the list renders all items at once with no jolts.
-  Future<void> _runPlacesStage({
+  void _runPlacesStage({
     required String query,
     required int requestVersion,
-  }) async {
-    final trimmed = query.trim();
-    final runGoogle = trimmed.length >= _minGoogleAutocompleteQueryLength;
+  }) {
+    // Cancel any prior in-flight places stream. A new query version
+    // supersedes the old one — we don't want late emissions from a stale
+    // search overwriting fresh results.
+    _placesSubscription?.cancel();
+    _placesSubscription = _repository
+        .loadDatabasePlaces(query: query)
+        .listen(
+      (items) {
+        if (!_isLatestRequest(requestVersion)) return;
 
-    final dbFuture = _safeLoadDatabasePlaces(query);
-    Future<List<SearchSuggestionItem>> googleFuture;
-    if (runGoogle) {
-      googleFuture = _safeLoadGooglePlaces(query);
-    } else {
-      googleFuture = Future.value(const <SearchSuggestionItem>[]);
-    }
-
-    final results = await Future.wait([dbFuture, googleFuture]);
-    if (!_isLatestRequest(requestVersion)) return;
-
-    final merged = _mergeSuggestionLists(
-      primary: results[0],
-      secondary: results[1],
+        _state = _state.copyWith(
+          result: _state.result.copyWith(
+            placeItems: _dedupeSuggestionList(items),
+            // Keep `isLoading` true while the stream is still emitting;
+            // the final `onDone` handler flips it off. This preserves the
+            // skeleton state only for the tail end of the batch.
+            clearErrorMessage: true,
+          ),
+        );
+        notifyListeners();
+      },
+      onError: (_) {
+        if (!_isLatestRequest(requestVersion)) return;
+        _state = _state.copyWith(
+          result: _state.result.copyWith(
+            placeItems: const [],
+            isLoading: false,
+          ),
+        );
+        notifyListeners();
+      },
+      onDone: () {
+        if (!_isLatestRequest(requestVersion)) return;
+        _state = _state.copyWith(
+          result: _state.result.copyWith(isLoading: false),
+        );
+        notifyListeners();
+      },
+      cancelOnError: true,
     );
-
-    _state = _state.copyWith(
-      result: _state.result.copyWith(
-        placeItems: merged,
-        isLoading: false,
-        clearErrorMessage: true,
-      ),
-    );
-    notifyListeners();
-  }
-
-  Future<List<SearchSuggestionItem>> _safeLoadDatabasePlaces(
-    String query,
-  ) async {
-    try {
-      return await _repository.loadDatabasePlaces(query: query);
-    } catch (_) {
-      return const [];
-    }
-  }
-
-  Future<List<SearchSuggestionItem>> _safeLoadGooglePlaces(String query) async {
-    try {
-      final proximity = await _repository.currentProximity();
-      return await _repository.loadGoogleAutocompleteSuggestions(
-        query: query,
-        proximity: proximity,
-      );
-    } catch (_) {
-      return const [];
-    }
   }
 
   bool _isLatestRequest(int requestVersion) =>
       requestVersion == _requestVersion;
 
-  static List<SearchSuggestionItem> _mergeSuggestionLists({
-    required List<SearchSuggestionItem> primary,
-    required List<SearchSuggestionItem> secondary,
-  }) {
+  static List<SearchSuggestionItem> _dedupeSuggestionList(
+    List<SearchSuggestionItem> items,
+  ) {
     final seen = <String>{};
     final merged = <SearchSuggestionItem>[];
 
-    for (final item in [...primary, ...secondary]) {
+    for (final item in items) {
       final key = item.location != null
           ? _locationDeduplicationKey(item.location!)
           : item.id;
@@ -253,6 +239,7 @@ class HeaderSearchCoordinator extends ChangeNotifier {
   @override
   void dispose() {
     _debounce?.cancel();
+    _placesSubscription?.cancel();
     super.dispose();
   }
 }

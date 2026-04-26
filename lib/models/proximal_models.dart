@@ -100,6 +100,7 @@ class Recommendation {
   final double? finalScore;
   final int? rank;
   final List<TasteBreakdown> tasteBreakdown;
+  final List<FriendSave> friendSaves;
 
   const Recommendation({
     required this.locationId,
@@ -116,6 +117,7 @@ class Recommendation {
     this.finalScore,
     this.rank,
     this.tasteBreakdown = const [],
+    this.friendSaves = const [],
   });
 
   factory Recommendation.fromJson(Map<String, dynamic> json) {
@@ -136,8 +138,57 @@ class Recommendation {
       tasteBreakdown: (json['taste_breakdown'] as List<dynamic>? ?? [])
           .map((item) => TasteBreakdown.fromJson(item as Map<String, dynamic>))
           .toList(),
+      friendSaves: (json['friend_saves'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(FriendSave.fromJson)
+          .toList(),
     );
   }
+}
+
+/// A friend's interaction with a location, surfaced by the recommender as
+/// social attribution. Drives the avatar stack rendered on map pins.
+class FriendSave {
+  final String friendId;
+  final String friendName;
+  final String? friendUsername;
+  final String? friendProfileImageUrl;
+  final String actionType; // save | been_to | like | bubble_save | shared_video
+  final int? rating;
+  final String timestamp;
+
+  const FriendSave({
+    required this.friendId,
+    required this.friendName,
+    this.friendUsername,
+    this.friendProfileImageUrl,
+    required this.actionType,
+    this.rating,
+    required this.timestamp,
+  });
+
+  factory FriendSave.fromJson(Map<String, dynamic> json) {
+    return FriendSave(
+      friendId: json['friend_id']?.toString() ?? '',
+      friendName: json['friend_name']?.toString() ?? '',
+      friendUsername: json['friend_username']?.toString(),
+      friendProfileImageUrl: json['friend_profile_image_url']?.toString(),
+      actionType: json['action_type']?.toString() ?? 'save',
+      rating: (json['rating'] as num?)?.toInt(),
+      timestamp: json['timestamp']?.toString() ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'friend_id': friendId,
+        'friend_name': friendName,
+        if (friendUsername != null) 'friend_username': friendUsername,
+        if (friendProfileImageUrl != null)
+          'friend_profile_image_url': friendProfileImageUrl,
+        'action_type': actionType,
+        if (rating != null) 'rating': rating,
+        'timestamp': timestamp,
+      };
 }
 
 class TasteBreakdown {

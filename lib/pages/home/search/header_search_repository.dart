@@ -20,13 +20,12 @@ abstract class HeaderSearchRepository {
     required List<String> personalPrompts,
   });
 
-  Future<List<SearchSuggestionItem>> loadDatabasePlaces({
+  /// Streams place suggestions for [query] as each result's image URL
+  /// resolves. The stream emits the *running* list (ascending in size) so
+  /// the UI can replace `placeItems` on each event without reconciliation.
+  /// A single terminal event is emitted even when no rows are returned.
+  Stream<List<SearchSuggestionItem>> loadDatabasePlaces({
     required String query,
-  });
-
-  Future<List<SearchSuggestionItem>> loadGoogleAutocompleteSuggestions({
-    required String query,
-    LatLng? proximity,
   });
 
   Future<LatLng?> currentProximity();
@@ -58,17 +57,10 @@ class NoopHeaderSearchRepository implements HeaderSearchRepository {
       const [];
 
   @override
-  Future<List<SearchSuggestionItem>> loadDatabasePlaces({
+  Stream<List<SearchSuggestionItem>> loadDatabasePlaces({
     required String query,
-  }) async =>
-      const [];
-
-  @override
-  Future<List<SearchSuggestionItem>> loadGoogleAutocompleteSuggestions({
-    required String query,
-    LatLng? proximity,
-  }) async =>
-      const [];
+  }) =>
+      Stream.value(const []);
 
   @override
   Future<LatLng?> currentProximity() async => null;

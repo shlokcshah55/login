@@ -261,6 +261,56 @@ class LocationHelper {
     return processed.whereType<LocationModel>().toList();
   }
 
+  /// Streaming variant of [processLocationsWithImages]. Emits each
+  /// [LocationModel] as its parse + image-URL resolution completes, instead
+  /// of blocking on the whole batch. Designed for search suggestions where
+  /// perceived latency matters more than list stability. Items arrive in
+  /// completion order, so cache-hot rows appear first.
+  ///
+  /// No affinity scoring — see the comment in the repo call site for why
+  /// we skip it for transient suggestions.
+  Stream<LocationModel> streamLocationsWithImages(
+    List<dynamic> locationsData,
+  ) {
+    if (locationsData.isEmpty) {
+      return const Stream<LocationModel>.empty();
+    }
+
+    final futures = locationsData.map<Future<LocationModel?>>((item) async {
+      try {
+        final locationId =
+            item[SupabaseConstants.columnLocationId] as int;
+
+        final cached = _getFromCache(locationId);
+        if (cached != null) {
+          if (cached.imageUrl != null && cached.imageUrl!.isNotEmpty) {
+            return cached;
+          }
+          final imageUrl = await _getLocationImageUrl(item);
+          if (imageUrl != null && imageUrl != cached.imageUrl) {
+            final updated = cached.copyWith(imageUrl: imageUrl);
+            _cacheLocation(updated);
+            return updated;
+          }
+          return cached;
+        }
+
+        final imageUrl = await _getLocationImageUrl(item);
+        final location = LocationModel.fromJson(item, imageUrl);
+        _cacheLocation(location);
+        return location;
+      } catch (_) {
+        return null;
+      }
+    });
+
+    // Stream.fromFutures emits in completion order — fast items (cache
+    // hits, rows with image_stored=true) surface first.
+    return Stream<LocationModel?>.fromFutures(futures)
+        .where((loc) => loc != null)
+        .cast<LocationModel>();
+  }
+
   // This is temporary until we replace this with reccomendation call
   Future<List<LocationModel>> getFiveLocations() async {
     try {
