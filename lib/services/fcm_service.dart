@@ -20,6 +20,7 @@ import 'package:login/models/notifications/user_added_to_bubble_notification.dar
 import 'package:login/models/notifications/video_processed_notification.dart';
 import 'package:login/widgets/profile/notifications_popover.dart';
 import 'package:login/services/notification_routes.dart';
+import 'package:login/services/analytics_service.dart';
 
 class FCMService {
   static final FCMService _instance = FCMService._internal();
@@ -38,12 +39,15 @@ class FCMService {
 
   List<BaseNotification> _notifications = [];
   List<BaseNotification> get notifications => List.unmodifiable(_notifications);
+  final AnalyticsService _analyticsService = AnalyticsService();
 
   late final NotificationsHelper _notificationsHelper;
   RealtimeChannel? _realtimeChannel;
+  bool _messageOpenHandlingRegistered = false;
 
-  // Holds a cold-start notification until MainScreen is ready to handle it.
-  RemoteMessage? _pendingInitialMessage;
+  // Holds a tapped notification until MainScreen and the root navigator are
+  // ready to actually push routes.
+  RemoteMessage? _pendingOpenedMessage;
 
   /// Save FCM token to Supabase with retry logic
   Future<void> saveFCMToken(String fcmToken, {int retryCount = 0}) async {
@@ -125,6 +129,8 @@ class FCMService {
   Future<void> initialize() async {
     print('📲 Initializing FCM Service');
 
+    await registerMessageOpenHandling();
+
     // Initialize notifications helper
     _notificationsHelper = NotificationsHelper();
 
@@ -156,14 +162,26 @@ class FCMService {
     // Handle foreground messages - save to DB instead of memory
     FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
 
-    // Handle notification tap (background/terminated)
-    FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
-
-    // Store cold-start notification; MainScreen will consume it once mounted.
-    _pendingInitialMessage =
-        await FirebaseMessaging.instance.getInitialMessage();
-
     print('📲 FCM Service initialization complete');
+  }
+
+  /// Register tap/open listeners as early as possible during bootstrap.
+  ///
+  /// This must happen before long-running startup work, otherwise iOS can
+  /// deliver the "notification opened app" event before our listener exists.
+  Future<void> registerMessageOpenHandling() async {
+    if (_messageOpenHandlingRegistered) return;
+    _messageOpenHandlingRegistered = true;
+
+    FirebaseMessaging.onMessageOpenedApp.listen((message) {
+      unawaited(_handleNotificationTapOrQueue(message));
+    });
+
+    _pendingOpenedMessage =
+        await FirebaseMessaging.instance.getInitialMessage();
+    if (_pendingOpenedMessage != null) {
+      print('📲 Stored initial notification tap for later consumption');
+    }
   }
 
   /// Handle foreground notification
@@ -175,6 +193,15 @@ class FCMService {
 
     final notification = BaseNotification.fromRemoteMessage(message);
     if (notification != null) {
+      _analyticsService.track(
+        eventName: 'notification_received',
+        eventCategory: 'notification',
+        properties: <String, dynamic>{
+          'type': notification.type.name,
+          'has_data': message.data.isNotEmpty,
+          'source': 'foreground',
+        },
+      );
       // Emit location-saved event so the location list updates immediately
       if (notification.type == NotificationType.videoProcessed &&
           notification is VideoProcessedNotification) {
@@ -204,6 +231,17 @@ class FCMService {
   /// Handle notification tap — navigate to the appropriate screen
   Future<void> _handleNotificationTap(RemoteMessage message) async {
     print('📲 Notification tapped');
+    final tappedNotification = BaseNotification.fromRemoteMessage(message);
+    if (tappedNotification != null) {
+      _analyticsService.track(
+        eventName: 'notification_opened',
+        eventCategory: 'notification',
+        properties: <String, dynamic>{
+          'type': tappedNotification.type.name,
+          'source': 'tap',
+        },
+      );
+    }
 
     final handledDeepLink = await _handleDeepLinkFromMessage(message);
     if (handledDeepLink) return;
@@ -270,6 +308,20 @@ class FCMService {
     }
   }
 
+  Future<void> _handleNotificationTapOrQueue(RemoteMessage message) async {
+    if (!_isNavigatorReady()) {
+      _queuePendingOpenedMessage(message, reason: 'navigator_not_ready');
+      return;
+    }
+
+    try {
+      await _handleNotificationTap(message);
+    } catch (e) {
+      print('📲 Error handling notification tap immediately: $e');
+      _queuePendingOpenedMessage(message, reason: 'tap_handler_failed');
+    }
+  }
+
   String? _firstNonEmptyString(
     Map<String, dynamic> data,
     List<String> candidateKeys,
@@ -324,7 +376,13 @@ class FCMService {
   Future<bool> _handleDeepLink(
       String deepLink, Map<String, dynamic> data) async {
     final segments = _deepLinkSegments(deepLink);
-    if (segments.isEmpty) return false;
+    if (segments.isEmpty) {
+      _trackDeepLinkFailed(
+        deepLink: deepLink,
+        reason: 'empty_segments',
+      );
+      return false;
+    }
 
     final context = navigatorKey.currentContext;
     final notificationId = data['id']?.toString();
@@ -351,14 +409,17 @@ class FCMService {
     switch (root) {
       case 'home':
         navigateToTab(0, '/home');
+        _trackDeepLinkRouted(deepLink: deepLink, route: 'home');
         return true;
 
       case 'bubbles':
         navigateToTab(1, '/bubbles');
+        _trackDeepLinkRouted(deepLink: deepLink, route: 'bubbles');
         return true;
 
       case 'profile':
         navigateToTab(2, '/profile');
+        _trackDeepLinkRouted(deepLink: deepLink, route: 'profile');
         return true;
 
       case 'notifications':
@@ -371,44 +432,111 @@ class FCMService {
             fullscreenDialog: true,
           ),
         );
+        _trackDeepLinkRouted(deepLink: deepLink, route: 'notifications');
         return true;
 
       case 'bubble':
         final bubbleId = (segments.length >= 2 ? segments[1] : null) ??
             _firstNonEmptyString(data, const ['bubbleId']);
-        if (bubbleId == null) return false;
+        if (bubbleId == null) {
+          _trackDeepLinkFailed(
+            deepLink: deepLink,
+            reason: 'missing_bubble_id',
+            route: 'bubble',
+          );
+          return false;
+        }
         await markAsReadIfPossible();
         await _openBubbleChat(
           bubbleId: bubbleId,
           notificationId: notificationId ?? '',
           isRead: true,
         );
+        _trackDeepLinkRouted(deepLink: deepLink, route: 'bubble');
         return true;
 
       case 'user':
         final userId = (segments.length >= 2 ? segments[1] : null) ??
             _firstNonEmptyString(data, const ['userId']);
-        if (userId == null) return false;
+        if (userId == null) {
+          _trackDeepLinkFailed(
+            deepLink: deepLink,
+            reason: 'missing_user_id',
+            route: 'user',
+          );
+          return false;
+        }
         await markAsReadIfPossible();
         await _openUserProfile(
           userId: userId,
           highlightPendingRequest:
               _normalizeNotifType(data['type']) == 'follow_request',
         );
+        _trackDeepLinkRouted(deepLink: deepLink, route: 'user');
         return true;
 
       case 'location':
         final locationIdRaw = (segments.length >= 2 ? segments[1] : null) ??
             _firstNonEmptyString(data, const ['locationId']);
         final locationId = int.tryParse(locationIdRaw ?? '');
-        if (locationId == null) return false;
+        if (locationId == null) {
+          _trackDeepLinkFailed(
+            deepLink: deepLink,
+            reason: 'invalid_location_id',
+            route: 'location',
+          );
+          return false;
+        }
         await markAsReadIfPossible();
         await _openLocation(locationId: locationId);
+        _trackDeepLinkRouted(deepLink: deepLink, route: 'location');
         return true;
 
       default:
+        _trackDeepLinkFailed(
+          deepLink: deepLink,
+          reason: 'unsupported_route',
+          route: root,
+        );
         return false;
     }
+  }
+
+  void _trackDeepLinkRouted({
+    required String deepLink,
+    required String route,
+  }) {
+    _analyticsService.track(
+      eventName: 'deep_link_routed',
+      eventCategory: 'notification',
+      properties: <String, dynamic>{
+        'deep_link': deepLink,
+        'route': route,
+      },
+    );
+  }
+
+  void _trackDeepLinkFailed({
+    required String deepLink,
+    required String reason,
+    String? route,
+  }) {
+    _analyticsService.track(
+      eventName: 'deep_link_failed',
+      eventCategory: 'notification',
+      properties: <String, dynamic>{
+        'deep_link': deepLink,
+        'reason': reason,
+        if (route != null) 'route': route,
+      },
+    );
+    _analyticsService.recordError(
+      key: 'deep_link_failed',
+      properties: <String, dynamic>{
+        'reason': reason,
+        if (route != null) 'route': route,
+      },
+    );
   }
 
   Future<void> _openLocation({required int locationId}) async {
@@ -608,12 +736,36 @@ class FCMService {
     await _loadNotificationsFromDB();
   }
 
-  /// Call this once from MainScreen.initState to handle any cold-start tap.
+  /// Call this once from MainScreen.initState to handle any queued tap.
   Future<void> consumePendingInitialMessage() async {
-    final message = _pendingInitialMessage;
+    if (!_isNavigatorReady()) {
+      print('📲 Navigator still not ready; deferring pending notification tap');
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(consumePendingInitialMessage());
+      });
+      return;
+    }
+
+    final message = _pendingOpenedMessage;
     if (message == null) return;
-    _pendingInitialMessage = null;
+    _pendingOpenedMessage = null;
     await _handleNotificationTap(message);
+  }
+
+  bool _isNavigatorReady() {
+    return navigatorKey.currentState != null &&
+        navigatorKey.currentContext != null;
+  }
+
+  void _queuePendingOpenedMessage(
+    RemoteMessage message, {
+    required String reason,
+  }) {
+    _pendingOpenedMessage = message;
+    print(
+      '📲 Queued notification tap until navigator is ready '
+      '($reason): ${message.data}',
+    );
   }
 
   /// Reinitialize notifications after user login

@@ -21,7 +21,8 @@ String? resolveNotificationDeepLink(Map<String, dynamic> data) {
       return bubbleId == null ? null : 'pinit://bubble/$bubbleId';
 
     case 'video_processed':
-      return 'pinit://notifications';
+      final locationId = _firstNonEmptyString(data, const ['locationId']);
+      return locationId == null ? null : 'pinit://location/$locationId';
 
     default:
       return null;

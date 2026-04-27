@@ -60,17 +60,19 @@ void main() {
       );
     });
 
-    test('video_processed -> notifications layover', () {
+    test('video_processed -> location card', () {
       expect(
-        resolveNotificationDeepLink({'type': 'video_processed'}),
-        'pinit://notifications',
+        resolveNotificationDeepLink(
+            {'type': 'video_processed', 'locationId': '42'}),
+        'pinit://location/42',
       );
     });
 
-    test('location_saved alias -> notifications layover', () {
+    test('location_saved alias -> location card', () {
       expect(
-        resolveNotificationDeepLink({'type': 'location_saved'}),
-        'pinit://notifications',
+        resolveNotificationDeepLink(
+            {'type': 'location_saved', 'locationId': '42'}),
+        'pinit://location/42',
       );
     });
 
@@ -79,6 +81,7 @@ void main() {
       expect(resolveNotificationDeepLink({'type': 'new_message'}), isNull);
       expect(
           resolveNotificationDeepLink({'type': 'proximity_location'}), isNull);
+      expect(resolveNotificationDeepLink({'type': 'video_processed'}), isNull);
     });
 
     test('unknown type -> null', () {

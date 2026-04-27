@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
+import 'package:login/services/analytics_service.dart';
 import 'package:login/supabase/supabase_client.dart';
 import 'package:login/widgets/feedback/app_feedback.dart';
 
@@ -18,6 +19,7 @@ class CreateCollectionSheet extends StatefulWidget {
 
 class _CreateCollectionSheetState extends State<CreateCollectionSheet> {
   final TextEditingController _nameController = TextEditingController();
+  final AnalyticsService _analyticsService = AnalyticsService();
   bool _isSaving = false;
 
   bool get _canCreate => _nameController.text.trim().isNotEmpty && !_isSaving;
@@ -46,6 +48,17 @@ class _CreateCollectionSheetState extends State<CreateCollectionSheet> {
       if (collectionId.trim().isEmpty) {
         throw Exception('Invalid create_collection response');
       }
+      _analyticsService.trackFeature(
+        'collection_created',
+        featureName: 'collection',
+        screenName: 'profile',
+        properties: <String, dynamic>{
+          'collection_id': collectionId,
+          'name_length': name.length,
+        },
+        registerTap: true,
+        interactionKey: 'collection_created',
+      );
 
       if (mounted) {
         Navigator.pop(context);
@@ -53,6 +66,10 @@ class _CreateCollectionSheetState extends State<CreateCollectionSheet> {
       }
     } catch (e) {
       debugPrint('[CreateCollectionSheet] error: $e');
+      _analyticsService.recordError(
+        key: 'collection_create_error',
+        properties: <String, dynamic>{'name_length': name.length},
+      );
       if (!mounted) return;
       setState(() => _isSaving = false);
       await AppFeedback.showError(

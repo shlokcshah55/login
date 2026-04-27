@@ -99,7 +99,12 @@ def resolve_deep_link(notif_type: str, metadata: dict[str, Any]) -> str | None:
         return f"pinit://bubble/{bubble_id}"
 
     if t == "video_processed":
-        return "pinit://notifications"
+        location_id = _first_non_empty(metadata, ("locationId",))
+        if not location_id:
+            raise DeepLinkResolutionError(
+                "Missing required metadata field: locationId for type video_processed"
+            )
+        return f"pinit://location/{location_id}"
 
     return None
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:login/services/analytics_service.dart';
 import 'package:login/services/fcm_service.dart';
 import 'package:login/pages/bubbles_page.dart';
 import 'package:login/pages/home_page.dart';
@@ -18,6 +19,13 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
   NavigationProvider? _navigationProvider;
+  final AnalyticsService _analyticsService = AnalyticsService();
+
+  static const Map<int, String> _tabNames = <int, String>{
+    0: 'home',
+    1: 'bubbles',
+    2: 'profile',
+  };
 
   @override
   void initState() {
@@ -27,6 +35,7 @@ class _MainScreenState extends State<MainScreen> {
       _navigationProvider!.addListener(_handleNavigationRequest);
       context.read<BottomNavVisibilityProvider>().showTemporarily();
       FCMService().consumePendingInitialMessage();
+      _analyticsService.trackScreen(_tabNames[_currentIndex] ?? 'home');
     });
   }
 
@@ -44,20 +53,32 @@ class _MainScreenState extends State<MainScreen> {
       print('Navigating to tab: $targetIndex from current: $_currentIndex');
       _navigationProvider!.clearPendingNavigation();
 
-      if (targetIndex != _currentIndex) {
-        setState(() {
-          _currentIndex = targetIndex;
-        });
-        print('Tab switched to: $_currentIndex');
-      }
+      _setCurrentIndex(targetIndex, trigger: 'navigation_provider');
+      print('Tab switched to: $_currentIndex');
     }
   }
 
   void _onIndexChanged(int index) {
-    if (index == _currentIndex) return;
+    _setCurrentIndex(index, trigger: 'tap');
+  }
+
+  void _setCurrentIndex(int nextIndex, {required String trigger}) {
+    if (nextIndex == _currentIndex) return;
+
+    final previous = _currentIndex;
+    final previousName = _tabNames[previous] ?? 'unknown';
+    final nextName = _tabNames[nextIndex] ?? 'unknown';
+
     setState(() {
-      _currentIndex = index;
+      _currentIndex = nextIndex;
     });
+
+    _analyticsService.trackTabSwitch(
+      fromTab: previousName,
+      toTab: nextName,
+      trigger: trigger,
+    );
+    _analyticsService.trackScreen(nextName);
   }
 
   @override

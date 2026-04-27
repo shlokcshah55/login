@@ -1,19 +1,23 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/notification_type.dart';
 import 'package:login/models/notifications/base_notification.dart';
 import 'package:login/models/notifications/follow_accepted_notification.dart';
 import 'package:login/models/notifications/follow_request_notification.dart';
+import 'package:login/models/notifications/processing_error_notification.dart';
 import 'package:login/models/notifications/video_processed_notification.dart';
 import 'package:login/pages/profile/other_user_profile_page.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
+import 'package:login/providers/navigation_provider.dart';
 import 'package:login/services/fcm_service.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:login/widgets/feedback/app_feedback.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 List<BaseNotification> _visibleNotifications(List<BaseNotification> all) =>
     all.where((n) => n.type != NotificationType.newMessage).toList();
@@ -148,6 +152,8 @@ class _NotificationsPopoverState extends State<NotificationsPopover> {
       await _handleFollowRequestAccept(notification);
     } else if (notification is VideoProcessedNotification) {
       await _handleViewLocation(notification);
+    } else if (notification is ProcessingErrorNotification) {
+      await _handleAddLocationManually(notification);
     }
   }
 
@@ -211,6 +217,31 @@ class _NotificationsPopoverState extends State<NotificationsPopover> {
         AppFeedback.showError(
           context,
           title: 'Couldn’t open location',
+          message: 'Please try again in a moment.',
+        ),
+      );
+    }
+  }
+
+  Future<void> _handleAddLocationManually(
+    ProcessingErrorNotification notification,
+  ) async {
+    try {
+      if (!notification.isRead) {
+        await FCMService().markAsRead(notification.id);
+      }
+      if (!mounted) return;
+      setState(() =>
+          _notifications = _visibleNotifications(FCMService().notifications));
+
+      context.read<NavigationProvider>().navigateToTab(0);
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+      unawaited(
+        AppFeedback.showError(
+          context,
+          title: 'Couldn’t open home',
           message: 'Please try again in a moment.',
         ),
       );
@@ -430,14 +461,7 @@ class _NotificationCard extends StatelessWidget {
                                   ),
                                   if (showBody) ...[
                                     const SizedBox(height: 4),
-                                    Text(
-                                      body,
-                                      style: GoogleFonts.dmSans(
-                                        fontSize: 12,
-                                        color: PinitColors.aubergineSoft,
-                                        height: 1.35,
-                                      ),
-                                    ),
+                                    _buildBody(context, body),
                                   ],
                                   if (actionLabel != null &&
                                       onActionTap != null) ...[
@@ -510,6 +534,79 @@ class _NotificationCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildBody(BuildContext context, String body) {
+    final bodyStyle = GoogleFonts.dmSans(
+      fontSize: 12,
+      color: PinitColors.aubergineSoft,
+      height: 1.35,
+    );
+
+    if (notification is! ProcessingErrorNotification) {
+      return Text(body, style: bodyStyle);
+    }
+
+    final errorNotification = notification as ProcessingErrorNotification;
+    final sourceUrl = errorNotification.sourceUrl?.trim();
+    if (sourceUrl == null || sourceUrl.isEmpty) {
+      return Text(body, style: bodyStyle);
+    }
+
+    final match = RegExp('tiktok', caseSensitive: false).firstMatch(body);
+    if (match == null) {
+      return Text(body, style: bodyStyle);
+    }
+
+    final prefix = body.substring(0, match.start);
+    final linkText = body.substring(match.start, match.end);
+    final suffix = body.substring(match.end);
+
+    return RichText(
+      text: TextSpan(
+        style: bodyStyle,
+        children: [
+          if (prefix.isNotEmpty) TextSpan(text: prefix),
+          TextSpan(
+            text: linkText,
+            style: bodyStyle.copyWith(
+              color: PinitColors.aubergine,
+              decoration: TextDecoration.underline,
+              fontWeight: FontWeight.w700,
+            ),
+            recognizer: TapGestureRecognizer()
+              ..onTap = () {
+                unawaited(_openSourceUrl(context, sourceUrl));
+              },
+          ),
+          if (suffix.isNotEmpty) TextSpan(text: suffix),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openSourceUrl(BuildContext context, String sourceUrl) async {
+    final parsed = Uri.tryParse(sourceUrl);
+    if (parsed == null) {
+      await AppFeedback.showError(
+        context,
+        title: 'Missing TikTok link',
+        message: 'Unable to open TikTok right now.',
+      );
+      return;
+    }
+
+    final launched = await launchUrl(
+      parsed,
+      mode: LaunchMode.externalApplication,
+    );
+    if (!launched && context.mounted) {
+      await AppFeedback.showError(
+        context,
+        title: 'Couldn’t open TikTok',
+        message: 'Unable to open TikTok right now.',
+      );
+    }
   }
 
   _NotificationMeta _metaFor(NotificationType type) {

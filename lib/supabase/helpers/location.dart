@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:login/services/analytics_service.dart';
 
 import '../constants.dart';
 import '../../models/locations.dart';
@@ -14,6 +15,7 @@ import '../supabase_client.dart';
 // Service for handling Supabase location operations
 class LocationHelper {
   final SupabaseClient _client = SupabaseClientManager().client;
+  final AnalyticsService _analyticsService = AnalyticsService();
   RealtimeChannel? _realtimeChannel;
 
   // In-memory lock to prevent duplicate downloads for the same location
@@ -100,8 +102,8 @@ class LocationHelper {
 
     // Pass the cached `photos` jsonb through so we can skip the Details call
     // for any row that was populated by a prior download.
-    final cachedPhotos = _coercePhotosJson(
-        locationData[SupabaseConstants.columnPhotos]);
+    final cachedPhotos =
+        _coercePhotosJson(locationData[SupabaseConstants.columnPhotos]);
 
     _ensureImageUploaded(
       locationId: locationId,
@@ -180,15 +182,20 @@ class LocationHelper {
     final fromStorage = locationsData
         .where((item) => item[SupabaseConstants.columnImageStored] == true)
         .length;
-    final unavailable = locationsData
-        .where((item) => item['image_unavailable'] == true)
-        .length;
+    final unavailable =
+        locationsData.where((item) => item['image_unavailable'] == true).length;
     final needsApi = locationsData.where((item) {
       final imageStored = item[SupabaseConstants.columnImageStored];
       final imageUnavailable = item['image_unavailable'];
-      final hasPhotoRef = (item[SupabaseConstants.columnPhotoReference] ?? '').toString().isNotEmpty;
-      final hasPlaceId = (item[SupabaseConstants.columnGooglePlaceId] ?? '').toString().isNotEmpty;
-      return imageStored != true && imageUnavailable != true && (hasPhotoRef || hasPlaceId);
+      final hasPhotoRef = (item[SupabaseConstants.columnPhotoReference] ?? '')
+          .toString()
+          .isNotEmpty;
+      final hasPlaceId = (item[SupabaseConstants.columnGooglePlaceId] ?? '')
+          .toString()
+          .isNotEmpty;
+      return imageStored != true &&
+          imageUnavailable != true &&
+          (hasPhotoRef || hasPlaceId);
     }).length;
     final noSource = total - fromStorage - unavailable - needsApi;
     developer.log(
@@ -278,8 +285,7 @@ class LocationHelper {
 
     final futures = locationsData.map<Future<LocationModel?>>((item) async {
       try {
-        final locationId =
-            item[SupabaseConstants.columnLocationId] as int;
+        final locationId = item[SupabaseConstants.columnLocationId] as int;
 
         final cached = _getFromCache(locationId);
         if (cached != null) {
@@ -429,8 +435,12 @@ class LocationHelper {
       // each LocationModel after the batch processor returns. If a user has
       // multiple save actions for the same location, the most recently seen
       // entry wins.
-      final actionMetaByLocationId =
-          <int, ({String? savedFrom, String? savedMethod, VideoExtras? videoExtras})>{};
+      final actionMetaByLocationId = <int,
+          ({
+        String? savedFrom,
+        String? savedMethod,
+        VideoExtras? videoExtras
+      })>{};
       final locationIds = <int>[];
       for (final action in (savedActions as List)) {
         final id = action[SupabaseConstants.columnLocationId] as int;
@@ -533,8 +543,12 @@ class LocationHelper {
 
       // Build a per-locationId map of (savedFrom, savedMethod) so we can stamp
       // each LocationModel after the batch processor returns.
-      final actionMetaByLocationId =
-          <int, ({String? savedFrom, String? savedMethod, VideoExtras? videoExtras})>{};
+      final actionMetaByLocationId = <int,
+          ({
+        String? savedFrom,
+        String? savedMethod,
+        VideoExtras? videoExtras
+      })>{};
       final locationIds = <int>[];
       for (final action in (savedActions as List)) {
         final id = action[SupabaseConstants.columnLocationId] as int;
@@ -806,11 +820,30 @@ class LocationHelper {
         'p_source_video_url': sourceVideoUrl,
       });
 
-      return result['success'] == true;
+      final success = result['success'] == true;
+      if (success) {
+        _analyticsService.trackFeature(
+          'location_saved',
+          featureName: 'save_location',
+          properties: <String, dynamic>{
+            'location_id': locationId,
+            'saved_method': savedMethod ?? 'in-app',
+            'has_source_video':
+                sourceVideoUrl != null && sourceVideoUrl.isNotEmpty,
+          },
+          registerTap: true,
+          interactionKey: 'location_saved',
+        );
+      }
+      return success;
     } catch (e) {
       if (kDebugMode) {
         print('Error saving location: $e');
       }
+      _analyticsService.recordError(
+        key: 'save_location_error',
+        properties: <String, dynamic>{'location_id': locationId},
+      );
       return false;
     }
   }
@@ -831,11 +864,25 @@ class LocationHelper {
         'p_location_id': locationId,
       });
 
-      return result['success'] == true;
+      final success = result['success'] == true;
+      if (success) {
+        _analyticsService.trackFeature(
+          'location_disliked',
+          featureName: 'dislike_location',
+          properties: <String, dynamic>{'location_id': locationId},
+          registerTap: true,
+          interactionKey: 'location_disliked',
+        );
+      }
+      return success;
     } catch (e) {
       if (kDebugMode) {
         print('Error disliking location: $e');
       }
+      _analyticsService.recordError(
+        key: 'dislike_location_error',
+        properties: <String, dynamic>{'location_id': locationId},
+      );
       return false;
     }
   }
@@ -1325,17 +1372,14 @@ class LocationHelper {
       // 3. Upload image bytes to Supabase Storage.
       // upsert: true so a pre-existing file (e.g. from a previous session where
       // the RPC failed) doesn't throw a 409 and break the image_stored write.
-      await _client.storage
-          .from('location_photos')
-          .uploadBinary(
+      await _client.storage.from('location_photos').uploadBinary(
             filename,
             imageBytes,
             fileOptions: const FileOptions(upsert: true),
           );
 
-      final permanentUrl = _client.storage
-          .from('location_photos')
-          .getPublicUrl(filename);
+      final permanentUrl =
+          _client.storage.from('location_photos').getPublicUrl(filename);
       return permanentUrl;
     } catch (e) {
       print('[Image] [$locationId] Upload failed: $e');
