@@ -117,7 +117,7 @@ class MessageList extends StatelessWidget {
               emptyTitle,
               style: AppTypography.brand(
                 fontSize: 24,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w400,
                 color: PinitColors.aubergine,
                 height: 1.0,
               ),

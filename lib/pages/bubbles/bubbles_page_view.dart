@@ -459,6 +459,7 @@ class _BubblesPageViewState extends State<BubblesPageView> {
         itemBuilder: (context, index) {
           final bubble = widget.bubbles[index];
           return ChatGroupTile(
+            key: ValueKey(bubble.id),
             bubble: bubble,
             onTap: () => widget.onBubbleTap(bubble),
           );

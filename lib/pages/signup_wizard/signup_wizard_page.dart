@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/signup_wizard_state.dart';
-import '../../models/locations.dart';
 import '../../providers/user_data_provider.dart';
+import '../../services/what_we_do_wizard_service.dart';
 import '../../supabase/service.dart';
 import '../../supabase/constants.dart';
 import '../../widgets/feedback/app_feedback.dart';
@@ -11,7 +11,6 @@ import '../profile/widgets/pinit_colors.dart';
 import 'account_step.dart';
 import 'steps/dietary_step.dart';
 import 'steps/vibe_step.dart';
-import 'steps/top_places_step.dart';
 
 class SignupWizardPage extends StatelessWidget {
   const SignupWizardPage({super.key});
@@ -34,20 +33,8 @@ class _SignupWizardContent extends StatefulWidget {
 
 class _SignupWizardContentState extends State<_SignupWizardContent> {
   final PageController _pageController = PageController();
-  static const int _accountSubStepCount = 5;
-  static const int _totalWizardUnits = _accountSubStepCount + 3;
   int _currentStep = 0;
-  int _accountSubStep = 1; // Track account sub-steps (1-5)
-  List<LocationModel>? _restaurants;
-  bool _isLoadingRestaurants = false;
   bool _isCompletingWizard = false;
-
-  final List<String> _stepTitles = [
-    'Create Account', // After finishing this step we actually creates the account
-    'Dietary Preferences',
-    'Your Vibe',
-    'Add Your Favourites',
-  ];
 
   @override
   void dispose() {
@@ -56,7 +43,7 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
   }
 
   void _nextStep() {
-    if (_currentStep < 3) {
+    if (_currentStep < 2) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
@@ -70,40 +57,6 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
-    }
-  }
-
-  Future<void> _nextStepWithRestaurants(
-      Future<List<LocationModel>> Function() fetchRestaurants) async {
-    if (_currentStep < 3) {
-      setState(() {
-        _isLoadingRestaurants = true;
-      });
-
-      try {
-        final restaurants = await fetchRestaurants();
-        setState(() {
-          _restaurants = restaurants;
-          _isLoadingRestaurants = false;
-        });
-
-        _pageController.nextPage(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
-      } catch (e) {
-        setState(() {
-          _isLoadingRestaurants = false;
-        });
-
-        if (mounted) {
-          await AppFeedback.showError(
-            context,
-            title: 'Couldn’t load',
-            message: 'Please try again in a moment.',
-          );
-        }
-      }
     }
   }
 
@@ -168,6 +121,8 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
         this.context.read<UserDataProvider>().setWizardCompleted(true);
       }
 
+      await WhatWeDoWizardService().markPending();
+
       // Step 4: Navigate to main app
       if (mounted) {
         Navigator.of(this.context).pushReplacement(
@@ -190,25 +145,6 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
       }
     }
     // Note: Don't set _isCompletingWizard = false on success since we're navigating away
-  }
-
-  void _updateAccountSubStep(int subStep) {
-    setState(() {
-      _accountSubStep = subStep;
-    });
-  }
-
-  double _calculateProgress() {
-    if (_currentStep == 0) {
-      return _accountSubStep / _totalWizardUnits;
-    } else if (_currentStep == 1) {
-      return _accountSubStepCount / _totalWizardUnits;
-    } else if (_currentStep == 2) {
-      return (_accountSubStepCount + 1) / _totalWizardUnits;
-    } else if (_currentStep == 3) {
-      return (_accountSubStepCount + 2) / _totalWizardUnits;
-    }
-    return 1.0;
   }
 
   @override
@@ -276,23 +212,17 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
                 children: [
                   AccountStep(
                     onNext: _nextStep,
-                    onSubStepChanged: _updateAccountSubStep,
                   ),
                   DietaryStep(
                     onNext: _nextStep,
                     onBack: _previousStep,
                   ),
                   VibeStep(
-                    onNext: _nextStep,
+                    onNext: () {
+                      _completeWizard();
+                    },
                     onBack: _previousStep,
-                    onNextWithRestaurants: _nextStepWithRestaurants,
-                    isLoadingRestaurants: _isLoadingRestaurants,
-                  ),
-                  TopPlacesStep(
-                    onBack: _previousStep,
-                    onComplete: _completeWizard,
-                    isCompleting: _isCompletingWizard,
-                    recommendations: _restaurants ?? [],
+                    isLoadingRestaurants: _isCompletingWizard,
                   ),
                 ],
               ),

@@ -71,6 +71,10 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   double? _pinitAvgRating;
   int _pinitReviewCount = 0;
 
+  // ── Pinit reviews + friends ──
+  List<Map<String, dynamic>> _pinitReviews = [];
+  Set<String> _friendIds = {};
+
   // ── Hero photo state ──
   int _currentPhotoIndex = 0;
   List<String> _photos = const [];
@@ -145,6 +149,8 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     _checkSavedStatus();
     _checkBeenToStatus();
     _fetchPinitAvgRating();
+    _fetchPinitReviews();
+    _fetchFriendIds();
     _findSimilarPlaces();
     _fetchVideoInsight();
   }
@@ -177,6 +183,18 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
         _pinitReviewCount = result.count;
       });
     }
+  }
+
+  void _fetchPinitReviews() async {
+    final reviews = await _reviewsHelper.getPublicReviewsWithProfiles(
+      locationId: widget.location.locationId,
+    );
+    if (mounted) setState(() => _pinitReviews = reviews);
+  }
+
+  void _fetchFriendIds() async {
+    final ids = await _reviewsHelper.getFriendIds();
+    if (mounted) setState(() => _friendIds = ids);
   }
 
   void _checkBeenToStatus() async {
@@ -820,6 +838,8 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                 location: widget.location,
                 similarPlaces: _similarPlaces,
                 onSimilarPlaceTap: (_) => _handleClose(),
+                pinitReviews: _pinitReviews,
+                friendIds: _friendIds,
               ),
                           SizedBox(height: dockBottomInset),
 

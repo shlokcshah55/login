@@ -9,7 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 class NaturalLanguageSearchService {
   static const String defaultEndpoint =
-      'https://pinit-recommendations-api-1070859807237.europe-west2.run.app/locations/magic-search';
+      'https://pinit-recommendations-api-jkqbw4i75a-nw.a.run.app/locations/magic-search';
 
   final SupabaseService _supabaseService;
   final http.Client _client;

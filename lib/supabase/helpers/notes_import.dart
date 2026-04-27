@@ -76,7 +76,7 @@ class NotesImportResult {
 
 class NotesImportHelper {
   static const String _importEndpoint =
-      'https://notes-import-1070859807237.europe-west1.run.app/import-notes';
+      'https://notes-import-jkqbw4i75a-ew.a.run.app/import-notes';
 
   final SupabaseClient _client = SupabaseClientManager().client;
   final http.Client _http;

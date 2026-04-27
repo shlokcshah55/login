@@ -58,6 +58,7 @@ class BubbleHelper {
         bubbles.add(Bubble(
           id: bubbleId,
           name: bubble[SupabaseConstants.columnName] ?? 'Unnamed Bubble',
+          createdBy: bubble[SupabaseConstants.columnCreatedBy] ?? '',
           lastMessage: latestMessage?.content ?? 'Tap to view locations',
           lastMessageTime: _getTimeAgo(lastActivityAt),
           lastActivityAt: lastActivityAt,
@@ -72,8 +73,7 @@ class BubbleHelper {
           isOnline: true,
           unreadCount: 0,
           groupLocations: locations,
-          description:
-              'Created ${_getTimeAgo(bubbleCreatedAt)}',
+          description: 'Created ${_getTimeAgo(bubbleCreatedAt)}',
           memberIds: members
               .map((m) =>
                   m[SupabaseConstants.columnUserId] ??
@@ -116,7 +116,8 @@ class BubbleHelper {
     }
   }
 
-  Future<_BubbleMessagePreview?> _getLatestMessagePreview(String bubbleId) async {
+  Future<_BubbleMessagePreview?> _getLatestMessagePreview(
+      String bubbleId) async {
     try {
       final response = await _client
           .from(SupabaseConstants.tableMessages)
@@ -136,9 +137,8 @@ class BubbleHelper {
         return null;
       }
 
-      final content = (response[SupabaseConstants.columnContent] as String?)
-              ?.trim() ??
-          '';
+      final content =
+          (response[SupabaseConstants.columnContent] as String?)?.trim() ?? '';
       final hasLocation = response['location_id'] != null;
 
       return _BubbleMessagePreview(
@@ -270,6 +270,7 @@ class BubbleHelper {
       return Bubble(
         id: bubbleId,
         name: bubbleResponse[SupabaseConstants.columnName] ?? 'Unnamed Bubble',
+        createdBy: bubbleResponse[SupabaseConstants.columnCreatedBy] ?? '',
         lastMessage: latestMessage?.content ?? 'Tap to view locations',
         lastMessageTime: _getTimeAgo(lastActivityAt),
         lastActivityAt: lastActivityAt,
@@ -284,8 +285,7 @@ class BubbleHelper {
         isOnline: true,
         unreadCount: 0,
         groupLocations: locations,
-        description:
-            'Created ${_getTimeAgo(bubbleCreatedAt)}',
+        description: 'Created ${_getTimeAgo(bubbleCreatedAt)}',
         memberIds: members
             .map((m) =>
                 m[SupabaseConstants.columnUserId] ??
@@ -366,6 +366,54 @@ class BubbleHelper {
     } catch (e) {
       if (kDebugMode) {
         print('Error removing location from bubble: $e');
+      }
+      return false;
+    }
+  }
+
+  /// Delete a bubble (creator-only via RLS).
+  ///
+  /// Returns `true` if the bubble row was deleted, `false` otherwise.
+  Future<bool> deleteBubble({
+    required String bubbleId,
+  }) async {
+    try {
+      final response = await _client
+          .from(SupabaseConstants.tableBubbles)
+          .delete()
+          .eq(SupabaseConstants.columnBubbleId, bubbleId)
+          .select(SupabaseConstants.columnBubbleId);
+
+      return (response as List).isNotEmpty;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error deleting bubble: $e');
+      }
+      return false;
+    }
+  }
+
+  /// Rename a bubble (creator-only via RLS).
+  ///
+  /// Returns `true` if the bubble row was updated, `false` otherwise.
+  Future<bool> renameBubble({
+    required String bubbleId,
+    required String name,
+  }) async {
+    try {
+      final trimmed = name.trim();
+      if (trimmed.isEmpty) return false;
+
+      final response = await _client
+          .from(SupabaseConstants.tableBubbles)
+          .update({SupabaseConstants.columnName: trimmed})
+          .eq(SupabaseConstants.columnBubbleId, bubbleId)
+          .select(SupabaseConstants.columnBubbleId);
+
+      return (response as List).isNotEmpty;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error renaming bubble: $e');
       }
       return false;
     }

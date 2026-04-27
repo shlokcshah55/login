@@ -49,6 +49,7 @@ class HomeViewModel extends ChangeNotifier {
   List<CollectionItem> _collections = [];
   bool _isLoadingCollections = false;
   String? _activeCollectionId;
+  bool _isEatListsOpen = false;
 
   // ── Mode toggle state ─────────────────────────────────────────
   HomeMode _homeMode = HomeMode.you;
@@ -99,6 +100,13 @@ class HomeViewModel extends ChangeNotifier {
   List<CollectionItem> get collections => List.unmodifiable(_collections);
   bool get isLoadingCollections => _isLoadingCollections;
   String? get activeCollectionId => _activeCollectionId;
+  bool get isEatListsOpen => _isEatListsOpen;
+
+  void setEatListsOpen(bool value) {
+    if (_isEatListsOpen == value) return;
+    _isEatListsOpen = value;
+    notifyListeners();
+  }
   bool get bottomNavVisible => bottomNavVisibilityProvider.isVisible;
   LocationListType get currentListType => locationListManager.currentListType;
   String? get selectedMarkerId => mapStateProvider.selectedMarkerId;

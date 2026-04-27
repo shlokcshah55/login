@@ -13,6 +13,7 @@ import 'package:login/providers/map_state_provider.dart';
 import 'package:login/providers/navigation_provider.dart';
 import 'package:login/supabase/helpers/collections.dart';
 import 'package:login/supabase/supabase_client.dart';
+import 'package:login/widgets/collections/create_collection_sheet.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:login/widgets/feedback/app_feedback.dart';
 import 'package:provider/provider.dart';
@@ -170,8 +171,8 @@ class _CollectionsGridState extends State<CollectionsGrid>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => _CreateCollectionSheet(
-        onCreated: (name) async {
+      builder: (context) => CreateCollectionSheet(
+        onCreated: (collectionId, name) async {
           await _loadCollections();
         },
       ),
@@ -575,226 +576,7 @@ class _CollectionsGridState extends State<CollectionsGrid>
   }
 }
 
-class _CreateCollectionSheet extends StatefulWidget {
-  final void Function(String name) onCreated;
-
-  const _CreateCollectionSheet({required this.onCreated});
-
-  @override
-  State<_CreateCollectionSheet> createState() => _CreateCollectionSheetState();
-}
-
-class _CreateCollectionSheetState extends State<_CreateCollectionSheet> {
-  final TextEditingController _nameController = TextEditingController();
-  bool _isSaving = false;
-
-  bool get _canCreate => _nameController.text.trim().isNotEmpty && !_isSaving;
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submit() async {
-    final name = _nameController.text.trim();
-    if (name.isEmpty) return;
-
-    setState(() => _isSaving = true);
-    try {
-      await SupabaseClientManager().client.rpc('create_collection', params: {
-        'p_name': name,
-        'p_is_public': true,
-      });
-      if (mounted) {
-        Navigator.pop(context);
-        widget.onCreated(name);
-      }
-    } catch (e) {
-      debugPrint('[CreateCollectionSheet] error: $e');
-      if (mounted) setState(() => _isSaving = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-
-    return Container(
-      decoration: const BoxDecoration(
-        color: PinitColors.background,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + bottomInset),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Handle
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: PinitColors.textMuted.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Title
-            const Text(
-              'New Eat-List',
-              style: TextStyle(
-                fontFamily: 'Rova',
-                fontSize: 28,
-                fontWeight: FontWeight.w200,
-                color: PinitColors.aubergine,
-                letterSpacing: 1.5,
-                height: 1.05,
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Name field
-            const Text(
-              'Name',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: PinitColors.textSecondary,
-                letterSpacing: 0.2,
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _nameController,
-              autofocus: true,
-              textCapitalization: TextCapitalization.sentences,
-              style: const TextStyle(
-                fontSize: 16,
-                color: PinitColors.textPrimary,
-                fontWeight: FontWeight.w500,
-              ),
-              decoration: InputDecoration(
-                hintText: 'e.g. First date spots',
-                hintStyle: TextStyle(
-                  color: PinitColors.textMuted.withValues(alpha: 0.6),
-                  fontWeight: FontWeight.normal,
-                ),
-                filled: true,
-                fillColor: PinitColors.surfaceLight,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide(
-                    color: PinitColors.primary.withValues(alpha: 0.5),
-                    width: 1.5,
-                  ),
-                ),
-              ),
-              onChanged: (_) => setState(() {}),
-              onSubmitted: (_) => _submit(),
-            ),
-            const SizedBox(height: 20),
-
-            // Restaurant search — coming soon placeholder
-            const Text(
-              'Restaurants',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: PinitColors.textSecondary,
-                letterSpacing: 0.2,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(
-                color: PinitColors.surfaceLight,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: PinitColors.textMuted.withValues(alpha: 0.15),
-                  style: BorderStyle.solid,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    FeatherIcons.search,
-                    size: 16,
-                    color: PinitColors.textMuted.withValues(alpha: 0.5),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Search restaurants — coming soon',
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: PinitColors.textMuted.withValues(alpha: 0.5),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 28),
-
-            // Create button
-            SizedBox(
-              width: double.infinity,
-              child: GestureDetector(
-                onTap: _canCreate ? _submit : null,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  decoration: BoxDecoration(
-                    color: _canCreate
-                        ? PinitColors.aubergine
-                        : PinitColors.creamDeep,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Center(
-                    child: _isSaving
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: PinitColors.cream,
-                            ),
-                          )
-                        : Text(
-                            'Create Eat-List',
-                            style: GoogleFonts.dmSans(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: _canCreate
-                                  ? PinitColors.cream
-                                  : PinitColors.mute,
-                            ),
-                          ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CollectionCard extends StatelessWidget {
+class _CollectionCard extends StatefulWidget {
   final CollectionModel collection;
   final bool showOwner;
   final VoidCallback? onEdit;
@@ -808,20 +590,104 @@ class _CollectionCard extends StatelessWidget {
   });
 
   @override
+  State<_CollectionCard> createState() => _CollectionCardState();
+}
+
+class _CollectionCardState extends State<_CollectionCard> {
+  final CollectionsHelper _helper = CollectionsHelper();
+
+  bool _showDelete = false;
+  bool _isDeleting = false;
+
+  bool get _canDelete =>
+      widget.onDeleted != null &&
+      !_kUndeletableCollectionNames.contains(widget.collection.name);
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
+  void _revealDelete() {
+    if (!_canDelete) return;
+    setState(() => _showDelete = true);
+  }
+
+  Future<void> _confirmAndDelete() async {
+    if (_isDeleting || !_canDelete) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete eat-list?'),
+        content: Text(
+          'This will permanently delete "${widget.collection.name}" and remove all its places from the eat-list. Your saved places themselves are not deleted.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isDeleting = true);
+    try {
+      await _helper.deleteCollection(widget.collection.id);
+      if (!mounted) return;
+      context
+          .read<LocationListManager>()
+          .invalidateCollectionCache(widget.collection.id);
+      widget.onDeleted?.call();
+      setState(() => _showDelete = false);
+    } catch (_) {
+      if (!mounted) return;
+      unawaited(
+        AppFeedback.showError(
+          context,
+          title: 'Couldn’t delete',
+          message: 'Failed to delete eat-list.',
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isDeleting = false);
+    }
+  }
+
+  void _openDetailSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => CollectionDetailSheet(
+        collection: widget.collection,
+        onEdit: widget.onEdit,
+        onDeleted: widget.onDeleted,
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final assetPath = _kCollectionAssets[collection.name];
+    final assetPath = _kCollectionAssets[widget.collection.name];
 
     return GestureDetector(
-      onTap: () => showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (_) => CollectionDetailSheet(
-          collection: collection,
-          onEdit: onEdit,
-          onDeleted: onDeleted,
-        ),
-      ),
+      onTap: () {
+        if (_showDelete) {
+          setState(() => _showDelete = false);
+          return;
+        }
+        _openDetailSheet();
+      },
+      onLongPress: _canDelete ? _revealDelete : null,
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
@@ -847,13 +713,53 @@ class _CollectionCard extends StatelessWidget {
                     fit: StackFit.expand,
                     children: [
                       _buildImage(
-                          assetPath, collection.coverColor, collection.photo),
-                      if (onEdit != null)
+                        assetPath,
+                        widget.collection.coverColor,
+                        widget.collection.photo,
+                      ),
+                      if (_canDelete && _showDelete)
+                        Positioned(
+                          top: 8,
+                          left: 8,
+                          child: GestureDetector(
+                            onTap: _isDeleting ? null : _confirmAndDelete,
+                            behavior: HitTestBehavior.opaque,
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: PinitColors.accent,
+                                shape: BoxShape.circle,
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: PinitColors.aubergine,
+                                    blurRadius: 0,
+                                    offset: Offset(2, 2),
+                                  ),
+                                ],
+                              ),
+                              child: _isDeleting
+                                  ? const SizedBox(
+                                      width: 13,
+                                      height: 13,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: PinitColors.cream,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      FeatherIcons.trash2,
+                                      size: 13,
+                                      color: PinitColors.cream,
+                                    ),
+                            ),
+                          ),
+                        ),
+                      if (widget.onEdit != null && !_showDelete)
                         Positioned(
                           top: 8,
                           right: 8,
                           child: GestureDetector(
-                            onTap: onEdit,
+                            onTap: widget.onEdit,
                             behavior: HitTestBehavior.opaque,
                             child: Container(
                               padding: const EdgeInsets.all(6),
@@ -880,13 +786,14 @@ class _CollectionCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Owner name — shown prominently at top for friend collections
-                      if (showOwner && collection.ownerName != null) ...[
+                      if (widget.showOwner &&
+                          widget.collection.ownerName != null) ...[
                         Row(
                           children: [
-                            if (collection.ownerAvatarUrl != null)
+                            if (widget.collection.ownerAvatarUrl != null)
                               ClipOval(
                                 child: CachedNetworkImage(
-                                  imageUrl: collection.ownerAvatarUrl!,
+                                  imageUrl: widget.collection.ownerAvatarUrl!,
                                   width: 18,
                                   height: 18,
                                   fit: BoxFit.cover,
@@ -906,7 +813,7 @@ class _CollectionCard extends StatelessWidget {
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
-                                collection.ownerName!,
+                                widget.collection.ownerName!,
                                 style: const TextStyle(
                                   fontFamily: 'Rova',
                                   fontSize: 13,
@@ -923,15 +830,16 @@ class _CollectionCard extends StatelessWidget {
                         const SizedBox(height: 6),
                       ],
                       Text(
-                        collection.name,
+                        widget.collection.name,
                         style: GoogleFonts.dmSans(
-                          fontSize: showOwner ? 12 : 15,
-                          fontWeight:
-                              showOwner ? FontWeight.w500 : FontWeight.w700,
-                          color: showOwner
+                          fontSize: widget.showOwner ? 12 : 15,
+                          fontWeight: widget.showOwner
+                              ? FontWeight.w500
+                              : FontWeight.w700,
+                          color: widget.showOwner
                               ? PinitColors.aubergineSoft
                               : PinitColors.aubergine,
-                          letterSpacing: showOwner ? 0 : 0.3,
+                          letterSpacing: widget.showOwner ? 0 : 0.3,
                           height: 1.15,
                         ),
                         maxLines: 2,
@@ -939,7 +847,7 @@ class _CollectionCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        '${collection.placeCount} place${collection.placeCount == 1 ? "" : "s"}',
+                        '${widget.collection.placeCount} place${widget.collection.placeCount == 1 ? "" : "s"}',
                         style: GoogleFonts.dmSans(
                           fontSize: 11,
                           fontWeight: FontWeight.w500,
@@ -959,7 +867,7 @@ class _CollectionCard extends StatelessWidget {
 
   Widget _buildImage(
       String? assetPath, String? coverColor, String? networkPhoto) {
-    final svgAsset = _kCollectionSvgAssets[collection.name];
+    final svgAsset = _kCollectionSvgAssets[widget.collection.name];
     if (svgAsset != null) {
       return SvgPicture.asset(
         svgAsset,

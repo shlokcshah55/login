@@ -250,6 +250,73 @@ class LocationReviewsHelper {
     }
   }
 
+  /// Fetch all non-private reviews for a location, joined with the reviewer's
+  /// public profile (name, username, profile_image_url).
+  Future<List<Map<String, dynamic>>> getPublicReviewsWithProfiles({
+    required int locationId,
+  }) async {
+    try {
+      final response = await _client
+          .from(SupabaseConstants.tableLocationReviews)
+          .select(
+            '${SupabaseConstants.columnRatingReview},'
+            '${SupabaseConstants.columnContentReview},'
+            '${SupabaseConstants.columnCreatedAt},'
+            '${SupabaseConstants.columnUserId},'
+            '${SupabaseConstants.tableUsers}(${SupabaseConstants.name},${SupabaseConstants.columnUsername},${SupabaseConstants.columnProfileImageUrl})',
+          )
+          .eq(SupabaseConstants.columnLocationId, locationId)
+          .or('${SupabaseConstants.columnPrivate}.is.null,${SupabaseConstants.columnPrivate}.eq.false')
+          .order(SupabaseConstants.columnCreatedAt, ascending: false);
+
+      return List<Map<String, dynamic>>.from(
+        (response as List).map((r) => Map<String, dynamic>.from(r)),
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        print('LocationReviewsHelper: getPublicReviewsWithProfiles failed: $e');
+      }
+      return [];
+    }
+  }
+
+  /// Returns the set of mutual friend user IDs for the current user.
+  /// Uses two lightweight queries (no per-friend profile fetch).
+  Future<Set<String>> getFriendIds() async {
+    try {
+      final user = SupabaseClientManager().currentUser;
+      if (user == null) return {};
+
+      final following = await _client
+          .from(SupabaseConstants.tableUserFriends)
+          .select(SupabaseConstants.columnFolloweeId)
+          .eq(SupabaseConstants.columnFollowerId, user.id)
+          .eq(SupabaseConstants.columnStatus,
+              SupabaseConstants.relationshipStatusAccepted);
+
+      final followers = await _client
+          .from(SupabaseConstants.tableUserFriends)
+          .select(SupabaseConstants.columnFollowerId)
+          .eq(SupabaseConstants.columnFolloweeId, user.id)
+          .eq(SupabaseConstants.columnStatus,
+              SupabaseConstants.relationshipStatusAccepted);
+
+      final followingIds = (following as List)
+          .map((r) => r[SupabaseConstants.columnFolloweeId] as String)
+          .toSet();
+      final followerIds = (followers as List)
+          .map((r) => r[SupabaseConstants.columnFollowerId] as String)
+          .toSet();
+
+      return followingIds.intersection(followerIds);
+    } catch (e) {
+      if (kDebugMode) {
+        print('LocationReviewsHelper: getFriendIds failed: $e');
+      }
+      return {};
+    }
+  }
+
   /// Add location to the "Been To" collection
   Future<void> addLocationToBeenToCollection({
     required String collectionId,

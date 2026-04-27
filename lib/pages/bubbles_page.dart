@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 
 import 'package:flutter/material.dart';
@@ -118,7 +117,7 @@ class _BubblesPageState extends State<BubblesPage>
                         ? _buildSearchResults(theme, bubblesProvider.bubbles)
                         : bubblesProvider.isLoading
                             ? _buildLoadingState(theme)
-                            : _buildBubblesList(theme, bubblesProvider.bubbles),
+                            : _buildBubblesList(theme, bubblesProvider),
                   ),
                 ],
               ),
@@ -502,7 +501,8 @@ class _BubblesPageState extends State<BubblesPage>
     );
   }
 
-  Widget _buildBubblesList(ThemeData theme, List<Bubble> bubbles) {
+  Widget _buildBubblesList(ThemeData theme, BubblesProvider bubblesProvider) {
+    final bubbles = bubblesProvider.bubbles;
     if (bubbles.isEmpty) {
       return RefreshIndicator(
         onRefresh: () async {
@@ -549,10 +549,17 @@ class _BubblesPageState extends State<BubblesPage>
                 child: Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: ChatGroupTile(
+                    key: ValueKey(bubble.id),
                     bubble: bubble,
                     onTap: () => _openExpandedChatView(bubble),
                     onOpenChat: () => _openGroupChat(bubble),
                     onActivateBubble: () => _activateBubble(bubble),
+                    onDelete: bubble.createdBy == bubblesProvider.userId
+                        ? () => _confirmAndDeleteBubble(bubblesProvider, bubble)
+                        : null,
+                    onRename: bubble.createdBy == bubblesProvider.userId
+                        ? () => _promptAndRenameBubble(bubblesProvider, bubble)
+                        : null,
                   ),
                 ),
               );
@@ -680,6 +687,167 @@ class _BubblesPageState extends State<BubblesPage>
       ),
       duration: const Duration(seconds: 2),
     );
+  }
+
+  Future<bool> _confirmAndDeleteBubble(
+    BubblesProvider bubblesProvider,
+    Bubble bubble,
+  ) async {
+    if (bubble.createdBy != bubblesProvider.userId) {
+      return false;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: PinitColors.cream,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: PinitColors.aubergine, width: 1.5),
+          ),
+          title: Text(
+            'Delete bubble?',
+            style: GoogleFonts.dmSans(
+              fontWeight: FontWeight.w800,
+              color: PinitColors.aubergine,
+            ),
+          ),
+          content: Text(
+            'This removes the bubble from your list. If you created it, it will be deleted for everyone.',
+            style: GoogleFonts.dmSans(
+              color: PinitColors.mute,
+              height: 1.35,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.dmSans(
+                  fontWeight: FontWeight.w700,
+                  color: PinitColors.aubergineSoft,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(
+                'Delete',
+                style: GoogleFonts.dmSans(
+                  fontWeight: FontWeight.w900,
+                  color: PinitColors.accent,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) return false;
+
+    final ok = await bubblesProvider.deleteOrLeaveBubble(bubble.id);
+    if (!ok && mounted) {
+      await AppFeedback.showError(
+        context,
+        title: 'Couldn’t delete bubble',
+        message: 'Please try again.',
+      );
+    }
+    return ok;
+  }
+
+  Future<bool> _promptAndRenameBubble(
+    BubblesProvider bubblesProvider,
+    Bubble bubble,
+  ) async {
+    if (bubble.createdBy != bubblesProvider.userId) {
+      return false;
+    }
+
+    final controller = TextEditingController(text: bubble.name);
+
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: PinitColors.cream,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: PinitColors.aubergine, width: 1.5),
+          ),
+          title: Text(
+            'Rename bubble',
+            style: GoogleFonts.dmSans(
+              fontWeight: FontWeight.w800,
+              color: PinitColors.aubergine,
+            ),
+          ),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            textCapitalization: TextCapitalization.sentences,
+            style: GoogleFonts.dmSans(
+              color: PinitColors.aubergine,
+              fontWeight: FontWeight.w700,
+            ),
+            decoration: InputDecoration(
+              hintText: 'Bubble name',
+              hintStyle: GoogleFonts.dmSans(color: PinitColors.mute),
+              enabledBorder: const UnderlineInputBorder(
+                borderSide: BorderSide(color: PinitColors.creamDeep),
+              ),
+              focusedBorder: const UnderlineInputBorder(
+                borderSide: BorderSide(color: PinitColors.aubergine),
+              ),
+            ),
+            onSubmitted: (value) =>
+                Navigator.of(dialogContext).pop(value.trim()),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(null),
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.dmSans(
+                  fontWeight: FontWeight.w700,
+                  color: PinitColors.aubergineSoft,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(controller.text.trim()),
+              child: Text(
+                'Save',
+                style: GoogleFonts.dmSans(
+                  fontWeight: FontWeight.w900,
+                  color: PinitColors.aubergine,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    controller.dispose();
+
+    final trimmed = (newName ?? '').trim();
+    if (trimmed.isEmpty || !mounted) return false;
+    if (trimmed == bubble.name.trim()) return true;
+
+    final ok = await bubblesProvider.renameBubble(bubble.id, trimmed);
+    if (!ok && mounted) {
+      await AppFeedback.showError(
+        context,
+        title: 'Couldn’t rename bubble',
+        message: 'Please try again.',
+      );
+    }
+    return ok;
   }
 
   ThemeData get theme => Theme.of(context);

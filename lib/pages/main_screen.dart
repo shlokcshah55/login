@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:login/services/fcm_service.dart';
 import 'package:login/pages/bubbles_page.dart';
 import 'package:login/pages/home_page.dart';
 import 'package:login/pages/profile/profile_page.dart';
@@ -25,6 +26,7 @@ class _MainScreenState extends State<MainScreen> {
       _navigationProvider = context.read<NavigationProvider>();
       _navigationProvider!.addListener(_handleNavigationRequest);
       context.read<BottomNavVisibilityProvider>().showTemporarily();
+      FCMService().consumePendingInitialMessage();
     });
   }
 

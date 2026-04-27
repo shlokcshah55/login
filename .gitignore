@@ -15,12 +15,14 @@
 migrate_working_dir/
 pinit_service_account.json
 /venv/
-ai/tiktok-processor/build
+api/tiktok-processor/build
 pubspec.lock
-ai/venv/
+api/venv/
+api/process-locations/venv
 pubspec.lock
-ai/vibe-tags/venv/
-ai/send-notification/pinit-a97eb-8f62b614bdc2.json
+api/vibe-tags/venv/
+api/send-notification/pinit-a97eb-8f62b614bdc2.json
+api/collections/venv/
 
 # IntelliJ related
 *.iml

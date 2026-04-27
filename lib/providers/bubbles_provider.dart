@@ -337,6 +337,62 @@ class BubblesProvider with ChangeNotifier {
     }
   }
 
+  /// Removes a bubble from the user's list.
+  ///
+  /// If the user is the creator, this will attempt to delete the bubble.
+  /// Otherwise (or if deletion is not permitted), it will fall back to leaving.
+  Future<bool> deleteOrLeaveBubble(String bubbleId) async {
+    try {
+      final deleted = await _bubbleHelper.deleteBubble(bubbleId: bubbleId);
+      if (deleted) {
+        _bubbles.removeWhere((b) => b.id == bubbleId);
+        notifyListeners();
+        return true;
+      }
+
+      final left = await _bubbleHelper.leaveBubble(
+        bubbleId: bubbleId,
+        userId: userId,
+      );
+      if (left) {
+        _bubbles.removeWhere((b) => b.id == bubbleId);
+        notifyListeners();
+        return true;
+      }
+
+      return false;
+    } catch (e) {
+      if (kDebugMode) {
+        print('BubblesProvider: Error deleting/leaving bubble: $e');
+      }
+      return false;
+    }
+  }
+
+  /// Renames a bubble in-place (creator-only via RLS).
+  Future<bool> renameBubble(String bubbleId, String newName) async {
+    final trimmed = newName.trim();
+    if (trimmed.isEmpty) return false;
+
+    try {
+      final ok =
+          await _bubbleHelper.renameBubble(bubbleId: bubbleId, name: trimmed);
+      if (!ok) return false;
+
+      final index = _bubbles.indexWhere((b) => b.id == bubbleId);
+      if (index != -1) {
+        _bubbles[index] = _bubbles[index].copyWith(name: trimmed);
+        notifyListeners();
+      }
+      return true;
+    } catch (e) {
+      if (kDebugMode) {
+        print('BubblesProvider: Error renaming bubble: $e');
+      }
+      return false;
+    }
+  }
+
   @override
   void dispose() {
     // Mark as not mounted to prevent notifyListeners after dispose

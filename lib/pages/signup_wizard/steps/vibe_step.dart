@@ -4,10 +4,7 @@ import 'package:login/animations/common_animations.dart';
 import 'package:provider/provider.dart';
 import '../../../models/signup_wizard_state.dart';
 import '../../../models/locations.dart';
-import '../../../services/location_service.dart';
-import '../../../services/recommendations_api.dart';
 import '../../../supabase/service.dart';
-import '../../../utils/geo_types.dart';
 import '../../../widgets/feedback/app_feedback.dart';
 import '../../../widgets/spinnable_tile.dart';
 import '../../profile/widgets/pinit_colors.dart';
@@ -15,15 +12,16 @@ import '../../profile/widgets/pinit_colors.dart';
 class VibeStep extends StatefulWidget {
   final VoidCallback onNext;
   final VoidCallback onBack;
-  final Future<void> Function(Future<List<LocationModel>> Function()) onNextWithRestaurants;
+  final Future<void> Function(Future<List<LocationModel>> Function())?
+      onNextWithRestaurants;
   final bool isLoadingRestaurants;
 
   const VibeStep({
     super.key,
     required this.onNext,
     required this.onBack,
-    required this.onNextWithRestaurants,
-    required this.isLoadingRestaurants,
+    this.onNextWithRestaurants,
+    this.isLoadingRestaurants = false,
   });
 
   @override
@@ -99,11 +97,6 @@ class _VibeStepState extends State<VibeStep> {
     await _proceedToRestaurantStep();
   }
 
-  // Fallback city center (central London) when we can't get the user's location
-  // during signup. The proximal recs API requires lat/lng, so we need some value.
-  static const double _fallbackLat = 51.5074;
-  static const double _fallbackLng = -0.1278;
-
   Future<void> _proceedToRestaurantStep() async {
     // Map images to associated tags
     List<String> selectedTags = _selected
@@ -127,14 +120,14 @@ class _VibeStepState extends State<VibeStep> {
       );
     }
 
-    await widget.onNextWithRestaurants(() async {
-      // Try to get the user's current location; fall back to London center.
+    final nextWithRestaurants = widget.onNextWithRestaurants;
+    if (nextWithRestaurants == null) {
+      widget.onNext();
+      return;
+    }
 
-
-      List<int> ids = [5853,
-      1757, 142110, 6946, 1773
-];
-
+    await nextWithRestaurants(() async {
+      const ids = <int>[5853, 1757, 142110, 6946, 1773];
       return supabase.locations.getLocationsByIds(ids);
     });
   }
@@ -296,7 +289,7 @@ class _VibeStepState extends State<VibeStep> {
                               ),
                               const SizedBox(width: 12),
                               Text(
-                                'Loading restaurants...',
+                                'Finishing up...',
                                 style: GoogleFonts.dmSans(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,

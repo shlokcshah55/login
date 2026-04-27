@@ -260,7 +260,11 @@ class _DetailRow extends StatelessWidget {
     return Column(
       children: [
         item.onTap != null
-            ? GestureDetector(onTap: item.onTap, child: child)
+            ? GestureDetector(
+                onTap: item.onTap,
+                behavior: HitTestBehavior.opaque,
+                child: child,
+              )
             : child,
         if (showDivider)
           const Padding(

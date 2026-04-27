@@ -205,9 +205,9 @@ class TagsHelper {
   static const List<String> _vibeTagOrder = [
     'cafe', 'casual', 'cozy', 'coffee_shop', 'bar',
     'elegant', 'fine_dining', 'food_truck', 'hole_in_the_wall', 'late_night',
-    'live_music', 'michelin_starred', 'modern', 'fast_food', 'quiet',
+    'live_music', 'bougie', 'modern', 'fast_food', 'quiet',
     'romantic', 'sports_bar', 'trendy', 'takeout_friendly', 'pub',
-    'grocery_store', 'brunch', 'outdoor_dining', 'wavy', 'bossman',
+    'shop', 'brunch', 'outdoor_dining', 'wavy', 'bossman',
   ];
 
   /// Writes vibe affinities (80 per selected tag) directly onto users.vibe_tag_affinity.

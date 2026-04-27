@@ -8,7 +8,7 @@ import 'package:login/supabase/constants.dart';
 class PushNotificationService {
   final String? apiSecretKey = dotenv.env["API_SECRET_KEY"];
   final String apiEndpoint =
-      'https://europe-west1-project-add4b0f5-0080-47ef-80f.cloudfunctions.net/send-push-notifications';
+      'https://europe-west1-pinit-494520.cloudfunctions.net/send-push-notifications';
 
   /// Send notification when someone requests to follow a user
   Future<bool> sendFollowRequestNotification({
@@ -54,6 +54,7 @@ class PushNotificationService {
         recipientUserId: recipientUserId,
         type: 'follow_request',
         additionalData: {
+          'deepLink': 'pinit://user/$requesterUserId',
           'userId': requesterUserId,
           'username': requesterName,
           'userAvatar': requesterAvatar,
@@ -104,6 +105,7 @@ class PushNotificationService {
         recipientUserId: recipientUserId,
         type: 'follow_accepted',
         additionalData: {
+          'deepLink': 'pinit://user/$accepterUserId',
           'userId': accepterUserId,
           'username': accepterName,
           'userAvatar': accepterAvatar,
@@ -141,6 +143,7 @@ class PushNotificationService {
         recipientUserId: recipientUserId,
         type: 'proximity_location',
         additionalData: {
+          'deepLink': 'pinit://location/$locationId',
           'locationId': locationId,
           'locationName': locationName,
           'distanceMeters': distanceMeters.toString(),
@@ -202,6 +205,7 @@ class PushNotificationService {
         recipientUserId: recipientUserId,
         type: 'user_added_to_bubble',
         additionalData: {
+          'deepLink': 'pinit://bubble/$bubbleId',
           'inviterUsername': inviterName,
           'inviterAvatar': inviterAvatar,
           'inviterId': inviterUserId,
@@ -297,6 +301,7 @@ class PushNotificationService {
           recipientUserId: memberId,
           type: 'new_message',
           additionalData: {
+            'deepLink': 'pinit://bubble/$bubbleId',
             'senderUsername': senderName,
             'senderAvatar': senderAvatar,
             'bubbleName': bubbleName,

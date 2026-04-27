@@ -643,7 +643,7 @@ class LocationHelper {
   }) async {
     try {
       final uri = Uri.parse(
-        'https://pinit-recommendations-api-1070859807237.europe-west2.run.app/hidden-gems',
+        'https://pinit-recommendations-api-jkqbw4i75a-nw.a.run.app/hidden-gems',
       ).replace(queryParameters: {
         'latitude': latitude.toString(),
         'longitude': longitude.toString(),

@@ -274,22 +274,95 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
   Future<void> _confirmBlock() async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('Block ${widget.user.name ?? "this user"}?'),
-        content: const Text(
-          'They will no longer be able to follow you or see your activity. Any pending request between you will be cleared.',
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+      builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+          decoration: BoxDecoration(
+            color: PinitColors.cream,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: PinitColors.creamDeep, width: 1.5),
+            boxShadow: PinitColors.elevatedShadow,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Block ${widget.user.name ?? "this user"}?',
+                style: const TextStyle(
+                  fontFamily: 'Rova',
+                  fontSize: 22,
+                  fontWeight: FontWeight.w100,
+                  color: PinitColors.aubergine,
+                  letterSpacing: 1.1,
+                  height: 1.1,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'They will no longer be able to follow you or see your activity. Any pending request between you will be cleared.',
+                style: GoogleFonts.dmSans(
+                  fontSize: 14,
+                  color: PinitColors.aubergineSoft,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => Navigator.pop(dialogContext, false),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          color: PinitColors.creamSunk,
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                              color: PinitColors.creamDeep, width: 1.5),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          'Cancel',
+                          style: GoogleFonts.dmSans(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: PinitColors.aubergine,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => Navigator.pop(dialogContext, true),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          color: PinitColors.accent,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          'Block',
+                          style: GoogleFonts.dmSans(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: PinitColors.cream,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: PinitColors.accent),
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Block'),
-          ),
-        ],
       ),
     );
     if (confirmed == true) await _handleBlock();
@@ -1061,7 +1134,7 @@ class _VibeMatchCard extends StatelessWidget {
 
   String _subtitle(int percentage, String name) {
     if (percentage >= 90) {
-      return 'Scary accurate. Did $name steal your tastebuds?';
+      return 'Scarily accurate. Did $name steal your tastebuds?';
     }
     if (percentage >= 85) {
       return 'Basically the same person. Split the bill already.';

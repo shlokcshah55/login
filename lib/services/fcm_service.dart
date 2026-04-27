@@ -8,17 +8,18 @@ import 'package:login/app/app_root.dart';
 import 'package:login/models/notification_type.dart';
 import 'package:login/pages/bubble_messaging_page.dart';
 import 'package:login/pages/profile/other_user_profile_page.dart';
+import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:login/providers/navigation_provider.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/supabase/supabase_client.dart';
 import 'package:login/supabase/helpers/notifications.dart';
 import 'package:login/models/notifications/base_notification.dart';
 import 'package:login/models/notifications/bubble_message_notification.dart';
-import 'package:login/models/notifications/follow_accepted_notification.dart';
 import 'package:login/models/notifications/follow_request_notification.dart';
 import 'package:login/models/notifications/user_added_to_bubble_notification.dart';
 import 'package:login/models/notifications/video_processed_notification.dart';
 import 'package:login/widgets/profile/notifications_popover.dart';
+import 'package:login/services/notification_routes.dart';
 
 class FCMService {
   static final FCMService _instance = FCMService._internal();
@@ -26,8 +27,10 @@ class FCMService {
   FCMService._internal();
 
   // Notification stream for UI
-  final _notificationController = StreamController<BaseNotification>.broadcast();
-  Stream<BaseNotification> get notificationStream => _notificationController.stream;
+  final _notificationController =
+      StreamController<BaseNotification>.broadcast();
+  Stream<BaseNotification> get notificationStream =>
+      _notificationController.stream;
 
   // Stream for location-saved events (emits locationId when a video is processed)
   final _locationSavedController = StreamController<int>.broadcast();
@@ -38,6 +41,9 @@ class FCMService {
 
   late final NotificationsHelper _notificationsHelper;
   RealtimeChannel? _realtimeChannel;
+
+  // Holds a cold-start notification until MainScreen is ready to handle it.
+  RemoteMessage? _pendingInitialMessage;
 
   /// Save FCM token to Supabase with retry logic
   Future<void> saveFCMToken(String fcmToken, {int retryCount = 0}) async {
@@ -64,7 +70,8 @@ class FCMService {
       // Retry logic with exponential backoff
       if (retryCount < 3) {
         final delaySeconds = pow(2, retryCount); // 1s, 2s, 4s
-        print('📲 Retrying in ${delaySeconds}s... (attempt ${retryCount + 1}/3)');
+        print(
+            '📲 Retrying in ${delaySeconds}s... (attempt ${retryCount + 1}/3)');
 
         await Future.delayed(Duration(seconds: delaySeconds.toInt()));
         await saveFCMToken(fcmToken, retryCount: retryCount + 1);
@@ -152,16 +159,9 @@ class FCMService {
     // Handle notification tap (background/terminated)
     FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
 
-    // Check if app was opened from terminated state via notification.
-    // Delay navigation so the widget tree (and NavigationProvider) are ready.
-    final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
-    if (initialMessage != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Future.delayed(const Duration(milliseconds: 500), () {
-          _handleNotificationTap(initialMessage);
-        });
-      });
-    }
+    // Store cold-start notification; MainScreen will consume it once mounted.
+    _pendingInitialMessage =
+        await FirebaseMessaging.instance.getInitialMessage();
 
     print('📲 FCM Service initialization complete');
   }
@@ -202,8 +202,24 @@ class FCMService {
   }
 
   /// Handle notification tap — navigate to the appropriate screen
-  void _handleNotificationTap(RemoteMessage message) async {
+  Future<void> _handleNotificationTap(RemoteMessage message) async {
     print('📲 Notification tapped');
+
+    final handledDeepLink = await _handleDeepLinkFromMessage(message);
+    if (handledDeepLink) return;
+
+    // Fallback: infer a deep link from type + IDs if no deepLink was provided
+    // (or if the provided one was not handled).
+    final dataWithoutDeepLink = Map<String, dynamic>.from(message.data);
+    dataWithoutDeepLink.remove('deepLink');
+    dataWithoutDeepLink.remove('deep_link');
+    dataWithoutDeepLink.remove('deeplink');
+    final inferredDeepLink = resolveNotificationDeepLink(dataWithoutDeepLink);
+    if (inferredDeepLink != null) {
+      final handledInferred =
+          await _handleDeepLink(inferredDeepLink, message.data);
+      if (handledInferred) return;
+    }
 
     final notification = BaseNotification.fromRemoteMessage(message);
     if (notification == null) return;
@@ -236,78 +252,220 @@ class FCMService {
       return;
     }
 
-    switch (notification.type) {
-      case NotificationType.followRequest:
-      case NotificationType.followAccepted:
-        await _openFollowUserProfile(
-          userId: notification is FollowRequestNotification
-              ? notification.userId
-              : (notification as FollowAcceptedNotification).userId,
-          highlightPendingRequest:
-              notification is FollowRequestNotification,
-          notificationId: notification.id,
-          isRead: notification.isRead,
+    if (notification is BubbleMessageNotification) {
+      await _openBubbleChat(
+        bubbleId: notification.bubbleId,
+        notificationId: notification.id,
+        isRead: notification.isRead,
+      );
+      return;
+    }
+
+    if (notification is UserAddedToBubbleNotification) {
+      await _openBubbleChat(
+        bubbleId: notification.bubbleId,
+        notificationId: notification.id,
+        isRead: notification.isRead,
+      );
+    }
+  }
+
+  String? _firstNonEmptyString(
+    Map<String, dynamic> data,
+    List<String> candidateKeys,
+  ) {
+    for (final key in candidateKeys) {
+      final raw = data[key];
+      final value = raw?.toString().trim();
+      if (value != null && value.isNotEmpty) return value;
+    }
+    return null;
+  }
+
+  List<String> _deepLinkSegments(String deepLink) {
+    final uri = Uri.tryParse(deepLink);
+    if (uri == null) return const [];
+
+    if (uri.scheme.isNotEmpty) {
+      final segments = <String>[];
+      if (uri.host.isNotEmpty) segments.add(uri.host);
+      segments.addAll(uri.pathSegments);
+      return segments.where((s) => s.trim().isNotEmpty).toList();
+    }
+
+    final path = deepLink.split('?').first;
+    final trimmed = path.startsWith('/') ? path.substring(1) : path;
+    if (trimmed.trim().isEmpty) return const [];
+    return trimmed
+        .split('/')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+  }
+
+  Future<bool> _handleDeepLinkFromMessage(RemoteMessage message) async {
+    final deepLink = _firstNonEmptyString(
+      message.data,
+      const ['deepLink', 'deep_link', 'deeplink'],
+    );
+    if (deepLink == null) return false;
+
+    return _handleDeepLink(deepLink, message.data);
+  }
+
+  String _normalizeNotifType(Object? raw) {
+    final normalized = (raw?.toString() ?? '').trim().toLowerCase();
+    if (normalized.isEmpty) return '';
+    if (normalized == 'location_saved') return 'video_processed';
+    if (normalized == 'proximity_locaiton') return 'proximity_location';
+    return normalized;
+  }
+
+  Future<bool> _handleDeepLink(
+      String deepLink, Map<String, dynamic> data) async {
+    final segments = _deepLinkSegments(deepLink);
+    if (segments.isEmpty) return false;
+
+    final context = navigatorKey.currentContext;
+    final notificationId = data['id']?.toString();
+
+    Future<void> markAsReadIfPossible() async {
+      if (notificationId == null || notificationId.trim().isEmpty) return;
+      try {
+        await markAsRead(notificationId);
+      } catch (_) {}
+    }
+
+    void navigateToTab(int tabIndex, String routeFallback) {
+      if (context != null) {
+        try {
+          Provider.of<NavigationProvider>(context, listen: false)
+              .navigateToTab(tabIndex);
+          return;
+        } catch (_) {}
+      }
+      navigatorKey.currentState?.pushNamed(routeFallback);
+    }
+
+    final root = segments.first;
+    switch (root) {
+      case 'home':
+        navigateToTab(0, '/home');
+        return true;
+
+      case 'bubbles':
+        navigateToTab(1, '/bubbles');
+        return true;
+
+      case 'profile':
+        navigateToTab(2, '/profile');
+        return true;
+
+      case 'notifications':
+      case 'inbox':
+        await refreshFromDB();
+        navigateToTab(2, '/profile');
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(
+            builder: (_) => const NotificationsPopover(),
+            fullscreenDialog: true,
+          ),
         );
-        break;
+        return true;
 
-      case NotificationType.newMessage:
-        if (notification is BubbleMessageNotification) {
-          await _openBubbleChat(
-            bubbleId: notification.bubbleId,
-            notificationId: notification.id,
-            isRead: notification.isRead,
-          );
-        }
-        break;
+      case 'bubble':
+        final bubbleId = (segments.length >= 2 ? segments[1] : null) ??
+            _firstNonEmptyString(data, const ['bubbleId']);
+        if (bubbleId == null) return false;
+        await markAsReadIfPossible();
+        await _openBubbleChat(
+          bubbleId: bubbleId,
+          notificationId: notificationId ?? '',
+          isRead: true,
+        );
+        return true;
 
-      case NotificationType.userAddedToBubble:
-        if (notification is UserAddedToBubbleNotification) {
-          await _openBubbleChat(
-            bubbleId: notification.bubbleId,
-            notificationId: notification.id,
-            isRead: notification.isRead,
-          );
-        }
-        break;
+      case 'user':
+        final userId = (segments.length >= 2 ? segments[1] : null) ??
+            _firstNonEmptyString(data, const ['userId']);
+        if (userId == null) return false;
+        await markAsReadIfPossible();
+        await _openUserProfile(
+          userId: userId,
+          highlightPendingRequest:
+              _normalizeNotifType(data['type']) == 'follow_request',
+        );
+        return true;
 
-      case NotificationType.friendVisitedLocation:
-      case NotificationType.proximityLocation:
-        if (context != null) {
-          try {
-            Provider.of<NavigationProvider>(context, listen: false)
-                .navigateToTab(0);
-            return;
-          } catch (_) {}
-        }
-        navigatorKey.currentState?.pushNamed('/home');
-        break;
+      case 'location':
+        final locationIdRaw = (segments.length >= 2 ? segments[1] : null) ??
+            _firstNonEmptyString(data, const ['locationId']);
+        final locationId = int.tryParse(locationIdRaw ?? '');
+        if (locationId == null) return false;
+        await markAsReadIfPossible();
+        await _openLocation(locationId: locationId);
+        return true;
 
-      case NotificationType.videoProcessed:
-        if (notification is VideoProcessedNotification) {
-          final locationId = int.tryParse(notification.locationId);
-          if (locationId != null) _locationSavedController.add(locationId);
-        }
-        if (context != null) {
-          try {
-            Provider.of<NavigationProvider>(context, listen: false)
-                .navigateToTab(2);
-            return;
-          } catch (_) {}
-        }
-        navigatorKey.currentState?.pushNamed('/profile');
-        break;
+      default:
+        return false;
+    }
+  }
 
-      case NotificationType.processingError:
-      case NotificationType.notesImportComplete:
-        if (context != null) {
-          try {
-            Provider.of<NavigationProvider>(context, listen: false)
-                .navigateToTab(2);
-            return;
-          } catch (_) {}
-        }
-        navigatorKey.currentState?.pushNamed('/profile');
-        break;
+  Future<void> _openLocation({required int locationId}) async {
+    try {
+      final context = navigatorKey.currentContext;
+      if (context != null) {
+        try {
+          Provider.of<NavigationProvider>(context, listen: false)
+              .navigateToTab(0);
+        } catch (_) {}
+      }
+
+      final locations =
+          await SupabaseService().locations.getLocationsByIds([locationId]);
+      if (locations.isEmpty) return;
+
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(
+          builder: (_) => Scaffold(
+            body: ExpandedLocationCard(
+              location: locations.first,
+              onClose: () => navigatorKey.currentState?.pop(),
+            ),
+          ),
+        ),
+      );
+    } catch (e) {
+      print('📲 Error opening location: $e');
+    }
+  }
+
+  Future<void> _openUserProfile({
+    required String userId,
+    required bool highlightPendingRequest,
+  }) async {
+    try {
+      final context = navigatorKey.currentContext;
+      if (context != null) {
+        try {
+          Provider.of<NavigationProvider>(context, listen: false)
+              .navigateToTab(2);
+        } catch (_) {}
+      }
+
+      final user = await SupabaseService().users.getUserProfileById(userId);
+      if (user == null) return;
+
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(
+          builder: (_) => OtherUserProfilePage(
+            user: user,
+            highlightPendingRequest: highlightPendingRequest,
+          ),
+        ),
+      );
+    } catch (e) {
+      print('📲 Error opening user profile: $e');
     }
   }
 
@@ -318,8 +476,7 @@ class FCMService {
     required bool isRead,
   }) async {
     try {
-      final bubble =
-          await SupabaseService().bubbles.getBubbleById(bubbleId);
+      final bubble = await SupabaseService().bubbles.getBubbleById(bubbleId);
       if (bubble == null) {
         print('📲 Bubble $bubbleId not found — falling back to bubbles tab');
         _navigateToTabFallback(1, '/bubbles');
@@ -346,40 +503,6 @@ class FCMService {
     } catch (e) {
       print('📲 Error opening bubble chat: $e');
       _navigateToTabFallback(1, '/bubbles');
-    }
-  }
-
-  /// Deep-link into [OtherUserProfilePage] for a follow request/accepted.
-  Future<void> _openFollowUserProfile({
-    required String userId,
-    required bool highlightPendingRequest,
-    required String notificationId,
-    required bool isRead,
-  }) async {
-    try {
-      final user =
-          await SupabaseService().users.getUserProfileById(userId);
-      if (user == null) {
-        print('📲 User $userId not found — falling back to profile tab');
-        _navigateToTabFallback(2, '/profile');
-        return;
-      }
-
-      if (!isRead) {
-        await markAsRead(notificationId);
-      }
-
-      navigatorKey.currentState?.push(
-        MaterialPageRoute(
-          builder: (_) => OtherUserProfilePage(
-            user: user,
-            highlightPendingRequest: highlightPendingRequest,
-          ),
-        ),
-      );
-    } catch (e) {
-      print('📲 Error opening user profile: $e');
-      _navigateToTabFallback(2, '/profile');
     }
   }
 
@@ -483,6 +606,14 @@ class FCMService {
   /// Refresh notifications from DB (called by UI)
   Future<void> refreshFromDB() async {
     await _loadNotificationsFromDB();
+  }
+
+  /// Call this once from MainScreen.initState to handle any cold-start tap.
+  Future<void> consumePendingInitialMessage() async {
+    final message = _pendingInitialMessage;
+    if (message == null) return;
+    _pendingInitialMessage = null;
+    await _handleNotificationTap(message);
   }
 
   /// Reinitialize notifications after user login

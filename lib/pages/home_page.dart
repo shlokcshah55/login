@@ -27,7 +27,11 @@ import 'package:login/providers/shortlist_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:login/providers/bubble_mode_provider.dart';
 import 'package:login/providers/navigation_provider.dart';
+import 'package:login/services/did_you_know_wizard_service.dart';
+import 'package:login/services/what_we_do_wizard_service.dart';
+import 'package:login/services/wizard_completion_popover_service.dart';
 import 'package:login/supabase/service.dart';
+import 'package:login/widgets/did_you_know_wizard_dialog.dart';
 import 'package:login/widgets/home/bubble_mode_overlay.dart';
 import 'package:login/widgets/home/no_magic_search_results_popover.dart';
 import 'package:login/widgets/home/no_recommendations_popover.dart';
@@ -59,11 +63,22 @@ class _HomePageState extends State<HomePage> {
   late final BubbleModeProvider _bubbleModeProvider;
   late final SupabaseService _supabaseService;
   late final UserDataProvider _userDataProvider;
+  final DidYouKnowWizardService _didYouKnowWizardService =
+      DidYouKnowWizardService();
+  final WhatWeDoWizardService _whatWeDoWizardService = WhatWeDoWizardService();
+  final WizardCompletionPopoverService _wizardCompletionPopoverService =
+      WizardCompletionPopoverService();
   Set<String> _selectedVibeTagIds = <String>{};
   Set<String> _selectedCuisineTagIds = <String>{};
   bool _wizardPopoverScheduled = false;
   bool _wizardPopoverShown = false;
   bool _isWizardPopoverVisible = false;
+  bool _wizardPopoverEligibilityChecked = false;
+  bool _whatWeDoWizardScheduled = false;
+  bool _isWhatWeDoWizardVisible = false;
+  bool _whatWeDoWizardEligibilityChecked = false;
+  bool _whatWeDoWizardShouldShow = false;
+  bool _didYouKnowWizardCheckScheduled = false;
   String? _lastHandledError;
   bool _isNoRecommendationsPopoverVisible = false;
   bool _isMagicSearchNoResultsPopoverVisible = false;
@@ -98,6 +113,7 @@ class _HomePageState extends State<HomePage> {
   void didUpdateWidget(HomePage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!oldWidget.isActive && widget.isActive) {
+      _didYouKnowWizardCheckScheduled = false;
       _handleBubbleModeRequest();
       _handlePendingFocusLocation();
     }
@@ -218,6 +234,8 @@ class _HomePageState extends State<HomePage> {
       return;
     }
     if (!widget.isActive ||
+        _isWhatWeDoWizardVisible ||
+        _whatWeDoWizardScheduled ||
         _locationListManager.isLoadingSaved ||
         !_locationListManager.hasLoadedSavedLocations ||
         _hasShownSavedEmptyPopover ||
@@ -230,6 +248,18 @@ class _HomePageState extends State<HomePage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (ModalRoute.of(context)?.isCurrent != true) {
+        _hasShownSavedEmptyPopover = false;
+        return;
+      }
+      final hasSavesNow = _locationListManager.savedLocations.isNotEmpty;
+      if (hasSavesNow ||
+          _isWhatWeDoWizardVisible ||
+          _whatWeDoWizardScheduled ||
+          _locationListManager.isLoadingSaved ||
+          !_locationListManager.hasLoadedSavedLocations ||
+          _isSavedEmptyPopoverVisible ||
+          _isWizardPopoverVisible ||
+          (_wizardPopoverScheduled && !_wizardPopoverShown)) {
         _hasShownSavedEmptyPopover = false;
         return;
       }
@@ -293,23 +323,135 @@ class _HomePageState extends State<HomePage> {
     if (_wizardPopoverShown || _wizardPopoverScheduled || !widget.isActive) {
       return;
     }
+    if (_wizardPopoverEligibilityChecked) return;
+    if (_isWhatWeDoWizardVisible || _whatWeDoWizardScheduled) return;
     final userData = userDataProvider.supabaseUserData;
     if (userData == null || userData.wizardCompleted) return;
+    if (!_locationListManager.hasLoadedSavedLocations ||
+        _locationListManager.isLoadingSaved ||
+        _locationListManager.savedLocations.length < 7) {
+      return;
+    }
     _wizardPopoverScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _showWizardPopoverIfNeeded();
+      unawaited(_showWizardPopoverIfNeeded());
     });
   }
 
-  void _showWizardPopoverIfNeeded() {
+  void _scheduleWhatWeDoWizardIfNeeded(UserDataProvider userDataProvider) {
+    if (_isWhatWeDoWizardVisible || _whatWeDoWizardScheduled || !widget.isActive) {
+      return;
+    }
+    if (_whatWeDoWizardEligibilityChecked && !_whatWeDoWizardShouldShow) {
+      return;
+    }
+    _whatWeDoWizardScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (ModalRoute.of(context)?.isCurrent != true) {
+        setState(() => _whatWeDoWizardScheduled = false);
+        return;
+      }
+      unawaited(_maybeShowWhatWeDoWizard());
+    });
+  }
+
+  Future<void> _maybeShowWhatWeDoWizard() async {
+    final shouldShow = await _whatWeDoWizardService.shouldShowNow();
+    if (!mounted) return;
+    setState(() {
+      _whatWeDoWizardEligibilityChecked = true;
+      _whatWeDoWizardShouldShow = shouldShow;
+      if (!shouldShow) _whatWeDoWizardScheduled = false;
+    });
+    if (!shouldShow) {
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _isWhatWeDoWizardVisible = true;
+      _whatWeDoWizardScheduled = false;
+    });
+
+    await WhatWeDoWizardOverlay.push(context);
+    await _whatWeDoWizardService.markCompleted();
+    if (!mounted) return;
+    setState(() {
+      _isWhatWeDoWizardVisible = false;
+      _whatWeDoWizardEligibilityChecked = true;
+      _whatWeDoWizardShouldShow = false;
+    });
+  }
+
+  void _scheduleDidYouKnowWizardIfNeeded(UserDataProvider userDataProvider) {
+    if (_isWhatWeDoWizardVisible || _whatWeDoWizardScheduled) return;
+    if (DidYouKnowWizardService.previewTikTokWizardEnabled) {
+      if (_didYouKnowWizardCheckScheduled || !widget.isActive) return;
+      _didYouKnowWizardCheckScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (ModalRoute.of(context)?.isCurrent != true) {
+          _didYouKnowWizardCheckScheduled = false;
+          return;
+        }
+        unawaited(_didYouKnowWizardService.showPreviewTikTokWizard(context));
+      });
+      return;
+    }
+
+    if (_didYouKnowWizardCheckScheduled || !widget.isActive) return;
+    if (_isWizardPopoverVisible ||
+        (_wizardPopoverScheduled && !_wizardPopoverShown)) {
+      return;
+    }
+    if (_isSavedEmptyPopoverVisible ||
+        _isNoRecommendationsPopoverVisible ||
+        _isMagicSearchNoResultsPopoverVisible) {
+      return;
+    }
+
+    final userData = userDataProvider.supabaseUserData;
+    if (userData == null || !userData.wizardCompleted) return;
+
+    _didYouKnowWizardCheckScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (ModalRoute.of(context)?.isCurrent != true) {
+        _didYouKnowWizardCheckScheduled = false;
+        return;
+      }
+      unawaited(_didYouKnowWizardService.maybeShowBestTip(context));
+    });
+  }
+
+  Future<void> _showWizardPopoverIfNeeded() async {
     if (_wizardPopoverShown || !widget.isActive) return;
+    if (_isWhatWeDoWizardVisible || _whatWeDoWizardScheduled) {
+      _wizardPopoverScheduled = false;
+      return;
+    }
     final userDataProvider = context.read<UserDataProvider>();
     final userData = userDataProvider.supabaseUserData;
     if (userData == null || userData.wizardCompleted) {
       _wizardPopoverScheduled = false;
       return;
     }
+    if (!_locationListManager.hasLoadedSavedLocations ||
+        _locationListManager.isLoadingSaved ||
+        _locationListManager.savedLocations.length < 7) {
+      _wizardPopoverScheduled = false;
+      return;
+    }
+    _wizardPopoverEligibilityChecked = true;
+    final ok = await _wizardCompletionPopoverService.shouldShowNow();
+    if (!ok || !mounted) {
+      _wizardPopoverScheduled = false;
+      return;
+    }
+    await _wizardCompletionPopoverService.markShownNow();
+    if (!mounted) return;
     _wizardPopoverShown = true;
     _isWizardPopoverVisible = true;
     showDialog<void>(
@@ -395,23 +537,29 @@ class _HomePageState extends State<HomePage> {
       child: Consumer<HomeViewModel>(
         builder: (context, viewModel, _) {
           final userDataProvider = context.watch<UserDataProvider>();
-          _scheduleWizardPopoverIfNeeded(userDataProvider);
-          _scheduleSavedEmptyPopoverIfNeeded();
+          _scheduleWhatWeDoWizardIfNeeded(userDataProvider);
+          if (!_isWhatWeDoWizardVisible && !_whatWeDoWizardScheduled) {
+            _scheduleWizardPopoverIfNeeded(userDataProvider);
+            _scheduleSavedEmptyPopoverIfNeeded();
+            _scheduleDidYouKnowWizardIfNeeded(userDataProvider);
+          }
           final carouselBottom = viewModel.bottomNavVisible ? 110.0 : 20.0;
           final topPadding = MediaQuery.of(context).padding.top;
 
           return Scaffold(
             resizeToAvoidBottomInset: false,
-            body: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                // ─── Layer 1: Map ──────────────────────────────
-                Positioned.fill(
-                  child: HomeMapLayer(
-                    onMapTap: viewModel.onMapTap,
-                    onSearchThisArea: viewModel.searchThisArea,
+            body: AbsorbPointer(
+              absorbing: _isWhatWeDoWizardVisible || _whatWeDoWizardScheduled,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  // ─── Layer 1: Map ──────────────────────────────
+                  Positioned.fill(
+                    child: HomeMapLayer(
+                      onMapTap: viewModel.onMapTap,
+                      onSearchThisArea: viewModel.searchThisArea,
+                    ),
                   ),
-                ),
 
                 // ─── Layer 2+3: Purple header panel ────────────
                 //     Logo + Search + Chip row as one unified surface
@@ -427,7 +575,8 @@ class _HomePageState extends State<HomePage> {
 
                 // ─── Layer 5: Carousel + See All button ─────────
                 if (!viewModel.isHeaderSearchActive &&
-                    !viewModel.isMagicSearchFieldFocused)
+                    !viewModel.isMagicSearchFieldFocused &&
+                    !viewModel.isEatListsOpen)
                   AnimatedPositioned(
                     duration: const Duration(milliseconds: 300),
                     curve: Curves.easeOutQuint,
@@ -837,7 +986,8 @@ class _HomePageState extends State<HomePage> {
                       ),
                     );
                   }),
-              ],
+                ],
+              ),
             ),
           );
         },
@@ -1097,6 +1247,7 @@ class _TopPanel extends StatelessWidget {
                 onCollectionMenuOpened: () {
                   unawaited(viewModel.loadCollections());
                 },
+                onCollectionsVisibilityChanged: viewModel.setEatListsOpen,
                 onCollectionSelected: (collection) {
                   unawaited(() async {
                     final shown = await viewModel.showCollectionOnMap(

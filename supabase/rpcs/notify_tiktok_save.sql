@@ -7,7 +7,7 @@ DECLARE
     v_location_name TEXT;
     v_location_id TEXT;
     v_fcm_token TEXT;
-    v_api_url TEXT := 'https://send-push-notification-3e26rjbtca-ew.a.run.app/send_push_notification';
+    v_api_url TEXT := 'https://europe-west1-pinit-494520.cloudfunctions.net/send-push-notifications';
     v_api_key TEXT := 'RnP9BGrHqnMLpWcvwFFnxDmTf+ES21Yd15pIFz5CjGg='; -- Replace with the key used in your Cloud Function
 BEGIN
     RAISE LOG 'notify_tiktok_save triggered for user % on location %', NEW.user_id, NEW.location_id;
@@ -48,7 +48,8 @@ BEGIN
                 'body', 'We found ' || v_location_name || ' from your TikTok.',
                 'metadata', jsonb_build_object(
                     'locationId', v_location_id,
-                    'locationName', v_location_name
+                    'locationName', v_location_name,
+                    'deepLink', 'pinit://location/' || v_location_id
                 )
             )
         );

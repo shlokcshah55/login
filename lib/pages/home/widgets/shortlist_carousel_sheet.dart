@@ -800,7 +800,7 @@ const Map<String, _VibeTagStyle> _vibeStyles = {
   'hole_in_the_wall': _VibeTagStyle('Hidden Gem', FeatherIcons.key),
   'late_night': _VibeTagStyle('Late Night', FeatherIcons.moon),
   'live_music': _VibeTagStyle('Live Music', FeatherIcons.music),
-  'michelin_starred': _VibeTagStyle('Bougie', FeatherIcons.star),
+  'bougie': _VibeTagStyle('Bougie', FeatherIcons.star),
   'modern': _VibeTagStyle('Modern', FeatherIcons.zap),
   'fast_food': _VibeTagStyle('Fast Food', FeatherIcons.fastForward),
   'quiet': _VibeTagStyle('Quiet', FeatherIcons.volumeX),

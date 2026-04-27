@@ -22,11 +22,15 @@ class SocialProofSection extends StatelessWidget {
     required this.location,
     required this.similarPlaces,
     required this.onSimilarPlaceTap,
+    this.pinitReviews = const [],
+    this.friendIds = const {},
   });
 
   final LocationModel location;
   final List<SimilarPlace> similarPlaces;
   final ValueChanged<SimilarPlace> onSimilarPlaceTap;
+  final List<Map<String, dynamic>> pinitReviews;
+  final Set<String> friendIds;
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +39,11 @@ class SocialProofSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ReviewSection(location: location),
+        ReviewSection(
+          location: location,
+          pinitReviews: pinitReviews,
+          friendIds: friendIds,
+        ),
         if (hasSimilar) ...[
           const SizedBox(height: 32),
           SimilarPlacesSection(

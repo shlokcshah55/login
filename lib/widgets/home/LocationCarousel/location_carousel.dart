@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/providers/location_list_provider.dart';
+import 'package:login/utils/geo_types.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
@@ -32,7 +34,7 @@ const Map<String, _VibeTagStyle> _vibeStyles = {
   'hole_in_the_wall': _VibeTagStyle('Hidden Gem', FeatherIcons.key),
   'late_night': _VibeTagStyle('Late Night', FeatherIcons.moon),
   'live_music': _VibeTagStyle('Live Music', FeatherIcons.music),
-  'michelin_starred': _VibeTagStyle('Bougie', FeatherIcons.star),
+  'bougie': _VibeTagStyle('Bougie', FeatherIcons.star),
   'modern': _VibeTagStyle('Modern', FeatherIcons.zap),
   'fast_food': _VibeTagStyle('Fast Food', FeatherIcons.fastForward),
   'quiet': _VibeTagStyle('Quiet', FeatherIcons.volumeX),
@@ -41,7 +43,7 @@ const Map<String, _VibeTagStyle> _vibeStyles = {
   'trendy': _VibeTagStyle('Trendy', FeatherIcons.trendingUp),
   'takeout_friendly': _VibeTagStyle('Takeaway', FeatherIcons.package),
   'pub': _VibeTagStyle('Pub', FeatherIcons.home),
-  'grocery_store': _VibeTagStyle('Shop', FeatherIcons.shoppingCart),
+  'shop': _VibeTagStyle('Shop', FeatherIcons.shoppingCart),
   'brunch': _VibeTagStyle('Brunch', FeatherIcons.sun),
   'outdoor_dining': _VibeTagStyle('Outdoor', FeatherIcons.wind),
   'wavy': _VibeTagStyle('Wavy', FeatherIcons.activity),
@@ -346,6 +348,7 @@ class _CarouselCard extends StatelessWidget {
     final manager = Provider.of<LocationListManager?>(context);
     final isBeenTo = beenToLocationIds.contains(location.locationId) ||
         (manager?.isLocationBeenToSync(location.locationId) ?? false);
+    final walkEta = _walkEtaLabel(manager?.currentPosition);
     final Color borderColor =
         _isWavy ? PinitColors.accent : PinitColors.aubergine;
     final Color shadowColor =
@@ -541,17 +544,43 @@ class _CarouselCard extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          if (location.rating != null) ...[
-                            _CompactRating(
-                              rating: location.rating!,
-                              reviewCount: location.userRatingsTotal,
-                            ),
-                            const SizedBox(width: 6),
-                          ],
-                          if (location.matchScore != null &&
-                              location.matchScore! > 0.1)
-                            _MatchBadge(
-                                score: (location.matchScore! * 100).round()),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (walkEta != null) ...[
+                                const SizedBox(width: 8),
+                                const Icon(
+                                  Icons.directions_walk_rounded,
+                                  size: 12,
+                                  color: PinitColors.mute,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  walkEta,
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 10,
+                                    color: PinitColors.mute,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.2,
+                                  ),
+                                ),
+                              ],
+                              if (location.rating != null) ...[
+                                const SizedBox(width: 6),
+                                _CompactRating(
+                                  rating: location.rating!,
+                                  reviewCount: location.userRatingsTotal,
+                                ),
+                              ],
+                              if (location.matchScore != null &&
+                                  location.matchScore! > 0.1) ...[
+                                const SizedBox(width: 6),
+                                _MatchBadge(
+                                    score:
+                                        (location.matchScore! * 100).round()),
+                              ],
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -680,6 +709,42 @@ class _CarouselCard extends StatelessWidget {
     }
     return null;
   }
+
+  String? _walkEtaLabel(LatLng? userPosition) {
+    if (userPosition == null || location.lat == null || location.lng == null) {
+      return null;
+    }
+
+    final km = _haversineKm(
+      userPosition.latitude,
+      userPosition.longitude,
+      location.lat!,
+      location.lng!,
+    );
+    final minutes = math.max(1, (km * 12).round()); // ~5km/h
+    if (minutes < 60) return '$minutes min';
+    return null;
+  }
+
+  double _haversineKm(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
+    const earthRadiusKm = 6371.0;
+    final dLat = _degToRad(lat2 - lat1);
+    final dLon = _degToRad(lon2 - lon1);
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_degToRad(lat1)) *
+            math.cos(_degToRad(lat2)) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return earthRadiusKm * c;
+  }
+
+  double _degToRad(double deg) => deg * (math.pi / 180.0);
 
   List<MapEntry<String, double>> get _topVibeTags {
     if (location.vibe == null) return [];

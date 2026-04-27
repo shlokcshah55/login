@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/users.dart';
 import 'package:login/models/locations.dart';
@@ -669,12 +670,23 @@ class _ProfilePageState extends State<ProfilePage>
             ),
           );
         },
-        onShareProfile: () => Navigator.pop(sheetContext),
+        onShareProfile: () {
+          Navigator.pop(sheetContext);
+          _shareProfile(context);
+        },
         onSignOut: () {
           Navigator.pop(sheetContext);
           _handleSignOut(context);
         },
       ),
+    );
+  }
+
+  void _shareProfile(BuildContext context) {
+    const appStoreUrl = 'https://apps.apple.com/app/pinit'; // replace with real URL
+    Share.share(
+      "I've got Pinit and I want to be your friend! 🍽️ Join me on the app: $appStoreUrl",
+      subject: 'Join me on Pinit!',
     );
   }
 

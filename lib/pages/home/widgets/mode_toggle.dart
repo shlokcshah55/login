@@ -17,6 +17,7 @@ class HomeChipRow extends StatefulWidget {
     required this.isLoadingCollections,
     required this.onCollectionMenuOpened,
     required this.onCollectionSelected,
+    this.onCollectionsVisibilityChanged,
     this.activeCollectionId,
     this.activeBubbleName,
   });
@@ -27,6 +28,7 @@ class HomeChipRow extends StatefulWidget {
   final bool isLoadingCollections;
   final VoidCallback onCollectionMenuOpened;
   final ValueChanged<CollectionItem> onCollectionSelected;
+  final ValueChanged<bool>? onCollectionsVisibilityChanged;
   final String? activeCollectionId;
   final String? activeBubbleName;
 
@@ -38,19 +40,16 @@ class _HomeChipRowState extends State<HomeChipRow> {
   bool _showCollections = false;
 
   void _toggleCollections() {
-    setState(() {
-      _showCollections = !_showCollections;
-    });
-    if (_showCollections) {
-      widget.onCollectionMenuOpened();
-    }
+    final next = !_showCollections;
+    setState(() => _showCollections = next);
+    widget.onCollectionsVisibilityChanged?.call(next);
+    if (next) widget.onCollectionMenuOpened();
   }
 
   void _closeCollections() {
     if (!_showCollections) return;
-    setState(() {
-      _showCollections = false;
-    });
+    setState(() => _showCollections = false);
+    widget.onCollectionsVisibilityChanged?.call(false);
   }
 
   @override

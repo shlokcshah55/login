@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/supabase/helpers/collections.dart';
 import 'package:login/supabase/supabase_client.dart';
+import 'package:login/widgets/collections/create_collection_sheet.dart';
 import 'package:login/widgets/feedback/app_feedback.dart';
 
 /// Bottom sheet that lists the user's collections and lets them add the
@@ -35,6 +36,7 @@ class _AddToCollectionSheetState extends State<AddToCollectionSheet> {
   }
 
   Future<void> _fetchCollections() async {
+    if (mounted) setState(() => _loading = true);
     final userId = SupabaseClientManager().currentUser?.id;
     if (userId == null) {
       if (mounted) setState(() => _loading = false);
@@ -68,6 +70,22 @@ class _AddToCollectionSheetState extends State<AddToCollectionSheet> {
     }
   }
 
+  Future<void> _openCreateEatListSheet() async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => CreateCollectionSheet(
+        onCreated: (collectionId, _) async {
+          await _addToCollection(collectionId);
+          if (mounted) {
+            await _fetchCollections();
+          }
+        },
+      ),
+    );
+  }
+
   Future<void> _addToCollection(String collectionId) async {
     if (_addingId != null) return;
     setState(() => _addingId = collectionId);
@@ -79,11 +97,12 @@ class _AddToCollectionSheetState extends State<AddToCollectionSheet> {
           'p_location_id': widget.locationId,
         },
       );
-      final success = (result as Map)['success'] == true;
-      if (mounted) {
-        // No success snackbar; just close the sheet.
-        Navigator.pop(context);
+      final resultMap = Map<String, dynamic>.from(result as Map);
+      final success = resultMap['success'] == true;
+      if (!success) {
+        throw Exception(resultMap['error'] as String? ?? 'Failed to add');
       }
+      if (mounted) Navigator.pop(context);
     } catch (_) {
       if (mounted) {
         setState(() => _addingId = null);
@@ -166,6 +185,36 @@ class _AddToCollectionSheetState extends State<AddToCollectionSheet> {
 
           const SizedBox(height: 24),
 
+          // Create CTA
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: SizedBox(
+              width: double.infinity,
+              child: GestureDetector(
+                onTap: _addingId == null ? _openCreateEatListSheet : null,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    color: PinitColors.aubergine,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Center(
+                    child: Text(
+                      'Create Eat-List',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: PinitColors.cream,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 18),
+
           // Collections list
           if (_loading)
             const Padding(
@@ -205,7 +254,7 @@ class _AddToCollectionSheetState extends State<AddToCollectionSheet> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Create an eat-list from your profile',
+                      'Create one now to save this place',
                       style: GoogleFonts.dmSans(
                         fontSize: 13,
                         color: PinitColors.mute,

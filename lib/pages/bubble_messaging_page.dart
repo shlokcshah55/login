@@ -319,7 +319,8 @@ class _MessagingHeader extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: AppTypography.brand(
                             fontSize: 24,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w100,
+                            letterSpacing: 1.4,
                             color: PinitColors.aubergine,
                             height: 1.0,
                           ),

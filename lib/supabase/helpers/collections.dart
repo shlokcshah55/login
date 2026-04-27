@@ -66,7 +66,7 @@ class CollectionsGenerationException implements Exception {
 
 class CollectionsHelper {
   static const String _serviceUrl =
-      'https://collections-generator-3e26rjbtca-ew.a.run.app';
+      'https://collections-generator-jkqbw4i75a-ew.a.run.app';
 
   final SupabaseClient _client = SupabaseClientManager().client;
   final http.Client _http;

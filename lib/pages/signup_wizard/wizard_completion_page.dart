@@ -1,17 +1,19 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/signup_wizard_state.dart';
-import '../../models/locations.dart';
+import '../../providers/location_list_provider.dart';
 import '../../supabase/service.dart';
 import '../../supabase/supabase_client.dart';
 import '../../supabase/constants.dart';
 import '../../providers/user_data_provider.dart';
+import '../../services/what_we_do_wizard_service.dart';
 import '../../widgets/feedback/app_feedback.dart';
 import '../auth_handler.dart';
 import '../profile/widgets/pinit_colors.dart';
 import 'steps/dietary_step.dart';
 import 'steps/vibe_step.dart';
-import 'steps/top_places_step.dart';
 
 class WizardCompletionPage extends StatelessWidget {
   const WizardCompletionPage({super.key});
@@ -43,15 +45,12 @@ class _WizardCompletionContent extends StatefulWidget {
 
 class _WizardCompletionContentState extends State<_WizardCompletionContent> {
   final PageController _pageController = PageController();
-  int _currentStep = 0; // 0 = Dietary, 1 = Vibe, 2 = Restaurant
+  int _currentStep = 0; // 0 = Dietary, 1 = Vibe
 
   final List<String> _stepTitles = [
     'Dietary Preferences',
     'Your Vibe',
-    'Add Your Favourites',
   ];
-  List<LocationModel>? _restaurants;
-  bool _isLoadingRestaurants = false;
   bool _isCompletingWizard = false;
   @override
   void dispose() {
@@ -60,7 +59,7 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
   }
 
   void _nextStep() {
-    if (_currentStep < 2) {
+    if (_currentStep < 1) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
@@ -74,40 +73,6 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
-    }
-  }
-
-  Future<void> _nextStepWithRestaurants(
-      Future<List<LocationModel>> Function() fetchRestaurants) async {
-    if (_currentStep < 2) {
-      setState(() {
-        _isLoadingRestaurants = true;
-      });
-
-      try {
-        final restaurants = await fetchRestaurants();
-        setState(() {
-          _restaurants = restaurants;
-          _isLoadingRestaurants = false;
-        });
-
-        _pageController.nextPage(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
-      } catch (e) {
-        setState(() {
-          _isLoadingRestaurants = false;
-        });
-
-        if (mounted) {
-          await AppFeedback.showError(
-            context,
-            title: 'Couldn’t load',
-            message: 'Please try again in a moment.',
-          );
-        }
-      }
     }
   }
 
@@ -167,10 +132,19 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
         );
       }
 
+      // Ensure saved locations are re-fetched before returning to HomePage so we
+      // don't accidentally show the "no saved locations" popover based on stale
+      // cached state from before the wizard saved places.
+      unawaited(
+        context.read<LocationListManager>().refreshSavedLocations(),
+      );
+
       // wizard_completed already flipped by finalizeSignupWizard above.
       if (mounted) {
         context.read<UserDataProvider>().setWizardCompleted(true);
       }
+
+      await WhatWeDoWizardService().markPending();
 
       // Step 4: Navigate back to main app
       if (mounted) {
@@ -198,8 +172,8 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
   }
 
   double _calculateProgress() {
-    // Total: 3 steps
-    return (_currentStep + 1) / 3.0;
+    // Total: 2 steps
+    return (_currentStep + 1) / 2.0;
   }
 
   @override
@@ -277,16 +251,11 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
                     onBack: () => Navigator.of(context).pop(),
                   ),
                   VibeStep(
-                    onNext: _nextStep,
+                    onNext: () {
+                      _completeWizard();
+                    },
                     onBack: _previousStep,
-                    onNextWithRestaurants: _nextStepWithRestaurants,
-                    isLoadingRestaurants: _isLoadingRestaurants,
-                  ),
-                  TopPlacesStep(
-                    onBack: _previousStep,
-                    onComplete: _completeWizard,
-                    isCompleting: _isCompletingWizard,
-                    recommendations: _restaurants ?? [],
+                    isLoadingRestaurants: _isCompletingWizard,
                   ),
                 ],
               ),

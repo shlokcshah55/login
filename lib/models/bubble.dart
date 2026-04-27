@@ -3,6 +3,7 @@ import 'package:login/models/locations.dart';
 class Bubble {
   final String id;
   final String name;
+  final String createdBy;
   final String lastMessage;
   final String lastMessageTime;
   final DateTime? lastActivityAt;
@@ -20,6 +21,7 @@ class Bubble {
   Bubble({
     required this.id,
     required this.name,
+    required this.createdBy,
     required this.lastMessage,
     required this.lastMessageTime,
     this.lastActivityAt,
@@ -39,6 +41,7 @@ class Bubble {
     return Bubble(
       id: json['id'] ?? '',
       name: json['name'] ?? '',
+      createdBy: json['created_by'] ?? '',
       lastMessage: json['last_message'] ?? '',
       lastMessageTime: json['last_message_time'] ?? '',
       lastActivityAt: json['last_activity_at'] != null
@@ -64,6 +67,7 @@ class Bubble {
     return {
       'id': id,
       'name': name,
+      'created_by': createdBy,
       'last_message': lastMessage,
       'last_message_time': lastMessageTime,
       'last_activity_at': lastActivityAt?.toIso8601String(),
@@ -83,6 +87,7 @@ class Bubble {
   Bubble copyWith({
     String? id,
     String? name,
+    String? createdBy,
     String? lastMessage,
     String? lastMessageTime,
     DateTime? lastActivityAt,
@@ -100,6 +105,7 @@ class Bubble {
     return Bubble(
       id: id ?? this.id,
       name: name ?? this.name,
+      createdBy: createdBy ?? this.createdBy,
       lastMessage: lastMessage ?? this.lastMessage,
       lastMessageTime: lastMessageTime ?? this.lastMessageTime,
       lastActivityAt: lastActivityAt ?? this.lastActivityAt,
