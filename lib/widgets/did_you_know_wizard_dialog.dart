@@ -72,11 +72,6 @@ class DidYouKnowWizards {
         title: 'Step 4: We\'ll let you know when you\'re nearby!',
         description: '',
       ),
-      DidYouKnowWizardPage(
-        illustrationAssetPath: 'lib/assets/wizards/tiktok3.png',
-        title: 'Try it out yourself',
-        description: 'We think you will like this TikTok.',
-      ),
     ],
   );
 
@@ -444,10 +439,7 @@ class _IllustrationWizardBody extends StatelessWidget {
 }
 
 class _ScreenshotWizardBody extends StatelessWidget {
-  static const String _tiktokTryItUrlRaw = String.fromEnvironment(
-    'DID_YOU_KNOW_TIKTOK_TRY_IT_URL',
-    defaultValue: '',
-  );
+  static const String _tiktokTryItUrlRaw = 'https://vm.tiktok.com/ZNRb3SMLF/';
 
   final List<DidYouKnowWizardPage> pages;
   final PageController pageController;
@@ -947,7 +939,7 @@ class _ScreenshotPage extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.all(8),
           child: Align(
-            alignment: const Alignment(0, 0.34),
+            alignment: const Alignment(0, 0),
             child: Image.asset(
               assetPath,
               fit: BoxFit.contain,

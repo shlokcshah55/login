@@ -1,6 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
+import 'dart:ui' show ImageFilter;
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -8,7 +12,9 @@ import 'package:login/models/locations.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/supabase/constants.dart';
+import 'package:login/supabase/helpers/notes_import.dart';
 import 'package:login/supabase/service.dart';
+import 'package:login/supabase/supabase_client.dart';
 import 'package:login/themes/app_typography.dart';
 import 'package:login/widgets/feedback/app_feedback.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
@@ -33,7 +39,7 @@ class SwipeSaveStep extends StatefulWidget {
 class _SwipeSaveStepState extends State<SwipeSaveStep>
     with SingleTickerProviderStateMixin {
   static const double _maxCardWidth = 290;
-  static const double _cardSidePadding = 18;
+  static const double _contentSidePadding = 20;
   static const double _cardImageAspectRatio = 16 / 10;
   static const double _swipeAreaMinHeight = 240;
   static const double _swipeAreaMaxHeight = 320;
@@ -43,6 +49,10 @@ class _SwipeSaveStepState extends State<SwipeSaveStep>
   bool _isDragging = false;
   final Set<int> _savedLocationIds = <int>{};
   final TextEditingController _pasteController = TextEditingController();
+  final FocusNode _pasteFocusNode = FocusNode();
+  final FocusNode _pastePreviewFocusNode = FocusNode(canRequestFocus: false);
+  bool _isPasteOverlayOpen = false;
+  bool _isImporting = false;
 
   late final AnimationController _swipeAnimController;
   late Animation<Offset> _slideAnimation;
@@ -51,12 +61,6 @@ class _SwipeSaveStepState extends State<SwipeSaveStep>
 
   bool get _allSwiped => _currentIndex >= widget.recommendations.length;
 
-  double _cardWidth(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width - (_cardSidePadding * 2);
-    final clamped = width.clamp(0.0, _maxCardWidth);
-    return clamped.toDouble();
-  }
-
   @override
   void initState() {
     super.initState();
@@ -64,7 +68,8 @@ class _SwipeSaveStepState extends State<SwipeSaveStep>
       duration: const Duration(milliseconds: 280),
       vsync: this,
     );
-    _slideAnimation = Tween<Offset>(begin: Offset.zero, end: Offset.zero).animate(
+    _slideAnimation =
+        Tween<Offset>(begin: Offset.zero, end: Offset.zero).animate(
       CurvedAnimation(parent: _swipeAnimController, curve: Curves.easeOut),
     );
   }
@@ -72,8 +77,116 @@ class _SwipeSaveStepState extends State<SwipeSaveStep>
   @override
   void dispose() {
     _pasteController.dispose();
+    _pasteFocusNode.dispose();
+    _pastePreviewFocusNode.dispose();
     _swipeAnimController.dispose();
     super.dispose();
+  }
+
+  void _openPasteOverlay() {
+    if (_isPasteOverlayOpen) return;
+    setState(() => _isPasteOverlayOpen = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      FocusScope.of(context).requestFocus(_pasteFocusNode);
+    });
+  }
+
+  void _closePasteOverlay() {
+    if (!_isPasteOverlayOpen) return;
+    FocusScope.of(context).unfocus();
+    setState(() => _isPasteOverlayOpen = false);
+  }
+
+  List<String> _parsePlaces(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return const [];
+
+    final parts = trimmed.split(RegExp(r'[,;\n]+'));
+    final places = <String>[];
+    for (final part in parts) {
+      final item = part.trim();
+      if (item.isEmpty) continue;
+      places.add(item);
+    }
+
+    return places;
+  }
+
+  String _buildMarkdownForPlaces(List<String> places) {
+    final buffer = StringBuffer()
+      ..writeln('# Places to pin')
+      ..writeln();
+
+    for (final place in places) {
+      buffer.writeln('- $place');
+    }
+
+    return buffer.toString();
+  }
+
+  Future<bool> _submitPasteToNotesImport() async {
+    final places = _parsePlaces(_pasteController.text);
+    if (places.isEmpty) return true;
+
+    if (_isImporting) return false;
+    setState(() => _isImporting = true);
+
+    try {
+      final userId = SupabaseClientManager().currentUser?.id;
+      if (userId == null || userId.trim().isEmpty) {
+        await AppFeedback.showError(
+          context,
+          title: 'Not logged in',
+          message: 'Please log in again and try that.',
+        );
+        return false;
+      }
+
+      final markdown = _buildMarkdownForPlaces(places);
+      final bytes = Uint8List.fromList(utf8.encode(markdown));
+      final fileName =
+          'pinit-places-${DateTime.now().toIso8601String().replaceAll(':', '-')}.md';
+      final file = PlatformFile(
+        name: fileName,
+        size: bytes.length,
+        bytes: bytes,
+      );
+
+      final service = context.read<SupabaseService>();
+      await service.notesImport.importFile(
+        userId: userId,
+        file: file,
+        sourceName: 'Onboarding places',
+      );
+
+      return true;
+    } on NotesImportException catch (error) {
+      await AppFeedback.showError(
+        context,
+        title: 'Couldn’t import',
+        message: error.message,
+      );
+      return false;
+    } catch (_) {
+      await AppFeedback.showError(
+        context,
+        title: 'Couldn’t import',
+        message: 'Try again in a moment.',
+      );
+      return false;
+    } finally {
+      if (mounted) setState(() => _isImporting = false);
+    }
+  }
+
+  Future<void> _handleLetsGo() async {
+    _closePasteOverlay();
+    if (_pasteController.text.trim().isNotEmpty) {
+      final ok = await _submitPasteToNotesImport();
+      if (!ok) return;
+    }
+    widget.onLetsGo();
   }
 
   void _onDragStart(DragStartDetails _) {
@@ -100,8 +213,7 @@ class _SwipeSaveStepState extends State<SwipeSaveStep>
 
   void _animateAndAdvance(bool isSave) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final endX =
-        _dragOffset.dx > 0 ? screenWidth * 1.5 : -screenWidth * 1.5;
+    final endX = _dragOffset.dx > 0 ? screenWidth * 1.5 : -screenWidth * 1.5;
 
     _slideAnimation = Tween<Offset>(
       begin: _dragOffset,
@@ -159,7 +271,9 @@ class _SwipeSaveStepState extends State<SwipeSaveStep>
 
   @override
   Widget build(BuildContext context) {
-    final cardWidth = _cardWidth(context);
+    final availableWidth =
+        MediaQuery.sizeOf(context).width - (_contentSidePadding * 2);
+    final cardWidth = availableWidth.clamp(0.0, _maxCardWidth).toDouble();
     return Container(
       decoration: const BoxDecoration(
         color: PinitColors.cream,
@@ -195,15 +309,16 @@ class _SwipeSaveStepState extends State<SwipeSaveStep>
                               height: 1.0,
                             ),
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 12),
                           Text(
                             "Swipe right if you'd go, left if it's not a bit of you.",
                             textAlign: TextAlign.center,
-                            style: AppTypography.sans(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
+                            style: GoogleFonts.dmSans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.2,
                               color: PinitColors.aubergineSoft,
-                              height: 1.35,
+                              decoration: TextDecoration.none,
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -217,7 +332,7 @@ class _SwipeSaveStepState extends State<SwipeSaveStep>
                           ),
                           const SizedBox(height: 18),
                           Text(
-                            'Or paste places to pin',
+                            'and give us any places you want to pin to begin with!',
                             textAlign: TextAlign.center,
                             style: GoogleFonts.dmSans(
                               fontSize: 12,
@@ -228,7 +343,7 @@ class _SwipeSaveStepState extends State<SwipeSaveStep>
                             ),
                           ),
                           const SizedBox(height: 10),
-                          _buildPastePanel(context),
+                          _buildPastePanel(context, cardWidth: cardWidth),
                         ],
                       ),
                     );
@@ -243,17 +358,126 @@ class _SwipeSaveStepState extends State<SwipeSaveStep>
               location: _expandedLocation!,
               onClose: _closeExpanded,
             ),
+          if (_isPasteOverlayOpen)
+            _buildPasteOverlay(context, cardWidth: cardWidth),
         ],
       ),
     );
   }
 
-  Widget _buildPastePanel(BuildContext context) {
+  Widget _buildPastePanel(BuildContext context, {required double cardWidth}) {
+    return Center(
+      child: SizedBox(
+        width: cardWidth,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildPasteTextBox(
+              height: 150,
+              readOnly: true,
+              focusNode: _pastePreviewFocusNode,
+              onTap: _openPasteOverlay,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPasteOverlay(BuildContext context, {required double cardWidth}) {
+    final viewInsets = MediaQuery.viewInsetsOf(context);
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final topPadding = MediaQuery.paddingOf(context).top;
+    final overlayHeight = (screenHeight - viewInsets.bottom - topPadding - 210)
+        .clamp(240.0, 380.0)
+        .toDouble();
+
+    return Positioned.fill(
+      child: Stack(
+        children: [
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _isImporting ? null : _closePasteOverlay,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              curve: Curves.easeOut,
+              child: ClipRect(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                  child: Container(
+                    color: Colors.black.withValues(alpha: 0.18),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: AnimatedPadding(
+              duration: const Duration(milliseconds: 160),
+              curve: Curves.easeOut,
+              padding: EdgeInsets.fromLTRB(24, 18, 24, 18 + viewInsets.bottom),
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: SizedBox(
+                  width: cardWidth,
+                  child: Stack(
+                    children: [
+                      _buildPasteTextBox(
+                        height: overlayHeight,
+                        readOnly: false,
+                        focusNode: _pasteFocusNode,
+                        onTap: null,
+                        contentPadding:
+                            const EdgeInsets.fromLTRB(14, 44, 14, 12),
+                      ),
+                      Positioned(
+                        top: 12,
+                        left: 14,
+                        child: Text(
+                          'Paste places',
+                          style: GoogleFonts.dmSans(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.0,
+                            color: PinitColors.aubergine,
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: 2,
+                        right: 2,
+                        child: IconButton(
+                          onPressed: _isImporting ? null : _closePasteOverlay,
+                          icon: const Icon(FeatherIcons.x),
+                          iconSize: 18,
+                          splashRadius: 18,
+                          color: PinitColors.aubergine,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPasteTextBox({
+    required double height,
+    required bool readOnly,
+    required FocusNode? focusNode,
+    required VoidCallback? onTap,
+    EdgeInsets? contentPadding,
+  }) {
     return Container(
+      height: height,
       decoration: BoxDecoration(
-        color: PinitColors.creamSunk,
+        color: PinitColors.cream,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: PinitColors.creamDeep, width: 1.5),
+        border: Border.all(color: PinitColors.aubergine, width: 1.5),
         boxShadow: const [
           BoxShadow(
             color: PinitColors.aubergine,
@@ -262,85 +486,38 @@ class _SwipeSaveStepState extends State<SwipeSaveStep>
           ),
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextField(
-              controller: _pasteController,
-              minLines: 2,
-              maxLines: 3,
-              textInputAction: TextInputAction.done,
-              style: GoogleFonts.dmSans(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: PinitColors.aubergine,
-              ),
-              decoration: InputDecoration(
-                hintText: 'Dishoom, Padella, Lina Stores…',
-                hintStyle: GoogleFonts.dmSans(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: PinitColors.mute,
-                ),
-                filled: true,
-                fillColor: PinitColors.cream,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(
-                    color: PinitColors.creamDeep,
-                    width: 1.5,
-                  ),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(
-                    color: PinitColors.creamDeep,
-                    width: 1.5,
-                  ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(
-                    color: PinitColors.aubergine,
-                    width: 1.5,
-                  ),
-                ),
-                contentPadding: const EdgeInsets.all(12),
-              ),
-              onChanged: (_) => setState(() {}),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _pasteController.text.trim().isEmpty
-                    ? null
-                    : () {
-                        FocusScope.of(context).unfocus();
-                      },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: PinitColors.aubergine,
-                  foregroundColor: PinitColors.cream,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                child: Text(
-                  'Process',
-                  style: GoogleFonts.dmSans(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.6,
-                  ),
-                ),
-              ),
-            ),
-          ],
+      child: TextField(
+        controller: _pasteController,
+        focusNode: focusNode,
+        autofocus: !readOnly && focusNode != null,
+        readOnly: readOnly,
+        showCursor: !readOnly,
+        enableInteractiveSelection: !readOnly,
+        keyboardType: TextInputType.multiline,
+        expands: true,
+        minLines: null,
+        maxLines: null,
+        textInputAction: TextInputAction.newline,
+        cursorColor: PinitColors.aubergine,
+        style: GoogleFonts.dmSans(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: PinitColors.aubergine,
         ),
+        decoration: InputDecoration(
+          hintText: 'Dishoom, Padella, Lina Stores…',
+          hintStyle: GoogleFonts.dmSans(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: PinitColors.mute,
+          ),
+          border: InputBorder.none,
+          isDense: true,
+          contentPadding:
+              contentPadding ?? const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        ),
+        onTap: onTap,
+        onChanged: (_) => setState(() {}),
       ),
     );
   }
@@ -385,8 +562,9 @@ class _SwipeSaveStepState extends State<SwipeSaveStep>
 
   Widget _buildSwipeArea(double cardWidth) {
     final current = _allSwiped ? null : widget.recommendations[_currentIndex];
-    final next =
-        _currentIndex + 1 < widget.recommendations.length ? widget.recommendations[_currentIndex + 1] : null;
+    final next = _currentIndex + 1 < widget.recommendations.length
+        ? widget.recommendations[_currentIndex + 1]
+        : null;
 
     return Stack(
       alignment: Alignment.center,
@@ -417,7 +595,8 @@ class _SwipeSaveStepState extends State<SwipeSaveStep>
                     child: Stack(
                       children: [
                         child!,
-                        if (_isDragging || _swipeAnimController.isAnimating) ...[
+                        if (_isDragging ||
+                            _swipeAnimController.isAnimating) ...[
                           if (offset.dx > 0)
                             _buildSwipeOverlay(
                               label: 'SAVE',
@@ -777,7 +956,7 @@ class _SwipeSaveStepState extends State<SwipeSaveStep>
               Expanded(
                 flex: 2,
                 child: ElevatedButton(
-                  onPressed: widget.onLetsGo,
+                  onPressed: _isImporting ? null : _handleLetsGo,
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     backgroundColor: PinitColors.aubergine,
@@ -787,14 +966,24 @@ class _SwipeSaveStepState extends State<SwipeSaveStep>
                       borderRadius: BorderRadius.circular(20),
                     ),
                   ),
-                  child: Text(
-                    "Let’s go!",
-                    style: GoogleFonts.dmSans(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
+                  child: _isImporting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation(PinitColors.cream),
+                          ),
+                        )
+                      : Text(
+                          "Let’s go!",
+                          style: GoogleFonts.dmSans(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
                 ),
               ),
             ],

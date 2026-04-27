@@ -184,26 +184,32 @@ class _HomeChipRowState extends State<HomeChipRow> {
                                   ),
                                 ),
                               )
-                            : Column(
-                                children: widget.collections
-                                    .map(
-                                      (collection) => Padding(
-                                        padding:
-                                            const EdgeInsets.only(bottom: 8),
-                                        child: _CollectionDropdownRow(
-                                          collection: collection,
-                                          isActive: widget.activeCollectionId ==
-                                              collection.collectionId,
-                                          onTap: () {
-                                            widget.onCollectionSelected(
-                                              collection,
-                                            );
-                                            _closeCollections();
-                                          },
-                                        ),
-                                      ),
-                                    )
-                                    .toList(),
+                            : ConstrainedBox(
+                                constraints: const BoxConstraints(maxHeight: 280),
+                                child: SingleChildScrollView(
+                                  child: Column(
+                                    children: widget.collections
+                                        .map(
+                                          (collection) => Padding(
+                                            padding:
+                                                const EdgeInsets.only(bottom: 8),
+                                            child: _CollectionDropdownRow(
+                                              collection: collection,
+                                              isActive:
+                                                  widget.activeCollectionId ==
+                                                      collection.collectionId,
+                                              onTap: () {
+                                                widget.onCollectionSelected(
+                                                  collection,
+                                                );
+                                                _closeCollections();
+                                              },
+                                            ),
+                                          ),
+                                        )
+                                        .toList(),
+                                  ),
+                                ),
                               ),
                   ),
                 ),
