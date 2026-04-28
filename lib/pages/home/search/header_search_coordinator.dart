@@ -37,6 +37,7 @@ class HeaderSearchCoordinator extends ChangeNotifier {
     await _loadSearchState(
       query: '',
       requestVersion: requestVersion,
+      runPlacesStage: false,
     );
   }
 
@@ -58,6 +59,8 @@ class HeaderSearchCoordinator extends ChangeNotifier {
   void updateQuery(String query, {Duration? debounce}) {
     _state = _state.copyWith(query: query);
     _debounce?.cancel();
+    _placesSubscription?.cancel();
+    _placesSubscription = null;
     final requestVersion = ++_requestVersion;
     final effectiveDebounce = debounce ?? debounceDuration;
     _debounce = Timer(effectiveDebounce, () {
@@ -65,10 +68,27 @@ class HeaderSearchCoordinator extends ChangeNotifier {
         _loadSearchState(
           query: query,
           requestVersion: requestVersion,
+          runPlacesStage: false,
         ),
       );
     });
     notifyListeners();
+  }
+
+  Future<void> submitQuery() async {
+    final query = _state.query.trim();
+    if (query.isEmpty) return;
+
+    _debounce?.cancel();
+    final requestVersion = ++_requestVersion;
+    await rememberQuery(query);
+    if (!_isLatestRequest(requestVersion)) return;
+
+    await _loadSearchState(
+      query: query,
+      requestVersion: requestVersion,
+      runPlacesStage: true,
+    );
   }
 
   void beginPreview(LocationModel location) {
@@ -101,6 +121,7 @@ class HeaderSearchCoordinator extends ChangeNotifier {
   Future<void> _loadSearchState({
     required String query,
     required int requestVersion,
+    required bool runPlacesStage,
   }) async {
     final personalPrompts = _repository.buildPersonalPrompts();
     final inlineCompletion = query.trim().isEmpty
@@ -118,7 +139,7 @@ class HeaderSearchCoordinator extends ChangeNotifier {
         inlineCompletion: inlineCompletion,
         quickSuggestions: _state.result.quickSuggestions,
         placeItems: const [],
-        isLoading: true,
+        isLoading: runPlacesStage,
       ),
     );
     notifyListeners();
@@ -130,10 +151,12 @@ class HeaderSearchCoordinator extends ChangeNotifier {
         personalPrompts: personalPrompts,
       ),
     );
-    _runPlacesStage(
-      query: query,
-      requestVersion: requestVersion,
-    );
+    if (runPlacesStage) {
+      _runPlacesStage(
+        query: query,
+        requestVersion: requestVersion,
+      );
+    }
   }
 
   Future<void> _runQuickSuggestionsStage({
@@ -167,15 +190,13 @@ class HeaderSearchCoordinator extends ChangeNotifier {
     // supersedes the old one — we don't want late emissions from a stale
     // search overwriting fresh results.
     _placesSubscription?.cancel();
-    _placesSubscription = _repository
-        .loadDatabasePlaces(query: query)
-        .listen(
+    _placesSubscription = _repository.searchGooglePlaces(query: query).listen(
       (items) {
         if (!_isLatestRequest(requestVersion)) return;
 
         _state = _state.copyWith(
           result: _state.result.copyWith(
-            placeItems: _dedupeSuggestionList(items),
+            placeItems: dedupePlaceSuggestions(items),
             // Keep `isLoading` true while the stream is still emitting;
             // the final `onDone` handler flips it off. This preserves the
             // skeleton state only for the tail end of the batch.
@@ -208,7 +229,7 @@ class HeaderSearchCoordinator extends ChangeNotifier {
   bool _isLatestRequest(int requestVersion) =>
       requestVersion == _requestVersion;
 
-  static List<SearchSuggestionItem> _dedupeSuggestionList(
+  static List<SearchSuggestionItem> dedupePlaceSuggestions(
     List<SearchSuggestionItem> items,
   ) {
     final seen = <String>{};

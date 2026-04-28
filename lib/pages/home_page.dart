@@ -6,6 +6,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/pages/home/home_view_model.dart';
 import 'package:login/pages/home/quick_picks/quick_picks_distance_page.dart';
+import 'package:login/pages/home/search/header_search_location_hydrator.dart';
+import 'package:login/pages/home/search/header_search_readiness.dart';
 import 'package:login/pages/home/search/header_search_types.dart';
 import 'package:login/pages/home/widgets/home_carousel.dart';
 import 'package:login/pages/home/widgets/feature_intro_overlay.dart';
@@ -16,7 +18,6 @@ import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
 import 'package:login/themes/app_typography.dart';
 import 'package:login/themes/pinit_colors.dart';
 import 'package:login/pages/home/widgets/mode_toggle.dart';
-import 'package:login/pages/home/widgets/search_result_action_sheet.dart';
 import 'package:login/pages/home/carousel_list_page.dart';
 import 'package:login/pages/home/widgets/shortlist_pill.dart';
 import 'package:login/pages/home/widgets/shortlist_carousel_sheet.dart';
@@ -340,7 +341,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _scheduleWhatWeDoWizardIfNeeded(UserDataProvider userDataProvider) {
-    if (_isWhatWeDoWizardVisible || _whatWeDoWizardScheduled || !widget.isActive) {
+    if (_isWhatWeDoWizardVisible ||
+        _whatWeDoWizardScheduled ||
+        !widget.isActive) {
       return;
     }
     if (_whatWeDoWizardEligibilityChecked && !_whatWeDoWizardShouldShow) {
@@ -561,229 +564,84 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
 
-                // ─── Layer 2+3: Purple header panel ────────────
-                //     Logo + Search + Chip row as one unified surface
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: _TopPanel(
-                    topPadding: topPadding,
-                    viewModel: viewModel,
-                  ),
-                ),
-
-                // ─── Layer 5: Carousel + See All button ─────────
-                if (!viewModel.isHeaderSearchActive &&
-                    !viewModel.isMagicSearchFieldFocused &&
-                    !viewModel.isEatListsOpen)
-                  AnimatedPositioned(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeOutQuint,
-                    bottom: carouselBottom,
+                  // ─── Layer 2+3: Purple header panel ────────────
+                  //     Logo + Search + Chip row as one unified surface
+                  Positioned(
+                    top: 0,
                     left: 0,
                     right: 0,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(
-                              left: 16, right: 16, bottom: 8),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // ── Location pill ──
-                                  GestureDetector(
-                                    onTap: () => _viewModel.locateUser(),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 8,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: pinit.PinitColors.cream,
-                                        borderRadius:
-                                            BorderRadius.circular(999),
-                                        border: Border.all(
-                                          color: pinit.PinitColors.aubergine,
-                                          width: 1.5,
+                    child: _TopPanel(
+                      topPadding: topPadding,
+                      viewModel: viewModel,
+                    ),
+                  ),
+
+                  // ─── Layer 5: Carousel + See All button ─────────
+                  if (!viewModel.isHeaderSearchActive &&
+                      !viewModel.isMagicSearchFieldFocused &&
+                      !viewModel.isEatListsOpen)
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOutQuint,
+                      bottom: carouselBottom,
+                      left: 0,
+                      right: 0,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(
+                                left: 16, right: 16, bottom: 8),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // ── Location pill ──
+                                    GestureDetector(
+                                      onTap: () => _viewModel.locateUser(),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
                                         ),
-                                        boxShadow: [
-                                          BoxShadow(
+                                        decoration: BoxDecoration(
+                                          color: pinit.PinitColors.cream,
+                                          borderRadius:
+                                              BorderRadius.circular(999),
+                                          border: Border.all(
                                             color: pinit.PinitColors.aubergine,
-                                            blurRadius: 0,
-                                            offset: const Offset(3, 3),
+                                            width: 1.5,
                                           ),
-                                        ],
-                                      ),
-                                      child: Icon(
-                                        Icons.my_location_rounded,
-                                        size: 15,
-                                        color: pinit.PinitColors.aubergine,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  GestureDetector(
-                                    onTap: _openHomeFilters,
-                                    child: Stack(
-                                      clipBehavior: Clip.none,
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 8,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: pinit.PinitColors.cream,
-                                            borderRadius:
-                                                BorderRadius.circular(999),
-                                            border: Border.all(
+                                          boxShadow: [
+                                            BoxShadow(
                                               color:
                                                   pinit.PinitColors.aubergine,
-                                              width: 1.5,
+                                              blurRadius: 0,
+                                              offset: const Offset(3, 3),
                                             ),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color:
-                                                    pinit.PinitColors.aubergine,
-                                                blurRadius: 0,
-                                                offset: const Offset(3, 3),
-                                              ),
-                                            ],
-                                          ),
-                                          child: Icon(
-                                            FeatherIcons.sliders,
-                                            size: 15,
-                                            color: pinit.PinitColors.aubergine,
-                                          ),
+                                          ],
                                         ),
-                                        if (_selectedVibeTagIds.isNotEmpty ||
-                                            _selectedCuisineTagIds.isNotEmpty)
-                                          Positioned(
-                                            top: -4,
-                                            right: -2,
-                                            child: Container(
-                                              constraints: const BoxConstraints(
-                                                minWidth: 18,
-                                                minHeight: 18,
-                                              ),
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                horizontal: 5,
-                                                vertical: 2,
-                                              ),
-                                              decoration: BoxDecoration(
-                                                color: pinit.PinitColors.accent,
-                                                borderRadius:
-                                                    BorderRadius.circular(999),
-                                                border: Border.all(
-                                                  color:
-                                                      pinit.PinitColors.cream,
-                                                  width: 1.2,
-                                                ),
-                                              ),
-                                              child: Center(
-                                                child: Text(
-                                                  '${_selectedVibeTagIds.length + _selectedCuisineTagIds.length}',
-                                                  style: AppTypography.sans(
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.w800,
-                                                    color:
-                                                        pinit.PinitColors.cream,
-                                                    height: 1.0,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  if (viewModel.homeMode == HomeMode.explore &&
-                                      viewModel.locations.isNotEmpty) ...[
-                                    Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        _HomeActionPill(
-                                          label: 'Deal a deck',
-                                          icon: Icons.gavel_rounded,
-                                          backgroundColor:
-                                              pinit.PinitColors.accent,
-                                          foregroundColor:
-                                              pinit.PinitColors.cream,
-                                          borderColor:
-                                              pinit.PinitColors.aubergine,
-                                          shadowColor:
-                                              pinit.PinitColors.aubergine,
-                                          onTap: () {
-                                            unawaited(_showDealADeckIntro());
-                                          },
+                                        child: Icon(
+                                          Icons.my_location_rounded,
+                                          size: 15,
+                                          color: pinit.PinitColors.aubergine,
                                         ),
-                                      ],
+                                      ),
                                     ),
                                     const SizedBox(height: 10),
-                                  ],
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      if (viewModel.locations.isNotEmpty &&
-                                          viewModel.shortlistIsNotEmpty) ...[
-                                        ShortlistPill(
-                                          count: viewModel.shortlistCount,
-                                          onTap: () =>
-                                              ShortlistCarouselSheet.show(
-                                            context,
-                                            currentMode: viewModel.homeMode,
-                                            onReturnToMode:
-                                                viewModel.setHomeMode,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 10),
-                                      ],
-                                      if (viewModel.locations.isNotEmpty)
-                                        GestureDetector(
-                                          onTap: () =>
-                                              Navigator.of(context).push(
-                                            MaterialPageRoute(
-                                              builder: (_) => CarouselListPage(
-                                                locations: viewModel.locations,
-                                                title: switch (
-                                                    viewModel.homeMode) {
-                                                  HomeMode.you => 'Your Saves',
-                                                  HomeMode.explore =>
-                                                    'Top Picks',
-                                                  HomeMode.bubble =>
-                                                    'Bubble Picks',
-                                                },
-                                                listType: switch (
-                                                    viewModel.homeMode) {
-                                                  HomeMode.you =>
-                                                    LocationListType.saved,
-                                                  HomeMode.explore =>
-                                                    LocationListType
-                                                        .recommended,
-                                                  HomeMode.bubble =>
-                                                    LocationListType.bubble,
-                                                },
-                                              ),
-                                            ),
-                                          ),
-                                          child: Container(
+                                    GestureDetector(
+                                      onTap: _openHomeFilters,
+                                      child: Stack(
+                                        clipBehavior: Clip.none,
+                                        children: [
+                                          Container(
                                             padding: const EdgeInsets.symmetric(
-                                              horizontal: 14,
+                                              horizontal: 12,
                                               vertical: 8,
                                             ),
                                             decoration: BoxDecoration(
@@ -804,188 +662,347 @@ class _HomePageState extends State<HomePage> {
                                                 ),
                                               ],
                                             ),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(
-                                                  FeatherIcons.list,
-                                                  size: 13,
-                                                  color: pinit
-                                                      .PinitColors.aubergine,
-                                                ),
-                                                const SizedBox(width: 6),
-                                                Text(
-                                                  '   See All    ',
-                                                  style: GoogleFonts.dmSans(
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w700,
-                                                    color: pinit
-                                                        .PinitColors.aubergine,
-                                                    letterSpacing: 0.4,
-                                                  ),
-                                                ),
-                                              ],
+                                            child: Icon(
+                                              FeatherIcons.sliders,
+                                              size: 15,
+                                              color:
+                                                  pinit.PinitColors.aubergine,
                                             ),
                                           ),
-                                        ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (viewModel.isMagicSearching)
-                          const _MagicSearchGeneratingCard()
-                        else if (viewModel.isLoadingRecommendations &&
-                            viewModel.currentListType ==
-                                LocationListType.recommended)
-                          const _MagicSearchGeneratingCard(
-                            eyebrow: 'FILTERING',
-                            title: 'Matching your filters...',
-                          )
-                        else
-                          HomeCarousel(
-                            pageController: viewModel.pageController,
-                            locations: viewModel.locations,
-                            selectedMarkerId: viewModel.selectedMarkerId,
-                            bottomNavVisible: viewModel.bottomNavVisible,
-                            onPageChanged: viewModel.onCarouselPageChanged,
-                            onScrollStart: viewModel.onCarouselScrollStart,
-                            onLocationSelected: viewModel.onLocationSelected,
-                            onSwipeUp: viewModel.onCarouselSwipeUp,
-                            onSwipeDown: viewModel.onCarouselSwipeDown,
-                          ),
-                      ],
-                    ),
-                  ),
-
-                // ─── Overlays (unchanged) ──────────────────────
-                // ─── Bubble mode overlay ───────────────────────
-                if (viewModel.isBubbleModeActive &&
-                    viewModel.activeBubble != null)
-                  BubbleModeOverlay(
-                    bubble: viewModel.activeBubble!,
-                    onDeactivate: viewModel.deactivateBubbleMode,
-                  ),
-
-                // ─── Magic search activated toast ──────────────
-                if (viewModel.showMagicSearchActivated)
-                  Positioned.fill(
-                    child: Listener(
-                      behavior: HitTestBehavior.translucent,
-                      onPointerDown: (_) {
-                        viewModel.dismissMagicSearchActivated();
-                      },
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                          top: MediaQuery.of(context).viewInsets.bottom + 100,
-                        ),
-                        child: const Center(
-                          child: IgnorePointer(
-                            child: _MagicSearchActivatedToast(),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                // ─── Magic search deactivated toast ────────────
-                if (viewModel.showMagicSearchDeactivated)
-                  Positioned.fill(
-                    child: Listener(
-                      behavior: HitTestBehavior.translucent,
-                      onPointerDown: (_) {
-                        viewModel.dismissMagicSearchDeactivated();
-                      },
-                      child: const Center(
-                        child: IgnorePointer(
-                          child: _MagicSearchDeactivatedToast(),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                // ─── Just Decide swipe mode ────────────────────
-                if (viewModel.showJustDecideSwipeMode)
-                  Builder(builder: (ctx) {
-                    final pc = Theme.of(ctx).extension<PinitColors>()!;
-                    return Positioned.fill(
-                      child: Container(
-                        color: pc.surfaceBg,
-                        child: SafeArea(
-                          child: Column(
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.all(16.0),
-                                child: Row(
-                                  children: [
-                                    IconButton(
-                                      icon: Icon(Icons.close,
-                                          color: pc.textPrimary),
-                                      onPressed: viewModel.onJustDecideComplete,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Just Decide',
-                                      style: AppTypography.brand(
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.bold,
-                                        color: pc.textPrimary,
+                                          if (_selectedVibeTagIds.isNotEmpty ||
+                                              _selectedCuisineTagIds.isNotEmpty)
+                                            Positioned(
+                                              top: -4,
+                                              right: -2,
+                                              child: Container(
+                                                constraints:
+                                                    const BoxConstraints(
+                                                  minWidth: 18,
+                                                  minHeight: 18,
+                                                ),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                  horizontal: 5,
+                                                  vertical: 2,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color:
+                                                      pinit.PinitColors.accent,
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                          999),
+                                                  border: Border.all(
+                                                    color:
+                                                        pinit.PinitColors.cream,
+                                                    width: 1.2,
+                                                  ),
+                                                ),
+                                                child: Center(
+                                                  child: Text(
+                                                    '${_selectedVibeTagIds.length + _selectedCuisineTagIds.length}',
+                                                    style: AppTypography.sans(
+                                                      fontSize: 10,
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                      color: pinit
+                                                          .PinitColors.cream,
+                                                      height: 1.0,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                        ],
                                       ),
                                     ),
                                   ],
                                 ),
-                              ),
-                              Expanded(
-                                child: viewModel.justDecideLocations.isEmpty
-                                    ? Center(
-                                        child: Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            CircularProgressIndicator(
-                                              valueColor:
-                                                  AlwaysStoppedAnimation<Color>(
-                                                pc.primaryPurple,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 16),
-                                            Text(
-                                              'Finding great places…',
-                                              style: AppTypography.sans(
-                                                fontSize: 15,
-                                                color: pc.textSecondary,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      )
-                                    : SwipeCardStack(
-                                        locations:
-                                            viewModel.justDecideLocations,
-                                        onSwipe: viewModel.onJustDecideSwipe,
-                                        onComplete:
-                                            viewModel.onJustDecideComplete,
+                                Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    if (viewModel.homeMode ==
+                                            HomeMode.explore &&
+                                        viewModel.locations.isNotEmpty) ...[
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          _HomeActionPill(
+                                            label: 'Deal a deck',
+                                            icon: Icons.gavel_rounded,
+                                            backgroundColor:
+                                                pinit.PinitColors.accent,
+                                            foregroundColor:
+                                                pinit.PinitColors.cream,
+                                            borderColor:
+                                                pinit.PinitColors.aubergine,
+                                            shadowColor:
+                                                pinit.PinitColors.aubergine,
+                                            onTap: () {
+                                              unawaited(_showDealADeckIntro());
+                                            },
+                                          ),
+                                        ],
                                       ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.all(16.0),
-                                child: Text(
-                                  'Swipe right to save, left to pass',
-                                  style: AppTypography.sans(
-                                    fontSize: 13,
-                                    color: pc.textMuted,
-                                  ),
-                                  textAlign: TextAlign.center,
+                                      const SizedBox(height: 10),
+                                    ],
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (viewModel.locations.isNotEmpty &&
+                                            viewModel.shortlistIsNotEmpty) ...[
+                                          ShortlistPill(
+                                            count: viewModel.shortlistCount,
+                                            onTap: () =>
+                                                ShortlistCarouselSheet.show(
+                                              context,
+                                              currentMode: viewModel.homeMode,
+                                              onReturnToMode:
+                                                  viewModel.setHomeMode,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                        ],
+                                        if (viewModel.locations.isNotEmpty)
+                                          GestureDetector(
+                                            onTap: () =>
+                                                Navigator.of(context).push(
+                                              MaterialPageRoute(
+                                                builder: (_) =>
+                                                    CarouselListPage(
+                                                  locations:
+                                                      viewModel.locations,
+                                                  title: switch (
+                                                      viewModel.homeMode) {
+                                                    HomeMode.you =>
+                                                      'Your Saves',
+                                                    HomeMode.explore =>
+                                                      'Top Picks',
+                                                    HomeMode.bubble =>
+                                                      'Bubble Picks',
+                                                  },
+                                                  listType: switch (
+                                                      viewModel.homeMode) {
+                                                    HomeMode.you =>
+                                                      LocationListType.saved,
+                                                    HomeMode.explore =>
+                                                      LocationListType
+                                                          .recommended,
+                                                    HomeMode.bubble =>
+                                                      LocationListType.bubble,
+                                                  },
+                                                ),
+                                              ),
+                                            ),
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                horizontal: 14,
+                                                vertical: 8,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: pinit.PinitColors.cream,
+                                                borderRadius:
+                                                    BorderRadius.circular(999),
+                                                border: Border.all(
+                                                  color: pinit
+                                                      .PinitColors.aubergine,
+                                                  width: 1.5,
+                                                ),
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: pinit
+                                                        .PinitColors.aubergine,
+                                                    blurRadius: 0,
+                                                    offset: const Offset(3, 3),
+                                                  ),
+                                                ],
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(
+                                                    FeatherIcons.list,
+                                                    size: 13,
+                                                    color: pinit
+                                                        .PinitColors.aubergine,
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  Text(
+                                                    '   See All    ',
+                                                    style: GoogleFonts.dmSans(
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      color: pinit.PinitColors
+                                                          .aubergine,
+                                                      letterSpacing: 0.4,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ],
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
+                          ),
+                          if (viewModel.isMagicSearching)
+                            const _MagicSearchGeneratingCard()
+                          else if (viewModel.isLoadingRecommendations &&
+                              viewModel.currentListType ==
+                                  LocationListType.recommended)
+                            const _MagicSearchGeneratingCard(
+                              eyebrow: 'FILTERING',
+                              title: 'Matching your filters...',
+                            )
+                          else
+                            HomeCarousel(
+                              pageController: viewModel.pageController,
+                              locations: viewModel.locations,
+                              selectedMarkerId: viewModel.selectedMarkerId,
+                              bottomNavVisible: viewModel.bottomNavVisible,
+                              onPageChanged: viewModel.onCarouselPageChanged,
+                              onScrollStart: viewModel.onCarouselScrollStart,
+                              onLocationSelected: viewModel.onLocationSelected,
+                              onSwipeUp: viewModel.onCarouselSwipeUp,
+                              onSwipeDown: viewModel.onCarouselSwipeDown,
+                            ),
+                        ],
+                      ),
+                    ),
+
+                  // ─── Overlays (unchanged) ──────────────────────
+                  // ─── Bubble mode overlay ───────────────────────
+                  if (viewModel.isBubbleModeActive &&
+                      viewModel.activeBubble != null)
+                    BubbleModeOverlay(
+                      bubble: viewModel.activeBubble!,
+                      onDeactivate: viewModel.deactivateBubbleMode,
+                    ),
+
+                  // ─── Magic search activated toast ──────────────
+                  if (viewModel.showMagicSearchActivated)
+                    Positioned.fill(
+                      child: Listener(
+                        behavior: HitTestBehavior.translucent,
+                        onPointerDown: (_) {
+                          viewModel.dismissMagicSearchActivated();
+                        },
+                        child: Padding(
+                          padding: EdgeInsets.only(
+                            top: MediaQuery.of(context).viewInsets.bottom + 100,
+                          ),
+                          child: const Center(
+                            child: IgnorePointer(
+                              child: _MagicSearchActivatedToast(),
+                            ),
                           ),
                         ),
                       ),
-                    );
-                  }),
+                    ),
+
+                  // ─── Magic search deactivated toast ────────────
+                  if (viewModel.showMagicSearchDeactivated)
+                    Positioned.fill(
+                      child: Listener(
+                        behavior: HitTestBehavior.translucent,
+                        onPointerDown: (_) {
+                          viewModel.dismissMagicSearchDeactivated();
+                        },
+                        child: const Center(
+                          child: IgnorePointer(
+                            child: _MagicSearchDeactivatedToast(),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  // ─── Just Decide swipe mode ────────────────────
+                  if (viewModel.showJustDecideSwipeMode)
+                    Builder(builder: (ctx) {
+                      final pc = Theme.of(ctx).extension<PinitColors>()!;
+                      return Positioned.fill(
+                        child: Container(
+                          color: pc.surfaceBg,
+                          child: SafeArea(
+                            child: Column(
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.all(16.0),
+                                  child: Row(
+                                    children: [
+                                      IconButton(
+                                        icon: Icon(Icons.close,
+                                            color: pc.textPrimary),
+                                        onPressed:
+                                            viewModel.onJustDecideComplete,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Just Decide',
+                                        style: AppTypography.brand(
+                                          fontSize: 24,
+                                          fontWeight: FontWeight.bold,
+                                          color: pc.textPrimary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Expanded(
+                                  child: viewModel.justDecideLocations.isEmpty
+                                      ? Center(
+                                          child: Column(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              CircularProgressIndicator(
+                                                valueColor:
+                                                    AlwaysStoppedAnimation<
+                                                        Color>(
+                                                  pc.primaryPurple,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 16),
+                                              Text(
+                                                'Finding great places…',
+                                                style: AppTypography.sans(
+                                                  fontSize: 15,
+                                                  color: pc.textSecondary,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        )
+                                      : SwipeCardStack(
+                                          locations:
+                                              viewModel.justDecideLocations,
+                                          onSwipe: viewModel.onJustDecideSwipe,
+                                          onComplete:
+                                              viewModel.onJustDecideComplete,
+                                        ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.all(16.0),
+                                  child: Text(
+                                    'Swipe right to save, left to pass',
+                                    style: AppTypography.sans(
+                                      fontSize: 13,
+                                      color: pc.textMuted,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
                 ],
               ),
             ),
@@ -1076,15 +1093,15 @@ class _TopPanel extends StatelessWidget {
     BuildContext context,
     LocationModel location,
   ) async {
-    final needsHydration = location.locationId <= 0;
+    final placeId = location.googlePlaceId?.trim();
+    final needsDetails = placeId != null && placeId.isNotEmpty;
 
-    if (!needsHydration) {
+    if (!needsDetails) {
       await _showExpandedLocationDialog(context, location);
       return;
     }
 
-    final hydrationFuture =
-        SearchResultActionHandler.ensureLocationReady(location);
+    final detailsFuture = hydrateHeaderSearchLocation(location);
 
     await showGeneralDialog<void>(
       context: context,
@@ -1094,7 +1111,7 @@ class _TopPanel extends StatelessWidget {
       transitionDuration: const Duration(milliseconds: 220),
       pageBuilder: (ctx, _, __) => _LocationDetailsLoadingScreen(
         placeName: location.name,
-        hydration: hydrationFuture,
+        hydration: detailsFuture,
         onReady: (hydrated) async {
           Navigator.of(ctx).pop();
           if (hydrated == null || !context.mounted) return;
@@ -1195,7 +1212,9 @@ class _TopPanel extends StatelessWidget {
                       viewModel.closeHeaderSearch();
                       unawaited(viewModel.submitMagicSearch(query));
                     }
-                  : null,
+                  : () {
+                      unawaited(viewModel.submitHeaderSearch());
+                    },
               onDismiss: viewModel.closeHeaderSearch,
               onQueryChanged: viewModel.isMagicSearchActive
                   ? (_) {}
@@ -1774,7 +1793,7 @@ class _LocationDetailsLoadingScreenState
 
     widget.hydration.then((hydrated) {
       if (!mounted) return;
-      if (hydrated == null || hydrated.locationId <= 0) {
+      if (!canOpenHeaderSearchDetails(hydrated)) {
         widget.onFailed();
       } else {
         widget.onReady(hydrated);

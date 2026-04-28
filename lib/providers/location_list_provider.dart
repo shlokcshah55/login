@@ -1199,14 +1199,11 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       }
       final locations = friendSavesByLocId.isEmpty
           ? hydrated
-          : hydrated
-              .map((loc) {
-                final saves = friendSavesByLocId[loc.locationId];
-                return saves == null ? loc : loc.copyWithFriendSaves(saves);
-              })
-              .toList();
-      final attached =
-          locations.where((l) => l.friendSaves.isNotEmpty).length;
+          : hydrated.map((loc) {
+              final saves = friendSavesByLocId[loc.locationId];
+              return saves == null ? loc : loc.copyWithFriendSaves(saves);
+            }).toList();
+      final attached = locations.where((l) => l.friendSaves.isNotEmpty).length;
       print('🧑‍🤝‍🧑 [Recs] Hydrated $attached locations with friendSaves '
           '(of ${locations.length} total)');
 
@@ -1949,7 +1946,24 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       return; // Or handle appropriately, maybe prompt login
     }
 
-    final savedLocation = location.setPreference(LocationPreference.saved);
+    var locationToSave = location;
+    final googlePlaceId = location.googlePlaceId?.trim();
+    if (location.locationId <= 0 &&
+        googlePlaceId != null &&
+        googlePlaceId.isNotEmpty) {
+      final locationId = await _recommendationsApi.addLocationByGooglePlaceId(
+        googlePlaceId: googlePlaceId,
+        source: 'in-app',
+      );
+      if (locationId == null) {
+        print("Cannot save location: failed to persist ${location.name}.");
+        return;
+      }
+      locationToSave = location.copyWith(locationId: locationId);
+    }
+
+    final savedLocation =
+        locationToSave.setPreference(LocationPreference.saved);
 
     _savedLocations.removeWhere(
       (existing, _) => existing.locationId == savedLocation.locationId,

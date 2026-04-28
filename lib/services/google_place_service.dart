@@ -73,12 +73,108 @@ class GooglePlacesService {
     }
 
     log('GooglePlaceService: Searching with URL: $url');
-    return processApiCall(url, LocationPreference.search);
+    return processApiCall(
+      url,
+      LocationPreference.search,
+      includePhotoUrl: false,
+    );
   }
 
   Future<List<LocationModel>> handleMagicSearchQuery(String query) {
     // Enhanced magic search that works better
     return searchPlaces(query: query);
+  }
+
+  Future<LocationModel?> fetchPlaceDetails(LocationModel location) async {
+    final placeId = location.googlePlaceId?.trim();
+    if (placeId == null || placeId.isEmpty) {
+      return location;
+    }
+    if (apiKey == null || apiKey!.isEmpty) {
+      throw Exception(
+        'GooglePlaceService: GOOGLE_PLACE_API_KEY not found in .env file',
+      );
+    }
+
+    final uri = Uri.https(
+      'maps.googleapis.com',
+      '/maps/api/place/details/json',
+      {
+        'place_id': placeId,
+        'fields': [
+          'place_id',
+          'name',
+          'formatted_address',
+          'geometry',
+          'rating',
+          'user_ratings_total',
+          'price_level',
+          'photos',
+          'types',
+          'formatted_phone_number',
+          'international_phone_number',
+          'website',
+          'business_status',
+          'opening_hours',
+          'editorial_summary',
+          'url',
+        ].join(','),
+        'key': apiKey!,
+      },
+    );
+
+    final response = await http.get(uri);
+    if (response.statusCode != 200) {
+      log(
+        'GooglePlaceService: Place Details HTTP error '
+        '${response.statusCode}: ${response.body}',
+      );
+      return location;
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final status = data['status']?.toString();
+    if (status != 'OK') {
+      log(
+        'GooglePlaceService: Place Details API status $status: '
+        '${data['error_message'] ?? ''}',
+      );
+      return location;
+    }
+
+    final result = data['result'];
+    if (result is! Map<String, dynamic>) {
+      return location;
+    }
+
+    final detailed = _processPlace(
+      result,
+      LocationPreference.search,
+      includePhotoUrl: true,
+    );
+    final photosJson = _googlePhotoRefs(result['photos']);
+    final openingHours = (result['opening_hours']
+            as Map<String, dynamic>?)?['weekday_text'] as List<dynamic>? ??
+        const [];
+
+    return detailed.copyWith(
+      locationId: location.locationId,
+      googlePlaceId: placeId,
+      phoneNumber: result['formatted_phone_number']?.toString(),
+      internationalPhoneNumber:
+          result['international_phone_number']?.toString(),
+      website: result['website']?.toString(),
+      businessStatus: result['business_status']?.toString(),
+      editorialSummary:
+          (result['editorial_summary'] as Map<String, dynamic>?)?['overview']
+              ?.toString(),
+      googleMapsUri: result['url']?.toString(),
+      openingHoursText:
+          openingHours.map((value) => value.toString()).toList(growable: false),
+      photos: photosJson,
+      imageUrl: detailed.imageUrl ?? location.imageUrl,
+      types: detailed.types ?? location.types,
+    );
   }
 
   Future<List<GoogleAutocompleteSuggestion>> autocompleteFoodAndDrink({
@@ -221,7 +317,10 @@ class GooglePlacesService {
   }
 
   Future<List<LocationModel>> processApiCall(
-      String url, LocationPreference preference) async {
+    String url,
+    LocationPreference preference, {
+    bool includePhotoUrl = true,
+  }) async {
     try {
       log('GooglePlaceService: Making API call to: $url');
 
@@ -245,7 +344,11 @@ class GooglePlacesService {
           List<LocationModel> places = [];
           for (var result in results) {
             try {
-              LocationModel place = _processPlace(result, preference);
+              LocationModel place = _processPlace(
+                result,
+                preference,
+                includePhotoUrl: includePhotoUrl,
+              );
               places.add(place);
             } catch (e) {
               log('GooglePlaceService: Error processing place: $e');
@@ -271,7 +374,10 @@ class GooglePlacesService {
   }
 
   LocationModel _processPlace(
-      Map<String, dynamic> result, LocationPreference locationPreference) {
+    Map<String, dynamic> result,
+    LocationPreference locationPreference, {
+    bool includePhotoUrl = true,
+  }) {
     try {
       log('GooglePlaceService: Processing place: ${result['name']}');
 
@@ -297,7 +403,7 @@ class GooglePlacesService {
       }
       // Set imageUrl using getPhotoUrl if photoReference is present
       String? imageUrl;
-      if (photoReference != null) {
+      if (includePhotoUrl && photoReference != null) {
         imageUrl = getPhotoUrl(photoReference);
       }
 
@@ -306,9 +412,12 @@ class GooglePlacesService {
 
       log('GooglePlaceService: Successfully processed place: $name at $lat, $lng');
 
-      // Return the new Supabase LocationModel
+      final locationId = locationPreference == LocationPreference.search
+          ? -id.hashCode.abs()
+          : id.hashCode;
+
       return LocationModel(
-        locationId: id.hashCode, // Use hashCode of place_id as locationId
+        locationId: locationId,
         name: name,
         vicinity: vicinity,
         lat: lat.toDouble(),
@@ -321,12 +430,30 @@ class GooglePlacesService {
         photoReference: photoReference,
         imageUrl: imageUrl,
         savedCount: 0,
+        googlePlaceId: id?.toString(),
+        types: types.map((value) => value.toString()).join(','),
         preference: locationPreference,
       );
     } catch (e) {
       log('GooglePlaceService: Error processing place: $e');
       rethrow;
     }
+  }
+
+  List<Map<String, dynamic>> _googlePhotoRefs(dynamic rawPhotos) {
+    if (rawPhotos is! List) return const [];
+    return rawPhotos.whereType<Map>().map((photo) {
+      final typed = Map<String, dynamic>.from(photo);
+      return {
+        if (typed['photo_reference'] != null)
+          'photo_reference': typed['photo_reference'],
+        if (typed['height'] != null) 'height': typed['height'],
+        if (typed['width'] != null) 'width': typed['width'],
+      };
+    }).where((photo) {
+      final ref = photo['photo_reference']?.toString();
+      return ref != null && ref.isNotEmpty;
+    }).toList(growable: false);
   }
 
   Future<String> getWalkingDuration({

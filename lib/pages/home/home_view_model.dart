@@ -82,7 +82,6 @@ class HomeViewModel extends ChangeNotifier {
       repository: LiveHeaderSearchRepository(
         locationListManager: locationListManager,
         userDataProvider: userDataProvider,
-        supabaseService: supabaseService,
       ),
     );
     _headerSearchCoordinator.addListener(_onHeaderSearchChanged);
@@ -373,6 +372,10 @@ class HomeViewModel extends ChangeNotifier {
 
   Future<void> rememberHeaderSearchQuery(String query) async {
     await _headerSearchCoordinator.rememberQuery(query);
+  }
+
+  Future<void> submitHeaderSearch() async {
+    await _headerSearchCoordinator.submitQuery();
   }
 
   Future<void> selectHeaderSearchLocation(

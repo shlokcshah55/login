@@ -4,33 +4,33 @@ import 'package:login/pages/home/search/header_search_repository.dart';
 import 'package:login/pages/home/search/header_search_types.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
-import 'package:login/supabase/service.dart';
+import 'package:login/services/google_place_service.dart';
+import 'package:login/supabase/helpers/location.dart';
 import 'package:login/utils/geo_types.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+
+typedef HeaderSearchPersistedPlaceLookup = Future<List<LocationModel>> Function(
+  List<String> googlePlaceIds,
+);
 
 class LiveHeaderSearchRepository implements HeaderSearchRepository {
-  static const int _searchCacheMaxEntries = 32;
-  static const Duration _searchCacheTtl = Duration(minutes: 2);
-
   final LocationListManager _locationListManager;
   final UserDataProvider _userDataProvider;
-  final SupabaseService _supabaseService;
   final HeaderSearchRecentStore _recentStore;
-
-  // Keyed by normalised query + rounded proximity bucket. LinkedHashMap so
-  // we can evict the oldest entry when we exceed the cap.
-  final Map<String, _CachedSearchResult> _searchCache =
-      <String, _CachedSearchResult>{};
+  final GooglePlacesService _googlePlacesService;
+  final HeaderSearchPersistedPlaceLookup _persistedPlaceLookup;
 
   LiveHeaderSearchRepository({
     required LocationListManager locationListManager,
     required UserDataProvider userDataProvider,
-    required SupabaseService supabaseService,
     HeaderSearchRecentStore? recentStore,
+    GooglePlacesService? googlePlacesService,
+    HeaderSearchPersistedPlaceLookup? persistedPlaceLookup,
   })  : _locationListManager = locationListManager,
         _userDataProvider = userDataProvider,
-        _supabaseService = supabaseService,
-        _recentStore = recentStore ?? HeaderSearchRecentStore();
+        _recentStore = recentStore ?? HeaderSearchRecentStore(),
+        _googlePlacesService = googlePlacesService ?? GooglePlacesService(),
+        _persistedPlaceLookup = persistedPlaceLookup ??
+            LocationHelper().getLocationsByGooglePlaceIds;
 
   @override
   Future<List<String>> loadRecentQueries() {
@@ -130,122 +130,102 @@ class LiveHeaderSearchRepository implements HeaderSearchRepository {
   }
 
   @override
-  Stream<List<SearchSuggestionItem>> loadDatabasePlaces({
+  Stream<List<SearchSuggestionItem>> searchGooglePlaces({
     required String query,
   }) async* {
     const limit = 10;
     final proximity = _locationListManager.currentPosition;
-    final normalized = query.trim().toLowerCase();
+    final trimmed = query.trim();
 
-    if (normalized.isEmpty) {
-      final fallback = [
-        ..._locationListManager.hiddenGemLocations,
-        ..._locationListManager.popularLocations,
-      ].take(limit).map(SearchSuggestionItem.place).toList();
-      yield fallback;
+    if (trimmed.isEmpty) {
+      yield const [];
       return;
     }
 
-    final cacheKey = _searchCacheKey(normalized, limit, proximity);
-
-    final cached = _searchCache[cacheKey];
-    if (cached != null && !cached.isExpired) {
-      // Touch for LRU ordering.
-      _searchCache.remove(cacheKey);
-      _searchCache[cacheKey] = cached;
-      yield cached.locations.map(SearchSuggestionItem.place).toList();
-      return;
-    }
-
-    final response = await _fetchRawFromRpc(
-      normalizedQuery: normalized,
-      limit: limit,
-      proximity: proximity,
+    final locations = await _googlePlacesService.searchPlaces(
+      query: trimmed,
+      latitude: proximity?.latitude,
+      longitude: proximity?.longitude,
     );
 
-    if (response.isEmpty) {
+    final googleLocations = locations.take(limit).toList(growable: false);
+    if (googleLocations.isEmpty) {
       yield const [];
-      _storeSearchResult(cacheKey, const []);
       return;
     }
 
-    // Stream suggestions as each location's image URL resolves. Cache-hot
-    // rows surface first (Stream.fromFutures emits in completion order),
-    // so the list paints incrementally instead of blocking on the slowest
-    // item in the batch.
-    final accumulator = <LocationModel>[];
-    await for (final location
-        in _supabaseService.locations.streamLocationsWithImages(response)) {
-      accumulator.add(location);
-      yield accumulator.map(SearchSuggestionItem.place).toList(growable: false);
+    final placeIds = _googlePlaceIds(googleLocations);
+    final persistedLocationsFuture = placeIds.isEmpty
+        ? Future<List<LocationModel>>.value(const [])
+        : _persistedPlaceLookup(placeIds);
+
+    yield googleLocations.map(SearchSuggestionItem.place).toList();
+
+    final persistedLocations = await persistedLocationsFuture;
+    if (persistedLocations.isEmpty) {
+      return;
     }
 
-    _storeSearchResult(cacheKey, accumulator);
+    final resolvedLocations = reconcileGooglePlacesWithPersistedLocations(
+      googleLocations: googleLocations,
+      persistedLocations: persistedLocations,
+    );
+
+    yield resolvedLocations.map(SearchSuggestionItem.place).toList();
   }
 
   @override
   Future<LatLng?> currentProximity() => _currentLocation();
 
-  Future<List<dynamic>> _fetchRawFromRpc({
-    required String normalizedQuery,
-    required int limit,
-    required LatLng? proximity,
-  }) async {
-    try {
-      final response = await Supabase.instance.client.rpc(
-        'search_locations',
-        params: {
-          'p_query': normalizedQuery,
-          'p_limit': limit,
-          'p_lat': proximity?.latitude,
-          'p_lng': proximity?.longitude,
-        },
-      );
-
-      if (response is! List) {
-        return const [];
-      }
-      return response;
-    } catch (_) {
-      return const [];
-    }
-  }
-
-  String _searchCacheKey(String normalized, int limit, LatLng? proximity) {
-    if (proximity == null) {
-      return 'q:$normalized|l:$limit|p:none';
-    }
-    // Round to ~100m so nearby keystrokes still share cache entries.
-    final lat = (proximity.latitude * 1000).round() / 1000;
-    final lng = (proximity.longitude * 1000).round() / 1000;
-    return 'q:$normalized|l:$limit|p:$lat,$lng';
-  }
-
-  void _storeSearchResult(String cacheKey, List<LocationModel> results) {
-    _searchCache.remove(cacheKey);
-    _searchCache[cacheKey] = _CachedSearchResult(
-      locations: results,
-      cachedAt: DateTime.now(),
-    );
-    while (_searchCache.length > _searchCacheMaxEntries) {
-      _searchCache.remove(_searchCache.keys.first);
-    }
-  }
-
   Future<LatLng?> _currentLocation() async {
     return _locationListManager.currentPosition ??
         await _locationListManager.getCurrentLocation();
   }
-
 }
 
-class _CachedSearchResult {
-  _CachedSearchResult({required this.locations, required this.cachedAt});
+List<LocationModel> reconcileGooglePlacesWithPersistedLocations({
+  required List<LocationModel> googleLocations,
+  required List<LocationModel> persistedLocations,
+}) {
+  final persistedByPlaceId = <String, LocationModel>{};
+  for (final location in persistedLocations) {
+    final placeId = location.googlePlaceId?.trim();
+    if (placeId == null || placeId.isEmpty) continue;
+    persistedByPlaceId.putIfAbsent(placeId, () => location);
+  }
 
-  final List<LocationModel> locations;
-  final DateTime cachedAt;
+  return [
+    for (final googleLocation in googleLocations)
+      _mergeSearchLocation(
+        googleLocation: googleLocation,
+        persistedLocation:
+            persistedByPlaceId[googleLocation.googlePlaceId?.trim()],
+      ),
+  ];
+}
 
-  bool get isExpired =>
-      DateTime.now().difference(cachedAt) >
-      LiveHeaderSearchRepository._searchCacheTtl;
+LocationModel _mergeSearchLocation({
+  required LocationModel googleLocation,
+  required LocationModel? persistedLocation,
+}) {
+  if (persistedLocation == null) {
+    return googleLocation;
+  }
+
+  return persistedLocation.copyWith(
+    imageUrl: persistedLocation.imageUrl ?? googleLocation.imageUrl,
+    photoReference:
+        persistedLocation.photoReference ?? googleLocation.photoReference,
+  );
+}
+
+List<String> _googlePlaceIds(List<LocationModel> locations) {
+  final placeIds = <String>{};
+  for (final location in locations) {
+    final placeId = location.googlePlaceId?.trim();
+    if (placeId != null && placeId.isNotEmpty) {
+      placeIds.add(placeId);
+    }
+  }
+  return placeIds.toList(growable: false);
 }

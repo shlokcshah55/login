@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
@@ -1113,7 +1112,7 @@ class _SearchResultListTile extends StatelessWidget {
         isWavy ? pinit.PinitColors.accent : pinit.PinitColors.aubergine;
 
     return SizedBox(
-      height: 120,
+      height: 86,
       child: Stack(
         clipBehavior: Clip.hardEdge,
         children: [
@@ -1153,153 +1152,69 @@ class _SearchResultListTile extends StatelessWidget {
               onLongPress: canPreview ? () => onPreviewStart(location!) : null,
               onLongPressEnd: canPreview ? (_) => onPreviewEnd() : null,
               child: Container(
-                height: 110,
+                height: 76,
                 decoration: BoxDecoration(
                   color: pinit.PinitColors.cream,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(9),
                   border: Border.all(
                     color: borderColor,
-                    width: 1.5,
+                    width: 1.25,
                   ),
                   boxShadow: [
                     BoxShadow(
                       color: borderColor,
                       blurRadius: 0,
-                      offset: const Offset(4, 4),
+                      offset: const Offset(3, 3),
                     ),
                   ],
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8.5),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SizedBox(
-                        width: 120,
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            _SearchResultImage(item: item),
-                            const Positioned.fill(
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    colors: [
-                                      Color(0x00000000),
-                                      Color(0x33000000),
-                                    ],
-                                    stops: [0.55, 1.0],
-                                  ),
+                  borderRadius: BorderRadius.circular(7.75),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 10, 12, 10),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.title,
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: pinit.PinitColors.aubergine,
+                                  height: 1.08,
                                 ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        width: 1.5,
-                        color: borderColor,
-                      ),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Container(
-                              color: pinit.PinitColors.creamSunk,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    FeatherIcons.mapPin,
-                                    size: 11,
-                                    color: pinit.PinitColors.mute,
-                                  ),
-                                  const SizedBox(width: 5),
-                                  Expanded(
-                                    child: Text(
-                                      _topStripLabel(item, location)
-                                          .toUpperCase(),
-                                      style: GoogleFonts.dmSans(
-                                        fontSize: 10,
-                                        color: pinit.PinitColors.mute,
-                                        fontWeight: FontWeight.w700,
-                                        letterSpacing: 1.0,
-                                        height: 1.0,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  if (location?.rating != null) ...[
-                                    _SearchListRating(
-                                      rating: location!.rating!,
-                                      reviewCount: location.userRatingsTotal,
-                                    ),
-                                    const SizedBox(width: 6),
-                                  ],
-                                ],
-                              ),
-                            ),
-                            Expanded(
-                              child: Padding(
-                                padding:
-                                    const EdgeInsets.fromLTRB(14, 8, 12, 8),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      item.title,
-                                      style: GoogleFonts.dmSans(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w800,
-                                        color: pinit.PinitColors.aubergine,
-                                        height: 1.15,
-                                        letterSpacing: -0.3,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 3),
-                                    if (_summaryText(item, location) != null)
-                                      Text(
-                                        _summaryText(item, location)!,
-                                        style: GoogleFonts.dmSans(
-                                          fontSize: 11,
-                                          color: pinit.PinitColors.mute,
-                                          fontWeight: FontWeight.w500,
-                                          height: 1.3,
-                                        ),
-                                        maxLines: isExpanded ? 1 : 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    const Spacer(),
-                                    SizedBox(
-                                      height: 22,
-                                      child: SingleChildScrollView(
-                                        scrollDirection: Axis.horizontal,
-                                        physics: const BouncingScrollPhysics(),
-                                        child: Row(
-                                          children: _buildMetaPills(
-                                            item,
-                                            location,
-                                            maxCount: isExpanded ? 2 : 3,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                              const SizedBox(height: 5),
+                              Text(
+                                _vicinityText(item, location),
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 12,
+                                  color: pinit.PinitColors.mute,
+                                  fontWeight: FontWeight.w600,
+                                  height: 1.15,
                                 ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                        if (location?.rating != null) ...[
+                          const SizedBox(width: 10),
+                          _SearchListRating(
+                            rating: location!.rating!,
+                            reviewCount: location.userRatingsTotal,
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1310,70 +1225,20 @@ class _SearchResultListTile extends StatelessWidget {
     );
   }
 
-  String _topStripLabel(SearchSuggestionItem item, LocationModel? location) {
-    if (location?.savedCount != null && location!.savedCount! > 0) {
-      return '${location.savedCount} Saves';
+  String _vicinityText(SearchSuggestionItem item, LocationModel? location) {
+    final vicinity = location?.vicinity?.trim();
+    if (vicinity != null && vicinity.isNotEmpty) {
+      return vicinity;
     }
-    if (location?.preference == LocationPreference.search) {
-      return 'Match';
+    final subtitle = item.subtitle?.trim();
+    if (subtitle != null && subtitle.isNotEmpty) {
+      return subtitle;
     }
-    return 'Search Result';
-  }
-
-  String? _summaryText(SearchSuggestionItem item, LocationModel? location) {
-    if (location?.generatedSummary?.isNotEmpty == true) {
-      return location!.generatedSummary!;
+    final cuisine = location?.cuisine?.trim();
+    if (cuisine != null && cuisine.isNotEmpty) {
+      return cuisine;
     }
-    if (location?.editorialSummary?.isNotEmpty == true) {
-      return location!.editorialSummary!;
-    }
-    if (location?.vicinity?.isNotEmpty == true) {
-      return location!.vicinity!;
-    }
-    if (item.subtitle?.isNotEmpty == true) {
-      return item.subtitle!;
-    }
-    return null;
-  }
-
-  List<Widget> _buildMetaPills(
-      SearchSuggestionItem item, LocationModel? location,
-      {int maxCount = 3}) {
-    final pills = <Widget>[];
-
-    if (location?.priceLevel != null && location!.priceLevel! > 0) {
-      pills.add(_SearchMetaPill(label: '£' * location.priceLevel!));
-    }
-    if (location?.cuisine?.isNotEmpty == true) {
-      pills.add(_SearchMetaPill(label: location!.cuisine!));
-    }
-    if (location?.openNow != null) {
-      pills.add(
-        _SearchMetaPill(label: location!.openNow! ? 'Open' : 'Closed'),
-      );
-    }
-    if (item.distanceMeters != null) {
-      pills.add(_SearchMetaPill(label: _formatDistance(item.distanceMeters!)));
-    }
-    final limited = pills.take(maxCount).toList(growable: false);
-    return [
-      for (var index = 0; index < limited.length; index++) ...[
-        if (index > 0) const SizedBox(width: 6),
-        limited[index],
-      ],
-    ];
-  }
-
-  String _formatDistance(double meters) {
-    const metersPerMile = 1609.344;
-    final miles = meters / metersPerMile;
-    if (miles < 0.2) {
-      return '${meters.round()} m';
-    }
-    if (miles < 10) {
-      return '${miles.toStringAsFixed(1)} mi';
-    }
-    return '${miles.round()} mi';
+    return 'Nearby place';
   }
 }
 
@@ -1508,67 +1373,6 @@ class _SearchActionButton extends StatelessWidget {
   }
 }
 
-class _SearchResultImage extends StatelessWidget {
-  final SearchSuggestionItem item;
-
-  const _SearchResultImage({
-    required this.item,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final location = item.location;
-    final url = location?.imageUrl ?? location?.photoReference;
-
-    if (url != null && url.trim().isNotEmpty) {
-      return CachedNetworkImage(
-        imageUrl: url,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        placeholder: (_, __) => _imagePlaceholder(),
-        errorWidget: (_, __, ___) => _imageFallback(),
-      );
-    }
-
-    return _imageFallback();
-  }
-
-  Widget _imagePlaceholder() {
-    return Container(
-      color: pinit.PinitColors.creamSunk,
-      child: const Center(
-        child: SizedBox(
-          width: 22,
-          height: 22,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            valueColor: AlwaysStoppedAnimation(pinit.PinitColors.aubergineSoft),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _imageFallback() {
-    final emoji = item.location?.emoji;
-    return Container(
-      color: pinit.PinitColors.creamSunk,
-      alignment: Alignment.center,
-      child: emoji != null && emoji.isNotEmpty
-          ? Text(
-              emoji,
-              style: const TextStyle(fontSize: 40),
-            )
-          : const Icon(
-              FeatherIcons.mapPin,
-              color: pinit.PinitColors.aubergineSoft,
-              size: 32,
-            ),
-    );
-  }
-}
-
 class _SearchListRating extends StatelessWidget {
   final double rating;
   final int? reviewCount;
@@ -1617,39 +1421,6 @@ class _SearchListRating extends StatelessWidget {
           ),
         ],
       ],
-    );
-  }
-}
-
-class _SearchMetaPill extends StatelessWidget {
-  final String label;
-
-  const _SearchMetaPill({
-    required this.label,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: pinit.PinitColors.creamSunk,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: pinit.PinitColors.creamDeep,
-          width: 1,
-        ),
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.dmSans(
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-          color: pinit.PinitColors.aubergine,
-          letterSpacing: 0.4,
-          height: 1.0,
-        ),
-      ),
     );
   }
 }

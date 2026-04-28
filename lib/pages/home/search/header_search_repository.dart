@@ -20,11 +20,10 @@ abstract class HeaderSearchRepository {
     required List<String> personalPrompts,
   });
 
-  /// Streams place suggestions for [query] as each result's image URL
-  /// resolves. The stream emits the *running* list (ascending in size) so
-  /// the UI can replace `placeItems` on each event without reconciliation.
-  /// A single terminal event is emitted even when no rows are returned.
-  Stream<List<SearchSuggestionItem>> loadDatabasePlaces({
+  /// Streams Google place results for [query]. The stream may emit a running
+  /// list so the UI can replace `placeItems` on each event without local
+  /// reconciliation.
+  Stream<List<SearchSuggestionItem>> searchGooglePlaces({
     required String query,
   });
 
@@ -57,7 +56,7 @@ class NoopHeaderSearchRepository implements HeaderSearchRepository {
       const [];
 
   @override
-  Stream<List<SearchSuggestionItem>> loadDatabasePlaces({
+  Stream<List<SearchSuggestionItem>> searchGooglePlaces({
     required String query,
   }) =>
       Stream.value(const []);

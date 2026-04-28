@@ -648,6 +648,61 @@ class LocationHelper {
     }
   }
 
+  Future<List<LocationModel>> getLocationsByGooglePlaceIds(
+    List<String> googlePlaceIds,
+  ) async {
+    try {
+      final normalizedPlaceIds = googlePlaceIds
+          .map((placeId) => placeId.trim())
+          .where((placeId) => placeId.isNotEmpty)
+          .toSet()
+          .toList(growable: false);
+      if (normalizedPlaceIds.isEmpty) {
+        return [];
+      }
+
+      _cleanExpiredCache();
+
+      final response = await _client
+          .from(SupabaseConstants.tableLocations)
+          .select()
+          .inFilter(
+            SupabaseConstants.columnGooglePlaceId,
+            normalizedPlaceIds,
+          );
+
+      return (response as List).whereType<Map>().map((locationData) {
+        final typedLocationData = Map<String, dynamic>.from(locationData);
+        return LocationModel.fromJson(
+          typedLocationData,
+          _storedLocationImageUrl(typedLocationData),
+        );
+      }).toList(growable: false);
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error getting locations by Google place ids: $e');
+      }
+      return [];
+    }
+  }
+
+  String? _storedLocationImageUrl(Map<String, dynamic> locationData) {
+    final locationId = locationData[SupabaseConstants.columnLocationId] as int?;
+    if (locationId != null &&
+        locationData[SupabaseConstants.columnImageStored] == true) {
+      return _client.storage
+          .from('location_photos')
+          .getPublicUrl('$locationId.jpg');
+    }
+
+    final imageUrl = locationData[SupabaseConstants.columnImageUrl]?.toString();
+    if (imageUrl != null && imageUrl.trim().isNotEmpty) {
+      return imageUrl.trim();
+    }
+
+    return null;
+  }
+
   Future<List<LocationModel>> getHiddenGems({
     required double latitude,
     required double longitude,
@@ -1143,6 +1198,14 @@ class LocationHelper {
     final locationId = location.locationId;
     final bucket = _client.storage.from('location_photos');
 
+    if (locationId <= 0) {
+      final urls = _transientGooglePhotoUrls(location, maxPhotos: maxPhotos);
+      if (urls.isNotEmpty) {
+        onPartial?.call(urls);
+      }
+      return urls;
+    }
+
     if (kDebugMode) {
       print(
           '[Gallery] [$locationId] open: image_stored=${location.imageStored}, '
@@ -1318,6 +1381,43 @@ class LocationHelper {
     }
 
     return contiguousPrefix();
+  }
+
+  List<String> _transientGooglePhotoUrls(
+    LocationModel location, {
+    required int maxPhotos,
+  }) {
+    final apiKey = dotenv.env["GOOGLE_PLACE_API_KEY"];
+    if (apiKey == null || apiKey.isEmpty) {
+      final seed = location.imageUrl?.trim();
+      return seed == null || seed.isEmpty ? const [] : [seed];
+    }
+
+    final urls = <String>[];
+    final seed = location.imageUrl?.trim();
+    if (seed != null && seed.isNotEmpty) {
+      urls.add(seed);
+    }
+
+    for (final photo in location.photos ?? const <Map<String, dynamic>>[]) {
+      if (urls.length >= maxPhotos) break;
+      final ref = photo['photo_reference']?.toString();
+      if (ref == null || ref.isEmpty) continue;
+      final url = Uri.https(
+        'maps.googleapis.com',
+        '/maps/api/place/photo',
+        {
+          'maxwidth': '1200',
+          'photoreference': ref,
+          'key': apiKey,
+        },
+      ).toString();
+      if (!urls.contains(url)) {
+        urls.add(url);
+      }
+    }
+
+    return urls.take(maxPhotos).toList(growable: false);
   }
 
   /// Fetch one extra photo via the Media API and upload it as

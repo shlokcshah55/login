@@ -3,7 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/pages/home/search/header_search_types.dart';
 import 'package:login/pages/home/widgets/home_header_search_shell.dart';
+import 'package:login/providers/nav_bar/visibility_provider.dart';
 import 'package:login/themes/pinit_theme.dart';
+import 'package:provider/provider.dart';
 
 void main() {
   testWidgets('search opens as a full-screen surface without backdrop blur', (
@@ -19,8 +21,6 @@ void main() {
     expect(find.byKey(const Key('header_search_overlay')), findsOneWidget);
     expect(find.byKey(const Key('header_search_fullscreen_layer')),
         findsOneWidget);
-    expect(
-        find.byKey(const Key('header_search_mist_background')), findsOneWidget);
     expect(find.byType(BackdropFilter), findsNothing);
 
     final fullscreenSize = tester.getSize(
@@ -58,32 +58,17 @@ void main() {
     expect(find.byKey(const Key('header_search_inline_completion')),
         findsOneWidget);
     expect(find.text('coffee run'), findsOneWidget);
-    expect(find.byKey(const Key('header_search_card_place-1')), findsNothing);
+    expect(
+      find.byKey(const Key('header_search_list_item_place--1')),
+      findsNothing,
+    );
 
     await tester.pump(const Duration(milliseconds: 20));
     expect(find.text('Coffee Run'), findsOneWidget);
-    expect(find.byKey(const Key('header_search_card_place-1')), findsOneWidget);
-  });
-
-  testWidgets('row order changes for people intent', (tester) async {
-    await tester.pumpWidget(const _HeaderSearchHarness());
-
-    await tester.tap(find.byKey(const Key('home_header_search_entry')));
-    await tester.pump();
-    await tester.enterText(
-      find.byKey(const Key('header_search_text_field')),
-      '@alex',
+    expect(
+      find.byKey(const Key('header_search_list_item_place--1')),
+      findsOneWidget,
     );
-    await tester.pump(const Duration(milliseconds: 20));
-
-    final sectionLabels = tester
-        .widgetList<Text>(find.byType(Text))
-        .where((widget) => widget.key is ValueKey<String>)
-        .map((widget) => widget.data)
-        .whereType<String>()
-        .toList();
-
-    expect(sectionLabels.take(3).toList(), ['People', 'Places', 'Recommended']);
   });
 
   testWidgets('long press previews a pin without dismissing search', (
@@ -100,7 +85,9 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 20));
 
-    await tester.longPress(find.byKey(const Key('header_search_card_place-1')));
+    await tester.longPress(
+      find.byKey(const Key('header_search_list_item_place--1')),
+    );
     await tester.pump();
 
     expect(find.byKey(const Key('header_search_overlay')), findsOneWidget);
@@ -139,20 +126,11 @@ class _HeaderSearchHarnessState extends State<_HeaderSearchHarness> {
       _state = _state.copyWith(
         query: query,
         result: HeaderSearchResultModel(
-          intent: normalized.startsWith('@')
-              ? SearchIntentType.people
-              : SearchIntentType.place,
           query: query,
           inlineCompletion: normalized == 'cof' ? 'coffee run' : null,
           quickSuggestions: const [],
-          databaseMatches: const [],
-          sections: _emptySections(
-            normalized.startsWith('@')
-                ? SearchIntentType.people
-                : SearchIntentType.place,
-          ),
-          completedStages: const {WaterfallStage.inlineCompletion},
-          isSearching: true,
+          placeItems: const [],
+          isLoading: true,
         ),
       );
     });
@@ -164,71 +142,12 @@ class _HeaderSearchHarnessState extends State<_HeaderSearchHarness> {
       setState(() {
         _state = _state.copyWith(
           result: _state.result.copyWith(
-            sections: normalized.startsWith('@')
-                ? [
-                    HeaderSearchSectionModel(
-                      type: SearchSectionType.people,
-                      title: 'People',
-                      items: const [
-                        SearchSuggestionItem(
-                          id: 'person-1',
-                          kind: SearchSuggestionKind.person,
-                          title: 'Alex Morgan',
-                        ),
-                      ],
-                    ),
-                    HeaderSearchSectionModel(
-                      type: SearchSectionType.places,
-                      title: 'Places',
-                      items: const [
-                        SearchSuggestionItem(
-                          id: 'place-2',
-                          kind: SearchSuggestionKind.place,
-                          title: 'Alex Cafe',
-                        ),
-                      ],
-                    ),
-                    HeaderSearchSectionModel(
-                      type: SearchSectionType.naturalLanguage,
-                      title: 'Recommended',
-                      items: const [
-                        SearchSuggestionItem(
-                          id: 'natural-2',
-                          kind: SearchSuggestionKind.naturalLanguage,
-                          title: 'A social brunch spot',
-                        ),
-                      ],
-                    ),
-                  ]
-                : [
-                    HeaderSearchSectionModel(
-                      type: SearchSectionType.places,
-                      title: 'Places',
-                      items: [
-                        SearchSuggestionItem.place(
-                          _location(1, 'Coffee Run'),
-                        ),
-                      ],
-                    ),
-                    HeaderSearchSectionModel(
-                      type: SearchSectionType.naturalLanguage,
-                      title: 'Recommended',
-                      items: [
-                        SearchSuggestionItem.naturalLanguageResult(
-                          _location(2, 'Cozy Corner'),
-                        ),
-                      ],
-                    ),
-                    const HeaderSearchSectionModel(
-                      type: SearchSectionType.people,
-                      title: 'People',
-                    ),
-                  ],
-            completedStages: const {
-              WaterfallStage.inlineCompletion,
-              WaterfallStage.fullResults,
-            },
-            isSearching: false,
+            placeItems: [
+              SearchSuggestionItem.place(
+                _location(-1, 'Coffee Run'),
+              ),
+            ],
+            isLoading: false,
           ),
         );
       });
@@ -239,90 +158,50 @@ class _HeaderSearchHarnessState extends State<_HeaderSearchHarness> {
   Widget build(BuildContext context) {
     return MaterialApp(
       theme: PinitTheme.dark(),
-      home: Scaffold(
-        body: HomeHeaderSearchShell(
-          state: _state,
-          controller: _controller,
-          focusNode: _focusNode,
-          onEntryTap: () {
-            setState(() {
-              _state = _state.copyWith(isActive: true);
-            });
-          },
-          onMagicSearchTap: () {},
-          onDismiss: () {
-            setState(() {
-              _state = _state.copyWith(isActive: false);
-            });
-          },
-          onQueryChanged: _handleQueryChanged,
-          onSuggestionSelected: (_) {},
-          onPreviewStart: (location) {
-            previewStartCount += 1;
-            setState(() {
-              _state = _state.copyWith(
-                isPreviewingMap: true,
-                previewedLocation: location,
-              );
-            });
-          },
-          onPreviewEnd: () {
-            setState(() {
-              _state = _state.copyWith(
-                isPreviewingMap: false,
-                clearPreviewedLocation: true,
-              );
-            });
-          },
-          footer: widget.showFooter
-              ? const Center(child: Text('Footer Chips'))
-              : null,
+      home: ChangeNotifierProvider(
+        create: (_) => BottomNavVisibilityProvider(),
+        child: Scaffold(
+          body: HomeHeaderSearchShell(
+            state: _state,
+            controller: _controller,
+            focusNode: _focusNode,
+            onEntryTap: () {
+              setState(() {
+                _state = _state.copyWith(isActive: true);
+              });
+            },
+            onMagicSearchTap: () {},
+            onDismiss: () {
+              setState(() {
+                _state = _state.copyWith(isActive: false);
+              });
+            },
+            onQueryChanged: _handleQueryChanged,
+            onSuggestionSelected: (_) {},
+            onPreviewStart: (location) {
+              previewStartCount += 1;
+              setState(() {
+                _state = _state.copyWith(
+                  isPreviewingMap: true,
+                  previewedLocation: location,
+                );
+              });
+            },
+            onPreviewEnd: () {
+              setState(() {
+                _state = _state.copyWith(
+                  isPreviewingMap: false,
+                  clearPreviewedLocation: true,
+                );
+              });
+            },
+            footer: widget.showFooter
+                ? const Center(child: Text('Footer Chips'))
+                : null,
+          ),
         ),
       ),
     );
-  }
-
-  List<HeaderSearchSectionModel> _emptySections(SearchIntentType intent) {
-    switch (intent) {
-      case SearchIntentType.people:
-        return const [
-          HeaderSearchSectionModel(
-            type: SearchSectionType.people,
-            title: 'People',
-            isLoading: true,
-          ),
-          HeaderSearchSectionModel(
-            type: SearchSectionType.places,
-            title: 'Places',
-            isLoading: true,
-          ),
-          HeaderSearchSectionModel(
-            type: SearchSectionType.naturalLanguage,
-            title: 'Recommended',
-            isLoading: true,
-          ),
-        ];
-      case SearchIntentType.place:
-      case SearchIntentType.naturalLanguage:
-      case SearchIntentType.mixed:
-        return const [
-          HeaderSearchSectionModel(
-            type: SearchSectionType.places,
-            title: 'Places',
-            isLoading: true,
-          ),
-          HeaderSearchSectionModel(
-            type: SearchSectionType.naturalLanguage,
-            title: 'Recommended',
-            isLoading: true,
-          ),
-          HeaderSearchSectionModel(
-            type: SearchSectionType.people,
-            title: 'People',
-            isLoading: true,
-          ),
-        ];
-    }
   }
 }
 
