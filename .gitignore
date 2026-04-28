@@ -118,3 +118,4 @@ ios/Runner/RunnerRelease.entitlements
 ios/URLShareExtension/ShareViewController.swift
 
 ai/collections/venv
+ai/venv/

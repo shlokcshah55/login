@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../animations/animation_builders.dart';
+import '../../themes/app_colors.dart';
+import '../../themes/app_typography.dart';
 
 class ProfilePhotoSelector extends StatefulWidget {
   // Required callbacks
@@ -49,7 +51,8 @@ class _ProfilePhotoSelectorState extends State<ProfilePhotoSelector> {
     if (widget.animationController == null) {
       return AlwaysStoppedAnimation(Offset.zero);
     }
-    return AnimationBuilders.createFieldSlideAnimation(widget.animationController!);
+    return AnimationBuilders.createFieldSlideAnimation(
+        widget.animationController!);
   }
 
   Animation<double> _createFadeAnimation() {
@@ -253,10 +256,8 @@ class _ProfilePhotoSelectorState extends State<ProfilePhotoSelector> {
         if (widget.titleText.isNotEmpty) ...[
           Text(
             widget.titleText,
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
+            style: AppTypography.displaySmall.copyWith(
+              color: AppColors.textPrimary,
             ),
             textAlign: TextAlign.center,
           ),
@@ -265,9 +266,8 @@ class _ProfilePhotoSelectorState extends State<ProfilePhotoSelector> {
         if (widget.subtitleText.isNotEmpty) ...[
           Text(
             widget.subtitleText,
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey.shade600,
+            style: AppTypography.bodyLarge.copyWith(
+              color: AppColors.textSecondary,
             ),
             textAlign: TextAlign.center,
           ),

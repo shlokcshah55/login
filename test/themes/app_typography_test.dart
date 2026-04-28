@@ -4,6 +4,7 @@ import 'package:login/models/locations.dart';
 import 'package:login/themes/app_typography.dart';
 import 'package:login/themes/app_widget_themes.dart';
 import 'package:login/widgets/home/LocationCarousel/location_carousel.dart';
+import 'package:login/widgets/profile/profile_photo_selector.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -70,5 +71,28 @@ void main() {
     final titleText = tester.widget<Text>(find.text('Test Cafe'));
 
     expect(titleText.style?.fontFamily, 'Rova');
+  });
+
+  testWidgets('profile photo selector uses shared heading and body fonts',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ProfilePhotoSelector(
+            onPhotoSelected: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    final titleText = tester.widget<Text>(find.text('Add a profile picture'));
+    final subtitleText = tester.widget<Text>(
+      find.text('Help friends recognize you (optional)'),
+    );
+
+    expect(titleText.style?.fontFamily, AppTypography.displaySmall.fontFamily);
+    expect(titleText.style?.fontSize, AppTypography.displaySmall.fontSize);
+    expect(subtitleText.style?.fontFamily, AppTypography.bodyLarge.fontFamily);
+    expect(subtitleText.style?.fontSize, AppTypography.bodyLarge.fontSize);
   });
 }
