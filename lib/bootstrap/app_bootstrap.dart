@@ -5,16 +5,25 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:login/bootstrap/app_dependencies.dart';
 import 'package:login/firebase_options.dart';
 import 'package:login/models/locations.dart';
+import 'package:login/services/analytics_service.dart';
 import 'package:login/services/fcm_service.dart';
 import 'package:login/services/google_place_service.dart';
 import 'package:login/services/location_service.dart';
 import 'package:login/supabase/service.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
+import 'package:package_info_plus/package_info_plus.dart';
 
 Future<AppDependencies> bootstrap({
   required Future<void> Function(RemoteMessage) backgroundMessageHandler,
 }) async {
   WidgetsFlutterBinding.ensureInitialized();
+  final analyticsService = AnalyticsService();
+
+  final packageInfo = await PackageInfo.fromPlatform();
+  await analyticsService.initialize(
+    appVersion: packageInfo.version,
+    buildNumber: packageInfo.buildNumber,
+  );
 
   try {
     await Firebase.initializeApp(
@@ -22,17 +31,46 @@ Future<AppDependencies> bootstrap({
     );
     print('✅ Firebase initialized');
   } catch (e) {
-    print('⚠️ Firebase initialization skipped (may already be initialized): $e');
+    print(
+        '⚠️ Firebase initialization skipped (may already be initialized): $e');
   }
 
   FirebaseMessaging.onBackgroundMessage(backgroundMessageHandler);
+  await FCMService().registerMessageOpenHandling();
 
+  analyticsService.track(
+    eventName: 'notification_permission_prompted',
+    eventCategory: 'notification',
+    properties: const <String, dynamic>{'source': 'app_bootstrap'},
+  );
   FirebaseMessaging.instance
       .requestPermission(alert: true, badge: true, sound: true)
       .then((settings) {
     print('✅ Notification permissions: ${settings.authorizationStatus}');
+    analyticsService.track(
+      eventName: 'notification_permission_result',
+      eventCategory: 'notification',
+      properties: <String, dynamic>{
+        'status': settings.authorizationStatus.name,
+        'alert': settings.alert.name,
+        'badge': settings.badge.name,
+        'sound': settings.sound.name,
+      },
+    );
   }).catchError((e) {
     print('❌ Error requesting notification permissions: $e');
+    analyticsService.track(
+      eventName: 'notification_permission_result',
+      eventCategory: 'notification',
+      properties: <String, dynamic>{
+        'status': 'error',
+        'error': '$e',
+      },
+    );
+    analyticsService.recordError(
+      key: 'notification_permission_result',
+      properties: <String, dynamic>{'error': '$e'},
+    );
   });
 
   print('🔧 Initializing Location Service...');
@@ -69,6 +107,8 @@ Future<AppDependencies> bootstrap({
   print('🔧 Initializing Supabase...');
   final supabaseService = SupabaseService();
   await supabaseService.initialize();
+  analyticsService.setSupabaseReady();
+  analyticsService.setUser(supabaseService.users.currentUser?.id);
 
   print('✅ All initialization complete!');
 

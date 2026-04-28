@@ -10,6 +10,7 @@ import 'package:login/models/video_insights.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
+import 'package:login/services/analytics_service.dart';
 import 'package:login/supabase/helpers/location.dart';
 import 'package:login/supabase/helpers/location_reviews.dart';
 import 'package:login/supabase/helpers/video_insights_helper.dart';
@@ -57,6 +58,8 @@ class ExpandedLocationCard extends StatefulWidget {
 
 class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     with TickerProviderStateMixin {
+  final AnalyticsService _analyticsService = AnalyticsService();
+
   // ── Save / dislike state ──
   bool _isSaved = false;
   bool _isSaving = false;
@@ -102,6 +105,16 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   @override
   void initState() {
     super.initState();
+    _analyticsService.trackFeature(
+      'location_card_opened',
+      featureName: 'location_card',
+      screenName: 'home',
+      properties: <String, dynamic>{
+        'location_id': widget.location.locationId,
+      },
+      registerTap: true,
+      interactionKey: 'location_card_opened',
+    );
     // Seed with whatever we already have synchronously (the storage URL
     // from the list row). The full gallery is fetched lazily below.
     final seed = widget.location.imageUrl?.trim();
@@ -401,8 +414,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     if (sentCount > 0) {
       AppFeedback.showSuccess(
         context,
-        message:
-            'Sent to $sentCount ${sentCount == 1 ? 'bubble' : 'bubbles'}',
+        message: 'Sent to $sentCount ${sentCount == 1 ? 'bubble' : 'bubbles'}',
         leading: const Icon(
           Icons.send_rounded,
           color: PinitColors.cream,
@@ -802,7 +814,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                 pinitReviewCount: _pinitReviewCount,
                 creatorHandle: _videoInsight?.creatorHandle,
               ),
-              
+
               // Layer 2b — TikTok insights (only for social-video saves)
               if (_videoInsight != null) ...[
                 const SizedBox(height: 28),
@@ -815,12 +827,12 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
               // Layer 3 — editorial body.
               const SizedBox(height: 32),
 
-                          DetailsSection(
+              DetailsSection(
                 location: widget.location,
                 onOpenInMaps: _openInGoogleMaps,
                 onOpenWebsite: _openWebsite,
               ),
-                            const SizedBox(height: 32),
+              const SizedBox(height: 32),
 
               WhyGoSection(
                 generatedSummary: widget.location.generatedSummary,
@@ -841,8 +853,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                 pinitReviews: _pinitReviews,
                 friendIds: _friendIds,
               ),
-                          SizedBox(height: dockBottomInset),
-
+              SizedBox(height: dockBottomInset),
             ],
           ),
         ),

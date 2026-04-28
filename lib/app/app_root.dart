@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:login/app/app_providers.dart';
@@ -8,9 +10,11 @@ import 'package:login/pages/home_page.dart';
 import 'package:login/pages/profile/profile_page.dart';
 import 'package:login/pages/signup_wizard/wizard_completion_page.dart';
 import 'package:login/pages/splash_screen.dart';
+import 'package:login/services/analytics_service.dart';
 import 'package:login/supabase/supabase_client.dart';
 import 'package:login/themes/pinit_theme.dart';
 import 'package:login/widgets/profile/notifications_popover.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AppRoot extends StatelessWidget {
   final AppDependencies dependencies;
@@ -36,24 +40,53 @@ class MyApp extends StatefulWidget {
   _MyAppState createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   static const platform = MethodChannel('com.example.srishlok.pinit/share');
+  final AnalyticsService _analyticsService = AnalyticsService();
+  StreamSubscription<AuthState>? _authSubscription;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
 
-    SupabaseClientManager().client.auth.onAuthStateChange.listen((data) {
+    _analyticsService.setUser(SupabaseClientManager().currentUser?.id);
+    _analyticsService.startSession(reason: 'app_launch');
+
+    _authSubscription =
+        SupabaseClientManager().client.auth.onAuthStateChange.listen((data) {
       final session = data.session;
       if (session != null) {
+        _analyticsService.setUser(session.user.id);
         _saveUserIdToAppGroup();
       } else {
+        _analyticsService.setUser(null);
         _clearUserIdFromAppGroup();
       }
     });
 
     if (SupabaseClientManager().currentUser != null) {
+      _analyticsService.setUser(SupabaseClientManager().currentUser!.id);
       _saveUserIdToAppGroup();
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.resumed:
+        _analyticsService.startSession(reason: 'resume');
+        break;
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.paused:
+        _analyticsService.endSession(reason: 'background');
+        break;
+      case AppLifecycleState.detached:
+        _analyticsService.endSession(reason: 'detached');
+        break;
+      case AppLifecycleState.hidden:
+        _analyticsService.endSession(reason: 'hidden');
+        break;
     }
   }
 
@@ -82,6 +115,14 @@ class _MyAppState extends State<MyApp> {
   }
 
   @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _authSubscription?.cancel();
+    _analyticsService.endSession(reason: 'app_dispose');
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return MaterialApp(
       navigatorKey: navigatorKey,
@@ -89,6 +130,24 @@ class _MyAppState extends State<MyApp> {
       theme: PinitTheme.light(),
       darkTheme: PinitTheme.dark(),
       themeMode: ThemeMode.dark,
+      builder: (context, child) {
+        return Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: (_) => _analyticsService.registerUserInteraction(
+              interactionKey: 'pointer'),
+          onPointerMove: (_) => _analyticsService.registerUserInteraction(
+              interactionKey: 'pointer'),
+          child: NotificationListener<ScrollNotification>(
+            onNotification: (notification) {
+              _analyticsService.registerUserInteraction(
+                interactionKey: 'scroll',
+              );
+              return false;
+            },
+            child: child ?? const SizedBox.shrink(),
+          ),
+        );
+      },
       home: const SplashScreenActual(),
       routes: {
         '/home': (context) => const HomePage(),

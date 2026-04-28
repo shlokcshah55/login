@@ -41,13 +41,15 @@ class DeeplinkTests(unittest.TestCase):
 
     def test_resolve_video_processed(self):
         self.assertEqual(
-            resolve_deep_link("video_processed", {}),
-            "pinit://notifications",
+            resolve_deep_link("video_processed", {"locationId": "42"}),
+            "pinit://location/42",
         )
 
     def test_missing_required_id_raises(self):
         with self.assertRaises(DeepLinkResolutionError):
             resolve_deep_link("new_message", {})
+        with self.assertRaises(DeepLinkResolutionError):
+            resolve_deep_link("video_processed", {})
 
 
 if __name__ == "__main__":

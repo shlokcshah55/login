@@ -16,6 +16,7 @@ import 'package:login/providers/map_state_provider.dart';
 import 'package:login/providers/nav_bar/visibility_provider.dart';
 import 'package:login/providers/shortlist_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
+import 'package:login/services/analytics_service.dart';
 import 'package:login/supabase/helpers/collections.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/supabase/supabase_client.dart';
@@ -30,6 +31,7 @@ class HomeViewModel extends ChangeNotifier {
   late final HomeController _homeController;
   late final HeaderSearchCoordinator _headerSearchCoordinator;
   final CollectionsHelper _collectionsHelper = CollectionsHelper();
+  final AnalyticsService _analyticsService = AnalyticsService();
 
   final TextEditingController magicSearchController = TextEditingController();
   final TextEditingController headerSearchController = TextEditingController();
@@ -107,6 +109,7 @@ class HomeViewModel extends ChangeNotifier {
     _isEatListsOpen = value;
     notifyListeners();
   }
+
   bool get bottomNavVisible => bottomNavVisibilityProvider.isVisible;
   LocationListType get currentListType => locationListManager.currentListType;
   String? get selectedMarkerId => mapStateProvider.selectedMarkerId;
@@ -336,6 +339,13 @@ class HomeViewModel extends ChangeNotifier {
   // ── Header search surface ─────────────────────────────────────
 
   Future<void> openHeaderSearch() async {
+    _analyticsService.trackFeature(
+      'search_opened',
+      featureName: 'header_search',
+      screenName: 'home',
+      registerTap: true,
+      interactionKey: 'search_opened',
+    );
     await _headerSearchCoordinator.open();
     _syncBottomNavVisibilityForSearch();
   }
@@ -422,6 +432,8 @@ class HomeViewModel extends ChangeNotifier {
   }
 
   void toggleMagicSearch() {
+    _analyticsService.registerUserInteraction(
+        interactionKey: 'toggle_magic_search');
     _isMagicSearchActive = !_isMagicSearchActive;
     if (_isMagicSearchActive) {
       _showMagicSearchActivated = true;
@@ -454,11 +466,28 @@ class HomeViewModel extends ChangeNotifier {
     if (trimmed.isEmpty) return;
 
     log("HomeViewModel: Triggering magic search for: $trimmed");
+    _analyticsService.trackFeature(
+      'magic_search_submitted',
+      featureName: 'magic_search',
+      screenName: 'home',
+      properties: <String, dynamic>{
+        'query_length': trimmed.length,
+      },
+      registerTap: true,
+      interactionKey: 'magic_search_submit',
+    );
 
     await locationListManager.magicSearch(trimmed);
 
     if (locationListManager.error != null) {
       log("HomeViewModel: Magic search error: ${locationListManager.error}");
+      _analyticsService.recordError(
+        key: 'magic_search_error',
+        properties: <String, dynamic>{
+          'query_length': trimmed.length,
+          'message': locationListManager.error!,
+        },
+      );
     }
   }
 

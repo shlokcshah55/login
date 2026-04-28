@@ -12,6 +12,7 @@
 .svn/
 .swiftpm/
 .superpowers/
+.claude/
 migrate_working_dir/
 pinit_service_account.json
 /venv/

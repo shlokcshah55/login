@@ -34,7 +34,8 @@ class ProcessingErrorNotification extends BaseNotification {
           : data['timestamp'] as DateTime,
       isRead: data['isRead'] == true || data['isRead'] == 'true',
       title: (data['title'] as String?) ?? 'Could not process video',
-      body: (data['body'] as String?) ?? 'Something went wrong while processing your shared post.',
+      body: (data['body'] as String?) ??
+          'Something went wrong while processing your shared post.',
       errorType: data['errorType']?.toString(),
       sourceUrl: rawSourceUrl?.toString(),
       platform: data['platform']?.toString(),
@@ -51,7 +52,7 @@ class ProcessingErrorNotification extends BaseNotification {
   String? getActionLabel() => hasAction() ? 'Add manually' : null;
 
   @override
-  bool hasAction() => sourceUrl != null && sourceUrl!.isNotEmpty;
+  bool hasAction() => true;
 
   @override
   Map<String, dynamic> toFCMData() {

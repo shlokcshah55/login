@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:login/models/bubble.dart';
 import 'package:login/widgets/chat/chat_group_tile.dart';
 import 'package:login/widgets/chat/expanded_bubble_view.dart';
+import 'package:login/services/analytics_service.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/supabase/supabase_client.dart';
 import 'package:login/providers/bubbles_provider.dart';
@@ -39,6 +40,7 @@ class _BubblesPageState extends State<BubblesPage>
   List<UserModel> _searchResults = [];
   bool _isSearching = false;
   Timer? _debounceTimer;
+  final AnalyticsService _analyticsService = AnalyticsService();
 
   @override
   void initState() {
@@ -650,6 +652,17 @@ class _BubblesPageState extends State<BubblesPage>
   }
 
   void _openExpandedChatView(Bubble bubble) {
+    _analyticsService.trackFeature(
+      'bubble_opened',
+      featureName: 'bubble',
+      screenName: 'bubbles',
+      properties: <String, dynamic>{
+        'bubble_id': bubble.id,
+        'open_target': 'expanded',
+      },
+      registerTap: true,
+      interactionKey: 'bubble_opened',
+    );
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -661,6 +674,17 @@ class _BubblesPageState extends State<BubblesPage>
   }
 
   void _openGroupChat(Bubble bubble) {
+    _analyticsService.trackFeature(
+      'bubble_opened',
+      featureName: 'bubble',
+      screenName: 'bubbles',
+      properties: <String, dynamic>{
+        'bubble_id': bubble.id,
+        'open_target': 'chat',
+      },
+      registerTap: true,
+      interactionKey: 'bubble_opened',
+    );
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => BubbleMessagingPage(bubble: bubble),
