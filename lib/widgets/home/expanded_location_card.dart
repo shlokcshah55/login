@@ -97,6 +97,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
 
   // ── Similar places ──
   List<SimilarPlace> _similarPlaces = [];
+  bool _isOpeningSimilarPlace = false;
 
   // ── TikTok video insights (lazy-loaded) ──
   VideoInsight? _videoInsight;
@@ -385,6 +386,42 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
 
   void _handleClose() {
     _sheetController.reverse().then((_) => widget.onClose());
+  }
+
+  Future<void> _openSimilarPlace(SimilarPlace similar) async {
+    if (_isOpeningSimilarPlace) return;
+    _isOpeningSimilarPlace = true;
+
+    try {
+      final navigator = Navigator.of(context, rootNavigator: true);
+      final loc = similar.location;
+
+      await _sheetController.reverse();
+      widget.onClose();
+
+      // Let the pop complete before presenting the next dialog.
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      if (!navigator.mounted) return;
+
+      unawaited(
+        showGeneralDialog<void>(
+          context: navigator.context,
+          barrierDismissible: true,
+          barrierLabel: MaterialLocalizations.of(navigator.context)
+              .modalBarrierDismissLabel,
+          barrierColor: Colors.transparent,
+          transitionDuration: const Duration(milliseconds: 300),
+          pageBuilder: (ctx, _, __) => ExpandedLocationCard(
+            location: loc,
+            onClose: () => Navigator.of(ctx).pop(),
+          ),
+          transitionBuilder: (ctx, anim, _, child) =>
+              FadeTransition(opacity: anim, child: child),
+        ),
+      );
+    } finally {
+      if (mounted) _isOpeningSimilarPlace = false;
+    }
   }
 
   Future<void> _showAddToCollectionSheet() async {
@@ -849,7 +886,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
               SocialProofSection(
                 location: widget.location,
                 similarPlaces: _similarPlaces,
-                onSimilarPlaceTap: (_) => _handleClose(),
+                onSimilarPlaceTap: _openSimilarPlace,
                 pinitReviews: _pinitReviews,
                 friendIds: _friendIds,
               ),
