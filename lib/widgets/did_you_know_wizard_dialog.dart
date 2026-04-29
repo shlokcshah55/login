@@ -63,12 +63,12 @@ class DidYouKnowWizards {
         description: '',
       ),
       DidYouKnowWizardPage(
-        illustrationAssetPath: 'lib/assets/wizards/tiktok4.png',
+        illustrationAssetPath: 'lib/assets/wizards/tiktok3.png',
         title: 'Step 3 : Hit pinit and now your done!',
         description: '',
       ),
       DidYouKnowWizardPage(
-        illustrationAssetPath: 'lib/assets/wizards/tiktok3.png',
+        illustrationAssetPath: 'lib/assets/wizards/tiktok4.png',
         title: 'Step 4: We\'ll let you know when you\'re nearby!',
         description: '',
       ),
