@@ -7,6 +7,7 @@ import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/pages/home/search/header_search_types.dart';
+import 'package:login/pages/profile/widgets/trending_now_section.dart';
 import 'package:login/pages/home/widgets/search_result_action_sheet.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
 import 'package:login/providers/location_list_provider.dart';
@@ -82,36 +83,19 @@ class HomeHeaderSearchShell extends StatelessWidget {
       );
     }
 
-    final mediaQuery = MediaQuery.of(context);
-    final overlayTopOffset = mediaQuery.padding.top + 40;
-
-    return SizedBox(
-      height: mediaQuery.size.height,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Positioned(
-            left: -16,
-            right: -16,
-            top: -overlayTopOffset,
-            child: SizedBox(
-              height: mediaQuery.size.height + overlayTopOffset,
-              child: _SearchOverlay(
-                state: state,
-                controller: controller,
-                focusNode: focusNode,
-                onDismiss: onDismiss,
-                onQueryChanged: onQueryChanged,
-                onSuggestionSelected: onSuggestionSelected,
-                onPlaceActionTriggered: onPlaceActionTriggered,
-                onPreviewStart: onPreviewStart,
-                onPreviewEnd: onPreviewEnd,
-                onSearchSubmitted: onSearchSubmitted,
-              ),
-            ),
-          ),
-        ],
-      ),
+    return _InlineActiveSearchView(
+      state: state,
+      controller: controller,
+      focusNode: focusNode,
+      onDismiss: onDismiss,
+      onQueryChanged: onQueryChanged,
+      onSuggestionSelected: onSuggestionSelected,
+      onPlaceActionTriggered: onPlaceActionTriggered,
+      onPreviewStart: onPreviewStart,
+      onPreviewEnd: onPreviewEnd,
+      onSearchSubmitted: onSearchSubmitted,
+      onMagicSearchTap: onMagicSearchTap,
+      isMagicSearchActive: isMagicSearchActive,
     );
   }
 }
@@ -260,6 +244,228 @@ class _CollapsedSearchEntry extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InlineActiveSearchView extends StatefulWidget {
+  final HeaderSearchState state;
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final VoidCallback onDismiss;
+  final ValueChanged<String> onQueryChanged;
+  final ValueChanged<SearchSuggestionItem> onSuggestionSelected;
+  final ValueChanged<SearchSuggestionItem>? onPlaceActionTriggered;
+  final ValueChanged<LocationModel> onPreviewStart;
+  final VoidCallback onPreviewEnd;
+  final VoidCallback? onSearchSubmitted;
+  final VoidCallback onMagicSearchTap;
+  final bool isMagicSearchActive;
+
+  const _InlineActiveSearchView({
+    required this.state,
+    required this.controller,
+    required this.focusNode,
+    required this.onDismiss,
+    required this.onQueryChanged,
+    required this.onSuggestionSelected,
+    required this.onPlaceActionTriggered,
+    required this.onPreviewStart,
+    required this.onPreviewEnd,
+    required this.onSearchSubmitted,
+    required this.onMagicSearchTap,
+    required this.isMagicSearchActive,
+  });
+
+  @override
+  State<_InlineActiveSearchView> createState() =>
+      _InlineActiveSearchViewState();
+}
+
+class _InlineActiveSearchViewState extends State<_InlineActiveSearchView>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _motionController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1800),
+  )..repeat(reverse: true);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !widget.focusNode.hasFocus) {
+        widget.focusNode.requestFocus();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _motionController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.controller.text != widget.state.query) {
+      widget.controller.value = widget.controller.value.copyWith(
+        text: widget.state.query,
+        selection: TextSelection.collapsed(offset: widget.state.query.length),
+        composing: TextRange.empty,
+      );
+    }
+
+    return AnimatedBuilder(
+      animation: _motionController,
+      builder: (context, _) {
+        final pulse =
+            0.5 - 0.5 * math.cos(_motionController.value * math.pi * 2);
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: _InlineActiveSearchEntry(
+                    controller: widget.controller,
+                    focusNode: widget.focusNode,
+                    onChanged: widget.onQueryChanged,
+                    onDismiss: widget.onDismiss,
+                    onSubmitted: widget.onSearchSubmitted,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                _MagicSearchButton(
+                  onTap: widget.onMagicSearchTap,
+                  isMagicSearchActive: widget.isMagicSearchActive,
+                ),
+              ],
+            ),
+            if (widget.state.result.errorMessage != null) ...[
+              const SizedBox(height: 12),
+              _SearchErrorBanner(message: widget.state.result.errorMessage!),
+            ],
+            const SizedBox(height: 14),
+            Expanded(
+              child: _PlaceResultsList(
+                items: widget.state.result.placeItems,
+                isLoading: widget.state.result.isLoading,
+                query: widget.state.result.query,
+                pulse: pulse,
+                onSuggestionSelected: widget.onSuggestionSelected,
+                onPlaceActionTriggered: widget.onPlaceActionTriggered,
+                onPreviewStart: widget.onPreviewStart,
+                onPreviewEnd: widget.onPreviewEnd,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _InlineActiveSearchEntry extends StatelessWidget {
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onDismiss;
+  final VoidCallback? onSubmitted;
+
+  const _InlineActiveSearchEntry({
+    required this.controller,
+    required this.focusNode,
+    required this.onChanged,
+    required this.onDismiss,
+    required this.onSubmitted,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) =>
+          context.read<BottomNavVisibilityProvider>().setLocked(true),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        decoration: BoxDecoration(
+          color: pinit.PinitColors.cream,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: pinit.PinitColors.aubergine,
+            width: 1.5,
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: pinit.PinitColors.aubergine,
+              blurRadius: 0,
+              offset: Offset(3, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              FeatherIcons.search,
+              color: pinit.PinitColors.aubergine,
+              size: 16,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TextField(
+                key: const Key('home_header_search_text_field'),
+                controller: controller,
+                focusNode: focusNode,
+                cursorColor: pinit.PinitColors.aubergine,
+                textInputAction: TextInputAction.search,
+                textCapitalization: TextCapitalization.words,
+                style: GoogleFonts.dmSans(
+                  fontSize: 12,
+                  color: pinit.PinitColors.aubergine,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.6,
+                  height: 1.0,
+                ),
+                decoration: InputDecoration(
+                  isCollapsed: true,
+                  hintText: 'SEARCH FOR A SPECIFC RESTAURANT',
+                  hintStyle: GoogleFonts.dmSans(
+                    fontSize: 11,
+                    color: pinit.PinitColors.aubergineSoft,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.0,
+                    height: 1.0,
+                  ),
+                  border: InputBorder.none,
+                ),
+                onChanged: onChanged,
+                onSubmitted: onSubmitted != null ? (_) => onSubmitted!() : null,
+              ),
+            ),
+            const SizedBox(width: 10),
+            GestureDetector(
+              onTap: onDismiss,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: pinit.PinitColors.creamSunk,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: pinit.PinitColors.creamDeep,
+                    width: 1,
+                  ),
+                ),
+                child: const Icon(
+                  CupertinoIcons.xmark,
+                  size: 14,
+                  color: pinit.PinitColors.aubergineSoft,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -880,6 +1086,27 @@ class _PlaceResultsListState extends State<_PlaceResultsList> {
     }
 
     if (items.isEmpty) {
+      final trending = context
+          .watch<LocationListManager>()
+          .popularLocations
+          .take(9)
+          .toList();
+
+      if (!hasQuery && trending.isNotEmpty) {
+        return ListView(
+          padding: EdgeInsets.only(bottom: bottomPadding),
+          children: [
+            TrendingNowSection(
+              locations: trending,
+              title: 'Hot Right Now',
+              subtitle: 'Hot places people have saved',
+              headerPadding: const EdgeInsets.fromLTRB(0, 6, 0, 14),
+              gridPadding: EdgeInsets.zero,
+            ),
+          ],
+        );
+      }
+
       return ListView(
         padding: EdgeInsets.only(bottom: bottomPadding),
         children: [

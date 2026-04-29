@@ -15,7 +15,6 @@ import 'package:login/services/fcm_service.dart';
 import 'package:login/models/notifications/base_notification.dart';
 import 'widgets/profile_header.dart';
 import 'widgets/hidden_gems_section.dart';
-import 'widgets/trending_now_section.dart';
 import 'widgets/collections_grid.dart';
 import 'widgets/recent_activity_section.dart';
 import 'widgets/notes_import_sheet.dart';
@@ -65,7 +64,6 @@ class _ProfilePageState extends State<ProfilePage>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final manager = Provider.of<LocationListManager>(context, listen: false);
       manager.fetchSavedLocations();
-      manager.fetchPopularLocations();
       manager.fetchHiddenGems();
       _loadFollowCounts();
     });
@@ -142,7 +140,6 @@ class _ProfilePageState extends State<ProfilePage>
     }
 
     final savedPins = locationListManager.savedLocations.keys.toList();
-    final popularLocations = locationListManager.popularLocations;
     final hiddenGemLocations = locationListManager.hiddenGemLocations;
     final collapsedHeader = _scrollOffset > 120;
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -191,8 +188,11 @@ class _ProfilePageState extends State<ProfilePage>
                       flexibleSpace: _buildPinnedTabs(),
                     ),
                     SliverToBoxAdapter(
-                      child: _buildTabContent(user, savedPins, popularLocations,
-                          hiddenGemLocations),
+                      child: _buildTabContent(
+                        user,
+                        savedPins,
+                        hiddenGemLocations,
+                      ),
                     ),
                     const SliverToBoxAdapter(
                       child: SizedBox(height: 100),
@@ -214,18 +214,13 @@ class _ProfilePageState extends State<ProfilePage>
     );
   }
 
-  Widget _buildTabContent(
-      UserModel user,
-      List<LocationModel> savedPins,
-      List<LocationModel> popularLocations,
+  Widget _buildTabContent(UserModel user, List<LocationModel> savedPins,
       List<LocationModel> hiddenGemLocations) {
     switch (_selectedTab) {
       case 0:
         return Column(
           children: [
             HiddenGemsSection(locations: hiddenGemLocations),
-            SizedBox(height: 20),
-            TrendingNowSection(locations: popularLocations),
             const RecentActivitySection(),
           ],
         );
@@ -683,7 +678,8 @@ class _ProfilePageState extends State<ProfilePage>
   }
 
   void _shareProfile(BuildContext context) {
-    const appStoreUrl = 'https://apps.apple.com/app/pinit'; // replace with real URL
+    const appStoreUrl =
+        'https://apps.apple.com/app/pinit'; // replace with real URL
     Share.share(
       "I've got Pinit and I want to be your friend! 🍽️ Join me on the app: $appStoreUrl",
       subject: 'Join me on Pinit!',

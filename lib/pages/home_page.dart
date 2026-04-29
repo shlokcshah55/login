@@ -546,6 +546,8 @@ class _HomePageState extends State<HomePage> {
             _scheduleSavedEmptyPopoverIfNeeded();
             _scheduleDidYouKnowWizardIfNeeded(userDataProvider);
           }
+          final isInlineHeaderSearch =
+              viewModel.isHeaderSearchActive && !viewModel.isMagicSearchActive;
           final carouselBottom = viewModel.bottomNavVisible ? 110.0 : 20.0;
           final topPadding = MediaQuery.of(context).padding.top;
 
@@ -566,15 +568,25 @@ class _HomePageState extends State<HomePage> {
 
                   // ─── Layer 2+3: Purple header panel ────────────
                   //     Logo + Search + Chip row as one unified surface
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    child: _TopPanel(
-                      topPadding: topPadding,
-                      viewModel: viewModel,
+                  if (isInlineHeaderSearch)
+                    Positioned.fill(
+                      child: _TopPanel(
+                        topPadding: topPadding,
+                        viewModel: viewModel,
+                        isExpandedForSearch: true,
+                      ),
+                    )
+                  else
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: _TopPanel(
+                        topPadding: topPadding,
+                        viewModel: viewModel,
+                        isExpandedForSearch: false,
+                      ),
                     ),
-                  ),
 
                   // ─── Layer 5: Carousel + See All button ─────────
                   if (!viewModel.isHeaderSearchActive &&
@@ -1083,10 +1095,12 @@ class _HomeActionPill extends StatelessWidget {
 class _TopPanel extends StatelessWidget {
   final double topPadding;
   final HomeViewModel viewModel;
+  final bool isExpandedForSearch;
 
   const _TopPanel({
     required this.topPadding,
     required this.viewModel,
+    required this.isExpandedForSearch,
   });
 
   Future<void> _openExpandedSearchLocation(
@@ -1177,7 +1191,8 @@ class _TopPanel extends StatelessWidget {
           bottom: 16,
         ),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize:
+              isExpandedForSearch ? MainAxisSize.max : MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ── Logo — purplePinit, sized like a poster element ──
@@ -1191,99 +1206,170 @@ class _TopPanel extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            HomeHeaderSearchShell(
-              state: viewModel.headerSearchState,
-              controller: viewModel.headerSearchController,
-              focusNode: viewModel.headerSearchFocusNode,
-              onEntryTap: () {
-                viewModel.openHeaderSearch();
-              },
-              onMagicSearchTap: () {
-                viewModel.closeHeaderSearch();
-                viewModel.toggleMagicSearch();
-                if (!viewModel.isMagicSearchActive) {
-                  viewModel.headerSearchFocusNode.unfocus();
-                }
-              },
-              isMagicSearchActive: viewModel.isMagicSearchActive,
-              onSearchSubmitted: viewModel.isMagicSearchActive
-                  ? () {
-                      final query = viewModel.headerSearchController.text;
-                      viewModel.closeHeaderSearch();
-                      unawaited(viewModel.submitMagicSearch(query));
+            if (isExpandedForSearch)
+              Expanded(
+                child: HomeHeaderSearchShell(
+                  state: viewModel.headerSearchState,
+                  controller: viewModel.headerSearchController,
+                  focusNode: viewModel.headerSearchFocusNode,
+                  onEntryTap: () {
+                    viewModel.openHeaderSearch();
+                  },
+                  onMagicSearchTap: () {
+                    viewModel.closeHeaderSearch();
+                    viewModel.toggleMagicSearch();
+                    if (!viewModel.isMagicSearchActive) {
+                      viewModel.headerSearchFocusNode.unfocus();
                     }
-                  : () {
-                      unawaited(viewModel.submitHeaderSearch());
-                    },
-              onDismiss: viewModel.closeHeaderSearch,
-              onQueryChanged: viewModel.isMagicSearchActive
-                  ? (_) {}
-                  : viewModel.updateHeaderSearchQuery,
-              onPlaceActionTriggered: (item) {
-                unawaited(
-                  viewModel.rememberHeaderSearchQuery(
-                    viewModel.headerSearchState.query.isNotEmpty
-                        ? viewModel.headerSearchState.query
-                        : (item.queryValue ?? item.title),
-                  ),
-                );
-              },
-              onSuggestionSelected: (item) {
-                unawaited(() async {
-                  switch (item.kind) {
-                    case SearchSuggestionKind.recentQuery:
-                    case SearchSuggestionKind.personalPrompt:
-                      viewModel.applyHeaderSearchSuggestionQuery(
-                        item.queryValue ?? item.title,
-                      );
-                      break;
-                    case SearchSuggestionKind.place:
-                      final resolved = item.location;
-                      if (resolved == null) return;
-                      await viewModel.rememberHeaderSearchQuery(
+                  },
+                  isMagicSearchActive: viewModel.isMagicSearchActive,
+                  onSearchSubmitted: viewModel.isMagicSearchActive
+                      ? () {
+                          final query = viewModel.headerSearchController.text;
+                          viewModel.closeHeaderSearch();
+                          unawaited(viewModel.submitMagicSearch(query));
+                        }
+                      : () {
+                          unawaited(viewModel.submitHeaderSearch());
+                        },
+                  onDismiss: viewModel.closeHeaderSearch,
+                  onQueryChanged: viewModel.isMagicSearchActive
+                      ? (_) {}
+                      : viewModel.updateHeaderSearchQuery,
+                  onPlaceActionTriggered: (item) {
+                    unawaited(
+                      viewModel.rememberHeaderSearchQuery(
                         viewModel.headerSearchState.query.isNotEmpty
                             ? viewModel.headerSearchState.query
                             : (item.queryValue ?? item.title),
-                      );
-                      viewModel.closeHeaderSearch();
-                      if (!context.mounted) return;
-                      await _openExpandedSearchLocation(context, resolved);
-                      break;
-                  }
-                }());
-              },
-              onPreviewStart: (location) {
-                unawaited(viewModel.selectHeaderSearchLocation(location));
-              },
-              onPreviewEnd: () {},
-              footer: HomeChipRow(
-                currentMode: viewModel.homeMode,
-                onModeChanged: viewModel.setHomeMode,
-                activeBubbleName: viewModel.activeBubbleName,
-                collections: viewModel.collections,
-                isLoadingCollections: viewModel.isLoadingCollections,
-                activeCollectionId: viewModel.activeCollectionId,
-                onCollectionMenuOpened: () {
-                  unawaited(viewModel.loadCollections());
-                },
-                onCollectionsVisibilityChanged: viewModel.setEatListsOpen,
-                onCollectionSelected: (collection) {
-                  unawaited(() async {
-                    final shown = await viewModel.showCollectionOnMap(
-                      collection,
-                    );
-                    if (!context.mounted || shown) return;
-                    unawaited(
-                      AppFeedback.showError(
-                        context,
-                        title: 'Nothing in there',
-                        message: 'No places found in ${collection.name}.',
                       ),
                     );
+                  },
+                  onSuggestionSelected: (item) {
+                    unawaited(() async {
+                      switch (item.kind) {
+                        case SearchSuggestionKind.recentQuery:
+                        case SearchSuggestionKind.personalPrompt:
+                          viewModel.applyHeaderSearchSuggestionQuery(
+                            item.queryValue ?? item.title,
+                          );
+                          break;
+                        case SearchSuggestionKind.place:
+                          final resolved = item.location;
+                          if (resolved == null) return;
+                          await viewModel.rememberHeaderSearchQuery(
+                            viewModel.headerSearchState.query.isNotEmpty
+                                ? viewModel.headerSearchState.query
+                                : (item.queryValue ?? item.title),
+                          );
+                          viewModel.closeHeaderSearch();
+                          if (!context.mounted) return;
+                          await _openExpandedSearchLocation(context, resolved);
+                          break;
+                      }
+                    }());
+                  },
+                  onPreviewStart: (location) {
+                    unawaited(viewModel.selectHeaderSearchLocation(location));
+                  },
+                  onPreviewEnd: () {},
+                  footer: null,
+                ),
+              )
+            else
+              HomeHeaderSearchShell(
+                state: viewModel.headerSearchState,
+                controller: viewModel.headerSearchController,
+                focusNode: viewModel.headerSearchFocusNode,
+                onEntryTap: () {
+                  viewModel.openHeaderSearch();
+                },
+                onMagicSearchTap: () {
+                  viewModel.closeHeaderSearch();
+                  viewModel.toggleMagicSearch();
+                  if (!viewModel.isMagicSearchActive) {
+                    viewModel.headerSearchFocusNode.unfocus();
+                  }
+                },
+                isMagicSearchActive: viewModel.isMagicSearchActive,
+                onSearchSubmitted: viewModel.isMagicSearchActive
+                    ? () {
+                        final query = viewModel.headerSearchController.text;
+                        viewModel.closeHeaderSearch();
+                        unawaited(viewModel.submitMagicSearch(query));
+                      }
+                    : () {
+                        unawaited(viewModel.submitHeaderSearch());
+                      },
+                onDismiss: viewModel.closeHeaderSearch,
+                onQueryChanged: viewModel.isMagicSearchActive
+                    ? (_) {}
+                    : viewModel.updateHeaderSearchQuery,
+                onPlaceActionTriggered: (item) {
+                  unawaited(
+                    viewModel.rememberHeaderSearchQuery(
+                      viewModel.headerSearchState.query.isNotEmpty
+                          ? viewModel.headerSearchState.query
+                          : (item.queryValue ?? item.title),
+                    ),
+                  );
+                },
+                onSuggestionSelected: (item) {
+                  unawaited(() async {
+                    switch (item.kind) {
+                      case SearchSuggestionKind.recentQuery:
+                      case SearchSuggestionKind.personalPrompt:
+                        viewModel.applyHeaderSearchSuggestionQuery(
+                          item.queryValue ?? item.title,
+                        );
+                        break;
+                      case SearchSuggestionKind.place:
+                        final resolved = item.location;
+                        if (resolved == null) return;
+                        await viewModel.rememberHeaderSearchQuery(
+                          viewModel.headerSearchState.query.isNotEmpty
+                              ? viewModel.headerSearchState.query
+                              : (item.queryValue ?? item.title),
+                        );
+                        viewModel.closeHeaderSearch();
+                        if (!context.mounted) return;
+                        await _openExpandedSearchLocation(context, resolved);
+                        break;
+                    }
                   }());
                 },
+                onPreviewStart: (location) {
+                  unawaited(viewModel.selectHeaderSearchLocation(location));
+                },
+                onPreviewEnd: () {},
+                footer: HomeChipRow(
+                  currentMode: viewModel.homeMode,
+                  onModeChanged: viewModel.setHomeMode,
+                  activeBubbleName: viewModel.activeBubbleName,
+                  collections: viewModel.collections,
+                  isLoadingCollections: viewModel.isLoadingCollections,
+                  activeCollectionId: viewModel.activeCollectionId,
+                  onCollectionMenuOpened: () {
+                    unawaited(viewModel.loadCollections());
+                  },
+                  onCollectionsVisibilityChanged: viewModel.setEatListsOpen,
+                  onCollectionSelected: (collection) {
+                    unawaited(() async {
+                      final shown = await viewModel.showCollectionOnMap(
+                        collection,
+                      );
+                      if (!context.mounted || shown) return;
+                      unawaited(
+                        AppFeedback.showError(
+                          context,
+                          title: 'Nothing in there',
+                          message: 'No places found in ${collection.name}.',
+                        ),
+                      );
+                    }());
+                  },
+                ),
               ),
-            ),
           ],
         ),
       ),

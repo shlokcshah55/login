@@ -10,10 +10,18 @@ import 'pinit_colors.dart';
 /// Places currently trending — displayed as an Instagram Explore-style mosaic.
 class TrendingNowSection extends StatelessWidget {
   final List<LocationModel> locations;
+  final String title;
+  final String subtitle;
+  final EdgeInsets headerPadding;
+  final EdgeInsets gridPadding;
 
   const TrendingNowSection({
     Key? key,
     required this.locations,
+    this.title = 'Popping Right Now',
+    this.subtitle = 'Hot places people have saved',
+    this.headerPadding = const EdgeInsets.fromLTRB(24, 0, 24, 16),
+    this.gridPadding = const EdgeInsets.symmetric(horizontal: 20),
   }) : super(key: key);
 
   @override
@@ -25,13 +33,13 @@ class TrendingNowSection extends StatelessWidget {
       children: [
         // ── Section header ──
         Padding(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+          padding: headerPadding,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 6),
-              const Text(
-                'Popping Right Now',
+              Text(
+                title,
                 style: TextStyle(
                   fontFamily: 'Rova',
                   fontSize: 28,
@@ -43,7 +51,7 @@ class TrendingNowSection extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Hot places people have saved',
+                subtitle,
                 style: GoogleFonts.dmSans(
                   fontSize: 13,
                   color: PinitColors.aubergineSoft,
@@ -55,7 +63,7 @@ class TrendingNowSection extends StatelessWidget {
 
         // ── Mosaic grid ──
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: gridPadding,
           child: _MosaicGrid(locations: locations),
         ),
       ],
@@ -198,93 +206,93 @@ class _MosaicTile extends StatelessWidget {
             decoration: const BoxDecoration(
               color: PinitColors.creamSunk,
             ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // ── Image ──
-              Expanded(
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    _buildImage(context),
-                    // Subtle bottom scrim so info bar edge feels clean
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      height: 28,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.transparent,
-                              Colors.black.withValues(alpha: 0.18),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    // Open/closed dot
-                    if (location.openNow != null)
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // ── Image ──
+                Expanded(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      _buildImage(context),
+                      // Subtle bottom scrim so info bar edge feels clean
                       Positioned(
-                        top: 8,
-                        left: 8,
-                        child: Container(
-                          width: 7,
-                          height: 7,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        height: 28,
+                        child: DecoratedBox(
                           decoration: BoxDecoration(
-                            color: location.openNow!
-                                ? const Color(0xFF00B894)
-                                : const Color(0xFFE17055),
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.3),
-                                blurRadius: 3,
-                              ),
-                            ],
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.transparent,
+                                Colors.black.withValues(alpha: 0.18),
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                  ],
-                ),
-              ),
-
-              // ── Info bar ──
-              Container(
-                height: 52,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                color: PinitColors.cream,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        location.name,
-                        style: GoogleFonts.dmSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: PinitColors.aubergine,
-                          letterSpacing: -0.2,
-                          height: 1.2,
+                      // Open/closed dot
+                      if (location.openNow != null)
+                        Positioned(
+                          top: 8,
+                          left: 8,
+                          child: Container(
+                            width: 7,
+                            height: 7,
+                            decoration: BoxDecoration(
+                              color: location.openNow!
+                                  ? const Color(0xFF00B894)
+                                  : const Color(0xFFE17055),
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.3),
+                                  blurRadius: 3,
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (location.rating != null) ...[
-                      const SizedBox(width: 6),
-                      _RatingChip(rating: location.rating!),
                     ],
-                  ],
+                  ),
                 ),
-              ),
-            ],
+
+                // ── Info bar ──
+                Container(
+                  height: 52,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  color: PinitColors.cream,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          location.name,
+                          style: GoogleFonts.dmSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: PinitColors.aubergine,
+                            letterSpacing: -0.2,
+                            height: 1.2,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (location.rating != null) ...[
+                        const SizedBox(width: 6),
+                        _RatingChip(rating: location.rating!),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
         ),
       ),
     );
@@ -331,8 +339,8 @@ class _RatingChip extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.amber.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(7),
-        border: Border.all(
-            color: Colors.amber.withValues(alpha: 0.25), width: 0.5),
+        border:
+            Border.all(color: Colors.amber.withValues(alpha: 0.25), width: 0.5),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
