@@ -38,8 +38,8 @@ void main() {
       expect(uri.scheme, 'https');
       expect(uri.host, 'places.googleapis.com');
       expect(uri.path, '/v1/places/place-id/photos/photo-id/media');
-      expect(uri.queryParameters['maxHeightPx'], '400');
-      expect(uri.queryParameters['maxWidthPx'], '400');
+      expect(uri.queryParameters['maxHeightPx'], '2000');
+      expect(uri.queryParameters['maxWidthPx'], '2000');
       expect(uri.queryParameters['key'], 'api-key');
     });
 
@@ -52,8 +52,8 @@ void main() {
       expect(uri.scheme, 'https');
       expect(uri.host, 'maps.googleapis.com');
       expect(uri.path, '/maps/api/place/photo');
-      expect(uri.queryParameters['maxheight'], '400');
-      expect(uri.queryParameters['maxwidth'], '400');
+      expect(uri.queryParameters['maxheight'], '1600');
+      expect(uri.queryParameters['maxwidth'], '1600');
       expect(uri.queryParameters['photoreference'], 'legacy-reference');
       expect(uri.queryParameters['key'], 'api-key');
     });

@@ -50,8 +50,8 @@ class LocationHelper {
         'places.googleapis.com',
         '/v1/$photoReference/media',
         {
-          'maxHeightPx': '400',
-          'maxWidthPx': '400',
+          'maxHeightPx': '2000',
+          'maxWidthPx': '2000',
           'key': apiKey,
         },
       );
@@ -61,8 +61,8 @@ class LocationHelper {
       'maps.googleapis.com',
       '/maps/api/place/photo',
       {
-        'maxheight': '400',
-        'maxwidth': '400',
+        'maxheight': '1600',
+        'maxwidth': '1600',
         'photoreference': photoReference,
         'key': apiKey,
       },

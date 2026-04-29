@@ -42,7 +42,8 @@ class GooglePlacesService {
   }
 
   // Add method to get photo URL
-  String? getPhotoUrl(String? photoReference, {int maxWidth = 400}) {
+  // 1600 is the legacy /maps/api/place/photo cap; the v1 media endpoint goes higher.
+  String? getPhotoUrl(String? photoReference, {int maxWidth = 1600}) {
     if (photoReference == null || photoReference.isEmpty) return null;
     if (apiKey == null || apiKey!.isEmpty) return null;
 
