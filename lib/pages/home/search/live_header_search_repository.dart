@@ -1,4 +1,5 @@
 import 'package:login/models/locations.dart';
+import 'package:login/models/proximal_models.dart';
 import 'package:login/pages/home/search/header_search_recent_store.dart';
 import 'package:login/pages/home/search/header_search_repository.dart';
 import 'package:login/pages/home/search/header_search_types.dart';
@@ -11,6 +12,8 @@ import 'package:login/utils/geo_types.dart';
 typedef HeaderSearchPersistedPlaceLookup = Future<List<LocationModel>> Function(
   List<String> googlePlaceIds,
 );
+typedef HeaderSearchFriendSaveLookup = Future<Map<int, List<FriendSave>>>
+    Function(List<int> locationIds);
 
 class LiveHeaderSearchRepository implements HeaderSearchRepository {
   final LocationListManager _locationListManager;
@@ -18,6 +21,7 @@ class LiveHeaderSearchRepository implements HeaderSearchRepository {
   final HeaderSearchRecentStore _recentStore;
   final GooglePlacesService _googlePlacesService;
   final HeaderSearchPersistedPlaceLookup _persistedPlaceLookup;
+  final HeaderSearchFriendSaveLookup _friendSaveLookup;
 
   LiveHeaderSearchRepository({
     required LocationListManager locationListManager,
@@ -25,12 +29,15 @@ class LiveHeaderSearchRepository implements HeaderSearchRepository {
     HeaderSearchRecentStore? recentStore,
     GooglePlacesService? googlePlacesService,
     HeaderSearchPersistedPlaceLookup? persistedPlaceLookup,
+    HeaderSearchFriendSaveLookup? friendSaveLookup,
   })  : _locationListManager = locationListManager,
         _userDataProvider = userDataProvider,
         _recentStore = recentStore ?? HeaderSearchRecentStore(),
         _googlePlacesService = googlePlacesService ?? GooglePlacesService(),
         _persistedPlaceLookup = persistedPlaceLookup ??
-            LocationHelper().getLocationsByGooglePlaceIds;
+            LocationHelper().getLocationsByGooglePlaceIds,
+        _friendSaveLookup =
+            friendSaveLookup ?? LocationHelper().getFriendSavesForLocationIds;
 
   @override
   Future<List<String>> loadRecentQueries() {
@@ -142,13 +149,15 @@ class LiveHeaderSearchRepository implements HeaderSearchRepository {
       return;
     }
 
-    final locations = await _googlePlacesService.searchPlaces(
+    final suggestions = await _googlePlacesService.autocompleteFoodAndDrink(
       query: trimmed,
-      latitude: proximity?.latitude,
-      longitude: proximity?.longitude,
+      origin: proximity,
+      limit: limit,
     );
 
-    final googleLocations = locations.take(limit).toList(growable: false);
+    final googleLocations = autocompleteSuggestionsToSearchLocations(
+      suggestions,
+    );
     if (googleLocations.isEmpty) {
       yield const [];
       return;
@@ -161,7 +170,11 @@ class LiveHeaderSearchRepository implements HeaderSearchRepository {
 
     yield googleLocations.map(SearchSuggestionItem.place).toList();
 
-    final persistedLocations = await persistedLocationsFuture;
+    final persistedLocations = enrichPersistedSearchLocationsForUser(
+      await persistedLocationsFuture,
+      userVibeAffinity: _userDataProvider.vibeTagAffinity,
+      userDietaryAffinity: _userDataProvider.dietaryRequirementTagAffinity,
+    );
     if (persistedLocations.isEmpty) {
       return;
     }
@@ -172,6 +185,29 @@ class LiveHeaderSearchRepository implements HeaderSearchRepository {
     );
 
     yield resolvedLocations.map(SearchSuggestionItem.place).toList();
+
+    final persistedLocationIds = _positiveLocationIds(persistedLocations);
+    if (persistedLocationIds.isEmpty) {
+      return;
+    }
+
+    final friendSavesByLocationId = await _loadFriendSavesSafely(
+      persistedLocationIds,
+    );
+    if (friendSavesByLocationId.isEmpty) {
+      return;
+    }
+
+    final socialPersistedLocations = attachFriendSavesToSearchLocations(
+      persistedLocations,
+      friendSavesByLocationId,
+    );
+    final socialResolvedLocations = reconcileGooglePlacesWithPersistedLocations(
+      googleLocations: googleLocations,
+      persistedLocations: socialPersistedLocations,
+    );
+
+    yield socialResolvedLocations.map(SearchSuggestionItem.place).toList();
   }
 
   @override
@@ -181,6 +217,38 @@ class LiveHeaderSearchRepository implements HeaderSearchRepository {
     return _locationListManager.currentPosition ??
         await _locationListManager.getCurrentLocation();
   }
+
+  Future<Map<int, List<FriendSave>>> _loadFriendSavesSafely(
+    List<int> locationIds,
+  ) async {
+    try {
+      return await _friendSaveLookup(locationIds);
+    } catch (_) {
+      return const {};
+    }
+  }
+}
+
+List<LocationModel> autocompleteSuggestionsToSearchLocations(
+  List<GoogleAutocompleteSuggestion> suggestions,
+) {
+  return suggestions.map((suggestion) {
+    final placeId = suggestion.placeId.trim();
+    final name = suggestion.mainText?.trim().isNotEmpty == true
+        ? suggestion.mainText!.trim()
+        : suggestion.text.trim();
+    final vicinity = suggestion.secondaryText?.trim();
+
+    return LocationModel(
+      locationId: -placeId.hashCode.abs(),
+      name: name.isEmpty ? suggestion.text.trim() : name,
+      vicinity: vicinity == null || vicinity.isEmpty ? null : vicinity,
+      createdAt: DateTime.now(),
+      googlePlaceId: placeId,
+      types: suggestion.types.join(','),
+      preference: LocationPreference.search,
+    );
+  }).toList(growable: false);
 }
 
 List<LocationModel> reconcileGooglePlacesWithPersistedLocations({
@@ -202,6 +270,50 @@ List<LocationModel> reconcileGooglePlacesWithPersistedLocations({
             persistedByPlaceId[googleLocation.googlePlaceId?.trim()],
       ),
   ];
+}
+
+List<LocationModel> enrichPersistedSearchLocationsForUser(
+  List<LocationModel> locations, {
+  required List<double>? userVibeAffinity,
+  required List<int>? userDietaryAffinity,
+}) {
+  if (locations.isEmpty) {
+    return locations;
+  }
+
+  final hasUserAffinity =
+      (userVibeAffinity != null && userVibeAffinity.isNotEmpty) ||
+          (userDietaryAffinity != null && userDietaryAffinity.isNotEmpty);
+  if (!hasUserAffinity) {
+    return locations;
+  }
+
+  return locations.map((location) {
+    final score = LocationModel.calculateMatchScore(
+      userVibeAffinity: userVibeAffinity,
+      userDietaryAffinity: userDietaryAffinity,
+      locationVibeVector: location.vibeVector,
+      locationDietaryVector: location.dietaryRequirementVector,
+    );
+    return score > 0 ? location.copyWith(matchScore: score) : location;
+  }).toList(growable: false);
+}
+
+List<LocationModel> attachFriendSavesToSearchLocations(
+  List<LocationModel> locations,
+  Map<int, List<FriendSave>> friendSavesByLocationId,
+) {
+  if (locations.isEmpty || friendSavesByLocationId.isEmpty) {
+    return locations;
+  }
+
+  return locations.map((location) {
+    final friendSaves = friendSavesByLocationId[location.locationId];
+    if (friendSaves == null || friendSaves.isEmpty) {
+      return location;
+    }
+    return location.copyWithFriendSaves(friendSaves);
+  }).toList(growable: false);
 }
 
 LocationModel _mergeSearchLocation({
@@ -228,4 +340,14 @@ List<String> _googlePlaceIds(List<LocationModel> locations) {
     }
   }
   return placeIds.toList(growable: false);
+}
+
+List<int> _positiveLocationIds(List<LocationModel> locations) {
+  final ids = <int>{};
+  for (final location in locations) {
+    if (location.locationId > 0) {
+      ids.add(location.locationId);
+    }
+  }
+  return ids.toList(growable: false);
 }

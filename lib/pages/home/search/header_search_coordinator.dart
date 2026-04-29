@@ -13,6 +13,7 @@ class HeaderSearchCoordinator extends ChangeNotifier {
   Timer? _debounce;
   int _requestVersion = 0;
   StreamSubscription<List<SearchSuggestionItem>>? _placesSubscription;
+  String? _lastPlacesQuery;
 
   HeaderSearchCoordinator({
     HeaderSearchRepository? repository,
@@ -45,6 +46,7 @@ class HeaderSearchCoordinator extends ChangeNotifier {
     _debounce?.cancel();
     _placesSubscription?.cancel();
     _placesSubscription = null;
+    _lastPlacesQuery = null;
     _requestVersion++;
     _state = _state.copyWith(
       isActive: false,
@@ -68,7 +70,7 @@ class HeaderSearchCoordinator extends ChangeNotifier {
         _loadSearchState(
           query: query,
           requestVersion: requestVersion,
-          runPlacesStage: false,
+          runPlacesStage: query.trim().isNotEmpty,
         ),
       );
     });
@@ -80,10 +82,13 @@ class HeaderSearchCoordinator extends ChangeNotifier {
     if (query.isEmpty) return;
 
     _debounce?.cancel();
-    final requestVersion = ++_requestVersion;
     await rememberQuery(query);
-    if (!_isLatestRequest(requestVersion)) return;
 
+    if (_lastPlacesQuery == query) {
+      return;
+    }
+
+    final requestVersion = ++_requestVersion;
     await _loadSearchState(
       query: query,
       requestVersion: requestVersion,
@@ -124,19 +129,11 @@ class HeaderSearchCoordinator extends ChangeNotifier {
     required bool runPlacesStage,
   }) async {
     final personalPrompts = _repository.buildPersonalPrompts();
-    final inlineCompletion = query.trim().isEmpty
-        ? null
-        : _repository.buildInlineCompletion(
-            query: query,
-            recentQueries: _state.recentQueries,
-            personalPrompts: personalPrompts,
-          );
-
     _state = _state.copyWith(
       query: query,
       result: HeaderSearchResultModel(
         query: query,
-        inlineCompletion: inlineCompletion,
+        inlineCompletion: null,
         quickSuggestions: _state.result.quickSuggestions,
         placeItems: const [],
         isLoading: runPlacesStage,
@@ -190,6 +187,7 @@ class HeaderSearchCoordinator extends ChangeNotifier {
     // supersedes the old one — we don't want late emissions from a stale
     // search overwriting fresh results.
     _placesSubscription?.cancel();
+    _lastPlacesQuery = query;
     _placesSubscription = _repository.searchGooglePlaces(query: query).listen(
       (items) {
         if (!_isLatestRequest(requestVersion)) return;

@@ -544,42 +544,51 @@ class _CarouselCard extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (walkEta != null) ...[
-                                const SizedBox(width: 8),
-                                const Icon(
-                                  Icons.directions_walk_rounded,
-                                  size: 12,
-                                  color: PinitColors.mute,
+                          Flexible(
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (walkEta != null) ...[
+                                      const SizedBox(width: 8),
+                                      const Icon(
+                                        Icons.directions_walk_rounded,
+                                        size: 12,
+                                        color: PinitColors.mute,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        walkEta,
+                                        style: GoogleFonts.dmSans(
+                                          fontSize: 10,
+                                          color: PinitColors.mute,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: 0.2,
+                                        ),
+                                      ),
+                                    ],
+                                    if (location.rating != null) ...[
+                                      const SizedBox(width: 6),
+                                      _CompactRating(
+                                        rating: location.rating!,
+                                        reviewCount: location.userRatingsTotal,
+                                      ),
+                                    ],
+                                    if (location.matchScore != null &&
+                                        location.matchScore! > 0.1) ...[
+                                      const SizedBox(width: 6),
+                                      _MatchBadge(
+                                        score: (location.matchScore! * 100)
+                                            .round(),
+                                      ),
+                                    ],
+                                  ],
                                 ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  walkEta,
-                                  style: GoogleFonts.dmSans(
-                                    fontSize: 10,
-                                    color: PinitColors.mute,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 0.2,
-                                  ),
-                                ),
-                              ],
-                              if (location.rating != null) ...[
-                                const SizedBox(width: 6),
-                                _CompactRating(
-                                  rating: location.rating!,
-                                  reviewCount: location.userRatingsTotal,
-                                ),
-                              ],
-                              if (location.matchScore != null &&
-                                  location.matchScore! > 0.1) ...[
-                                const SizedBox(width: 6),
-                                _MatchBadge(
-                                    score:
-                                        (location.matchScore! * 100).round()),
-                              ],
-                            ],
+                              ),
+                            ),
                           ),
                         ],
                       ),

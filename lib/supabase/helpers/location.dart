@@ -9,6 +9,7 @@ import 'package:login/services/analytics_service.dart';
 
 import '../constants.dart';
 import '../../models/locations.dart';
+import '../../models/proximal_models.dart';
 import '../../models/video_extras.dart';
 import '../supabase_client.dart';
 
@@ -25,6 +26,48 @@ class LocationHelper {
   // Locations confirmed to have no image available (Google returned no photos).
   // Persisted in-memory for the session; the DB flag prevents retries across sessions.
   static final Set<int> _noImageAvailable = {};
+
+  @visibleForTesting
+  static String? photoResourceNameFor(Map<String, dynamic> photo) {
+    final name = photo['name']?.toString().trim();
+    if (name != null && name.isNotEmpty) return name;
+
+    final legacyReference = photo['photo_reference']?.toString().trim();
+    if (legacyReference != null && legacyReference.isNotEmpty) {
+      return legacyReference;
+    }
+
+    return null;
+  }
+
+  @visibleForTesting
+  static Uri photoMediaUriFor(
+    String photoReference, {
+    required String apiKey,
+  }) {
+    if (photoReference.startsWith('places/')) {
+      return Uri.https(
+        'places.googleapis.com',
+        '/v1/$photoReference/media',
+        {
+          'maxHeightPx': '400',
+          'maxWidthPx': '400',
+          'key': apiKey,
+        },
+      );
+    }
+
+    return Uri.https(
+      'maps.googleapis.com',
+      '/maps/api/place/photo',
+      {
+        'maxheight': '400',
+        'maxwidth': '400',
+        'photoreference': photoReference,
+        'key': apiKey,
+      },
+    );
+  }
 
   // ==================== CACHING LAYER ====================
   // In-memory cache for locations with TTL
@@ -686,6 +729,127 @@ class LocationHelper {
     }
   }
 
+  Future<Map<int, List<FriendSave>>> getFriendSavesForLocationIds(
+    List<int> locationIds,
+  ) async {
+    try {
+      final user = SupabaseClientManager().currentUser;
+      if (user == null) {
+        return const {};
+      }
+
+      final normalizedLocationIds = locationIds
+          .where((locationId) => locationId > 0)
+          .toSet()
+          .toList(growable: false);
+      if (normalizedLocationIds.isEmpty) {
+        return const {};
+      }
+
+      final friendResults = await Future.wait([
+        _client
+            .from(SupabaseConstants.tableUserFriends)
+            .select(SupabaseConstants.columnFolloweeId)
+            .eq(SupabaseConstants.columnFollowerId, user.id)
+            .eq(
+              SupabaseConstants.columnStatus,
+              SupabaseConstants.relationshipStatusAccepted,
+            ),
+        _client
+            .from(SupabaseConstants.tableUserFriends)
+            .select(SupabaseConstants.columnFollowerId)
+            .eq(SupabaseConstants.columnFolloweeId, user.id)
+            .eq(
+              SupabaseConstants.columnStatus,
+              SupabaseConstants.relationshipStatusAccepted,
+            ),
+      ]);
+
+      final followingIds = (friendResults[0] as List)
+          .map((row) => row[SupabaseConstants.columnFolloweeId]?.toString())
+          .whereType<String>()
+          .toSet();
+      final followerIds = (friendResults[1] as List)
+          .map((row) => row[SupabaseConstants.columnFollowerId]?.toString())
+          .whereType<String>()
+          .toSet();
+      final friendIds = followingIds.intersection(followerIds);
+      if (friendIds.isEmpty) {
+        return const {};
+      }
+
+      final response = await _client
+          .from(SupabaseConstants.tableUserLocationActions)
+          .select(
+            '${SupabaseConstants.columnLocationId},'
+            '${SupabaseConstants.columnUserId},'
+            '${SupabaseConstants.columnAction},'
+            '${SupabaseConstants.columnCreatedAt},'
+            '${SupabaseConstants.tableUsers}('
+            '${SupabaseConstants.name},'
+            '${SupabaseConstants.columnUsername},'
+            '${SupabaseConstants.columnProfileImageUrl}'
+            ')',
+          )
+          .inFilter(SupabaseConstants.columnLocationId, normalizedLocationIds)
+          .inFilter(SupabaseConstants.columnUserId, friendIds.toList())
+          .eq(SupabaseConstants.columnAction, SupabaseConstants.actionSave)
+          .eq(SupabaseConstants.columnAcked, true)
+          .order(SupabaseConstants.columnCreatedAt, ascending: false);
+
+      final friendSavesByLocationId = <int, List<FriendSave>>{};
+      final seenFriendIdsByLocationId = <int, Set<String>>{};
+      for (final row in response as List) {
+        if (row is! Map) continue;
+
+        final locationId =
+            (row[SupabaseConstants.columnLocationId] as num?)?.toInt();
+        final friendId = row[SupabaseConstants.columnUserId]?.toString();
+        if (locationId == null || friendId == null || friendId.isEmpty) {
+          continue;
+        }
+
+        final seenFriendIds =
+            seenFriendIdsByLocationId.putIfAbsent(locationId, () => <String>{});
+        if (!seenFriendIds.add(friendId)) {
+          continue;
+        }
+
+        final profileData = row[SupabaseConstants.tableUsers];
+        final profile = profileData is Map
+            ? Map<String, dynamic>.from(profileData)
+            : const <String, dynamic>{};
+        final friendName = profile[SupabaseConstants.name]?.toString().trim();
+        final username =
+            profile[SupabaseConstants.columnUsername]?.toString().trim();
+
+        friendSavesByLocationId.putIfAbsent(locationId, () => []).add(
+              FriendSave(
+                friendId: friendId,
+                friendName: friendName?.isNotEmpty == true
+                    ? friendName!
+                    : (username?.isNotEmpty == true ? username! : 'Friend'),
+                friendUsername: username?.isNotEmpty == true ? username : null,
+                friendProfileImageUrl:
+                    profile[SupabaseConstants.columnProfileImageUrl]
+                        ?.toString(),
+                actionType: row[SupabaseConstants.columnAction]?.toString() ??
+                    SupabaseConstants.actionSave,
+                timestamp:
+                    row[SupabaseConstants.columnCreatedAt]?.toString() ?? '',
+              ),
+            );
+      }
+
+      return friendSavesByLocationId;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error getting friend saves for search locations: $e');
+      }
+      return const {};
+    }
+  }
+
   String? _storedLocationImageUrl(Map<String, dynamic> locationData) {
     final locationId = locationData[SupabaseConstants.columnLocationId] as int?;
     if (locationId != null &&
@@ -1133,7 +1297,7 @@ class LocationHelper {
           '[Image] [$locationId] Using ${photos.length} cached photo ref(s) — skipping Place Details.');
     }
 
-    final firstReference = photos[0]['name'] as String?;
+    final firstReference = photoResourceNameFor(photos[0]);
     if (firstReference == null || firstReference.isEmpty) return null;
 
     final permanentUrl =
@@ -1311,7 +1475,7 @@ class LocationHelper {
     bool primaryWasFetched = false;
     final futures = <Future<void>>[];
     for (final i in needsFetch) {
-      final ref = photosJson[i]['name'] as String?;
+      final ref = photoResourceNameFor(photosJson[i]);
       if (ref == null || ref.isEmpty) continue;
 
       futures.add(() async {
@@ -1337,7 +1501,7 @@ class LocationHelper {
     // we had to actually fetch the primary; otherwise image_stored was
     // already true and the photos jsonb is already persisted.
     if (primaryWasFetched) {
-      final primaryRef = photosJson[0]['name'] as String?;
+      final primaryRef = photoResourceNameFor(photosJson[0]);
       try {
         await _client.rpc('mark_location_image_uploaded', params: {
           'p_location_id': locationId,
@@ -1401,17 +1565,9 @@ class LocationHelper {
 
     for (final photo in location.photos ?? const <Map<String, dynamic>>[]) {
       if (urls.length >= maxPhotos) break;
-      final ref = photo['photo_reference']?.toString();
+      final ref = photoResourceNameFor(photo);
       if (ref == null || ref.isEmpty) continue;
-      final url = Uri.https(
-        'maps.googleapis.com',
-        '/maps/api/place/photo',
-        {
-          'maxwidth': '1200',
-          'photoreference': ref,
-          'key': apiKey,
-        },
-      ).toString();
+      final url = photoMediaUriFor(ref, apiKey: apiKey).toString();
       if (!urls.contains(url)) {
         urls.add(url);
       }
@@ -1495,8 +1651,7 @@ class LocationHelper {
         return null;
       }
 
-      final url =
-          'https://places.googleapis.com/v1/$photoReference/media?maxHeightPx=400&maxWidthPx=400&key=$apiKey';
+      final url = photoMediaUriFor(photoReference, apiKey: apiKey).toString();
 
       // Create a client to manually handle redirects
       final client = http.Client();

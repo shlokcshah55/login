@@ -786,6 +786,7 @@ class LocationModel {
     String? savedFrom,
     String? savedMethod,
     VideoExtras? videoExtras,
+    List<FriendSave>? friendSaves,
   }) {
     return LocationModel(
       locationId: locationId ?? this.locationId,
@@ -870,6 +871,7 @@ class LocationModel {
       savedFrom: savedFrom ?? this.savedFrom,
       savedMethod: savedMethod ?? this.savedMethod,
       videoExtras: videoExtras ?? this.videoExtras,
+      friendSaves: friendSaves ?? this.friendSaves,
     );
   }
 
@@ -1087,9 +1089,8 @@ class LocationModel {
       print('🧑‍🤝‍🧑 [toMarker] $name: '
           '$loadedCount/${friendAvatarImages.length} avatars decoded');
       friendInitials = shown.map((f) => f.friendName).toList();
-      friendAvatarKey = shown
-          .map((f) => f.friendProfileImageUrl ?? f.friendId)
-          .join('|');
+      friendAvatarKey =
+          shown.map((f) => f.friendProfileImageUrl ?? f.friendId).join('|');
     }
 
     final imageBytes = await PinitMarkers.createPinitMarker(

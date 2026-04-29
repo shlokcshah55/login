@@ -423,8 +423,6 @@ class _SearchOverlayState extends State<_SearchOverlay>
                           _ExpandedSearchField(
                             controller: widget.controller,
                             focusNode: widget.focusNode,
-                            inlineCompletion:
-                                widget.state.result.inlineCompletion,
                             onChanged: widget.onQueryChanged,
                             onDismiss: widget.onDismiss,
                             onSubmitted: widget.onSearchSubmitted,
@@ -566,7 +564,6 @@ class _BackdropOrb extends StatelessWidget {
 class _ExpandedSearchField extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
-  final String? inlineCompletion;
   final ValueChanged<String> onChanged;
   final VoidCallback onDismiss;
   final VoidCallback? onSubmitted;
@@ -574,7 +571,6 @@ class _ExpandedSearchField extends StatelessWidget {
   const _ExpandedSearchField({
     required this.controller,
     required this.focusNode,
-    required this.inlineCompletion,
     required this.onChanged,
     required this.onDismiss,
     required this.onSubmitted,
@@ -615,48 +611,28 @@ class _ExpandedSearchField extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Stack(
-              alignment: Alignment.centerLeft,
-              children: [
-                if (inlineCompletion != null &&
-                    inlineCompletion!.isNotEmpty &&
-                    controller.text.isNotEmpty)
-                  IgnorePointer(
-                    child: Text(
-                      inlineCompletion!,
-                      key: const Key('header_search_inline_completion'),
-                      style: AppTypography.sans(
-                        fontSize: 15,
-                        color: pinit.PinitColors.mute.withValues(alpha: 0.56),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                TextField(
-                  key: const Key('header_search_text_field'),
-                  controller: controller,
-                  focusNode: focusNode,
-                  cursorColor: pinit.PinitColors.aubergine,
-                  textInputAction: TextInputAction.search,
-                  style: AppTypography.sans(
-                    fontSize: 15,
-                    color: pinit.PinitColors.aubergine,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Search places',
-                    hintStyle: AppTypography.sans(
-                      fontSize: 15,
-                      color: pinit.PinitColors.mute,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    border: InputBorder.none,
-                  ),
-                  onChanged: onChanged,
-                  onSubmitted:
-                      onSubmitted != null ? (_) => onSubmitted!() : null,
+            child: TextField(
+              key: const Key('header_search_text_field'),
+              controller: controller,
+              focusNode: focusNode,
+              cursorColor: pinit.PinitColors.aubergine,
+              textInputAction: TextInputAction.search,
+              style: AppTypography.sans(
+                fontSize: 15,
+                color: pinit.PinitColors.aubergine,
+                fontWeight: FontWeight.w700,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Search places',
+                hintStyle: AppTypography.sans(
+                  fontSize: 15,
+                  color: pinit.PinitColors.mute,
+                  fontWeight: FontWeight.w500,
                 ),
-              ],
+                border: InputBorder.none,
+              ),
+              onChanged: onChanged,
+              onSubmitted: onSubmitted != null ? (_) => onSubmitted!() : null,
             ),
           ),
           const SizedBox(width: 8),
@@ -813,8 +789,8 @@ class _PlaceResultsListState extends State<_PlaceResultsList> {
           action == _InlineSearchAction.add) {
         _optimisticallySavedItemIds.add(item.id);
       }
-      _busyItemId = action == _InlineSearchAction.add ? item.id : null;
-      _busyAction = action == _InlineSearchAction.add ? action : null;
+      _busyItemId = item.id;
+      _busyAction = action;
     });
 
     widget.onPlaceActionTriggered?.call(item);
@@ -1112,7 +1088,7 @@ class _SearchResultListTile extends StatelessWidget {
         isWavy ? pinit.PinitColors.accent : pinit.PinitColors.aubergine;
 
     return SizedBox(
-      height: 86,
+      height: 96,
       child: Stack(
         clipBehavior: Clip.hardEdge,
         children: [
@@ -1152,26 +1128,31 @@ class _SearchResultListTile extends StatelessWidget {
               onLongPress: canPreview ? () => onPreviewStart(location!) : null,
               onLongPressEnd: canPreview ? (_) => onPreviewEnd() : null,
               child: Container(
-                height: 76,
+                height: 88,
                 decoration: BoxDecoration(
                   color: pinit.PinitColors.cream,
-                  borderRadius: BorderRadius.circular(9),
+                  borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: borderColor,
-                    width: 1.25,
+                    color: borderColor.withValues(alpha: 0.7),
+                    width: 1.2,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: borderColor,
+                      color: borderColor.withValues(alpha: 0.16),
+                      blurRadius: 16,
+                      offset: const Offset(0, 8),
+                    ),
+                    BoxShadow(
+                      color: borderColor.withValues(alpha: 0.45),
                       blurRadius: 0,
-                      offset: const Offset(3, 3),
+                      offset: const Offset(2, 2),
                     ),
                   ],
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(7.75),
+                  borderRadius: BorderRadius.circular(10.75),
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 10, 12, 10),
+                    padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
@@ -1191,7 +1172,7 @@ class _SearchResultListTile extends StatelessWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
-                              const SizedBox(height: 5),
+                              const SizedBox(height: 4),
                               Text(
                                 _vicinityText(item, location),
                                 style: GoogleFonts.dmSans(
@@ -1203,16 +1184,20 @@ class _SearchResultListTile extends StatelessWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
+                              if (_hasSearchStats(location)) ...[
+                                const SizedBox(height: 7),
+                                _SearchResultStatsRow(location: location!),
+                              ],
                             ],
                           ),
                         ),
-                        if (location?.rating != null) ...[
-                          const SizedBox(width: 10),
-                          _SearchListRating(
-                            rating: location!.rating!,
-                            reviewCount: location.userRatingsTotal,
-                          ),
-                        ],
+                        const SizedBox(width: 10),
+                        _SearchResultSaveTick(
+                          key: Key('header_search_save_tick_$keyValue'),
+                          isSaved: isSaved,
+                          isBusy: pendingAction == _InlineSearchAction.save,
+                          onTap: onSaveTap,
+                        ),
                       ],
                     ),
                   ),
@@ -1239,6 +1224,14 @@ class _SearchResultListTile extends StatelessWidget {
       return cuisine;
     }
     return 'Nearby place';
+  }
+
+  bool _hasSearchStats(LocationModel? location) {
+    if (location == null) return false;
+    return location.rating != null ||
+        ((location.matchScore ?? 0) > 0.1) ||
+        ((location.savedCount ?? 0) > 0) ||
+        location.friendSaves.isNotEmpty;
   }
 }
 
@@ -1373,54 +1366,225 @@ class _SearchActionButton extends StatelessWidget {
   }
 }
 
-class _SearchListRating extends StatelessWidget {
-  final double rating;
-  final int? reviewCount;
+class _SearchResultStatsRow extends StatelessWidget {
+  final LocationModel location;
 
-  const _SearchListRating({
-    required this.rating,
-    this.reviewCount,
+  const _SearchResultStatsRow({
+    required this.location,
   });
-
-  String _formatCount(int n) {
-    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}k';
-    return n.toString();
-  }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Icon(
-          FeatherIcons.star,
-          size: 11,
-          color: pinit.PinitColors.aubergine,
+    final chips = <Widget>[];
+
+    if (location.rating != null) {
+      chips.add(
+        _SearchMetaPill(
+          icon: FeatherIcons.star,
+          label: location.rating!.toStringAsFixed(1),
         ),
-        const SizedBox(width: 3),
-        Text(
-          rating.toStringAsFixed(1),
-          style: GoogleFonts.dmSans(
-            color: pinit.PinitColors.aubergine,
-            fontWeight: FontWeight.w800,
-            fontSize: 11,
-            height: 1.0,
-            letterSpacing: 0.2,
+      );
+    }
+
+    if ((location.matchScore ?? 0) > 0.1) {
+      chips.add(
+        _SearchMetaPill(
+          icon: FeatherIcons.zap,
+          label: '${(location.matchScore! * 100).round()}% match',
+          isEmphasized: true,
+        ),
+      );
+    }
+
+    if ((location.savedCount ?? 0) > 0) {
+      chips.add(
+        _SearchMetaPill(
+          icon: FeatherIcons.bookmark,
+          label: _formatSaves(location.savedCount!),
+        ),
+      );
+    }
+
+    if (location.friendSaves.isNotEmpty) {
+      chips.add(
+        _SearchMetaPill(
+          icon: FeatherIcons.users,
+          label: _friendSaveLabel(location),
+        ),
+      );
+    }
+
+    if (chips.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return SizedBox(
+      height: 20,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: EdgeInsets.zero,
+        itemBuilder: (context, index) => chips[index],
+        separatorBuilder: (context, index) => const SizedBox(width: 5),
+        itemCount: chips.length,
+      ),
+    );
+  }
+
+  String _formatSaves(int count) {
+    if (count == 1) return '1 save';
+    if (count >= 1000) {
+      return '${(count / 1000).toStringAsFixed(1)}k saves';
+    }
+    return '$count saves';
+  }
+
+  String _friendSaveLabel(LocationModel location) {
+    final firstName = location.friendSaves.first.friendName.trim();
+    final displayName =
+        firstName.isEmpty ? 'Friend' : firstName.split(' ').first;
+    final remaining = location.friendSaves.length - 1;
+    if (remaining <= 0) {
+      return '$displayName saved';
+    }
+    return '$displayName +$remaining saved';
+  }
+}
+
+class _SearchMetaPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isEmphasized;
+
+  const _SearchMetaPill({
+    required this.icon,
+    required this.label,
+    this.isEmphasized = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final backgroundColor = isEmphasized
+        ? pinit.PinitColors.accent.withValues(alpha: 0.18)
+        : pinit.PinitColors.creamSunk;
+    final foregroundColor =
+        isEmphasized ? pinit.PinitColors.aubergine : pinit.PinitColors.mute;
+    final borderColor = isEmphasized
+        ? pinit.PinitColors.accent.withValues(alpha: 0.7)
+        : pinit.PinitColors.creamDeep;
+
+    return Container(
+      height: 20,
+      padding: const EdgeInsets.symmetric(horizontal: 7),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: borderColor,
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 10,
+            color: foregroundColor,
           ),
-        ),
-        if (reviewCount != null && reviewCount! > 0) ...[
-          const SizedBox(width: 3),
+          const SizedBox(width: 4),
           Text(
-            '(${_formatCount(reviewCount!)})',
+            label,
             style: GoogleFonts.dmSans(
-              color: pinit.PinitColors.mute,
+              color: foregroundColor,
+              fontWeight: FontWeight.w800,
               fontSize: 10,
-              fontWeight: FontWeight.w600,
               height: 1.0,
             ),
           ),
         ],
-      ],
+      ),
+    );
+  }
+}
+
+class _SearchResultSaveTick extends StatelessWidget {
+  final bool isSaved;
+  final bool isBusy;
+  final VoidCallback onTap;
+
+  const _SearchResultSaveTick({
+    super.key,
+    required this.isSaved,
+    required this.isBusy,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final backgroundColor =
+        isSaved ? pinit.PinitColors.aubergine : pinit.PinitColors.creamSunk;
+    final foregroundColor =
+        isSaved ? pinit.PinitColors.cream : pinit.PinitColors.aubergine;
+    final borderColor =
+        isSaved ? pinit.PinitColors.aubergine : pinit.PinitColors.creamDeep;
+
+    return Tooltip(
+      message: isSaved ? 'Saved' : 'Save',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: isSaved || isBusy ? null : onTap,
+        child: AnimatedScale(
+          duration: const Duration(milliseconds: 140),
+          curve: Curves.easeOutCubic,
+          scale: isBusy ? 0.94 : 1,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            curve: Curves.easeOutCubic,
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: backgroundColor,
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(
+                color: borderColor,
+                width: 1.25,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: pinit.PinitColors.aubergine.withValues(alpha: 0.12),
+                  blurRadius: 12,
+                  offset: const Offset(0, 6),
+                ),
+                if (!isSaved)
+                  BoxShadow(
+                    color: pinit.PinitColors.aubergine.withValues(alpha: 0.42),
+                    blurRadius: 0,
+                    offset: const Offset(1.5, 1.5),
+                  ),
+              ],
+            ),
+            child: Center(
+              child: isBusy
+                  ? SizedBox(
+                      width: 15,
+                      height: 15,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation(foregroundColor),
+                      ),
+                    )
+                  : Icon(
+                      isSaved
+                          ? Icons.bookmark_rounded
+                          : Icons.bookmark_border_rounded,
+                      size: 22,
+                      color: foregroundColor,
+                    ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

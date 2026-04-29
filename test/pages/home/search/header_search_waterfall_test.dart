@@ -8,7 +8,7 @@ import 'package:login/pages/home/search/header_search_types.dart';
 import 'package:login/utils/geo_types.dart';
 
 void main() {
-  test('normal search waits for submit before running Google place search',
+  test('normal search runs Google place search on each debounced query change',
       () async {
     final repository = _FakeHeaderSearchRepository();
     final coordinator = HeaderSearchCoordinator(
@@ -20,8 +20,8 @@ void main() {
     coordinator.updateQuery('padella');
     await pumpEventQueue();
 
-    expect(repository.googleSearchQueries, isEmpty);
-    expect(coordinator.state.result.placeItems, isEmpty);
+    expect(repository.googleSearchQueries, ['padella']);
+    expect(coordinator.state.result.isLoading, isTrue);
 
     repository.quickSuggestions('padella').complete([
       SearchSuggestionItem.recentQuery('padella borough'),
@@ -32,13 +32,7 @@ void main() {
       coordinator.state.result.quickSuggestions.map((item) => item.title),
       ['padella borough'],
     );
-    expect(repository.googleSearchQueries, isEmpty);
-
-    await coordinator.submitQuery();
-    await pumpEventQueue();
-
     expect(repository.googleSearchQueries, ['padella']);
-    expect(coordinator.state.result.isLoading, isTrue);
 
     repository.googlePlaces('padella').add([
       SearchSuggestionItem.place(
@@ -58,7 +52,34 @@ void main() {
     expect(coordinator.state.result.isLoading, isFalse);
   });
 
-  test('submitted Google searches ignore stale streamed results', () async {
+  test(
+      'submit remembers query without duplicating an already-run Google search',
+      () async {
+    final repository = _FakeHeaderSearchRepository();
+    final coordinator = HeaderSearchCoordinator(
+      repository: repository,
+      debounceDuration: Duration.zero,
+    );
+
+    await coordinator.open();
+    coordinator.updateQuery('padella');
+    await pumpEventQueue();
+    repository.googlePlaces('padella').add([
+      SearchSuggestionItem.place(
+        _location(id: -1, name: 'Padella', googlePlaceId: 'google-padella'),
+      ),
+    ]);
+    await repository.googlePlaces('padella').close();
+    await pumpEventQueue();
+
+    await coordinator.submitQuery();
+    await pumpEventQueue();
+
+    expect(repository.savedQueries, ['padella']);
+    expect(repository.googleSearchQueries, ['padella']);
+  });
+
+  test('keystroke Google searches ignore stale streamed results', () async {
     final repository = _FakeHeaderSearchRepository();
     final coordinator = HeaderSearchCoordinator(
       repository: repository,
@@ -68,12 +89,8 @@ void main() {
     await coordinator.open();
     coordinator.updateQuery('pizza');
     await pumpEventQueue();
-    await coordinator.submitQuery();
-    await pumpEventQueue();
 
     coordinator.updateQuery('pasta');
-    await pumpEventQueue();
-    await coordinator.submitQuery();
     await pumpEventQueue();
 
     repository.googlePlaces('pizza').add([
@@ -111,6 +128,7 @@ class _FakeHeaderSearchRepository implements HeaderSearchRepository {
   final Map<String, StreamController<List<SearchSuggestionItem>>>
       _googlePlaces = {};
   final List<String> googleSearchQueries = <String>[];
+  final List<String> savedQueries = <String>[];
 
   Completer<List<SearchSuggestionItem>> quickSuggestions(String query) {
     return _quickSuggestions.putIfAbsent(
@@ -167,7 +185,9 @@ class _FakeHeaderSearchRepository implements HeaderSearchRepository {
   Future<LatLng?> currentProximity() async => null;
 
   @override
-  Future<void> saveRecentQuery(String query) async {}
+  Future<void> saveRecentQuery(String query) async {
+    savedQueries.add(query);
+  }
 }
 
 LocationModel _location({
