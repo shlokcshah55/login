@@ -13,12 +13,12 @@ void main() {
       );
     });
 
-    test('falls back to legacy Places photo_reference', () {
+    test('does not use legacy Places photo_reference values', () {
       expect(
         LocationHelper.photoResourceNameFor({
           'photo_reference': 'legacy-reference',
         }),
-        'legacy-reference',
+        isNull,
       );
     });
 
@@ -43,19 +43,102 @@ void main() {
       expect(uri.queryParameters['key'], 'api-key');
     });
 
-    test('builds a legacy Place Photo URI for photo_reference values', () {
-      final uri = LocationHelper.photoMediaUriFor(
-        'legacy-reference',
-        apiKey: 'api-key',
+    test('rejects non-v1 photo references', () {
+      expect(
+        () => LocationHelper.photoMediaUriFor(
+          'legacy-reference',
+          apiKey: 'api-key',
+        ),
+        throwsArgumentError,
       );
+    });
+  });
 
-      expect(uri.scheme, 'https');
-      expect(uri.host, 'maps.googleapis.com');
-      expect(uri.path, '/maps/api/place/photo');
-      expect(uri.queryParameters['maxheight'], '1600');
-      expect(uri.queryParameters['maxwidth'], '1600');
-      expect(uri.queryParameters['photoreference'], 'legacy-reference');
-      expect(uri.queryParameters['key'], 'api-key');
+  group('LocationHelper canonical photo metadata', () {
+    test('detects canonical high resolution metadata', () {
+      expect(
+        LocationHelper.hasCanonicalPhotoMetadata([
+          {
+            'name': 'places/place-id/photos/photo-id',
+            'pinit_media_max_width': 2000,
+          },
+        ]),
+        isTrue,
+      );
+    });
+
+    test('detects old format and unmarked v1 metadata as stale', () {
+      expect(
+        LocationHelper.hasCanonicalPhotoMetadata([
+          {'photo_reference': 'legacy-reference'},
+        ]),
+        isFalse,
+      );
+      expect(
+        LocationHelper.hasCanonicalPhotoMetadata([
+          {'name': 'places/place-id/photos/photo-id'},
+        ]),
+        isFalse,
+      );
+    });
+
+    test('annotates v1 photos with current media width', () {
+      expect(
+        LocationHelper.annotateCanonicalPhotos([
+          {'name': 'places/place-id/photos/photo-id', 'widthPx': 900},
+        ]),
+        [
+          {
+            'name': 'places/place-id/photos/photo-id',
+            'widthPx': 900,
+            'pinit_media_max_width': 2000,
+          },
+        ],
+      );
+    });
+  });
+
+  group('LocationHelper photo refresh decisions', () {
+    test('refetches Places metadata when photos are missing or legacy only',
+        () {
+      expect(LocationHelper.needsPlacePhotoRefresh(null), isTrue);
+      expect(LocationHelper.needsPlacePhotoRefresh(const []), isTrue);
+      expect(
+        LocationHelper.needsPlacePhotoRefresh([
+          {'photo_reference': 'legacy-reference'},
+        ]),
+        isTrue,
+      );
+    });
+
+    test('keeps unmarked v1 metadata but refreshes stored image bytes', () {
+      final photos = [
+        {'name': 'places/place-id/photos/photo-id'},
+      ];
+
+      expect(LocationHelper.needsPlacePhotoRefresh(photos), isFalse);
+      expect(LocationHelper.needsStoredPhotoRefresh(photos), isTrue);
+    });
+
+    test('does not refresh metadata or storage for canonical photos', () {
+      final photos = [
+        {
+          'name': 'places/place-id/photos/photo-id',
+          'pinit_media_max_width': 2000,
+        },
+      ];
+
+      expect(LocationHelper.needsPlacePhotoRefresh(photos), isFalse);
+      expect(LocationHelper.needsStoredPhotoRefresh(photos), isFalse);
+    });
+
+    test('does not refetch after a canonical no-photos check', () {
+      final photos = LocationHelper.canonicalNoPhotosCheckedMetadata();
+
+      expect(LocationHelper.hasCanonicalNoPhotosCheck(photos), isTrue);
+      expect(LocationHelper.needsPlacePhotoRefresh(photos), isFalse);
+      expect(LocationHelper.needsStoredPhotoRefresh(photos), isFalse);
+      expect(LocationHelper.photoResourceNameFor(photos.single), isNull);
     });
   });
 }

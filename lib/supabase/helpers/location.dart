@@ -15,6 +15,10 @@ import '../supabase_client.dart';
 
 // Service for handling Supabase location operations
 class LocationHelper {
+  static const int _canonicalPhotoMediaMaxWidth = 2000;
+  static const String _photoMediaMaxWidthKey = 'pinit_media_max_width';
+  static const String _noPhotosCheckedKey = 'pinit_no_photos_checked';
+
   final SupabaseClient _client = SupabaseClientManager().client;
   final AnalyticsService _analyticsService = AnalyticsService();
   RealtimeChannel? _realtimeChannel;
@@ -32,11 +36,79 @@ class LocationHelper {
     final name = photo['name']?.toString().trim();
     if (name != null && name.isNotEmpty) return name;
 
-    final legacyReference = photo['photo_reference']?.toString().trim();
-    if (legacyReference != null && legacyReference.isNotEmpty) {
-      return legacyReference;
+    return null;
+  }
+
+  @visibleForTesting
+  static List<Map<String, dynamic>> annotateCanonicalPhotos(
+    List<Map<String, dynamic>> photos,
+  ) {
+    return photos.map((photo) {
+      final out = Map<String, dynamic>.from(photo);
+      out[_photoMediaMaxWidthKey] = _canonicalPhotoMediaMaxWidth;
+      return out;
+    }).toList(growable: false);
+  }
+
+  @visibleForTesting
+  static bool hasCanonicalPhotoMetadata(List<Map<String, dynamic>>? photos) {
+    if (photos == null || photos.isEmpty) return false;
+    if (hasCanonicalNoPhotosCheck(photos)) return false;
+
+    for (final photo in photos) {
+      if (photoResourceNameFor(photo) == null) return false;
+      final width = _coerceInt(photo[_photoMediaMaxWidthKey]);
+      if (width == null || width < _canonicalPhotoMediaMaxWidth) {
+        return false;
+      }
     }
 
+    return true;
+  }
+
+  @visibleForTesting
+  static bool needsPlacePhotoRefresh(List<Map<String, dynamic>>? photos) {
+    if (hasCanonicalNoPhotosCheck(photos)) return false;
+    if (photos == null || photos.isEmpty) return true;
+    return photos.any((photo) => photoResourceNameFor(photo) == null);
+  }
+
+  @visibleForTesting
+  static bool needsStoredPhotoRefresh(List<Map<String, dynamic>>? photos) {
+    if (hasCanonicalNoPhotosCheck(photos)) return false;
+    return !hasCanonicalPhotoMetadata(photos);
+  }
+
+  @visibleForTesting
+  static List<Map<String, dynamic>> canonicalNoPhotosCheckedMetadata() {
+    return [
+      {
+        _noPhotosCheckedKey: true,
+        _photoMediaMaxWidthKey: _canonicalPhotoMediaMaxWidth,
+      },
+    ];
+  }
+
+  @visibleForTesting
+  static bool hasCanonicalNoPhotosCheck(List<Map<String, dynamic>>? photos) {
+    if (photos == null || photos.isEmpty) return false;
+
+    for (final photo in photos) {
+      final checked = photo[_noPhotosCheckedKey] == true ||
+          photo[_noPhotosCheckedKey]?.toString().toLowerCase() == 'true';
+      final width = _coerceInt(photo[_photoMediaMaxWidthKey]);
+      if (checked && width != null && width >= _canonicalPhotoMediaMaxWidth) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  static int? _coerceInt(dynamic raw) {
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+    if (raw is String) return int.tryParse(raw);
     return null;
   }
 
@@ -57,15 +129,10 @@ class LocationHelper {
       );
     }
 
-    return Uri.https(
-      'maps.googleapis.com',
-      '/maps/api/place/photo',
-      {
-        'maxheight': '1600',
-        'maxwidth': '1600',
-        'photoreference': photoReference,
-        'key': apiKey,
-      },
+    throw ArgumentError.value(
+      photoReference,
+      'photoReference',
+      'Expected a Places v1 photo resource name.',
     );
   }
 
@@ -1191,9 +1258,9 @@ class LocationHelper {
 
   /// Public entry point used by callers that only know the placeId +
   /// (optional) photo_reference hint. The photo_reference argument is kept
-  /// for signature compatibility but is ignored — stored references expire
-  /// and are unreliable, so we always drive from the cached `photos` jsonb
-  /// or (failing that) a one-time Place Details call.
+  /// for signature compatibility but is ignored. The canonical source is
+  /// Places v1 `photos[].name`; missing or legacy-only metadata triggers a
+  /// one-time v1 Details refresh before any image upload.
   Future<String?> getLocationImage(
       int locationId, String google_place_id, String? photoReference) async {
     if (_activeDownloads.containsKey(locationId)) {
@@ -1243,15 +1310,103 @@ class LocationHelper {
     }
   }
 
+  Future<void> _persistLocationPhotos(
+    int locationId,
+    List<Map<String, dynamic>> photos,
+  ) async {
+    try {
+      await _client.rpc('update_location_photos', params: {
+        'p_location_id': locationId,
+        'p_photos': photos,
+      });
+    } catch (e) {
+      if (kDebugMode) {
+        print('[Image] [$locationId] update_location_photos failed: $e');
+      }
+    }
+  }
+
+  Future<void> _markLocationImageUnavailable(
+    int locationId, {
+    bool canonicalNoPhotosChecked = false,
+  }) async {
+    _noImageAvailable.add(locationId);
+    if (canonicalNoPhotosChecked) {
+      await _persistLocationPhotos(
+        locationId,
+        canonicalNoPhotosCheckedMetadata(),
+      );
+    }
+    try {
+      await _client.rpc('mark_location_image_unavailable',
+          params: {'p_location_id': locationId});
+    } catch (_) {}
+  }
+
+  Future<_PhotoMetadataResolution?> _resolvePhotoMetadata({
+    required int locationId,
+    required String? placeId,
+    required List<Map<String, dynamic>>? cachedPhotos,
+    required String logPrefix,
+  }) async {
+    final shouldFetchPlaceDetails = needsPlacePhotoRefresh(cachedPhotos);
+    final shouldRefreshStoredPhotos = needsStoredPhotoRefresh(cachedPhotos);
+    List<Map<String, dynamic>>? photos = cachedPhotos;
+
+    if (hasCanonicalNoPhotosCheck(cachedPhotos)) {
+      if (kDebugMode) {
+        print('[$logPrefix] [$locationId] Canonical no-photo check cached.');
+      }
+      return null;
+    }
+
+    if (shouldFetchPlaceDetails) {
+      if (placeId == null || placeId.isEmpty) {
+        if (kDebugMode) {
+          print('[$logPrefix] [$locationId] No placeId for photo refresh.');
+        }
+        return null;
+      }
+
+      if (kDebugMode) {
+        print(
+            '[$logPrefix] [$locationId] Calling Place Details for canonical photos...');
+      }
+      photos = await _fetchPlacePhotos(placeId);
+      if (photos == null || photos.isEmpty) {
+        if (kDebugMode) {
+          print(
+              '[$logPrefix] [$locationId] Place Details returned no photos — marking unavailable.');
+        }
+        await _markLocationImageUnavailable(
+          locationId,
+          canonicalNoPhotosChecked: true,
+        );
+        return null;
+      }
+    } else if (kDebugMode) {
+      print(
+          '[$logPrefix] [$locationId] Using ${photos?.length ?? 0} cached v1 photo ref(s).');
+    }
+
+    if (photos == null || photos.isEmpty) return null;
+
+    return _PhotoMetadataResolution(
+      photos: annotateCanonicalPhotos(photos),
+      shouldRefreshStoredPhotos:
+          shouldFetchPlaceDetails || shouldRefreshStoredPhotos,
+    );
+  }
+
   /// Core download pipeline. Guaranteed to be called at most once per
   /// location-per-session because every public entry point wraps it in
   /// `_activeDownloads`. Flow:
   ///
-  ///   1. Pick the source for photo resource names, in priority order:
-  ///        a. cachedPhotos passed in from a list row (zero Google cost)
-  ///        b. Place Details API (1 billable call)
+  ///   1. Resolve canonical Places v1 photo resource names:
+  ///        a. use cached `photos[].name` when already available
+  ///        b. call Place Details when metadata is missing or legacy-only
   ///   2. If no photos available -> mark_location_image_unavailable, bail.
-  ///   3. Download photo[0] via the Media API, upload as `{id}.jpg`.
+  ///   3. Download photo[0] via the high-res Media API, upload as `{id}.jpg`.
   ///   4. Persist photos + flag via `mark_location_image_uploaded` RPC.
   ///
   /// After this succeeds, `image_stored=true` so every future list fetch
@@ -1261,36 +1416,15 @@ class LocationHelper {
     required String placeId,
     List<Map<String, dynamic>>? cachedPhotos,
   }) async {
-    List<Map<String, dynamic>>? photos = cachedPhotos;
+    final resolution = await _resolvePhotoMetadata(
+      locationId: locationId,
+      placeId: placeId,
+      cachedPhotos: cachedPhotos,
+      logPrefix: 'Image',
+    );
+    if (resolution == null) return null;
 
-    if (photos == null || photos.isEmpty) {
-      if (placeId.isEmpty) {
-        if (kDebugMode) {
-          print('[Image] [$locationId] No placeId and no cached photos.');
-        }
-        return null;
-      }
-      if (kDebugMode) {
-        print(
-            '[Image] [$locationId] Calling Place Details for place $placeId...');
-      }
-      photos = await _fetchPlacePhotos(placeId);
-      if (photos == null || photos.isEmpty) {
-        if (kDebugMode) {
-          print(
-              '[Image] [$locationId] Place Details returned no photos — marking unavailable.');
-        }
-        _noImageAvailable.add(locationId);
-        try {
-          await _client.rpc('mark_location_image_unavailable',
-              params: {'p_location_id': locationId});
-        } catch (_) {}
-        return null;
-      }
-    } else if (kDebugMode) {
-      print(
-          '[Image] [$locationId] Using ${photos.length} cached photo ref(s) — skipping Place Details.');
-    }
+    final photos = resolution.photos;
 
     final firstReference = photoResourceNameFor(photos[0]);
     if (firstReference == null || firstReference.isEmpty) return null;
@@ -1381,38 +1515,21 @@ class LocationHelper {
       } catch (_) {}
     }
 
-    // ─── Resolve photos metadata (Place Details only if jsonb empty) ────
-    List<Map<String, dynamic>>? photosJson = location.photos;
-    if (photosJson == null || photosJson.isEmpty) {
-      final placeId = location.googlePlaceId;
-      if (placeId == null || placeId.isEmpty) {
-        if (kDebugMode) {
-          print('[Gallery] [$locationId] No photos and no place_id.');
-        }
-        if (location.imageStored == true) {
-          final only = [bucket.getPublicUrl('$locationId.jpg')];
-          onPartial?.call(only);
-          return only;
-        }
-        return const [];
+    final resolution = await _resolvePhotoMetadata(
+      locationId: locationId,
+      placeId: location.googlePlaceId,
+      cachedPhotos: location.photos,
+      logPrefix: 'Gallery',
+    );
+    if (resolution == null) {
+      if (location.imageStored == true) {
+        final only = [bucket.getPublicUrl('$locationId.jpg')];
+        onPartial?.call(only);
+        return only;
       }
-      if (kDebugMode) {
-        print('[Gallery] [$locationId] Calling Place Details (one-time)...');
-      }
-      photosJson = await _fetchPlacePhotos(placeId);
-      if (photosJson == null || photosJson.isEmpty) {
-        if (kDebugMode) {
-          print(
-              '[Gallery] [$locationId] Place Details returned no photos — marking unavailable.');
-        }
-        _noImageAvailable.add(locationId);
-        try {
-          await _client.rpc('mark_location_image_unavailable',
-              params: {'p_location_id': locationId});
-        } catch (_) {}
-        return const [];
-      }
+      return const [];
     }
+    final photosJson = resolution.photos;
 
     final desired =
         photosJson.length < maxPhotos ? photosJson.length : maxPhotos;
@@ -1438,10 +1555,12 @@ class LocationHelper {
     }
 
     // ─── Seed anything we can resolve for free from storage ─────────────
-    if (location.imageStored == true) {
+    if (location.imageStored == true && !resolution.shouldRefreshStoredPhotos) {
       results[0] = bucket.getPublicUrl('$locationId.jpg');
     }
-    var alreadyStored = location.extraPhotosStored ?? 0;
+    var alreadyStored = resolution.shouldRefreshStoredPhotos
+        ? 0
+        : location.extraPhotosStored ?? 0;
     if (alreadyStored > desired - 1) alreadyStored = desired - 1;
     for (var i = 1; i <= alreadyStored; i++) {
       results[i] = bucket.getPublicUrl('${locationId}_$i.jpg');
@@ -1745,5 +1864,15 @@ class _CachedLocation {
   _CachedLocation({
     required this.location,
     required this.cachedAt,
+  });
+}
+
+class _PhotoMetadataResolution {
+  final List<Map<String, dynamic>> photos;
+  final bool shouldRefreshStoredPhotos;
+
+  const _PhotoMetadataResolution({
+    required this.photos,
+    required this.shouldRefreshStoredPhotos,
   });
 }
