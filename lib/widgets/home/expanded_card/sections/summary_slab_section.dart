@@ -61,10 +61,7 @@ class SummarySlabSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasMatch = match.score > 0;
     final hasVicinity = location.vicinity != null;
-    final isFromTikTok = ((location.savedMethod ?? '').toLowerCase() ==
-                'tiktok' ||
-            (location.savedMethod ?? '').toLowerCase() == 'instagram') &&
-        (location.savedFrom ?? '').trim().isNotEmpty;
+    final hasSourceUrl = (location.savedFrom ?? '').trim().isNotEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -72,7 +69,7 @@ class SummarySlabSection extends StatelessWidget {
         // Provenance — "Saved from this TikTok" flash badge sits above
         // the identity so the source is the first thing the user sees
         // when re-opening a card they pinned from a video.
-        if (isFromTikTok) ...[
+        if (hasSourceUrl) ...[
           Align(
             alignment: Alignment.centerLeft,
             child: SavedFromBadge(

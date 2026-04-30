@@ -42,8 +42,7 @@ class DetailsSection extends StatelessWidget {
 
     // Website
     if (location.website != null && location.website!.isNotEmpty) {
-      final host =
-          Uri.tryParse(location.website!)?.host ?? 'Visit website';
+      final host = Uri.tryParse(location.website!)?.host ?? 'Visit website';
       items.add(_DetailItem(
         icon: Icons.language_rounded,
         label: 'Website',

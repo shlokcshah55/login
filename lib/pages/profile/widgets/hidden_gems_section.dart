@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:login/pages/profile/widgets/location_mosaic_grid.dart';
 import 'pinit_colors.dart';
 
 // ─────────────────────────────────────────────────────────────
@@ -17,31 +18,40 @@ class _VibeTagStyle {
 }
 
 const Map<String, _VibeTagStyle> _vibeStyles = {
-  'cafe':             _VibeTagStyle('Café',        FeatherIcons.coffee,       Color(0xFFA0522D)),
-  'casual':           _VibeTagStyle('Casual',       FeatherIcons.smile,        Color(0xFF5B9BD5)),
-  'cozy':             _VibeTagStyle('Cozy',         FeatherIcons.home,         Color(0xFFE8915A)),
-  'coffee_shop':      _VibeTagStyle('Coffee',       FeatherIcons.coffee,       Color(0xFF6F4E37)),
-  'bar':              _VibeTagStyle('Bar',          FeatherIcons.moon,         Color(0xFF7B68EE)),
-  'elegant':          _VibeTagStyle('Elegant',      FeatherIcons.feather,      Color(0xFFB8860B)),
-  'fine_dining':      _VibeTagStyle('Fine Dining',  FeatherIcons.award,        Color(0xFFC9A96E)),
-  'food_truck':       _VibeTagStyle('Food Truck',   FeatherIcons.truck,        Color(0xFFFF6347)),
-  'hole_in_the_wall': _VibeTagStyle('Hidden Gem',   FeatherIcons.key,          Color(0xFFCD853F)),
-  'late_night':       _VibeTagStyle('Late Night',   FeatherIcons.moon,         Color(0xFF483D8B)),
-  'live_music':       _VibeTagStyle('Live Music',   FeatherIcons.music,        Color(0xFFDC143C)),
-  'bougie':            _VibeTagStyle('Bougie',     FeatherIcons.star,         Color(0xFFFFD700)),
-  'modern':           _VibeTagStyle('Modern',       FeatherIcons.zap,          Color(0xFF00CED1)),
-  'fast_food':        _VibeTagStyle('Fast Food',    FeatherIcons.fastForward,  Color(0xFFFF4500)),
-  'quiet':            _VibeTagStyle('Quiet',        FeatherIcons.volumeX,      Color(0xFF8FBC8F)),
-  'romantic':         _VibeTagStyle('Romantic',     FeatherIcons.heart,        Color(0xFFFF69B4)),
-  'sports_bar':       _VibeTagStyle('Sports Bar',   FeatherIcons.tv,           Color(0xFF228B22)),
-  'trendy':           _VibeTagStyle('Trendy',       FeatherIcons.trendingUp,   Color(0xFFFF1493)),
-  'takeout_friendly': _VibeTagStyle('Takeaway',     FeatherIcons.package,      Color(0xFF20B2AA)),
-  'pub':              _VibeTagStyle('Pub',          FeatherIcons.home,         Color(0xFF8B4513)),
-  'shop':             _VibeTagStyle('Shop',        FeatherIcons.shoppingCart, Color(0xFF3CB371)),
-  'brunch':           _VibeTagStyle('Brunch',       FeatherIcons.sun,          Color(0xFFFFA07A)),
-  'outdoor_dining':   _VibeTagStyle('Outdoor',      FeatherIcons.wind,         Color(0xFF87CEEB)),
-  'wavy':             _VibeTagStyle('Wavy',         FeatherIcons.activity,     Color(0xFF6C5CE7)),
-  'bossman':          _VibeTagStyle('Bossman',      FeatherIcons.shield,       Color(0xFF636E72)),
+  'cafe': _VibeTagStyle('Café', FeatherIcons.coffee, Color(0xFFA0522D)),
+  'casual': _VibeTagStyle('Casual', FeatherIcons.smile, Color(0xFF5B9BD5)),
+  'cozy': _VibeTagStyle('Cozy', FeatherIcons.home, Color(0xFFE8915A)),
+  'coffee_shop':
+      _VibeTagStyle('Coffee', FeatherIcons.coffee, Color(0xFF6F4E37)),
+  'bar': _VibeTagStyle('Bar', FeatherIcons.moon, Color(0xFF7B68EE)),
+  'elegant': _VibeTagStyle('Elegant', FeatherIcons.feather, Color(0xFFB8860B)),
+  'fine_dining':
+      _VibeTagStyle('Fine Dining', FeatherIcons.award, Color(0xFFC9A96E)),
+  'food_truck':
+      _VibeTagStyle('Food Truck', FeatherIcons.truck, Color(0xFFFF6347)),
+  'hole_in_the_wall':
+      _VibeTagStyle('Hidden Gem', FeatherIcons.key, Color(0xFFCD853F)),
+  'late_night':
+      _VibeTagStyle('Late Night', FeatherIcons.moon, Color(0xFF483D8B)),
+  'live_music':
+      _VibeTagStyle('Live Music', FeatherIcons.music, Color(0xFFDC143C)),
+  'bougie': _VibeTagStyle('Bougie', FeatherIcons.star, Color(0xFFFFD700)),
+  'modern': _VibeTagStyle('Modern', FeatherIcons.zap, Color(0xFF00CED1)),
+  'fast_food':
+      _VibeTagStyle('Fast Food', FeatherIcons.fastForward, Color(0xFFFF4500)),
+  'quiet': _VibeTagStyle('Quiet', FeatherIcons.volumeX, Color(0xFF8FBC8F)),
+  'romantic': _VibeTagStyle('Romantic', FeatherIcons.heart, Color(0xFFFF69B4)),
+  'sports_bar': _VibeTagStyle('Sports Bar', FeatherIcons.tv, Color(0xFF228B22)),
+  'trendy': _VibeTagStyle('Trendy', FeatherIcons.trendingUp, Color(0xFFFF1493)),
+  'takeout_friendly':
+      _VibeTagStyle('Takeaway', FeatherIcons.package, Color(0xFF20B2AA)),
+  'pub': _VibeTagStyle('Pub', FeatherIcons.home, Color(0xFF8B4513)),
+  'shop': _VibeTagStyle('Shop', FeatherIcons.shoppingCart, Color(0xFF3CB371)),
+  'brunch': _VibeTagStyle('Brunch', FeatherIcons.sun, Color(0xFFFFA07A)),
+  'outdoor_dining':
+      _VibeTagStyle('Outdoor', FeatherIcons.wind, Color(0xFF87CEEB)),
+  'wavy': _VibeTagStyle('Wavy', FeatherIcons.activity, Color(0xFF6C5CE7)),
+  'bossman': _VibeTagStyle('Bossman', FeatherIcons.shield, Color(0xFF636E72)),
 };
 
 /// Places this user saved early, before the hype.
@@ -108,6 +118,70 @@ class HiddenGemsSection extends StatelessWidget {
             itemCount: locations.length,
             itemBuilder: (context, index) =>
                 _HiddenGemCard(location: locations[index]),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class HottestSharedPlacesSection extends StatelessWidget {
+  final List<LocationModel> locations;
+
+  const HottestSharedPlacesSection({
+    super.key,
+    required this.locations,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (locations.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'COMMON SHARED PLACES',
+                style: GoogleFonts.dmSans(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: PinitColors.aubergineSoft,
+                  letterSpacing: 0.12 * 11,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Hottest shared places',
+                style: TextStyle(
+                  fontFamily: 'Rova',
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: PinitColors.aubergine,
+                  letterSpacing: 1.0,
+                  height: 1.05,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Top places people are sharing videos from',
+                style: GoogleFonts.dmSans(
+                  fontSize: 13,
+                  color: PinitColors.aubergineSoft,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: LocationMosaicGrid(
+            locations: locations,
+            resolveSharedVideoUrlOnOpen: true,
           ),
         ),
       ],

@@ -349,9 +349,11 @@ class HomeViewModel extends ChangeNotifier {
     _syncBottomNavVisibilityForSearch();
   }
 
-  void closeHeaderSearch() {
+  void closeHeaderSearch({bool clearQuery = true}) {
     headerSearchFocusNode.unfocus();
-    headerSearchController.clear();
+    if (clearQuery) {
+      headerSearchController.clear();
+    }
     _headerSearchCoordinator.close();
     _syncBottomNavVisibilityForSearch();
   }

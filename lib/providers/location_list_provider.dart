@@ -1077,18 +1077,11 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
 
   Future<void> fetchHiddenGems() async {
     if (_isLoadingHiddenGems) return;
-    final position = currentPosition ?? await getCurrentLocation();
-    if (position == null) {
-      if (kDebugMode) print('[HiddenGems] Aborting — no location available');
-      return;
-    }
     _isLoadingHiddenGems = true;
     notifyListeners();
     try {
-      _hiddenGemLocations = await _supabaseService.locations.getHiddenGems(
-        latitude: position.latitude,
-        longitude: position.longitude,
-      );
+      _hiddenGemLocations =
+          await _supabaseService.locations.getHottestSharedPlaces(limit: 10);
     } finally {
       _isLoadingHiddenGems = false;
       notifyListeners();

@@ -45,7 +45,8 @@ class RecommendationsApi {
     print('   userId: $userId');
     print('   latitude: $latitude, longitude: $longitude');
     print('   radiusKm: $radiusKm, maxResults: $effectiveMaxResults');
-    print('   weights — quality: $qualityWeight, vibe: $vibeWeight, dietary: $dietaryWeight, social: $socialWeight, collaborative: $collaborativeWeight');
+    print(
+        '   weights — quality: $qualityWeight, vibe: $vibeWeight, dietary: $dietaryWeight, social: $socialWeight, collaborative: $collaborativeWeight');
     print('   filters: ${mergedFilters.isEmpty ? "(none)" : mergedFilters}');
     print('   includeTasteBreakdown: $includeTasteBreakdown');
 
@@ -53,7 +54,7 @@ class RecommendationsApi {
       userId: userId,
       latitude: latitude,
       longitude: longitude,
-      radiusKm: 8,
+      radiusKm: radiusKm,
       maxResults: effectiveMaxResults,
       qualityWeight: qualityWeight,
       vibeWeight: vibeWeight,
@@ -92,7 +93,8 @@ class RecommendationsApi {
             )
             .timeout(const Duration(seconds: 30));
 
-        print('📥 [RecommendationsApi] Response status: ${response.statusCode}');
+        print(
+            '📥 [RecommendationsApi] Response status: ${response.statusCode}');
 
         // Success or client error - don't retry
         if (response.statusCode < 500) {
@@ -101,13 +103,15 @@ class RecommendationsApi {
 
         // 500+ error - retry if we haven't exhausted attempts
         if (attempt < maxRetries) {
-          print('⚠️ [RecommendationsApi] Server error (${response.statusCode}), retrying in ${retryDelays[attempt].inMilliseconds}ms (attempt ${attempt + 1}/$maxRetries)');
+          print(
+              '⚠️ [RecommendationsApi] Server error (${response.statusCode}), retrying in ${retryDelays[attempt].inMilliseconds}ms (attempt ${attempt + 1}/$maxRetries)');
           await Future.delayed(retryDelays[attempt]);
           continue;
         }
       } on TimeoutException {
         if (attempt < maxRetries) {
-          print('⏱️ [RecommendationsApi] Request timeout, retrying (attempt ${attempt + 1}/$maxRetries)');
+          print(
+              '⏱️ [RecommendationsApi] Request timeout, retrying (attempt ${attempt + 1}/$maxRetries)');
           await Future.delayed(retryDelays[attempt]);
           continue;
         }

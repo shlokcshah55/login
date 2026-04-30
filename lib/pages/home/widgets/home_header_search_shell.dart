@@ -120,67 +120,110 @@ class _CollapsedSearchEntry extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (isMagicSearchActive) {
-      return Listener(
-        behavior: HitTestBehavior.translucent,
-        onPointerDown: (_) =>
-            context.read<BottomNavVisibilityProvider>().setLocked(true),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          decoration: BoxDecoration(
-            color: pinit.PinitColors.accent,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: pinit.PinitColors.aubergine,
-              width: 1.5,
-            ),
-            boxShadow: const [
-              BoxShadow(
-                color: pinit.PinitColors.aubergine,
-                blurRadius: 0,
-                offset: Offset(3, 3),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              const Icon(
-                FeatherIcons.zap,
-                color: pinit.PinitColors.cream,
-                size: 16,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextField(
-                  key: const Key('home_header_magic_search_field'),
-                  controller: controller,
-                  focusNode: focusNode,
-                  cursorColor: pinit.PinitColors.cream,
-                  scrollPadding: EdgeInsets.zero,
-                  textInputAction: TextInputAction.search,
-                  textCapitalization: TextCapitalization.sentences,
-                  style: AppTypography.sans(
-                    fontSize: 15,
-                    color: pinit.PinitColors.cream,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  decoration: InputDecoration(
-                    isCollapsed: true,
-                    hintText: 'E.g "COZY BRUNCH IN THE SUN"',
-                    hintStyle: GoogleFonts.dmSans(
-                      fontSize: 11,
-                      color: pinit.PinitColors.cream.withValues(alpha: 0.74),
-                      fontWeight: FontWeight.w500,
-                    ),
-                    border: InputBorder.none,
-                  ),
-                  onChanged: onChanged,
-                  onSubmitted:
-                      onSubmitted != null ? (_) => onSubmitted!() : null,
+      return AnimatedBuilder(
+        animation: Listenable.merge([controller, focusNode]),
+        builder: (context, _) {
+          final hasText = controller.text.trim().isNotEmpty;
+          final showClear = focusNode.hasFocus || hasText;
+
+          return Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: (_) =>
+                context.read<BottomNavVisibilityProvider>().setLocked(true),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              decoration: BoxDecoration(
+                color: pinit.PinitColors.accent,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: pinit.PinitColors.aubergine,
+                  width: 1.5,
                 ),
+                boxShadow: const [
+                  BoxShadow(
+                    color: pinit.PinitColors.aubergine,
+                    blurRadius: 0,
+                    offset: Offset(3, 3),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
+              child: Row(
+                children: [
+                  const Icon(
+                    FeatherIcons.zap,
+                    color: pinit.PinitColors.cream,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      key: const Key('home_header_magic_search_field'),
+                      controller: controller,
+                      focusNode: focusNode,
+                      cursorColor: pinit.PinitColors.cream,
+                      scrollPadding: EdgeInsets.zero,
+                      textInputAction: TextInputAction.search,
+                      textCapitalization: TextCapitalization.sentences,
+                      style: AppTypography.sans(
+                        fontSize: 15,
+                        color: pinit.PinitColors.cream,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      decoration: InputDecoration(
+                        isCollapsed: true,
+                        hintText: 'E.g "COZY BRUNCH IN THE SUN"',
+                        hintStyle: GoogleFonts.dmSans(
+                          fontSize: 11,
+                          color:
+                              pinit.PinitColors.cream.withValues(alpha: 0.74),
+                          fontWeight: FontWeight.w500,
+                        ),
+                        border: InputBorder.none,
+                      ),
+                      onChanged: onChanged,
+                      onSubmitted:
+                          onSubmitted != null ? (_) => onSubmitted!() : null,
+                    ),
+                  ),
+                  if (showClear) ...[
+                    const SizedBox(width: 10),
+                    GestureDetector(
+                      onTap: () {
+                        if (hasText) {
+                          controller.clear();
+                          onChanged('');
+                          focusNode.requestFocus();
+                        } else {
+                          focusNode.unfocus();
+                        }
+                      },
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color:
+                              pinit.PinitColors.cream.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color:
+                                pinit.PinitColors.cream.withValues(alpha: 0.35),
+                            width: 1.2,
+                          ),
+                        ),
+                        alignment: Alignment.center,
+                        child: const Icon(
+                          CupertinoIcons.xmark,
+                          color: pinit.PinitColors.cream,
+                          size: 14,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          );
+        },
       );
     }
 
@@ -1086,11 +1129,8 @@ class _PlaceResultsListState extends State<_PlaceResultsList> {
     }
 
     if (items.isEmpty) {
-      final trending = context
-          .watch<LocationListManager>()
-          .popularLocations
-          .take(9)
-          .toList();
+      final manager = context.watch<LocationListManager>();
+      final trending = manager.popularLocations.take(9).toList();
 
       if (!hasQuery && trending.isNotEmpty) {
         return ListView(
@@ -1098,7 +1138,7 @@ class _PlaceResultsListState extends State<_PlaceResultsList> {
           children: [
             TrendingNowSection(
               locations: trending,
-              title: 'Hot Right Now',
+              title: 'Popping Right Now',
               subtitle: 'Hot places people have saved',
               headerPadding: const EdgeInsets.fromLTRB(0, 6, 0, 14),
               gridPadding: EdgeInsets.zero,

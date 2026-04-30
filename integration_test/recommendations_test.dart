@@ -55,6 +55,7 @@ void main() {
       expect(body['user_id'], 'user-1');
       expect(body['latitude'], 51.5074);
       expect(body['longitude'], -0.1278);
+      expect((body['radius_km'] as num).toDouble(), 2.0);
       expect(body.containsKey('quality_weight'), isTrue);
       expect(body.containsKey('vibe_weight'), isTrue);
       expect(body.containsKey('dietary_weight'), isTrue);

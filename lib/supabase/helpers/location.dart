@@ -1,16 +1,16 @@
+import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:flutter/foundation.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:login/services/analytics_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../constants.dart';
 import '../../models/locations.dart';
 import '../../models/proximal_models.dart';
 import '../../models/video_extras.dart';
+import '../constants.dart';
 import '../supabase_client.dart';
 
 // Service for handling Supabase location operations
@@ -867,68 +867,44 @@ class LocationHelper {
     return null;
   }
 
-  Future<List<LocationModel>> getHiddenGems({
-    required double latitude,
-    required double longitude,
-    double radiusKm = 10,
-    int maxResults = 10,
-    int minReviews = 50,
+  Future<List<LocationModel>> getHottestSharedPlaces({
+    int limit = 10,
   }) async {
     try {
-      final uri = Uri.parse(
-        'https://pinit-recommendations-api-jkqbw4i75a-nw.a.run.app/hidden-gems',
-      ).replace(queryParameters: {
-        'latitude': latitude.toString(),
-        'longitude': longitude.toString(),
-        'radius_km': radiusKm.toString(),
-        'max_results': maxResults.toString(),
-        'min_reviews': minReviews.toString(),
-      });
-
-      if (kDebugMode) print('[HiddenGems] Requesting: $uri');
-
-      final httpResponse =
-          await http.get(uri).timeout(const Duration(seconds: 30));
-
-      if (kDebugMode) print('[HiddenGems] Status: ${httpResponse.statusCode}');
-
-      if (httpResponse.statusCode < 200 || httpResponse.statusCode >= 300) {
-        if (kDebugMode) print('[HiddenGems] Error body: ${httpResponse.body}');
-        return [];
-      }
-
-      if (kDebugMode) print('[HiddenGems] Response body: ${httpResponse.body}');
-
-      final decoded = jsonDecode(httpResponse.body);
-      final recommendations = decoded['recommendations'] as List;
-      if (kDebugMode)
-        print('[HiddenGems] Recommendations count: ${recommendations.length}');
-
-      final locationIds =
-          recommendations.map((r) => r['location_id'] as int).toList();
-      if (kDebugMode) print('[HiddenGems] Location IDs: $locationIds');
-
-      if (locationIds.isEmpty) {
-        if (kDebugMode)
-          print('[HiddenGems] No location IDs returned — empty result');
-        return [];
-      }
-
-      final response = await _client
-          .from(SupabaseConstants.tableLocations)
-          .select()
-          .inFilter(SupabaseConstants.columnLocationId, locationIds);
-
-      if (kDebugMode)
-        print('[HiddenGems] DB rows fetched: ${(response as List).length}');
-
-      return await processLocationsWithImages(response);
+      _cleanExpiredCache();
+      final response = await _client.rpc(
+        'get_hottest_shared_places',
+        params: <String, dynamic>{
+          'p_limit': limit,
+        },
+      );
+      return await processLocationsWithImages(response as List);
     } catch (e, stack) {
       if (kDebugMode) {
-        print('[HiddenGems] Exception: $e');
-        print('[HiddenGems] Stack: $stack');
+        print('[HottestSharedPlaces] Exception: $e');
+        print('[HottestSharedPlaces] Stack: $stack');
       }
       return [];
+    }
+  }
+
+  Future<String?> getLatestSharedVideoUrl({
+    required int locationId,
+  }) async {
+    try {
+      final response = await _client.rpc(
+        'get_latest_shared_video_url',
+        params: <String, dynamic>{
+          'p_location_id': locationId,
+        },
+      );
+      final url = response?.toString().trim();
+      return (url == null || url.isEmpty) ? null : url;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error getting latest shared video url: $e');
+      }
+      return null;
     }
   }
 

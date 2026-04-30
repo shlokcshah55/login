@@ -1226,7 +1226,7 @@ class _TopPanel extends StatelessWidget {
                   onSearchSubmitted: viewModel.isMagicSearchActive
                       ? () {
                           final query = viewModel.headerSearchController.text;
-                          viewModel.closeHeaderSearch();
+                          viewModel.closeHeaderSearch(clearQuery: false);
                           unawaited(viewModel.submitMagicSearch(query));
                         }
                       : () {
@@ -1295,7 +1295,7 @@ class _TopPanel extends StatelessWidget {
                 onSearchSubmitted: viewModel.isMagicSearchActive
                     ? () {
                         final query = viewModel.headerSearchController.text;
-                        viewModel.closeHeaderSearch();
+                        viewModel.closeHeaderSearch(clearQuery: false);
                         unawaited(viewModel.submitMagicSearch(query));
                       }
                     : () {

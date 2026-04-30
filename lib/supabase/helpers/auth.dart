@@ -202,9 +202,14 @@ class AuthHelper {
           print('Creating database record for new OAuth user: ${user.email}');
         }
 
-        final name =
+        String name =
             user.userMetadata?['name'] ?? user.userMetadata?['full_name'] ?? '';
-        final username = await _generateUniqueUsername(name);
+        if (name.isEmpty && user.email != null) {
+          // Apple only sends the name on first sign-in; fall back to email local part
+          final emailLocal = user.email!.split('@').first;
+          name = emailLocal.replaceAll(RegExp(r'[._+\-]'), ' ').trim();
+        }
+        final username = await _generateUniqueUsername(name, email: user.email);
 
         await _client.rpc('ensure_user_record_exists', params: {
           'p_supabase_id': user.id,
@@ -228,12 +233,15 @@ class AuthHelper {
     }
   }
 
-  /// Generate a unique username from the user's display name
+  /// Generate a unique username from the user's display name or email local part.
   /// e.g. "John Smith" → "johnsmith4821"
-  Future<String> _generateUniqueUsername(String name) async {
+  Future<String> _generateUniqueUsername(String name, {String? email}) async {
     final random = Random();
     // Clean the name: lowercase, remove non-alphanumeric, remove spaces
-    final base = name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+    String base = name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+    if (base.isEmpty && email != null) {
+      base = email.split('@').first.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+    }
     final prefix = base.isNotEmpty ? base : 'user';
 
     // Try up to 10 times to find a unique username

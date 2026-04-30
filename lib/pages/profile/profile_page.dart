@@ -140,7 +140,6 @@ class _ProfilePageState extends State<ProfilePage>
     }
 
     final savedPins = locationListManager.savedLocations.keys.toList();
-    final hiddenGemLocations = locationListManager.hiddenGemLocations;
     final collapsedHeader = _scrollOffset > 120;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
@@ -191,7 +190,6 @@ class _ProfilePageState extends State<ProfilePage>
                       child: _buildTabContent(
                         user,
                         savedPins,
-                        hiddenGemLocations,
                       ),
                     ),
                     const SliverToBoxAdapter(
@@ -214,13 +212,18 @@ class _ProfilePageState extends State<ProfilePage>
     );
   }
 
-  Widget _buildTabContent(UserModel user, List<LocationModel> savedPins,
-      List<LocationModel> hiddenGemLocations) {
+  Widget _buildTabContent(
+    UserModel user,
+    List<LocationModel> savedPins,
+  ) {
     switch (_selectedTab) {
       case 0:
         return Column(
           children: [
-            HiddenGemsSection(locations: hiddenGemLocations),
+            HottestSharedPlacesSection(
+              locations:
+                  context.watch<LocationListManager>().hiddenGemLocations,
+            ),
             const RecentActivitySection(),
           ],
         );

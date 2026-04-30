@@ -27,13 +27,27 @@ class SavedFromBadge extends StatelessWidget {
   final VoidCallback onTap;
   final String? creatorHandle;
 
-  bool get _isTikTok =>
-      (savedMethod ?? '').toLowerCase() == 'tiktok' &&
-      (sourceUrl ?? '').trim().isNotEmpty;
+  String? get _normalizedUrl {
+    final trimmed = sourceUrl?.trim();
+    if (trimmed == null || trimmed.isEmpty) return null;
+    return trimmed;
+  }
 
-  bool get _isInstagram =>
-      (savedMethod ?? '').toLowerCase() == 'instagram' &&
-      (sourceUrl ?? '').trim().isNotEmpty;
+  String get _normalizedMethod => (savedMethod ?? '').toLowerCase();
+
+  bool get _isTikTok {
+    final url = _normalizedUrl;
+    if (url == null) return false;
+    if (_normalizedMethod == 'tiktok') return true;
+    return url.toLowerCase().contains('tiktok.com');
+  }
+
+  bool get _isInstagram {
+    final url = _normalizedUrl;
+    if (url == null) return false;
+    if (_normalizedMethod == 'instagram') return true;
+    return url.toLowerCase().contains('instagram.com');
+  }
 
   String get _label {
     final handle = creatorHandle?.trim();
@@ -44,56 +58,63 @@ class SavedFromBadge extends StatelessWidget {
           ? 'Saved from @$handle\u2019s TikTok'
           : 'Saved from this TikTok';
     }
-    return hasHandle
-        ? 'Saved from @$handle\u2019s Reel'
-        : 'Saved from this Reel';
+    if (_isInstagram) {
+      return hasHandle
+          ? 'Saved from @$handle\u2019s Reel'
+          : 'Saved from this Reel';
+    }
+    return 'Source video';
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_isTikTok && !_isInstagram) return const SizedBox.shrink();
+    if (_normalizedUrl == null) return const SizedBox.shrink();
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: PinitColors.accent,
-          borderRadius: BorderRadius.circular(999),
-          boxShadow: PinitColors.subtleShadow,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.music_note_rounded,
-              size: 15,
-              color: PinitColors.cream,
-            ),
-            const SizedBox(width: 7),
-            Flexible(
-              child: Text(
+    final icon = _isTikTok
+        ? Icons.music_note_rounded
+        : (_isInstagram ? Icons.movie_creation_rounded : Icons.play_arrow);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: PinitColors.accent,
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: PinitColors.subtleShadow,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: PinitColors.cream,
+              ),
+              const SizedBox(width: 10),
+              Text(
                 _label,
                 style: GoogleFonts.dmSans(
                   fontSize: 12,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w800,
                   color: PinitColors.cream,
                   letterSpacing: 0.3,
+                  height: 1.1,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
-            ),
-            const SizedBox(width: 6),
-            const Icon(
-              Icons.open_in_new_rounded,
-              size: 13,
-              color: PinitColors.cream,
-            ),
-          ],
+              const SizedBox(width: 10),
+              const Icon(
+                Icons.open_in_new_rounded,
+                size: 14,
+                color: PinitColors.cream,
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
-

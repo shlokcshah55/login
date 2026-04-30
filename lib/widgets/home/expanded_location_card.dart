@@ -47,10 +47,12 @@ class ExpandedLocationCard extends StatefulWidget {
     super.key,
     required this.location,
     required this.onClose,
+    this.resolveSharedVideoUrlOnOpen = false,
   });
 
   final LocationModel location;
   final VoidCallback onClose;
+  final bool resolveSharedVideoUrlOnOpen;
 
   @override
   State<ExpandedLocationCard> createState() => _ExpandedLocationCardState();
@@ -102,6 +104,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   // ── TikTok video insights (lazy-loaded) ──
   VideoInsight? _videoInsight;
   final VideoInsightsHelper _videoInsightsHelper = VideoInsightsHelper();
+  String? _resolvedSharedVideoUrl;
 
   @override
   void initState() {
@@ -167,6 +170,9 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     _fetchFriendIds();
     _findSimilarPlaces();
     _fetchVideoInsight();
+    if (widget.resolveSharedVideoUrlOnOpen) {
+      _resolveSharedVideoUrl();
+    }
   }
 
   @override
@@ -549,6 +555,13 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     final sourceUrl = widget.location.savedFrom;
     if (sourceUrl == null || sourceUrl.trim().isEmpty) return;
 
+    await _fetchVideoInsightFor(sourceUrl.trim());
+  }
+
+  Future<void> _fetchVideoInsightFor(String sourceUrl) async {
+    if (sourceUrl.trim().isEmpty) return;
+    if (_videoInsight != null) return;
+
     final insight = await _videoInsightsHelper.getInsight(
       locationId: widget.location.locationId,
       sourceVideoUrl: sourceUrl,
@@ -557,6 +570,20 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     if (mounted && insight != null) {
       setState(() => _videoInsight = insight);
     }
+  }
+
+  Future<void> _resolveSharedVideoUrl() async {
+    final existing = widget.location.savedFrom;
+    if (existing != null && existing.trim().isNotEmpty) return;
+
+    final resolved = await _locationHelper.getLatestSharedVideoUrl(
+      locationId: widget.location.locationId,
+    );
+    if (!mounted) return;
+    if (resolved == null || resolved.trim().isEmpty) return;
+    final trimmed = resolved.trim();
+    setState(() => _resolvedSharedVideoUrl = trimmed);
+    unawaited(_fetchVideoInsightFor(trimmed));
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -596,7 +623,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   /// from (e.g. a TikTok video). Used by the "Saved from this TikTok"
   /// flash badge in the summary slab.
   Future<void> _openSavedFromUrl() async {
-    final url = widget.location.savedFrom;
+    final url = _resolvedSharedVideoUrl ?? widget.location.savedFrom;
     if (url == null || url.trim().isEmpty) return;
     final parsed = Uri.tryParse(url.trim());
     if (parsed == null) return;
@@ -685,8 +712,13 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final topPad = MediaQuery.of(context).padding.top;
+    final displayLocation = (_resolvedSharedVideoUrl != null &&
+            (widget.location.savedFrom == null ||
+                widget.location.savedFrom!.trim().isEmpty))
+        ? widget.location.copyWith(savedFrom: _resolvedSharedVideoUrl)
+        : widget.location;
     final isWavy =
-        widget.location.vibe != null && widget.location.vibe!.wavyScore >= 0.35;
+        displayLocation.vibe != null && displayLocation.vibe!.wavyScore >= 0.35;
 
     return Material(
       color: Colors.transparent,
@@ -739,6 +771,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                               scrollCtrl: scrollCtrl,
                               heroHeight: size.height * 0.34,
                               isWavy: isWavy,
+                              location: displayLocation,
                             ),
 
                             // Drag handle
@@ -809,6 +842,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     required ScrollController scrollCtrl,
     required double heroHeight,
     required bool isWavy,
+    required LocationModel location,
   }) {
     // Bottom inset reserves space for the persistent dock so the final
     // section remains fully readable above it. Dock chrome height plus
@@ -839,7 +873,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
             children: [
               // Layer 2 — summary slab (page backbone).
               SummarySlabSection(
-                location: widget.location,
+                location: location,
                 match: _match,
                 matchAnim: _matchAnim,
                 onAddressTap: _openInGoogleMaps,
@@ -857,7 +891,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                 const SizedBox(height: 28),
                 TikTokInsightsSection(
                   insight: _videoInsight!,
-                  videoExtras: widget.location.videoExtras,
+                  videoExtras: location.videoExtras,
                 ),
               ],
 
@@ -865,26 +899,26 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
               const SizedBox(height: 32),
 
               DetailsSection(
-                location: widget.location,
+                location: location,
                 onOpenInMaps: _openInGoogleMaps,
                 onOpenWebsite: _openWebsite,
               ),
               const SizedBox(height: 32),
 
               WhyGoSection(
-                generatedSummary: widget.location.generatedSummary,
-                editorialSummary: widget.location.editorialSummary,
-                vibe: widget.location.vibe,
+                generatedSummary: location.generatedSummary,
+                editorialSummary: location.editorialSummary,
+                vibe: location.vibe,
               ),
-              if (widget.location.recommendedDishes != null) ...[
+              if (location.recommendedDishes != null) ...[
                 const SizedBox(height: 32),
                 RecommendedDishesSection(
-                  recommendedDishes: widget.location.recommendedDishes,
+                  recommendedDishes: location.recommendedDishes,
                 ),
               ],
               const SizedBox(height: 32),
               SocialProofSection(
-                location: widget.location,
+                location: location,
                 similarPlaces: _similarPlaces,
                 onSimilarPlaceTap: _openSimilarPlace,
                 pinitReviews: _pinitReviews,

@@ -4,9 +4,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/users.dart';
-import 'package:login/models/locations.dart';
 import 'package:login/services/fcm_service.dart';
 import 'package:login/supabase/helpers/collections.dart';
 import 'package:login/supabase/service.dart';
@@ -14,9 +14,6 @@ import 'package:login/widgets/feedback/app_feedback.dart';
 import 'package:provider/provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'widgets/pinit_colors.dart';
-import 'widgets/map_preview_card.dart';
-import 'widgets/hidden_gems_section.dart';
-import 'widgets/trending_now_section.dart';
 import 'widgets/collections_grid.dart';
 
 class OtherUserProfilePage extends StatefulWidget {
@@ -36,9 +33,7 @@ class OtherUserProfilePage extends StatefulWidget {
 class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
   late ScrollController _scrollController;
   double _scrollOffset = 0.0;
-  int _selectedTab = 0;
   bool _isLoading = true;
-  List<LocationModel> _userPins = [];
   List<CollectionItem> _publicCollections = [];
   String _followStatus = 'idle'; // idle, requested, accepted, blocked
   late UserModel _user;
@@ -46,7 +41,6 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
   bool _processingRequestAction = false;
 
   final CollectionsHelper _collectionsHelper = CollectionsHelper();
-  final List<String> _tabs = ['Pins', 'Map'];
 
   @override
   void initState() {
@@ -73,24 +67,21 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
           Provider.of<SupabaseService>(context, listen: false);
 
       final results = await Future.wait([
-        supabaseService.locations
-            .getUserSavedLocations(widget.user.supabaseId!),
         supabaseService.users.getFollowStatus(widget.user.supabaseId!),
         _collectionsHelper.getUserPublicCollections(widget.user.supabaseId!),
         supabaseService.users.getUserProfileById(widget.user.supabaseId!),
         supabaseService.users.getIncomingFollowRequests(),
       ]);
 
-      final incoming = (results[4] as List<UserModel>);
+      final incoming = (results[3] as List<UserModel>);
       final hasPendingFromThisUser =
           incoming.any((u) => u.supabaseId == widget.user.supabaseId);
 
       if (mounted) {
         setState(() {
-          _userPins = results[0] as List<LocationModel>;
-          _followStatus = (results[1] as String?) ?? 'idle';
-          _publicCollections = results[2] as List<CollectionItem>;
-          final fullUser = results[3] as UserModel?;
+          _followStatus = (results[0] as String?) ?? 'idle';
+          _publicCollections = results[1] as List<CollectionItem>;
+          final fullUser = results[2] as UserModel?;
           if (fullUser != null) _user = fullUser;
           _pendingIncomingRequest = hasPendingFromThisUser;
           _isLoading = false;
@@ -404,23 +395,7 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
                           ),
                         ),
                       ),
-                      if (_publicCollections.isNotEmpty)
-                        SliverToBoxAdapter(
-                          child: _PublicCollectionsSection(
-                            collections: _publicCollections,
-                          ),
-                        ),
-                      SliverAppBar(
-                        pinned: true,
-                        elevation: 4,
-                        shadowColor:
-                            PinitColors.aubergine.withValues(alpha: 0.06),
-                        backgroundColor: PinitColors.cream,
-                        automaticallyImplyLeading: false,
-                        toolbarHeight: 20,
-                        flexibleSpace: _buildPinnedTabs(),
-                      ),
-                      SliverToBoxAdapter(child: _buildTabContent()),
+                      SliverToBoxAdapter(child: _buildEatListsSection()),
                       const SliverToBoxAdapter(child: SizedBox(height: 100)),
                     ],
                   ),
@@ -561,7 +536,7 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
   Widget _buildStatsRow() {
     return Row(
       children: [
-        _buildStat(_userPins.length.toString(), 'Pins'),
+        _buildStat(_publicCollections.length.toString(), 'Eat-Lists'),
         _buildStatDivider(),
         _buildStat(_user.followersCount.toString(), 'Followers'),
         _buildStatDivider(),
@@ -702,125 +677,55 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
     );
   }
 
-  Widget _buildPinnedTabs() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 6),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: _tabs.asMap().entries.map((entry) {
-          final isSelected = entry.key == _selectedTab;
-          final isLast = entry.key == _tabs.length - 1;
-          final icon =
-              entry.key == 0 ? Icons.push_pin_rounded : Icons.map_rounded;
+  Widget _buildEatListsSection() {
+    if (_publicCollections.isNotEmpty) {
+      return _PublicCollectionsSection(collections: _publicCollections);
+    }
 
-          return Padding(
-            padding: EdgeInsets.only(right: isLast ? 0 : 10),
-            child: GestureDetector(
-              onTap: () {
-                if (_selectedTab == entry.key) return;
-                HapticFeedback.selectionClick();
-                setState(() => _selectedTab = entry.key);
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 280),
-                curve: Curves.easeOutCubic,
-                height: 40,
-                padding: EdgeInsets.symmetric(
-                  horizontal: isSelected ? 16 : 11,
-                ),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? PinitColors.aubergine
-                      : PinitColors.creamSunk,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(
-                    color: isSelected
-                        ? PinitColors.aubergine
-                        : PinitColors.creamDeep,
-                    width: 1.5,
-                  ),
-                  boxShadow: isSelected ? PinitColors.subtleShadow : null,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      icon,
-                      size: 17,
-                      color: isSelected
-                          ? PinitColors.cream
-                          : PinitColors.aubergineSoft,
-                    ),
-                    ClipRect(
-                      child: AnimatedSize(
-                        duration: const Duration(milliseconds: 280),
-                        curve: Curves.easeOutCubic,
-                        alignment: Alignment.centerLeft,
-                        child: isSelected
-                            ? Padding(
-                                padding: const EdgeInsets.only(left: 8),
-                                child: Text(
-                                  entry.value,
-                                  style: const TextStyle(
-                                    fontFamily: 'Rova',
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w100,
-                                    color: PinitColors.cream,
-                                    letterSpacing: 0.6,
-                                  ),
-                                ),
-                              )
-                            : const SizedBox.shrink(),
-                      ),
-                    ),
-                  ],
-                ),
+    final name = (_user.name != null && _user.name!.trim().isNotEmpty)
+        ? _user.name!.trim()
+        : 'This user';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 4, 24, 40),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Eat-Lists',
+            style: TextStyle(
+              fontFamily: 'Rova',
+              fontSize: 24,
+              fontWeight: FontWeight.w100,
+              color: PinitColors.aubergine,
+              letterSpacing: 1.2,
+              height: 1.05,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Center(
+            child: SizedBox(
+              height: 160,
+              child: SvgPicture.asset(
+                'lib/assets/illustrations/Beep Beep - Campervan 2.svg',
+                fit: BoxFit.contain,
               ),
             ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildTabContent() {
-    switch (_selectedTab) {
-      case 0:
-        if (_userPins.isEmpty) return _buildEmptyState('No saved pins yet');
-        return Column(
-          children: [
-            HiddenGemsSection(locations: _userPins),
-            const SizedBox(height: 20),
-            TrendingNowSection(locations: _userPins),
-          ],
-        );
-      case 1:
-        if (_userPins.isEmpty) {
-          return _buildEmptyState('No locations to display');
-        }
-        return MapPreviewCard(savedPins: _userPins, isFullView: true);
-      default:
-        return const SizedBox.shrink();
-    }
-  }
-
-  Widget _buildEmptyState(String message) {
-    return Padding(
-      padding: const EdgeInsets.all(40),
-      child: Column(
-        children: [
-          Icon(
-            Icons.location_off_outlined,
-            size: 56,
-            color: PinitColors.mute.withValues(alpha: 0.5),
           ),
           const SizedBox(height: 16),
-          Text(
-            message,
-            style: GoogleFonts.dmSans(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: PinitColors.aubergineSoft,
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 340),
+              child: Text(
+                "$name has no eat-lists for you to see, they are either gatekeeping or don't have any. Either way tell them",
+                textAlign: TextAlign.center,
+                style: GoogleFonts.dmSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: PinitColors.aubergineSoft,
+                  height: 1.4,
+                ),
+              ),
             ),
           ),
         ],

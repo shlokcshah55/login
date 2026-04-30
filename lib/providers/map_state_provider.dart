@@ -19,6 +19,7 @@ class MapStateProvider with ChangeNotifier {
   LatLng? _lastSearchedCenter; // To track the center of the last API search
   double?
       _lastSearchedRadius; // To track the radius of the last API search (in km)
+  double? _lastSearchedZoom; // To track zoom at the last API search
   LatLng? _currentVisibleCenter;
   double _currentZoom = 15.0;
   String? _selectedMarkerId;
@@ -254,31 +255,38 @@ class MapStateProvider with ChangeNotifier {
   /// Gets the center and radius of the current visible map area
   /// Returns a map with 'center' (LatLng) and 'radius' (double in km)
   Future<Map<String, dynamic>?> getVisibleCenterAndRadius() async {
-    final bounds = await getVisibleBounds();
-    if (bounds == null) return null;
+    final map = _mapboxMap;
+    if (map == null) return null;
 
-    // Calculate center point
-    final centerLat =
-        (bounds.northeast.latitude + bounds.southwest.latitude) / 2;
-    final centerLng =
-        (bounds.northeast.longitude + bounds.southwest.longitude) / 2;
-    final center = LatLng(centerLat, centerLng);
+    try {
+      final state = await map.getCameraState();
+      final center = LatLng.fromPoint(state.center);
+      final bounds = await map.coordinateBoundsForCamera(mapbox.CameraOptions(
+        center: state.center,
+        zoom: state.zoom,
+        bearing: state.bearing,
+        pitch: state.pitch,
+      ));
+      final latLngBounds = LatLngBounds.fromCoordinateBounds(bounds);
 
-    // Calculate radius as distance from center to northeast corner
-    final rawRadius = _calculateDistance(
-      center.latitude,
-      center.longitude,
-      bounds.northeast.latitude,
-      bounds.northeast.longitude,
-    );
+      // Calculate radius as distance from center to northeast corner
+      final rawRadius = _calculateDistance(
+        center.latitude,
+        center.longitude,
+        latLngBounds.northeast.latitude,
+        latLngBounds.northeast.longitude,
+      );
 
-    // IMPORTANT: Adjust radius to account for UI elements that obscure the map
-    final adjustedRadius = rawRadius * 0.65;
+      // IMPORTANT: Adjust radius to account for UI elements that obscure the map
+      final adjustedRadius = rawRadius * 0.65;
 
-    return {
-      'center': center,
-      'radius': adjustedRadius / 1000, // Convert to km
-    };
+      return {
+        'center': center,
+        'radius': adjustedRadius / 1000, // Convert to km
+      };
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Calculate distance between two coordinates using Haversine formula
@@ -453,9 +461,13 @@ class MapStateProvider with ChangeNotifier {
     // Store previous state
     final bool wasShowingButton = _showSearchThisAreaButton;
 
-    // Show button if the center has moved significantly (more than 25% of the last searched radius)
-    final distanceThreshold = _lastSearchedRadius! * 0.25;
-    final viewDiffers = distanceKm > distanceThreshold;
+    // Show "Search this area" on meaningful pan or zoom change.
+    // Thresholds tuned to feel responsive without being jumpy.
+    final distanceThresholdKm = 0.1; // 100m
+    final zoomDelta = _lastSearchedZoom == null
+        ? 0.0
+        : (_currentZoom - _lastSearchedZoom!).abs();
+    final viewDiffers = distanceKm > distanceThresholdKm || zoomDelta > 0.1;
 
     _showSearchThisAreaButton = viewDiffers;
 
@@ -480,6 +492,7 @@ class MapStateProvider with ChangeNotifier {
   void setLastSearchedArea(LatLng center, double radiusKm) {
     _lastSearchedCenter = center;
     _lastSearchedRadius = radiusKm;
+    _lastSearchedZoom = _currentZoom;
     // Hide the button since we just searched this area
     _showSearchThisAreaButton = false;
     notifyListeners();
