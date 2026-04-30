@@ -28,11 +28,11 @@ class _DietaryStepState extends State<DietaryStep> {
   String? _error;
 
   final List<String> _spiceLabels = [
-    'Salt and Pepper\n(maybe) pls',
+    'Salt and pepper\n(maybe)',
     'I sometimes get medium\n(if milk nearby)',
-    'I like to think\nim above average',
+    'I like to think\nI\'m above average',
     'I ask for "spicy"\nat ethnic restaurants',
-    'If i can\'t handle spice\nit affects my ego',
+    'If I can\'t handle spice\nit affects my ego',
   ];
 
   @override
