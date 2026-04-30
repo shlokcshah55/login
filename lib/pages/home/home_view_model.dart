@@ -720,14 +720,15 @@ class HomeViewModel extends ChangeNotifier {
     if (_isBubbleModeActive &&
         _homeMode == HomeMode.bubble &&
         _activeBubble != null) {
-      await locationListManager.fetchBubbleRecommendations(
+      final didSearch = await locationListManager.searchBubbleArea(
         memberIds: _activeBubble!.memberIds,
         bubbleId: _activeBubble!.id,
-        latitude: center.latitude,
-        longitude: center.longitude,
+        center: center,
         radiusKm: radiusKm,
       );
-      mapStateProvider.setLastSearchedArea(center, radiusKm);
+      if (didSearch) {
+        mapStateProvider.setLastSearchedArea(center, radiusKm);
+      }
       return;
     }
 

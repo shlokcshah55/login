@@ -92,6 +92,13 @@ class _CarouselListPageState extends State<CarouselListPage> {
       case _SavedSort.none:
         return filtered;
       case _SavedSort.lastAdded:
+        filtered.sort((a, b) {
+          final aSavedAt = a.savedAt ?? a.createdAt;
+          final bSavedAt = b.savedAt ?? b.createdAt;
+          final savedCompare = bSavedAt.compareTo(aSavedAt);
+          if (savedCompare != 0) return savedCompare;
+          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        });
         return filtered;
       case _SavedSort.alphabetical:
         filtered.sort(

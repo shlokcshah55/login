@@ -7,6 +7,7 @@ import 'package:login/pages/bubbles/bubbles_search_state.dart';
 import 'package:login/themes/pinit_colors.dart';
 import 'package:login/themes/pinit_theme.dart';
 import 'package:login/widgets/chat/chat_group_tile.dart';
+import 'package:login/widgets/profile/user_card.dart';
 
 class BubblesPageView extends StatefulWidget {
   const BubblesPageView({
@@ -20,6 +21,9 @@ class BubblesPageView extends StatefulWidget {
     required this.onBubbleTap,
     required this.onPersonTap,
     this.searchDebounce = const Duration(milliseconds: 280),
+    this.suggestedUsers = const [],
+    this.isLoadingSuggestedUsers = false,
+    this.onRefreshSuggestedUsers,
   });
 
   final List<Bubble> bubbles;
@@ -31,6 +35,9 @@ class BubblesPageView extends StatefulWidget {
   final ValueChanged<Bubble> onBubbleTap;
   final ValueChanged<UserModel> onPersonTap;
   final Duration searchDebounce;
+  final List<UserModel> suggestedUsers;
+  final bool isLoadingSuggestedUsers;
+  final Future<void> Function()? onRefreshSuggestedUsers;
 
   @override
   State<BubblesPageView> createState() => _BubblesPageViewState();
@@ -383,66 +390,116 @@ class _BubblesPageViewState extends State<BubblesPageView> {
   }
 
   Widget _buildEmptyState(ThemeData theme) {
-    return Center(
+    return RefreshIndicator(
       key: const ValueKey('bubbles_empty_state'),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 28),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 96,
-              height: 96,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFFFFE6EC),
-                    Color(0xFFFFF2DB),
-                  ],
+      color: _roseAccent,
+      onRefresh: () async {
+        await widget.onRefresh();
+        await widget.onRefreshSuggestedUsers?.call();
+      },
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(28, 14, 28, 36),
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          Column(
+            children: [
+              Container(
+                width: 96,
+                height: 96,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color(0xFFFFE6EC),
+                      Color(0xFFFFF2DB),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(32),
                 ),
-                borderRadius: BorderRadius.circular(32),
-              ),
-              child: const Icon(
-                Icons.bubble_chart_rounded,
-                size: 46,
-                color: _roseAccent,
-              ),
-            ),
-            const SizedBox(height: 22),
-            Text(
-              'No bubbles yet',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w100,
-                color: const Color(0xFF5E3340),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'Create your first bubble to start sharing plans, chats, and pins with friends.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: const Color(0xFF8A6975),
-                height: 1.45,
-              ),
-            ),
-            const SizedBox(height: 20),
-            FilledButton(
-              onPressed: widget.onCreateBubble,
-              style: FilledButton.styleFrom(
-                backgroundColor: _roseAccent,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 14,
+                child: const Icon(
+                  Icons.bubble_chart_rounded,
+                  size: 46,
+                  color: _roseAccent,
                 ),
               ),
-              child: const Text('Create a Bubble'),
-            ),
-          ],
-        ),
+              const SizedBox(height: 22),
+              Text(
+                'No bubbles yet',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w100,
+                  color: const Color(0xFF5E3340),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Create your first bubble to start sharing plans, chats, and pins with friends.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: const Color(0xFF8A6975),
+                  height: 1.45,
+                ),
+              ),
+              const SizedBox(height: 20),
+              FilledButton(
+                onPressed: widget.onCreateBubble,
+                style: FilledButton.styleFrom(
+                  backgroundColor: _roseAccent,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 14,
+                  ),
+                ),
+                child: const Text('Create a Bubble'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 30),
+          _buildRecommendedPeopleSection(theme),
+        ],
       ),
+    );
+  }
+
+  Widget _buildRecommendedPeopleSection(ThemeData theme) {
+    if (widget.isLoadingSuggestedUsers && widget.suggestedUsers.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Center(
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation<Color>(_roseAccent),
+          ),
+        ),
+      );
+    }
+
+    if (widget.suggestedUsers.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Recommended people',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: const Color(0xFF5E3340),
+          ),
+        ),
+        const SizedBox(height: 12),
+        ...widget.suggestedUsers.map(
+          (user) => Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: UserCard(
+              user: user,
+              onTap: widget.onPersonTap,
+            ),
+          ),
+        ),
+      ],
     );
   }
 

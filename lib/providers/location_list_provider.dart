@@ -36,14 +36,15 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       ProximityNotificationService();
   final NaturalLanguageSearchService _naturalLanguageSearchService =
       NaturalLanguageSearchService();
-  final LocationReviewsHelper _locationReviewsHelper = LocationReviewsHelper();
+  late final LocationReviewsHelper _locationReviewsHelper =
+      LocationReviewsHelper();
 
   String? _userId;
   MapStateProvider? _mapStateProvider;
 
   // Device location state is now delegated to LocationService
   double _devicePixelRatio = 1.0; // Default value
-  final RecommendationsApi _recommendationsApi = RecommendationsApi();
+  final RecommendationsApi _recommendationsApi;
   CameraPositionData? _cameraPosition;
   LatLng? _lastSearchedCenter;
   double? _lastSearchedRadius; // in km
@@ -81,7 +82,10 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
   bool _isLoadingHiddenGems = false;
   Set<int> _beenToLocationIds = <int>{};
 
-  LocationListManager(this._googlePlacesService);
+  LocationListManager(
+    this._googlePlacesService, {
+    RecommendationsApi? recommendationsApi,
+  }) : _recommendationsApi = recommendationsApi ?? RecommendationsApi();
 
   GooglePlacesService get googlePlacesService => _googlePlacesService;
 
@@ -165,6 +169,9 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
   double? get lastSearchedRadius => _lastSearchedRadius;
   bool isLocationBeenToSync(int locationId) =>
       _beenToLocationIds.contains(locationId);
+
+  DateTime? _parseSavedActionTime(dynamic raw) =>
+      raw == null ? null : DateTime.tryParse(raw.toString());
 
   /// Clears any existing bubble locations so activating a new bubble doesn't
   /// briefly show stale results from the previously active bubble.
@@ -375,7 +382,10 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
         // New location saved
         if (record['action'] == 'save' && record['acked'] == true) {
           print('Location saved realtime: ${record['location_id']}');
-          await _addLocationToSaved(record['location_id']);
+          await _addLocationToSaved(
+            record['location_id'],
+            savedAt: _parseSavedActionTime(record['created_at']),
+          );
         }
         break;
 
@@ -390,7 +400,10 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
         if (record['action'] == 'save') {
           if (record['acked'] == true && oldRecord['acked'] == false) {
             print('Location acknowledged: ${record['location_id']}');
-            await _addLocationToSaved(record['location_id']);
+            await _addLocationToSaved(
+              record['location_id'],
+              savedAt: _parseSavedActionTime(record['created_at']),
+            );
           } else if (record['acked'] == false && oldRecord['acked'] == true) {
             print('Location unacknowledged: ${record['location_id']}');
             await _removeLocationFromSaved(record['location_id']);
@@ -406,7 +419,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
   }
 
   /// Add a location to saved list by fetching its details
-  Future<void> _addLocationToSaved(int locationId) async {
+  Future<void> _addLocationToSaved(int locationId, {DateTime? savedAt}) async {
     try {
       // Check if location already exists in saved locations
       final alreadyExists =
@@ -434,7 +447,8 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
           locationData['google_place_id'],
           locationData['photo_reference']);
 
-      final location = LocationModel.fromJson(locationData, locationImage);
+      final location = LocationModel.fromJson(locationData, locationImage)
+          .copyWith(savedAt: savedAt ?? DateTime.now());
 
       // Add to saved locations temporarily with a placeholder marker
       _savedLocations[location] = MapMarkerData(
@@ -1592,8 +1606,11 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
     await applyFilters(vibeTagIds: [], cuisineTagIds: []);
   }
 
-  /// Fetches bubble (group) recommendations using the Recommendations API
-  Future<void> fetchBubbleRecommendations({
+  /// Fetches bubble (group) recommendations using the Recommendations API.
+  ///
+  /// Returns whether the request completed successfully. Empty recommendation
+  /// results still count as successful searches, matching [searchThisArea].
+  Future<bool> fetchBubbleRecommendations({
     required List<String> memberIds,
     String? bubbleId,
     required double latitude,
@@ -1614,7 +1631,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       _bubbleLocations = {};
       _syncBubbleItemsIfActive();
       notifyListeners();
-      return;
+      return false;
     }
 
     // Store the search parameters for later reference
@@ -1657,7 +1674,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
         _areaChanged = false;
         _syncBubbleItemsIfActive();
         notifyListeners();
-        return;
+        return true;
       }
 
       print("Found ${locationIds.length} bubble recommendation IDs");
@@ -1698,13 +1715,63 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       _areaChanged = false;
 
       print("Fetched ${locations.length} bubble recommendations");
+      return true;
     } catch (e) {
       print('Error fetching bubble recommendations: $e');
       _error = "Failed to load group recommendations: ${e.toString()}";
       _bubbleLocations = {};
       _syncBubbleItemsIfActive();
+      return false;
     } finally {
       _isLoadingRecommendations = false;
+      notifyListeners();
+    }
+  }
+
+  /// Search bubble recommendations in the visible map area.
+  ///
+  /// This mirrors [searchThisArea]'s loading flag and success contract so the
+  /// map button behaves the same in bubble mode and normal picks.
+  Future<bool> searchBubbleArea({
+    required List<String> memberIds,
+    String? bubbleId,
+    required LatLng center,
+    required double radiusKm,
+    int maxResults = 20,
+    double vibeWeight = 0.34,
+    double dietaryWeight = 0.33,
+    double qualityWeight = 0.33,
+    bool includeIndividualScores = false,
+    bool includeVibeBreakdown = false,
+    Map<String, dynamic>? filters,
+  }) async {
+    _isSearchingArea = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final didSearch = await fetchBubbleRecommendations(
+        memberIds: memberIds,
+        bubbleId: bubbleId,
+        latitude: center.latitude,
+        longitude: center.longitude,
+        radiusKm: radiusKm,
+        maxResults: maxResults,
+        vibeWeight: vibeWeight,
+        dietaryWeight: dietaryWeight,
+        qualityWeight: qualityWeight,
+        includeIndividualScores: includeIndividualScores,
+        includeVibeBreakdown: includeVibeBreakdown,
+        filters: filters,
+      );
+
+      if (didSearch) {
+        await setCurrentListType(LocationListType.bubble);
+      }
+
+      return didSearch;
+    } finally {
+      _isSearchingArea = false;
       notifyListeners();
     }
   }
@@ -1955,8 +2022,9 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       locationToSave = location.copyWith(locationId: locationId);
     }
 
-    final savedLocation =
-        locationToSave.setPreference(LocationPreference.saved);
+    final savedLocation = locationToSave
+        .copyWith(savedAt: DateTime.now())
+        .setPreference(LocationPreference.saved);
 
     _savedLocations.removeWhere(
       (existing, _) => existing.locationId == savedLocation.locationId,

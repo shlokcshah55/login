@@ -16,6 +16,7 @@ void main() {
         Bubble(
           id: 'bubble-1',
           name: 'Brunch Crew',
+          createdBy: 'owner-1',
           lastMessage: 'See you there',
           lastMessageTime: '2m',
           memberCount: 6,
@@ -68,6 +69,43 @@ void main() {
       find.text('Your people, plans, and shared pins in one playful inbox.'),
       findsNothing,
     );
+  });
+
+  testWidgets('empty bubbles state shows recommended people to follow', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: PinitTheme.light(),
+        home: BubblesPageView(
+          bubbles: const [],
+          isLoading: false,
+          errorText: null,
+          searchDebounce: Duration.zero,
+          suggestedUsers: [
+            UserModel(
+              email: 'maya@example.com',
+              username: 'maya',
+              name: 'Maya Chen',
+            ),
+          ],
+          isLoadingSuggestedUsers: false,
+          onRefresh: () async {},
+          onRefreshSuggestedUsers: () async {},
+          onCreateBubble: () {},
+          onSearchPeople: (_) async => const [],
+          onBubbleTap: (_) {},
+          onPersonTap: (_) {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('bubbles_empty_state')), findsOneWidget);
+    expect(find.text('No bubbles yet'), findsOneWidget);
+    expect(find.text('Recommended people'), findsOneWidget);
+    expect(find.text('Maya Chen'), findsOneWidget);
+    expect(find.text('Follow'), findsOneWidget);
   });
 
   testWidgets('clearing or superseding search hides stale people results', (
@@ -208,7 +246,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byKey(const Key('bubble_tile_surface_bubble-1')));
+    await tester.tap(find.text('Weekend Brunch'));
     await tester.pump();
 
     final state =
@@ -216,7 +254,7 @@ void main() {
     expect(state.openedBubbleId, 'bubble-1');
   });
 
-  testWidgets('bubble tile surface is denser and uses the new surface key', (
+  testWidgets('bubble tile surface stays compact in the feed', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -225,30 +263,12 @@ void main() {
       ),
     );
 
-    final surface = find.byKey(const Key('bubble_tile_surface_bubble-1'));
+    final surface = find.byKey(const ValueKey('bubble-1'));
     expect(surface, findsOneWidget);
 
-    final tile = tester.widget<Container>(surface);
-    final decoration = tile.decoration as BoxDecoration;
-    expect(decoration.borderRadius, BorderRadius.circular(18));
-    expect(tester.getSize(surface).height, lessThan(150));
-
-    final avatarShell =
-        find.byKey(const Key('bubble_tile_avatar_shell_bubble-1'));
-    expect(avatarShell, findsOneWidget);
-    expect(tester.getSize(avatarShell), const Size(56, 56));
-
-    final avatarContainer = tester.widget<Container>(avatarShell);
-    final avatarDecoration = avatarContainer.decoration as BoxDecoration;
-    expect(avatarDecoration.borderRadius, BorderRadius.circular(16));
-
-    final metadataChip =
-        find.byKey(const Key('bubble_tile_metadata_chip_members_bubble-1'));
-    expect(metadataChip, findsOneWidget);
-
-    final chipContainer = tester.widget<Container>(metadataChip);
-    final chipDecoration = chipContainer.decoration as BoxDecoration;
-    expect(chipDecoration.borderRadius, BorderRadius.circular(16));
+    expect(tester.getSize(surface).height, lessThan(170));
+    expect(find.text('Weekend Brunch'), findsOneWidget);
+    expect(find.text('6 members'), findsOneWidget);
   });
 }
 
@@ -275,6 +295,7 @@ class _BubblesHarnessState extends State<_BubblesHarness> {
           Bubble(
             id: 'bubble-1',
             name: 'Weekend Brunch',
+            createdBy: 'owner-1',
             lastMessage: 'Let\'s lock the cafe',
             lastMessageTime: '2m',
             memberCount: 6,

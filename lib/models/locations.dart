@@ -232,6 +232,10 @@ class LocationModel {
   /// is returned by a saved-locations query. Null in other contexts.
   final String? savedMethod;
 
+  /// When the current user saved this location. Pulled from
+  /// `user_location_actions.created_at` for saved-location queries.
+  final DateTime? savedAt;
+
   /// Per-user video extras (special offers, personal notes) from the TikTok
   /// that this location was saved from. Pulled from
   /// `user_location_actions.video_extras` when loading saved locations.
@@ -323,6 +327,7 @@ class LocationModel {
     this.matchScore,
     this.savedFrom,
     this.savedMethod,
+    this.savedAt,
     this.videoExtras,
     this.friendSaves = const [],
   });
@@ -408,6 +413,7 @@ class LocationModel {
       matchScore: matchScore,
       savedFrom: savedFrom,
       savedMethod: savedMethod,
+      savedAt: savedAt,
       videoExtras: videoExtras,
       friendSaves: saves,
     );
@@ -785,6 +791,7 @@ class LocationModel {
     double? matchScore,
     String? savedFrom,
     String? savedMethod,
+    DateTime? savedAt,
     VideoExtras? videoExtras,
     List<FriendSave>? friendSaves,
   }) {
@@ -870,6 +877,7 @@ class LocationModel {
       matchScore: matchScore ?? this.matchScore,
       savedFrom: savedFrom ?? this.savedFrom,
       savedMethod: savedMethod ?? this.savedMethod,
+      savedAt: savedAt ?? this.savedAt,
       videoExtras: videoExtras ?? this.videoExtras,
       friendSaves: friendSaves ?? this.friendSaves,
     );

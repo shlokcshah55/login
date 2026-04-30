@@ -461,11 +461,14 @@ class LocationHelper {
           .select(
             '${SupabaseConstants.columnLocationId}, '
             '${SupabaseConstants.columnSourceVideoUrl}, '
-            '${SupabaseConstants.columnSavedMethod}',
+            '${SupabaseConstants.columnSavedMethod}, '
+            '${SupabaseConstants.columnVideoExtras}, '
+            '${SupabaseConstants.columnCreatedAt}',
           )
           .eq(SupabaseConstants.columnUserId, userId)
           .eq(SupabaseConstants.columnAction, SupabaseConstants.actionSave)
-          .eq(SupabaseConstants.columnAcked, true);
+          .eq(SupabaseConstants.columnAcked, true)
+          .order(SupabaseConstants.columnCreatedAt, ascending: false);
 
       if (savedActions.isEmpty) {
         developer.log(
@@ -482,6 +485,7 @@ class LocationHelper {
           ({
         String? savedFrom,
         String? savedMethod,
+        DateTime? savedAt,
         VideoExtras? videoExtras
       })>{};
       final locationIds = <int>[];
@@ -489,15 +493,20 @@ class LocationHelper {
         final id = action[SupabaseConstants.columnLocationId] as int;
         if (!actionMetaByLocationId.containsKey(id)) {
           locationIds.add(id);
+          final rawExtras = action[SupabaseConstants.columnVideoExtras];
+          final rawSavedAt = action[SupabaseConstants.columnCreatedAt];
+          actionMetaByLocationId[id] = (
+            savedFrom:
+                action[SupabaseConstants.columnSourceVideoUrl] as String?,
+            savedMethod: action[SupabaseConstants.columnSavedMethod] as String?,
+            savedAt: rawSavedAt == null
+                ? null
+                : DateTime.tryParse(rawSavedAt.toString()),
+            videoExtras: rawExtras is Map<String, dynamic>
+                ? VideoExtras.fromJson(rawExtras)
+                : null,
+          );
         }
-        final rawExtras = action[SupabaseConstants.columnVideoExtras];
-        actionMetaByLocationId[id] = (
-          savedFrom: action[SupabaseConstants.columnSourceVideoUrl] as String?,
-          savedMethod: action[SupabaseConstants.columnSavedMethod] as String?,
-          videoExtras: rawExtras is Map<String, dynamic>
-              ? VideoExtras.fromJson(rawExtras)
-              : null,
-        );
       }
       developer.log(
           '[Saved] Found ${locationIds.length} saved IDs: $locationIds',
@@ -542,6 +551,7 @@ class LocationHelper {
         return loc.copyWith(
           savedFrom: meta.savedFrom,
           savedMethod: meta.savedMethod,
+          savedAt: meta.savedAt,
           videoExtras: meta.videoExtras,
         );
       }).toList();
@@ -574,11 +584,13 @@ class LocationHelper {
             '${SupabaseConstants.columnLocationId}, '
             '${SupabaseConstants.columnSourceVideoUrl}, '
             '${SupabaseConstants.columnSavedMethod}, '
-            '${SupabaseConstants.columnVideoExtras}',
+            '${SupabaseConstants.columnVideoExtras}, '
+            '${SupabaseConstants.columnCreatedAt}',
           )
           .eq(SupabaseConstants.columnUserId, userId)
           .eq(SupabaseConstants.columnAction, SupabaseConstants.actionSave)
-          .eq(SupabaseConstants.columnAcked, true);
+          .eq(SupabaseConstants.columnAcked, true)
+          .order(SupabaseConstants.columnCreatedAt, ascending: false);
 
       if (savedActions.isEmpty) {
         return [];
@@ -590,6 +602,7 @@ class LocationHelper {
           ({
         String? savedFrom,
         String? savedMethod,
+        DateTime? savedAt,
         VideoExtras? videoExtras
       })>{};
       final locationIds = <int>[];
@@ -597,15 +610,20 @@ class LocationHelper {
         final id = action[SupabaseConstants.columnLocationId] as int;
         if (!actionMetaByLocationId.containsKey(id)) {
           locationIds.add(id);
+          final rawExtras = action[SupabaseConstants.columnVideoExtras];
+          final rawSavedAt = action[SupabaseConstants.columnCreatedAt];
+          actionMetaByLocationId[id] = (
+            savedFrom:
+                action[SupabaseConstants.columnSourceVideoUrl] as String?,
+            savedMethod: action[SupabaseConstants.columnSavedMethod] as String?,
+            savedAt: rawSavedAt == null
+                ? null
+                : DateTime.tryParse(rawSavedAt.toString()),
+            videoExtras: rawExtras is Map<String, dynamic>
+                ? VideoExtras.fromJson(rawExtras)
+                : null,
+          );
         }
-        final rawExtras = action[SupabaseConstants.columnVideoExtras];
-        actionMetaByLocationId[id] = (
-          savedFrom: action[SupabaseConstants.columnSourceVideoUrl] as String?,
-          savedMethod: action[SupabaseConstants.columnSavedMethod] as String?,
-          videoExtras: rawExtras is Map<String, dynamic>
-              ? VideoExtras.fromJson(rawExtras)
-              : null,
-        );
       }
 
       if (locationIds.isEmpty) {
@@ -626,6 +644,7 @@ class LocationHelper {
         return loc.copyWith(
           savedFrom: meta.savedFrom,
           savedMethod: meta.savedMethod,
+          savedAt: meta.savedAt,
           videoExtras: meta.videoExtras,
         );
       }).toList();

@@ -19,6 +19,7 @@ import 'package:login/pages/bubble_messaging_page.dart';
 import 'package:login/pages/profile/other_user_profile_page.dart';
 import 'package:login/widgets/chat/bubble_discover_view.dart';
 import 'package:login/widgets/feedback/app_feedback.dart';
+import 'package:login/widgets/profile/user_card.dart';
 
 class BubblesPage extends StatefulWidget {
   const BubblesPage({Key? key}) : super(key: key);
@@ -38,7 +39,9 @@ class _BubblesPageState extends State<BubblesPage>
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   List<UserModel> _searchResults = [];
+  List<UserModel> _suggestedUsers = [];
   bool _isSearching = false;
+  bool _isLoadingSuggestedUsers = false;
   Timer? _debounceTimer;
   final AnalyticsService _analyticsService = AnalyticsService();
 
@@ -59,6 +62,7 @@ class _BubblesPageState extends State<BubblesPage>
         bubbleHelper: supabaseProvider.bubbles,
       );
       _bubblesProvider.initialize();
+      _fetchSuggestedUsers();
     }
   }
 
@@ -229,7 +233,10 @@ class _BubblesPageState extends State<BubblesPage>
   }
 
   Future<void> _refreshBubbles() async {
-    await _bubblesProvider.loadBubbles();
+    await Future.wait([
+      _bubblesProvider.loadBubbles(),
+      _fetchSuggestedUsers(),
+    ]);
     if (!mounted) return;
     AppFeedback.showSuccess(
       context,
@@ -241,6 +248,27 @@ class _BubblesPageState extends State<BubblesPage>
       ),
       duration: const Duration(seconds: 1),
     );
+  }
+
+  Future<void> _fetchSuggestedUsers() async {
+    if (_isLoadingSuggestedUsers) return;
+    if (mounted) {
+      setState(() => _isLoadingSuggestedUsers = true);
+    }
+
+    try {
+      final service = Provider.of<SupabaseService>(context, listen: false);
+      final users = await service.users.getSuggestedUsers();
+      if (mounted) {
+        setState(() => _suggestedUsers = users);
+      }
+    } catch (_) {
+      // Suggestions are ambient; keep the empty state useful if they fail.
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingSuggestedUsers = false);
+      }
+    }
   }
 
   void _showCreateBubbleDialog() {
@@ -573,81 +601,133 @@ class _BubblesPageState extends State<BubblesPage>
   }
 
   Widget _buildEmptyState(ThemeData theme) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Animated illustration
-            Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                color: PinitColors.creamSunk,
-                shape: BoxShape.circle,
-                border: Border.all(color: PinitColors.creamDeep, width: 1.5),
-              ),
-              child: const Icon(
-                Icons.bubble_chart_rounded,
-                size: 56,
-                color: PinitColors.aubergineSoft,
-              ),
-            ),
-            const SizedBox(height: 32),
-            const Text(
-              'No Bubbles Yet',
-              style: TextStyle(
-                fontFamily: 'Rova',
-                fontSize: 22,
-                fontWeight: FontWeight.w100,
-                color: PinitColors.aubergine,
-                letterSpacing: 1.2,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Create your first bubble to start sharing\nplaces with your friends!',
-              style: GoogleFonts.dmSans(
-                color: PinitColors.mute,
-                fontSize: 14,
-                height: 1.5,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton(
-              onPressed: _showCreateBubbleDialog,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: PinitColors.aubergine,
-                foregroundColor: PinitColors.cream,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(999),
+    return RefreshIndicator(
+      color: PinitColors.aubergine,
+      backgroundColor: PinitColors.cream,
+      onRefresh: _refreshBubbles,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(32, 16, 32, 36),
+        children: [
+          Column(
+            children: [
+              // Animated illustration
+              Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  color: PinitColors.creamSunk,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: PinitColors.creamDeep, width: 1.5),
                 ),
-                elevation: 0,
+                child: const Icon(
+                  Icons.bubble_chart_rounded,
+                  size: 56,
+                  color: PinitColors.aubergineSoft,
+                ),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.add_rounded,
-                      size: 18, color: PinitColors.cream),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Create Your First Bubble',
-                    style: GoogleFonts.dmSans(
-                      fontWeight: FontWeight.w600,
-                      color: PinitColors.cream,
-                      fontSize: 14,
-                    ),
+              const SizedBox(height: 32),
+              const Text(
+                'No Bubbles Yet',
+                style: TextStyle(
+                  fontFamily: 'Rova',
+                  fontSize: 22,
+                  fontWeight: FontWeight.w100,
+                  color: PinitColors.aubergine,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Create your first bubble to start sharing\nplaces with your friends!',
+                style: GoogleFonts.dmSans(
+                  color: PinitColors.mute,
+                  fontSize: 14,
+                  height: 1.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 32),
+              ElevatedButton(
+                onPressed: _showCreateBubbleDialog,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: PinitColors.aubergine,
+                  foregroundColor: PinitColors.cream,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999),
                   ),
-                ],
+                  elevation: 0,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.add_rounded,
+                        size: 18, color: PinitColors.cream),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Create Your First Bubble',
+                      style: GoogleFonts.dmSans(
+                        fontWeight: FontWeight.w600,
+                        color: PinitColors.cream,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
-        ),
+              const SizedBox(height: 30),
+              _buildRecommendedPeopleSection(theme),
+            ],
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _buildRecommendedPeopleSection(ThemeData theme) {
+    if (_isLoadingSuggestedUsers && _suggestedUsers.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Center(
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: PinitColors.aubergine,
+          ),
+        ),
+      );
+    }
+
+    if (_suggestedUsers.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Find Friends',
+          style: TextStyle(
+            fontFamily: 'Rova',
+            fontSize: 22,
+            fontWeight: FontWeight.w100,
+            color: PinitColors.aubergine,
+            letterSpacing: 1.0,
+            height: 1.05,
+          ),
+        ),
+        const SizedBox(height: 12),
+        ..._suggestedUsers.map(
+          (user) => Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: UserCard(
+              user: user,
+              onTap: _showUserProfileDialog,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
