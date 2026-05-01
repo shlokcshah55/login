@@ -73,6 +73,44 @@ void main() {
     expect(titleText.style?.fontFamily, 'Rova');
   });
 
+  testWidgets('discovery carousel rating strip uses legible meta sizing',
+      (tester) async {
+    final location = LocationModel(
+      locationId: 1,
+      name: 'Test Cafe',
+      createdAt: DateTime(2026, 4, 7),
+      emoji: '☕',
+      cuisine: 'Coffee',
+      generatedSummary: 'Bright coffee and pastries',
+      rating: 4.7,
+      userRatingsTotal: 128,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            height: 260,
+            child: LocationCarousel(
+              pageController: PageController(),
+              locations: [location],
+              selectedMarkerId: null,
+              bottomNavVisible: true,
+              onPageChanged: (_) {},
+              onLocationSelected: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final ratingText = tester.widget<Text>(find.text('4.7'));
+    final reviewCountText = tester.widget<Text>(find.text('(128)'));
+
+    expect(ratingText.style?.fontSize, 12);
+    expect(reviewCountText.style?.fontSize, 11);
+  });
+
   testWidgets('profile photo selector uses shared heading and body fonts',
       (tester) async {
     await tester.pumpWidget(

@@ -5,10 +5,7 @@ import 'package:login/models/actions.dart';
 import 'package:login/pages/bubble_messaging_page.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/supabase/service.dart';
-import 'package:login/providers/bubble_mode_provider.dart';
-import 'package:login/providers/navigation_provider.dart';
 import 'package:login/widgets/chat/add_members_dialog.dart';
-import 'package:provider/provider.dart';
 import 'dart:math' as math;
 
 class ExpandedChatView extends StatefulWidget {
@@ -127,10 +124,19 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
     );
   }
 
-  void _navigateToBubbleProfile() {
-    context.read<BubbleModeProvider>().requestBubbleMode(currentBubble);
-    context.read<NavigationProvider>().navigateToTab(0);
-    Navigator.of(context).pop();
+  void _showActivityNotifications() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: PinitColors.aubergine.withValues(alpha: 0.42),
+      builder: (context) => _ActivityNotificationsSheet(
+        bubbleName: currentBubble.name,
+        activities: _activities,
+        timeAgoFor: _getTimeAgo,
+      ),
+    );
   }
 
   @override
@@ -453,16 +459,27 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
                 )),
                 if (_activities.length > 2)
                   GestureDetector(
-                    onTap: _navigateToBubbleProfile,
+                    onTap: _showActivityNotifications,
                     child: Padding(
                       padding: const EdgeInsets.only(top: 4),
-                      child: Text(
-                        'View all activity →',
-                        style: GoogleFonts.dmSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: PinitColors.aubergineSoft,
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.notifications_none_rounded,
+                            size: 14,
+                            color: PinitColors.aubergineSoft,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            'View all activity',
+                            style: GoogleFonts.dmSans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: PinitColors.aubergineSoft,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -814,6 +831,340 @@ class _HeaderBtn extends StatelessWidget {
         child: Icon(icon, size: 17, color: PinitColors.aubergine),
       ),
     );
+  }
+}
+
+class _ActivityNotificationsSheet extends StatelessWidget {
+  final String bubbleName;
+  final List<UserLocationActionModel> activities;
+  final String Function(DateTime?) timeAgoFor;
+
+  const _ActivityNotificationsSheet({
+    required this.bubbleName,
+    required this.activities,
+    required this.timeAgoFor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.68,
+      minChildSize: 0.4,
+      maxChildSize: 0.92,
+      expand: false,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: PinitColors.cream,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            border: Border(
+              top: BorderSide(color: PinitColors.aubergine, width: 1.5),
+              left: BorderSide(color: PinitColors.aubergine, width: 1.5),
+              right: BorderSide(color: PinitColors.aubergine, width: 1.5),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: PinitColors.aubergine,
+                blurRadius: 0,
+                offset: Offset(0, -4),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(22.5)),
+            child: CustomScrollView(
+              controller: scrollController,
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Center(
+                          child: Container(
+                            width: 42,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: PinitColors.creamDeep,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: PinitColors.aubergine,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.notifications_none_rounded,
+                                color: PinitColors.cream,
+                                size: 21,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Recent activity',
+                                    style: GoogleFonts.dmSans(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800,
+                                      color: PinitColors.aubergine,
+                                      height: 1,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    bubbleName,
+                                    style: GoogleFonts.dmSans(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: PinitColors.mute,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 9,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: PinitColors.creamSunk,
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(color: PinitColors.creamDeep),
+                              ),
+                              child: Text(
+                                '${activities.length}',
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  color: PinitColors.aubergineSoft,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, rawIndex) {
+                      if (rawIndex.isOdd) {
+                        return const SizedBox(height: 8);
+                      }
+                      final index = rawIndex ~/ 2;
+                      final activity = activities[index];
+                      return Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          20,
+                          0,
+                          20,
+                          index == activities.length - 1 ? 24 : 0,
+                        ),
+                        child: _ActivityNotificationTile(
+                          activity: activity,
+                          timeAgo: timeAgoFor(activity.createdAt),
+                        ),
+                      );
+                    },
+                    childCount:
+                        activities.isEmpty ? 0 : activities.length * 2 - 1,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ActivityNotificationTile extends StatelessWidget {
+  final UserLocationActionModel activity;
+  final String timeAgo;
+
+  const _ActivityNotificationTile({
+    required this.activity,
+    required this.timeAgo,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final tone = _ActivityTone.forAction(activity.action);
+    final avatarUrl = activity.user_avatar_url;
+    final displayName = activity.name.isNotEmpty ? activity.name : 'Someone';
+    final placeName =
+        activity.locationName.isNotEmpty ? activity.locationName : 'a place';
+    final initial = displayName[0].toUpperCase();
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: PinitColors.creamSunk,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: PinitColors.creamDeep),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: tone.color.withValues(alpha: 0.18),
+                  border: Border.all(color: PinitColors.cream, width: 2),
+                ),
+                child: ClipOval(
+                  child: avatarUrl != null && avatarUrl.isNotEmpty
+                      ? Image.network(
+                          avatarUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _InitialCenter(
+                            initial: initial,
+                            size: 42,
+                          ),
+                        )
+                      : _InitialCenter(initial: initial, size: 42),
+                ),
+              ),
+              Positioned(
+                right: -2,
+                bottom: -2,
+                child: Container(
+                  width: 19,
+                  height: 19,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: tone.color,
+                    border: Border.all(color: PinitColors.creamSunk, width: 2),
+                  ),
+                  child: Icon(tone.icon, color: PinitColors.cream, size: 11),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: displayName,
+                              style: const TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                            TextSpan(text: ' ${tone.message} '),
+                            TextSpan(
+                              text: placeName,
+                              style: const TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                          ],
+                        ),
+                        style: GoogleFonts.dmSans(
+                          fontSize: 13,
+                          color: PinitColors.aubergine,
+                          height: 1.25,
+                        ),
+                      ),
+                    ),
+                    if (timeAgo.isNotEmpty) ...[
+                      const SizedBox(width: 10),
+                      Text(
+                        timeAgo,
+                        style: GoogleFonts.dmSans(
+                          fontSize: 11,
+                          color: PinitColors.mute,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: tone.color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    tone.label,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.1,
+                      color: tone.color,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActivityTone {
+  final IconData icon;
+  final Color color;
+  final String label;
+  final String message;
+
+  const _ActivityTone({
+    required this.icon,
+    required this.color,
+    required this.label,
+    required this.message,
+  });
+
+  static _ActivityTone forAction(String action) {
+    return switch (action) {
+      'save' => const _ActivityTone(
+          icon: Icons.bookmark_rounded,
+          color: PinitColors.aubergineSoft,
+          label: 'SAVED',
+          message: 'saved',
+        ),
+      'shared_video' => const _ActivityTone(
+          icon: Icons.play_arrow_rounded,
+          color: PinitColors.accent,
+          label: 'SHARED',
+          message: 'shared',
+        ),
+      _ => const _ActivityTone(
+          icon: Icons.location_on_rounded,
+          color: PinitColors.warning,
+          label: 'PINNED',
+          message: 'pinned',
+        ),
+    };
   }
 }
 

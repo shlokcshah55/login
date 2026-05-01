@@ -442,6 +442,9 @@ class _LocationMiniMapState extends State<_LocationMiniMap> {
 
   void _onMapCreated(mapbox.MapboxMap map) async {
     _map = map;
+    await map.attribution.updateSettings(
+      mapbox.AttributionSettings(enabled: false),
+    );
     await map.setCamera(mapbox.CameraOptions(
       center: LatLng(widget.lat, widget.lng).toPoint(),
       zoom: 14.5,

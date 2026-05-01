@@ -50,6 +50,9 @@ class _MapScreenSearchAreaState extends State<MapScreenSearchArea> {
           ),
           onMapCreated: (controller) async {
             _mapController = controller;
+            await controller.attribution.updateSettings(
+              mapbox.AttributionSettings(enabled: false),
+            );
             _annotationManager =
                 await controller.annotations.createPointAnnotationManager();
           },

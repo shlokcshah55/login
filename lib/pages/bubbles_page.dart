@@ -772,7 +772,23 @@ class _BubblesPageState extends State<BubblesPage>
     );
   }
 
-  void _activateBubble(Bubble bubble) {
+  Future<void> _activateBubble(Bubble bubble) async {
+    final effectiveMemberCount = bubble.memberCount > bubble.memberIds.length
+        ? bubble.memberCount
+        : bubble.memberIds.length;
+
+    if (effectiveMemberCount <= 1) {
+      await AppFeedback.showError(
+        context,
+        title: 'Tiny bubble alert',
+        message:
+            'This bubble is still a solo mission. Add members first, then fire up bubble mode together.',
+        actionLabel: 'Add members',
+        onAction: () => _openExpandedChatView(bubble),
+      );
+      return;
+    }
+
     final bubbleModeProvider =
         Provider.of<BubbleModeProvider>(context, listen: false);
     final navigationProvider =

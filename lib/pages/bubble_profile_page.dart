@@ -238,7 +238,11 @@ class _BubbleProfilePageState extends State<BubbleProfilePage>
 
   Future<void> _onMapCreated(mapbox.MapboxMap controller) async {
     mapController = controller;
-    _annotationManager = await controller.annotations.createPointAnnotationManager();
+    await controller.attribution.updateSettings(
+      mapbox.AttributionSettings(enabled: false),
+    );
+    _annotationManager =
+        await controller.annotations.createPointAnnotationManager();
     if (allMemberLocations.isNotEmpty) {
       _syncAnnotations();
       _fitMarkersInView();

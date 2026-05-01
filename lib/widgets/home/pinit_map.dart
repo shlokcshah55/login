@@ -596,6 +596,10 @@ class _PinitMapState extends State<PinitMap> {
     final mapState = context.read<MapStateProvider>();
     final locationManager = context.read<LocationListManager>();
 
+    await map.attribution.updateSettings(
+      mapbox.AttributionSettings(enabled: false),
+    );
+
     // Initialize map with callbacks for GeoJSON layer events
     await mapState.setMapboxMap(
       map,

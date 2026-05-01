@@ -556,14 +556,14 @@ class _CarouselCard extends StatelessWidget {
                                       const SizedBox(width: 8),
                                       const Icon(
                                         Icons.directions_walk_rounded,
-                                        size: 12,
+                                        size: 14,
                                         color: PinitColors.mute,
                                       ),
                                       const SizedBox(width: 4),
                                       Text(
                                         walkEta,
                                         style: GoogleFonts.dmSans(
-                                          fontSize: 10,
+                                          fontSize: 12,
                                           color: PinitColors.mute,
                                           fontWeight: FontWeight.w700,
                                           letterSpacing: 0.2,
@@ -877,14 +877,14 @@ class _CompactRating extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(FeatherIcons.star, size: 11, color: PinitColors.aubergine),
+        const Icon(FeatherIcons.star, size: 13, color: PinitColors.aubergine),
         const SizedBox(width: 3),
         Text(
           rating.toStringAsFixed(1),
           style: GoogleFonts.dmSans(
             color: PinitColors.aubergine,
             fontWeight: FontWeight.w800,
-            fontSize: 11,
+            fontSize: 12,
             height: 1.0,
             letterSpacing: 0.2,
           ),
@@ -895,7 +895,7 @@ class _CompactRating extends StatelessWidget {
             '(${_formatCount(reviewCount!)})',
             style: GoogleFonts.dmSans(
               color: PinitColors.mute,
-              fontSize: 10,
+              fontSize: 11,
               fontWeight: FontWeight.w600,
               height: 1.0,
             ),
