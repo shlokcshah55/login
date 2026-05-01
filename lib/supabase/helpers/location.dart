@@ -9,9 +9,53 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/locations.dart';
 import '../../models/proximal_models.dart';
+import '../../models/video_insights.dart';
 import '../../models/video_extras.dart';
 import '../constants.dart';
 import '../supabase_client.dart';
+
+class _SharedVideoSummary {
+  const _SharedVideoSummary({
+    required this.locationId,
+    required this.socialVideoCount,
+    required this.socialVideoUrl,
+    this.socialVideoCreatorHandle,
+    this.tiktokRecommendedDish,
+  });
+
+  final int locationId;
+  final int socialVideoCount;
+  final String socialVideoUrl;
+  final String? socialVideoCreatorHandle;
+  final String? tiktokRecommendedDish;
+
+  static _SharedVideoSummary? fromJson(Map<String, dynamic> json) {
+    final locationId =
+        (json[SupabaseConstants.columnLocationId] as num?)?.toInt();
+    final socialVideoUrl =
+        json[SupabaseConstants.columnSocialVideoUrl]?.toString().trim();
+    if (locationId == null ||
+        socialVideoUrl == null ||
+        socialVideoUrl.isEmpty) {
+      return null;
+    }
+
+    return _SharedVideoSummary(
+      locationId: locationId,
+      socialVideoCount:
+          (json[SupabaseConstants.columnSocialVideoCount] as num?)?.toInt() ??
+              1,
+      socialVideoUrl: socialVideoUrl,
+      socialVideoCreatorHandle:
+          json[SupabaseConstants.columnSocialVideoCreatorHandle]
+              ?.toString()
+              .trim(),
+      tiktokRecommendedDish: json[SupabaseConstants.columnTikTokRecommendedDish]
+          ?.toString()
+          .trim(),
+    );
+  }
+}
 
 // Service for handling Supabase location operations
 class LocationHelper {
@@ -964,13 +1008,187 @@ class LocationHelper {
           'p_limit': limit,
         },
       );
-      return await processLocationsWithImages(response as List);
+      final locations = await processLocationsWithImages(response as List);
+      return _attachSocialVideoMetadata(locations);
     } catch (e, stack) {
       if (kDebugMode) {
         print('[HottestSharedPlaces] Exception: $e');
         print('[HottestSharedPlaces] Stack: $stack');
       }
       return [];
+    }
+  }
+
+  Future<List<LocationModel>> _attachSocialVideoMetadata(
+    List<LocationModel> locations,
+  ) async {
+    if (locations.isEmpty) return locations;
+
+    final locationIds = locations.map((l) => l.locationId).toSet().toList();
+    final rpcSummaries = await _getSharedVideoSummaries(locationIds);
+    if (rpcSummaries.length == locations.length) {
+      return locations.map((location) {
+        final summary = rpcSummaries[location.locationId];
+        if (summary == null) return location;
+        final updated = location.copyWith(
+          socialVideoCount: summary.socialVideoCount,
+          socialVideoUrl: summary.socialVideoUrl,
+          socialVideoCreatorHandle: summary.socialVideoCreatorHandle,
+          tiktokRecommendedDish: summary.tiktokRecommendedDish,
+        );
+        _cacheLocation(updated);
+        return updated;
+      }).toList(growable: false);
+    }
+
+    final insightsByLocation = <int, List<VideoInsight>>{};
+
+    try {
+      final response = await _client
+          .from(SupabaseConstants.tableVideoInsights)
+          .select()
+          .inFilter(SupabaseConstants.columnLocationId, locationIds)
+          .order('extracted_at', ascending: false);
+
+      for (final row in response as List) {
+        final insight = VideoInsight.fromJson(
+          Map<String, dynamic>.from(row as Map),
+        );
+        if (insight.sourceVideoUrl.trim().isEmpty) continue;
+        insightsByLocation
+            .putIfAbsent(insight.locationId, () => <VideoInsight>[])
+            .add(insight);
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('[HottestSharedPlaces] Error loading video insights: $e');
+      }
+    }
+
+    final actionCountsByLocation = <int, Map<String, int>>{};
+    try {
+      final response = await _client
+          .from(SupabaseConstants.tableUserLocationActions)
+          .select('''
+            ${SupabaseConstants.columnLocationId},
+            ${SupabaseConstants.columnSourceVideoUrl}
+          ''').inFilter(SupabaseConstants.columnLocationId, locationIds);
+
+      for (final raw in response as List) {
+        final row = Map<String, dynamic>.from(raw as Map);
+        final locationId =
+            (row[SupabaseConstants.columnLocationId] as num?)?.toInt();
+        final url =
+            row[SupabaseConstants.columnSourceVideoUrl]?.toString().trim();
+        if (locationId == null || url == null || url.isEmpty) continue;
+        final counts = actionCountsByLocation.putIfAbsent(locationId, () => {});
+        counts[url] = (counts[url] ?? 0) + 1;
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('[HottestSharedPlaces] Error loading shared video counts: $e');
+      }
+    }
+
+    final fallbackUrlsByLocation = <int, String>{};
+    await Future.wait(locations.map((location) async {
+      final hasInsightUrl =
+          (insightsByLocation[location.locationId] ?? const <VideoInsight>[])
+              .any((insight) => insight.sourceVideoUrl.trim().isNotEmpty);
+      final hasActionUrl =
+          (actionCountsByLocation[location.locationId] ?? const <String, int>{})
+              .isNotEmpty;
+      if (hasInsightUrl || hasActionUrl) return;
+
+      final fallback = await getLatestSharedVideoUrl(
+        locationId: location.locationId,
+      );
+      final url = fallback?.trim();
+      if (url != null && url.isNotEmpty) {
+        fallbackUrlsByLocation[location.locationId] = url;
+      }
+    }));
+
+    return locations.map((location) {
+      final insights = insightsByLocation[location.locationId] ?? const [];
+      final actionCounts =
+          actionCountsByLocation[location.locationId] ?? const <String, int>{};
+      final insightUrls = insights
+          .map((insight) => insight.sourceVideoUrl.trim())
+          .where((url) => url.isNotEmpty)
+          .toSet();
+      final fallbackUrl = fallbackUrlsByLocation[location.locationId];
+      final allUrls = <String>{
+        ...insightUrls,
+        ...actionCounts.keys,
+        if (fallbackUrl != null) fallbackUrl,
+      };
+      if (allUrls.isEmpty) return location;
+
+      var selectedUrl = allUrls.first;
+      var selectedCount = actionCounts[selectedUrl] ?? 0;
+      for (final entry in actionCounts.entries) {
+        if (entry.value > selectedCount) {
+          selectedUrl = entry.key;
+          selectedCount = entry.value;
+        }
+      }
+      if (selectedCount == 0 && insights.isNotEmpty) {
+        selectedUrl = insights.first.sourceVideoUrl.trim();
+      }
+
+      final selectedInsight = insights
+          .where((insight) => insight.sourceVideoUrl.trim() == selectedUrl)
+          .cast<VideoInsight?>()
+          .firstWhere((insight) => insight != null, orElse: () => null);
+
+      final recommendedDish = _firstInsightDish(insights);
+      final updated = location.copyWith(
+        socialVideoCount: allUrls.length,
+        socialVideoUrl: selectedUrl,
+        socialVideoCreatorHandle: selectedInsight?.creatorHandle,
+        tiktokRecommendedDish: recommendedDish,
+      );
+      _cacheLocation(updated);
+      return updated;
+    }).toList(growable: false);
+  }
+
+  String? _firstInsightDish(List<VideoInsight> insights) {
+    for (final insight in insights) {
+      for (final dish in insight.keyDishes ?? const <DishHighlight>[]) {
+        final name = dish.name.trim();
+        if (name.isNotEmpty) return name;
+      }
+    }
+    return null;
+  }
+
+  Future<Map<int, _SharedVideoSummary>> _getSharedVideoSummaries(
+    List<int> locationIds,
+  ) async {
+    if (locationIds.isEmpty) return const {};
+
+    try {
+      final response = await _client.rpc(
+        'get_shared_video_summaries',
+        params: <String, dynamic>{
+          'p_location_ids': locationIds,
+        },
+      );
+      final summaries = <int, _SharedVideoSummary>{};
+      for (final raw in response as List) {
+        final row = Map<String, dynamic>.from(raw as Map);
+        final summary = _SharedVideoSummary.fromJson(row);
+        if (summary == null) continue;
+        summaries[summary.locationId] = summary;
+      }
+      return summaries;
+    } catch (e) {
+      if (kDebugMode) {
+        print('[HottestSharedPlaces] Shared video summary RPC unavailable: $e');
+      }
+      return const {};
     }
   }
 

@@ -247,6 +247,14 @@ class LocationModel {
   /// rendered on map pins for places friends already know about.
   final List<FriendSave> friendSaves;
 
+  /// Public TikTok/social-video context for this place. These fields are
+  /// aggregated across users and are safe to display even when the current
+  /// user did not save the place from that post.
+  final int socialVideoCount;
+  final String? socialVideoUrl;
+  final String? socialVideoCreatorHandle;
+  final String? tiktokRecommendedDish;
+
   LocationPreference? preference;
 
   LocationModel({
@@ -330,7 +338,18 @@ class LocationModel {
     this.savedAt,
     this.videoExtras,
     this.friendSaves = const [],
+    this.socialVideoCount = 0,
+    this.socialVideoUrl,
+    this.socialVideoCreatorHandle,
+    this.tiktokRecommendedDish,
   });
+
+  bool get hasSocialVideos {
+    final url = socialVideoUrl?.trim();
+    return socialVideoCount > 0 ||
+        (url != null && url.isNotEmpty) ||
+        (savedFrom != null && savedFrom!.trim().isNotEmpty);
+  }
 
   /// Returns a shallow copy with `friendSaves` replaced. Used by the
   /// location-list provider when zipping recommendation results onto the
@@ -416,6 +435,10 @@ class LocationModel {
       savedAt: savedAt,
       videoExtras: videoExtras,
       friendSaves: saves,
+      socialVideoCount: socialVideoCount,
+      socialVideoUrl: socialVideoUrl,
+      socialVideoCreatorHandle: socialVideoCreatorHandle,
+      tiktokRecommendedDish: tiktokRecommendedDish,
     );
   }
 
@@ -552,6 +575,18 @@ class LocationModel {
       cuisineScoresJson:
           _safeMap(json[SupabaseConstants.columnCuisineScoresJson]),
       matchScore: null, // Set separately after fetching user affinity data
+      socialVideoCount:
+          (json[SupabaseConstants.columnSocialVideoCount] as num?)?.toInt() ??
+              0,
+      socialVideoUrl:
+          json[SupabaseConstants.columnSocialVideoUrl]?.toString().trim(),
+      socialVideoCreatorHandle:
+          json[SupabaseConstants.columnSocialVideoCreatorHandle]
+              ?.toString()
+              .trim(),
+      tiktokRecommendedDish: json[SupabaseConstants.columnTikTokRecommendedDish]
+          ?.toString()
+          .trim(),
     );
   }
 
@@ -706,6 +741,20 @@ class LocationModel {
           dietaryRequirementVector;
     if (cuisineScoresJson != null)
       data[SupabaseConstants.columnCuisineScoresJson] = cuisineScoresJson;
+    if (socialVideoCount > 0) {
+      data[SupabaseConstants.columnSocialVideoCount] = socialVideoCount;
+    }
+    if (socialVideoUrl != null) {
+      data[SupabaseConstants.columnSocialVideoUrl] = socialVideoUrl;
+    }
+    if (socialVideoCreatorHandle != null) {
+      data[SupabaseConstants.columnSocialVideoCreatorHandle] =
+          socialVideoCreatorHandle;
+    }
+    if (tiktokRecommendedDish != null) {
+      data[SupabaseConstants.columnTikTokRecommendedDish] =
+          tiktokRecommendedDish;
+    }
 
     return data;
   }
@@ -794,6 +843,10 @@ class LocationModel {
     DateTime? savedAt,
     VideoExtras? videoExtras,
     List<FriendSave>? friendSaves,
+    int? socialVideoCount,
+    String? socialVideoUrl,
+    String? socialVideoCreatorHandle,
+    String? tiktokRecommendedDish,
   }) {
     return LocationModel(
       locationId: locationId ?? this.locationId,
@@ -880,6 +933,12 @@ class LocationModel {
       savedAt: savedAt ?? this.savedAt,
       videoExtras: videoExtras ?? this.videoExtras,
       friendSaves: friendSaves ?? this.friendSaves,
+      socialVideoCount: socialVideoCount ?? this.socialVideoCount,
+      socialVideoUrl: socialVideoUrl ?? this.socialVideoUrl,
+      socialVideoCreatorHandle:
+          socialVideoCreatorHandle ?? this.socialVideoCreatorHandle,
+      tiktokRecommendedDish:
+          tiktokRecommendedDish ?? this.tiktokRecommendedDish,
     );
   }
 

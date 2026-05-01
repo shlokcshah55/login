@@ -25,6 +25,7 @@ import 'package:login/widgets/home/expanded_card/sections/details_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/hero_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/persistent_action_dock.dart';
 import 'package:login/widgets/home/expanded_card/sections/recommended_dishes_section.dart';
+import 'package:login/widgets/home/expanded_card/sections/shared_social_posts_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/social_proof_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/summary_slab_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/tiktok_insights_section.dart';
@@ -105,6 +106,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   VideoInsight? _videoInsight;
   final VideoInsightsHelper _videoInsightsHelper = VideoInsightsHelper();
   String? _resolvedSharedVideoUrl;
+  List<SocialVideoPost> _socialVideoPosts = const [];
 
   @override
   void initState() {
@@ -169,7 +171,9 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     _fetchPinitReviews();
     _fetchFriendIds();
     _findSimilarPlaces();
+    _seedSocialVideoPost();
     _fetchVideoInsight();
+    _fetchSocialVideoPosts();
     if (widget.resolveSharedVideoUrlOnOpen) {
       _resolveSharedVideoUrl();
     }
@@ -583,7 +587,46 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     if (resolved == null || resolved.trim().isEmpty) return;
     final trimmed = resolved.trim();
     setState(() => _resolvedSharedVideoUrl = trimmed);
+    _addSocialVideoPost(
+      SocialVideoPost(sourceVideoUrl: trimmed),
+    );
     unawaited(_fetchVideoInsightFor(trimmed));
+  }
+
+  void _seedSocialVideoPost() {
+    final url = widget.location.socialVideoUrl?.trim();
+    if (url == null || url.isEmpty) return;
+    _socialVideoPosts = [
+      SocialVideoPost(
+        sourceVideoUrl: url,
+        creatorHandle: widget.location.socialVideoCreatorHandle,
+        recommendedDish: widget.location.tiktokRecommendedDish,
+      ),
+    ];
+  }
+
+  Future<void> _fetchSocialVideoPosts() async {
+    final posts = await _videoInsightsHelper.getSocialVideoPostsForLocation(
+      widget.location.locationId,
+    );
+    if (!mounted || posts.isEmpty) return;
+    setState(() => _socialVideoPosts = _mergeSocialVideoPosts(posts));
+  }
+
+  void _addSocialVideoPost(SocialVideoPost post) {
+    if (!mounted) return;
+    setState(() => _socialVideoPosts = _mergeSocialVideoPosts([post]));
+  }
+
+  List<SocialVideoPost> _mergeSocialVideoPosts(List<SocialVideoPost> posts) {
+    final merged = <SocialVideoPost>[];
+    final seen = <String>{};
+    for (final post in [..._socialVideoPosts, ...posts]) {
+      final url = post.sourceVideoUrl.trim();
+      if (url.isEmpty || !seen.add(url)) continue;
+      merged.add(post);
+    }
+    return merged;
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -624,6 +667,14 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   /// flash badge in the summary slab.
   Future<void> _openSavedFromUrl() async {
     final url = _resolvedSharedVideoUrl ?? widget.location.savedFrom;
+    await _openExternalUrl(url);
+  }
+
+  Future<void> _openSocialVideoPost(SocialVideoPost post) async {
+    await _openExternalUrl(post.sourceVideoUrl);
+  }
+
+  Future<void> _openExternalUrl(String? url) async {
     if (url == null || url.trim().isEmpty) return;
     final parsed = Uri.tryParse(url.trim());
     if (parsed == null) return;
@@ -892,6 +943,14 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                 TikTokInsightsSection(
                   insight: _videoInsight!,
                   videoExtras: location.videoExtras,
+                ),
+              ],
+
+              if (_socialVideoPosts.isNotEmpty) ...[
+                const SizedBox(height: 28),
+                SharedSocialPostsSection(
+                  posts: _socialVideoPosts,
+                  onPostTap: _openSocialVideoPost,
                 ),
               ],
 

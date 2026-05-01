@@ -8,8 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Helper for fetching and managing video insights from Supabase.
 class VideoInsightsHelper {
-  VideoInsightsHelper()
-      : _client = SupabaseClientManager().client;
+  VideoInsightsHelper() : _client = SupabaseClientManager().client;
 
   final SupabaseClient _client;
 
@@ -28,7 +27,7 @@ class VideoInsightsHelper {
           .maybeSingle();
 
       if (response == null) return null;
-      return VideoInsight.fromJson(response as Map<String, dynamic>);
+      return VideoInsight.fromJson(Map<String, dynamic>.from(response));
     } catch (e) {
       developer.log(
         '[VideoInsights] Error fetching insight: $e',
@@ -44,12 +43,13 @@ class VideoInsightsHelper {
       final response = await _client
           .from('video_insights')
           .select()
-          .eq('location_id', locationId);
+          .eq('location_id', locationId)
+          .order('extracted_at', ascending: false);
 
-      if (response == null) return [];
       return (response as List)
-          .map((row) =>
-              VideoInsight.fromJson(row as Map<String, dynamic>))
+          .map((row) => VideoInsight.fromJson(
+                Map<String, dynamic>.from(row as Map),
+              ))
           .toList();
     } catch (e) {
       if (kDebugMode) {
@@ -57,5 +57,21 @@ class VideoInsightsHelper {
       }
       return [];
     }
+  }
+
+  Future<List<SocialVideoPost>> getSocialVideoPostsForLocation(
+    int locationId,
+  ) async {
+    final insights = await getInsightsForLocation(locationId);
+    final posts = <SocialVideoPost>[];
+    final seenUrls = <String>{};
+
+    for (final insight in insights) {
+      final url = insight.sourceVideoUrl.trim();
+      if (url.isEmpty || !seenUrls.add(url)) continue;
+      posts.add(SocialVideoPost.fromInsight(insight));
+    }
+
+    return posts;
   }
 }

@@ -6,6 +6,7 @@ import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'pinit_colors.dart';
 
@@ -34,7 +35,7 @@ class LocationMosaicGrid extends StatelessWidget {
         // Tile dimensions derived from available width.
         final smallWidth = (totalWidth - gap) / 3;
         final bigWidth = (totalWidth - gap) * 2 / 3;
-        const infoBarHeight = 52.0;
+        const infoBarHeight = 76.0;
         final smallHeight = smallWidth * 1.3 + infoBarHeight;
         final bigHeight = smallHeight * 2 + gap;
 
@@ -51,6 +52,7 @@ class LocationMosaicGrid extends StatelessWidget {
               child: _MosaicTile(
                 location: chunk[0],
                 resolveSharedVideoUrlOnOpen: resolveSharedVideoUrlOnOpen,
+                isLarge: true,
               ),
             ));
           } else if (chunk.length == 2) {
@@ -63,6 +65,7 @@ class LocationMosaicGrid extends StatelessWidget {
                     child: _MosaicTile(
                       location: chunk[0],
                       resolveSharedVideoUrlOnOpen: resolveSharedVideoUrlOnOpen,
+                      isLarge: false,
                     ),
                   ),
                   SizedBox(width: gap),
@@ -70,6 +73,7 @@ class LocationMosaicGrid extends StatelessWidget {
                     child: _MosaicTile(
                       location: chunk[1],
                       resolveSharedVideoUrlOnOpen: resolveSharedVideoUrlOnOpen,
+                      isLarge: true,
                     ),
                   ),
                 ],
@@ -82,6 +86,7 @@ class LocationMosaicGrid extends StatelessWidget {
               child: _MosaicTile(
                 location: chunk[0],
                 resolveSharedVideoUrlOnOpen: resolveSharedVideoUrlOnOpen,
+                isLarge: true,
               ),
             );
             final smallStack = SizedBox(
@@ -94,6 +99,7 @@ class LocationMosaicGrid extends StatelessWidget {
                     child: _MosaicTile(
                       location: chunk[1],
                       resolveSharedVideoUrlOnOpen: resolveSharedVideoUrlOnOpen,
+                      isLarge: false,
                     ),
                   ),
                   SizedBox(height: gap),
@@ -101,6 +107,7 @@ class LocationMosaicGrid extends StatelessWidget {
                     child: _MosaicTile(
                       location: chunk[2],
                       resolveSharedVideoUrlOnOpen: resolveSharedVideoUrlOnOpen,
+                      isLarge: false,
                     ),
                   ),
                 ],
@@ -132,10 +139,12 @@ class _MosaicTile extends StatelessWidget {
   const _MosaicTile({
     required this.location,
     required this.resolveSharedVideoUrlOnOpen,
+    required this.isLarge,
   });
 
   final LocationModel location;
   final bool resolveSharedVideoUrlOnOpen;
+  final bool isLarge;
 
   @override
   Widget build(BuildContext context) {
@@ -220,34 +229,82 @@ class _MosaicTile extends StatelessWidget {
                             ),
                           ),
                         ),
+                      if (location.hasSocialVideos)
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: _TikTokCountBadge(
+                            count: location.socialVideoCount,
+                          ),
+                        ),
+                      if (_socialVideoUrl != null)
+                        Positioned(
+                          right: 8,
+                          bottom: 8,
+                          child: _TikTokPlayButton(
+                            onTap: _openSocialVideo,
+                          ),
+                        ),
                     ],
                   ),
                 ),
                 Container(
-                  height: 52,
+                  height: isLarge ? 76 : 68,
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   color: PinitColors.cream,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Expanded(
-                        child: Text(
-                          location.name,
-                          style: GoogleFonts.dmSans(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: PinitColors.aubergine,
-                            letterSpacing: -0.2,
-                            height: 1.2,
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              location.name,
+                              style: GoogleFonts.dmSans(
+                                fontSize: isLarge ? 13 : 12,
+                                fontWeight: FontWeight.w800,
+                                color: PinitColors.aubergine,
+                                letterSpacing: -0.2,
+                                height: 1.15,
+                              ),
+                              maxLines: isLarge ? 2 : 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                          maxLines: 2,
+                          if (location.rating != null) ...[
+                            const SizedBox(width: 6),
+                            _RatingChip(rating: location.rating!),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _subtitle,
+                        style: GoogleFonts.dmSans(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: PinitColors.aubergineSoft,
+                          height: 1.15,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (isLarge && _dishLabel != null) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          _dishLabel!,
+                          style: GoogleFonts.dmSans(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: PinitColors.aubergine,
+                            height: 1.1,
+                          ),
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                      if (location.rating != null) ...[
-                        const SizedBox(width: 6),
-                        _RatingChip(rating: location.rating!),
                       ],
                     ],
                   ),
@@ -258,6 +315,38 @@ class _MosaicTile extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String? get _socialVideoUrl {
+    final url = location.socialVideoUrl?.trim();
+    return url == null || url.isEmpty ? null : url;
+  }
+
+  String? get _dishLabel {
+    final dish = location.tiktokRecommendedDish?.trim();
+    if (dish == null || dish.isEmpty) return null;
+    return 'TikTok pick: $dish';
+  }
+
+  String get _subtitle {
+    if (location.hasSocialVideos) {
+      final count = location.socialVideoCount;
+      if (count <= 1) return '1 TikTok shared here';
+      return '$count TikToks shared here';
+    }
+    final vicinity = location.vicinity?.trim();
+    if (vicinity != null && vicinity.isNotEmpty) return vicinity;
+    return 'Shared place';
+  }
+
+  Future<void> _openSocialVideo() async {
+    final url = _socialVideoUrl;
+    if (url == null) return;
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   Widget _buildImage(BuildContext context) {
@@ -284,6 +373,83 @@ class _MosaicTile extends StatelessWidget {
           ),
         ),
       );
+}
+
+class _TikTokCountBadge extends StatelessWidget {
+  const _TikTokCountBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = count <= 1 ? 'TikTok' : '$count TikToks';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      decoration: BoxDecoration(
+        color: PinitColors.aubergine.withValues(alpha: 0.88),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: PinitColors.cream.withValues(alpha: 0.35),
+          width: 0.8,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            FeatherIcons.video,
+            size: 10,
+            color: PinitColors.cream,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: GoogleFonts.dmSans(
+              color: PinitColors.cream,
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              height: 1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TikTokPlayButton extends StatelessWidget {
+  const _TikTokPlayButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          color: PinitColors.cream,
+          shape: BoxShape.circle,
+          border: Border.all(color: PinitColors.aubergine, width: 1.4),
+          boxShadow: const [
+            BoxShadow(
+              color: PinitColors.aubergine,
+              blurRadius: 0,
+              offset: Offset(2, 2),
+            ),
+          ],
+        ),
+        child: const Icon(
+          FeatherIcons.play,
+          size: 15,
+          color: PinitColors.aubergine,
+        ),
+      ),
+    );
+  }
 }
 
 class _RatingChip extends StatelessWidget {

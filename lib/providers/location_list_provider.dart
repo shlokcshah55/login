@@ -28,6 +28,9 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       'No recommendations found in this area';
   static const String noMagicSearchResultsMessage =
       'No magic search results in this area';
+  static const int defaultPinsMinimumSavedTotal = 10;
+  static const int defaultPinsMinimumNearbySaved = 5;
+  static const double defaultPinsNearbyRadiusKm = 4.0;
 
   final GooglePlacesService _googlePlacesService;
   final SupabaseService _supabaseService = SupabaseService();
@@ -724,6 +727,26 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
             math.sin(deltaLngRad / 2);
     final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
     return earthRadiusKm * c;
+  }
+
+  bool shouldDefaultPinsToRecommendations({
+    required LatLng userPosition,
+    Iterable<LocationModel>? savedLocations,
+  }) {
+    final locations = (savedLocations ?? _allSavedLocations).toList();
+    if (locations.length < defaultPinsMinimumSavedTotal) {
+      return true;
+    }
+
+    final nearbySavedCount = locations.where((location) {
+      final lat = location.lat;
+      final lng = location.lng;
+      if (lat == null || lng == null) return false;
+      return _calculateDistance(userPosition, LatLng(lat, lng)) <=
+          defaultPinsNearbyRadiusKm;
+    }).length;
+
+    return nearbySavedCount < defaultPinsMinimumNearbySaved;
   }
 
   /// Sorts locations by distance (nearest first) and then by match score (highest first)

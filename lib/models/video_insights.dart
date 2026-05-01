@@ -90,3 +90,51 @@ class DishHighlight {
     );
   }
 }
+
+/// Public social post linked to a location.
+///
+/// This is intentionally thumbnail-free: the UI displays creator/description
+/// context from `video_insights` and opens the original source URL.
+class SocialVideoPost {
+  const SocialVideoPost({
+    required this.sourceVideoUrl,
+    this.creatorHandle,
+    this.videoDescription,
+    this.recommendedDish,
+    this.shareCount = 1,
+  });
+
+  final String sourceVideoUrl;
+  final String? creatorHandle;
+  final String? videoDescription;
+  final String? recommendedDish;
+  final int shareCount;
+
+  String get displayHandle {
+    final handle = creatorHandle?.trim();
+    if (handle == null || handle.isEmpty) return 'TikTok creator';
+    return handle.startsWith('@') ? handle : '@$handle';
+  }
+
+  factory SocialVideoPost.fromInsight(
+    VideoInsight insight, {
+    int shareCount = 1,
+  }) {
+    String? dish;
+    for (final highlight in insight.keyDishes ?? const <DishHighlight>[]) {
+      final name = highlight.name.trim();
+      if (name.isNotEmpty) {
+        dish = name;
+        break;
+      }
+    }
+
+    return SocialVideoPost(
+      sourceVideoUrl: insight.sourceVideoUrl,
+      creatorHandle: insight.creatorHandle,
+      videoDescription: insight.videoDescription,
+      recommendedDish: dish,
+      shareCount: shareCount,
+    );
+  }
+}

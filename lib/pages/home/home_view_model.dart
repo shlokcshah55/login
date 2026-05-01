@@ -64,6 +64,9 @@ class HomeViewModel extends ChangeNotifier {
   bool _isBubbleModeActive = false;
   Bubble? _activeBubble;
   bool _initialRecommendationsFetched = false;
+  bool _initialDefaultListResolved = false;
+  bool _isResolvingInitialDefaultList = false;
+  bool _userSelectedHomeMode = false;
   String? _selectedMarkerBeforeHeaderPreview;
 
   HomeViewModel({
@@ -144,6 +147,7 @@ class HomeViewModel extends ChangeNotifier {
   String? get activeBubbleName => _activeBubble?.name;
 
   void setHomeMode(HomeMode mode) {
+    _userSelectedHomeMode = true;
     if (homeMode == mode &&
         _activeCollectionId == null &&
         !_isBubbleModeActive) {
@@ -185,6 +189,42 @@ class HomeViewModel extends ChangeNotifier {
     _homeController.fetchAndPlotRecommendedPins(
       locationListManager.currentPosition,
     );
+  }
+
+  Future<void> _resolveInitialDefaultListIfReady() async {
+    if (_initialDefaultListResolved ||
+        _isResolvingInitialDefaultList ||
+        _userSelectedHomeMode ||
+        _isBubbleModeActive ||
+        _activeCollectionId != null ||
+        locationListManager.currentListType != LocationListType.saved ||
+        locationListManager.isLoadingSaved ||
+        !locationListManager.hasLoadedSavedLocations) {
+      return;
+    }
+
+    _isResolvingInitialDefaultList = true;
+    try {
+      final position = locationListManager.currentPosition;
+      if (position == null) {
+        return;
+      }
+
+      _initialDefaultListResolved = true;
+      final shouldUsePicks =
+          locationListManager.shouldDefaultPinsToRecommendations(
+        userPosition: position,
+      );
+      if (!shouldUsePicks) {
+        return;
+      }
+
+      await locationListManager
+          .setCurrentListType(LocationListType.recommended);
+      await _homeController.fetchAndPlotRecommendedPins(position);
+    } finally {
+      _isResolvingInitialDefaultList = false;
+    }
   }
 
   // ── Shortlist delegates ───────────────────────────────────────
@@ -238,6 +278,7 @@ class HomeViewModel extends ChangeNotifier {
     shortlistProvider.addListener(_onExternalStateChanged);
 
     _lastSelectedMarkerId = mapStateProvider.selectedMarkerId;
+    unawaited(_resolveInitialDefaultListIfReady());
     unawaited(loadCollections());
   }
 
@@ -246,6 +287,7 @@ class HomeViewModel extends ChangeNotifier {
     // as a location becomes available. In You mode we stay lazy — the
     // carousel sticks to saved locations until Explore is tapped.
     _maybeFetchInitialRecommendations();
+    unawaited(_resolveInitialDefaultListIfReady());
     notifyListeners();
   }
 

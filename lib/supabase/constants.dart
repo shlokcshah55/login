@@ -120,6 +120,11 @@ class SupabaseConstants {
   static const String columnDietaryRequirementVector =
       'dietary_requirement_vector';
   static const String columnCuisineScoresJson = 'cuisine_scores_json';
+  static const String columnSocialVideoCount = 'social_video_count';
+  static const String columnSocialVideoUrl = 'social_video_url';
+  static const String columnSocialVideoCreatorHandle =
+      'social_video_creator_handle';
+  static const String columnTikTokRecommendedDish = 'tiktok_recommended_dish';
 
   // Column names - videos
   static const String columnVideoId = 'video_id';
