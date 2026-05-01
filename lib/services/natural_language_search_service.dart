@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:login/models/locations.dart';
 import 'package:login/supabase/constants.dart';
@@ -18,10 +19,10 @@ class NaturalLanguageSearchService {
   NaturalLanguageSearchService({
     SupabaseService? supabaseService,
     http.Client? client,
-    String endpoint = defaultEndpoint,
+    String? endpoint,
   })  : _supabaseService = supabaseService ?? SupabaseService(),
         _client = client ?? http.Client(),
-        _endpoint = endpoint;
+        _endpoint = endpoint ?? resolveMagicSearchEndpoint();
 
   Future<List<LocationModel>> search({
     required String userId,
@@ -54,14 +55,16 @@ class NaturalLanguageSearchService {
     final decoded = jsonDecode(response.body) as Map<String, dynamic>;
     final recommendations =
         decoded['recommendations'] as List<dynamic>? ?? const [];
-    final locationIds = recommendations
-        .map((item) => (item as Map<String, dynamic>)['location_id'])
-        .where((id) => id != null)
-        .map((id) => (id as num).toInt())
-        .toList();
+    final recommendationMaps = recommendations
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList(growable: false);
+    final fallbackLocations =
+        magicSearchRecommendationsToLocationModels(recommendationMaps);
+    final locationIds = persistedMagicSearchLocationIds(recommendationMaps);
 
     if (locationIds.isEmpty) {
-      return const [];
+      return fallbackLocations;
     }
 
     final responseRows = await Supabase.instance.client
@@ -69,16 +72,118 @@ class NaturalLanguageSearchService {
         .select()
         .inFilter(SupabaseConstants.columnLocationId, locationIds);
 
-    final processed = await _supabaseService.locations.processLocationsWithImages(
+    final processed =
+        await _supabaseService.locations.processLocationsWithImages(
       responseRows as List,
     );
     final byId = <int, LocationModel>{
       for (final location in processed) location.locationId: location,
     };
 
-    return locationIds
-        .map((id) => byId[id])
-        .whereType<LocationModel>()
-        .toList();
+    return fallbackLocations.map((location) {
+      if (location.locationId > 0) {
+        return byId[location.locationId] ?? location;
+      }
+      return location;
+    }).toList(growable: false);
   }
+}
+
+String resolveMagicSearchEndpoint({Map<String, String>? env}) {
+  final source = env ?? dotenv.env;
+  final override = source['MAGIC_SEARCH_API_URL']?.trim();
+  if (override == null || override.isEmpty) {
+    return NaturalLanguageSearchService.defaultEndpoint;
+  }
+
+  final withoutTrailingSlash = override.replaceFirst(RegExp(r'/+$'), '');
+  if (withoutTrailingSlash.endsWith('/locations/magic-search')) {
+    return withoutTrailingSlash;
+  }
+  return '$withoutTrailingSlash/locations/magic-search';
+}
+
+List<int> persistedMagicSearchLocationIds(
+  List<Map<String, dynamic>> recommendations,
+) {
+  final ids = <int>[];
+  for (final recommendation in recommendations) {
+    final raw = recommendation['location_id'];
+    final id = raw is num ? raw.toInt() : int.tryParse(raw?.toString() ?? '');
+    if (id != null && id > 0) {
+      ids.add(id);
+    }
+  }
+  return ids;
+}
+
+List<LocationModel> magicSearchRecommendationsToLocationModels(
+  List<Map<String, dynamic>> recommendations,
+) {
+  return recommendations
+      .map(_magicSearchRecommendationToLocationModel)
+      .whereType<LocationModel>()
+      .toList(growable: false);
+}
+
+LocationModel? _magicSearchRecommendationToLocationModel(
+  Map<String, dynamic> json,
+) {
+  final rawId = json['location_id'];
+  final locationId =
+      rawId is num ? rawId.toInt() : int.tryParse(rawId?.toString() ?? '');
+  final googlePlaceId = json['google_place_id']?.toString().trim();
+  final name = json['name']?.toString().trim();
+  if (locationId == null || name == null || name.isEmpty) {
+    return null;
+  }
+
+  return LocationModel(
+    locationId: locationId,
+    name: name,
+    vicinity: _optionalString(json['vicinity']),
+    lat: _optionalDouble(json['lat']),
+    lng: _optionalDouble(json['lng']),
+    createdAt: DateTime.now(),
+    googlePlaceId:
+        googlePlaceId == null || googlePlaceId.isEmpty ? null : googlePlaceId,
+    rating: _optionalDouble(json['rating']),
+    userRatingsTotal: _optionalInt(json['user_ratings_total']),
+    priceLevel: _optionalInt(json['price_level']),
+    cuisinePrimary: _optionalString(json['cuisine_primary']),
+    types: _typesToString(json['types']),
+    openNow: _optionalBool(json['open_now']),
+    preference: LocationPreference.search,
+  );
+}
+
+String? _optionalString(dynamic value) {
+  final text = value?.toString().trim();
+  return text == null || text.isEmpty ? null : text;
+}
+
+double? _optionalDouble(dynamic value) {
+  if (value is num) return value.toDouble();
+  return double.tryParse(value?.toString() ?? '');
+}
+
+int? _optionalInt(dynamic value) {
+  if (value is num) return value.toInt();
+  return int.tryParse(value?.toString() ?? '');
+}
+
+bool? _optionalBool(dynamic value) {
+  if (value is bool) return value;
+  if (value is num) return value != 0;
+  final normalized = value?.toString().trim().toLowerCase();
+  if (normalized == 'true') return true;
+  if (normalized == 'false') return false;
+  return null;
+}
+
+String? _typesToString(dynamic value) {
+  if (value is List) {
+    return value.map((item) => item.toString()).join(',');
+  }
+  return _optionalString(value);
 }
