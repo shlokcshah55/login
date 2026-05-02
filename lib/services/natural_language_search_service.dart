@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:login/models/locations.dart';
 import 'package:login/supabase/constants.dart';
@@ -18,10 +19,10 @@ class NaturalLanguageSearchService {
   NaturalLanguageSearchService({
     SupabaseService? supabaseService,
     http.Client? client,
-    String endpoint = defaultEndpoint,
+    String? endpoint,
   })  : _supabaseService = supabaseService ?? SupabaseService(),
         _client = client ?? http.Client(),
-        _endpoint = endpoint;
+        _endpoint = endpoint ?? resolveMagicSearchEndpoint();
 
   Future<List<LocationModel>> search({
     required String userId,
@@ -54,14 +55,16 @@ class NaturalLanguageSearchService {
     final decoded = jsonDecode(response.body) as Map<String, dynamic>;
     final recommendations =
         decoded['recommendations'] as List<dynamic>? ?? const [];
-    final locationIds = recommendations
-        .map((item) => (item as Map<String, dynamic>)['location_id'])
-        .where((id) => id != null)
-        .map((id) => (id as num).toInt())
-        .toList();
+    final recommendationMaps = recommendations
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList(growable: false);
+    final fallbackLocations =
+        magicSearchRecommendationsToLocationModels(recommendationMaps);
+    final locationIds = persistedMagicSearchLocationIds(recommendationMaps);
 
     if (locationIds.isEmpty) {
-      return const [];
+      return fallbackLocations;
     }
 
     final responseRows = await Supabase.instance.client
@@ -69,16 +72,207 @@ class NaturalLanguageSearchService {
         .select()
         .inFilter(SupabaseConstants.columnLocationId, locationIds);
 
-    final processed = await _supabaseService.locations.processLocationsWithImages(
+    final processed =
+        await _supabaseService.locations.processLocationsWithImages(
       responseRows as List,
     );
     final byId = <int, LocationModel>{
       for (final location in processed) location.locationId: location,
     };
 
-    return locationIds
-        .map((id) => byId[id])
-        .whereType<LocationModel>()
-        .toList();
+    return fallbackLocations.map((location) {
+      if (location.locationId > 0) {
+        return byId[location.locationId] ?? location;
+      }
+      return location;
+    }).toList(growable: false);
   }
+}
+
+String resolveMagicSearchEndpoint({Map<String, String>? env}) {
+  final source = env ?? _dotenvEnvOrEmpty();
+  final override = source['MAGIC_SEARCH_API_URL']?.trim();
+  if (override == null || override.isEmpty) {
+    return NaturalLanguageSearchService.defaultEndpoint;
+  }
+
+  final withoutTrailingSlash = override.replaceFirst(RegExp(r'/+$'), '');
+  if (withoutTrailingSlash.endsWith('/locations/magic-search')) {
+    return withoutTrailingSlash;
+  }
+  return '$withoutTrailingSlash/locations/magic-search';
+}
+
+Map<String, String> _dotenvEnvOrEmpty() {
+  try {
+    return dotenv.env;
+  } catch (_) {
+    return const {};
+  }
+}
+
+List<int> persistedMagicSearchLocationIds(
+  List<Map<String, dynamic>> recommendations,
+) {
+  final ids = <int>[];
+  for (final recommendation in recommendations) {
+    final raw = recommendation['location_id'];
+    final id = raw is num ? raw.toInt() : int.tryParse(raw?.toString() ?? '');
+    if (id != null && id > 0) {
+      ids.add(id);
+    }
+  }
+  return ids;
+}
+
+List<LocationModel> magicSearchRecommendationsToLocationModels(
+  List<Map<String, dynamic>> recommendations, {
+  Map<String, String>? env,
+}) {
+  return recommendations
+      .map((recommendation) => _magicSearchRecommendationToLocationModel(
+            recommendation,
+            env: env,
+          ))
+      .whereType<LocationModel>()
+      .toList(growable: false);
+}
+
+LocationModel? _magicSearchRecommendationToLocationModel(
+  Map<String, dynamic> json, {
+  Map<String, String>? env,
+}) {
+  final rawId = json['location_id'];
+  final locationId =
+      rawId is num ? rawId.toInt() : int.tryParse(rawId?.toString() ?? '');
+  final googlePlaceId = json['google_place_id']?.toString().trim();
+  final name = json['name']?.toString().trim();
+  if (locationId == null || name == null || name.isEmpty) {
+    return null;
+  }
+
+  // Magic search returns the same rich Google Places metadata for both
+  // known DB rows and external (negative-id) candidates. Plumb every field
+  // through so temporary location cards on the home feed render the same
+  // way as canonical ones — website, hours, summaries, vibe booleans, etc.
+  return LocationModel(
+    locationId: locationId,
+    name: name,
+    vicinity: _optionalString(json['vicinity']) ??
+        _optionalString(json['formatted_address']),
+    lat: _optionalDouble(json['lat']),
+    lng: _optionalDouble(json['lng']),
+    createdAt: DateTime.now(),
+    googlePlaceId:
+        googlePlaceId == null || googlePlaceId.isEmpty ? null : googlePlaceId,
+    photoReference: _optionalString(json['photo_reference']),
+    imageUrl:
+        magicSearchPhotoUrl(_optionalString(json['photo_reference']), env: env),
+    rating: _optionalDouble(json['rating']),
+    userRatingsTotal: _optionalInt(json['user_ratings_total']),
+    priceLevel: _optionalInt(json['price_level']),
+    cuisinePrimary: _optionalString(json['cuisine_primary']),
+    types: _typesToString(json['types']),
+    openNow: _optionalBool(json['open_now']),
+    businessStatus: _optionalString(json['business_status']),
+    googleMapsUri: _optionalString(json['google_maps_uri']),
+    website: _optionalString(json['website']),
+    internationalPhoneNumber:
+        _optionalString(json['international_phone_number']),
+    editorialSummary: _optionalString(json['editorial_summary']),
+    reviewSummary: _optionalString(json['review_summary']),
+    openingHoursText: _optionalStringList(json['opening_hours_text']),
+    goodForChildren: _optionalBool(json['good_for_children']),
+    goodForGroups: _optionalBool(json['good_for_groups']),
+    goodForWatchingSports: _optionalBool(json['good_for_watching_sports']),
+    liveMusic: _optionalBool(json['live_music']),
+    outdoorSeating: _optionalBool(json['outdoor_seating']),
+    servesBeer: _optionalBool(json['serves_beer']),
+    servesBreakfast: _optionalBool(json['serves_breakfast']),
+    servesBrunch: _optionalBool(json['serves_brunch']),
+    servesCocktails: _optionalBool(json['serves_cocktails']),
+    servesCoffee: _optionalBool(json['serves_coffee']),
+    servesDessert: _optionalBool(json['serves_dessert']),
+    servesDinner: _optionalBool(json['serves_dinner']),
+    servesLunch: _optionalBool(json['serves_lunch']),
+    servesVegetarianFood: _optionalBool(json['serves_vegetarian_food']),
+    servesWine: _optionalBool(json['serves_wine']),
+    preference: LocationPreference.search,
+  );
+}
+
+String? magicSearchPhotoUrl(String? photoReference,
+    {Map<String, String>? env}) {
+  final ref = photoReference?.trim();
+  if (ref == null || ref.isEmpty) return null;
+  if (ref.startsWith('http://') || ref.startsWith('https://')) return ref;
+
+  final apiKey = (env ?? _dotenvEnvOrEmpty())['GOOGLE_PLACE_API_KEY']?.trim();
+  if (apiKey == null || apiKey.isEmpty) return null;
+
+  if (ref.startsWith('places/')) {
+    return Uri.https(
+      'places.googleapis.com',
+      '/v1/$ref/media',
+      {
+        'maxHeightPx': '2000',
+        'maxWidthPx': '2000',
+        'key': apiKey,
+      },
+    ).toString();
+  }
+
+  return Uri.https(
+    'maps.googleapis.com',
+    '/maps/api/place/photo',
+    {
+      'maxwidth': '1600',
+      'photoreference': ref,
+      'key': apiKey,
+    },
+  ).toString();
+}
+
+String? _optionalString(dynamic value) {
+  final text = value?.toString().trim();
+  return text == null || text.isEmpty ? null : text;
+}
+
+double? _optionalDouble(dynamic value) {
+  if (value is num) return value.toDouble();
+  return double.tryParse(value?.toString() ?? '');
+}
+
+int? _optionalInt(dynamic value) {
+  if (value is num) return value.toInt();
+  return int.tryParse(value?.toString() ?? '');
+}
+
+bool? _optionalBool(dynamic value) {
+  if (value is bool) return value;
+  if (value is num) return value != 0;
+  final normalized = value?.toString().trim().toLowerCase();
+  if (normalized == 'true') return true;
+  if (normalized == 'false') return false;
+  return null;
+}
+
+String? _typesToString(dynamic value) {
+  if (value is List) {
+    return value.map((item) => item.toString()).join(',');
+  }
+  return _optionalString(value);
+}
+
+List<String>? _optionalStringList(dynamic value) {
+  if (value is List) {
+    final items = <String>[];
+    for (final item in value) {
+      final text = item?.toString().trim();
+      if (text != null && text.isNotEmpty) items.add(text);
+    }
+    return items.isEmpty ? null : items;
+  }
+  final single = _optionalString(value);
+  return single == null ? null : [single];
 }
