@@ -90,7 +90,7 @@ class NaturalLanguageSearchService {
 }
 
 String resolveMagicSearchEndpoint({Map<String, String>? env}) {
-  final source = env ?? dotenv.env;
+  final source = env ?? _dotenvEnvOrEmpty();
   final override = source['MAGIC_SEARCH_API_URL']?.trim();
   if (override == null || override.isEmpty) {
     return NaturalLanguageSearchService.defaultEndpoint;
@@ -101,6 +101,14 @@ String resolveMagicSearchEndpoint({Map<String, String>? env}) {
     return withoutTrailingSlash;
   }
   return '$withoutTrailingSlash/locations/magic-search';
+}
+
+Map<String, String> _dotenvEnvOrEmpty() {
+  try {
+    return dotenv.env;
+  } catch (_) {
+    return const {};
+  }
 }
 
 List<int> persistedMagicSearchLocationIds(
@@ -118,17 +126,22 @@ List<int> persistedMagicSearchLocationIds(
 }
 
 List<LocationModel> magicSearchRecommendationsToLocationModels(
-  List<Map<String, dynamic>> recommendations,
-) {
+  List<Map<String, dynamic>> recommendations, {
+  Map<String, String>? env,
+}) {
   return recommendations
-      .map(_magicSearchRecommendationToLocationModel)
+      .map((recommendation) => _magicSearchRecommendationToLocationModel(
+            recommendation,
+            env: env,
+          ))
       .whereType<LocationModel>()
       .toList(growable: false);
 }
 
 LocationModel? _magicSearchRecommendationToLocationModel(
-  Map<String, dynamic> json,
-) {
+  Map<String, dynamic> json, {
+  Map<String, String>? env,
+}) {
   final rawId = json['location_id'];
   final locationId =
       rawId is num ? rawId.toInt() : int.tryParse(rawId?.toString() ?? '');
@@ -138,23 +151,86 @@ LocationModel? _magicSearchRecommendationToLocationModel(
     return null;
   }
 
+  // Magic search returns the same rich Google Places metadata for both
+  // known DB rows and external (negative-id) candidates. Plumb every field
+  // through so temporary location cards on the home feed render the same
+  // way as canonical ones — website, hours, summaries, vibe booleans, etc.
   return LocationModel(
     locationId: locationId,
     name: name,
-    vicinity: _optionalString(json['vicinity']),
+    vicinity: _optionalString(json['vicinity']) ??
+        _optionalString(json['formatted_address']),
     lat: _optionalDouble(json['lat']),
     lng: _optionalDouble(json['lng']),
     createdAt: DateTime.now(),
     googlePlaceId:
         googlePlaceId == null || googlePlaceId.isEmpty ? null : googlePlaceId,
+    photoReference: _optionalString(json['photo_reference']),
+    imageUrl:
+        magicSearchPhotoUrl(_optionalString(json['photo_reference']), env: env),
     rating: _optionalDouble(json['rating']),
     userRatingsTotal: _optionalInt(json['user_ratings_total']),
     priceLevel: _optionalInt(json['price_level']),
     cuisinePrimary: _optionalString(json['cuisine_primary']),
     types: _typesToString(json['types']),
     openNow: _optionalBool(json['open_now']),
+    businessStatus: _optionalString(json['business_status']),
+    googleMapsUri: _optionalString(json['google_maps_uri']),
+    website: _optionalString(json['website']),
+    internationalPhoneNumber:
+        _optionalString(json['international_phone_number']),
+    editorialSummary: _optionalString(json['editorial_summary']),
+    reviewSummary: _optionalString(json['review_summary']),
+    openingHoursText: _optionalStringList(json['opening_hours_text']),
+    goodForChildren: _optionalBool(json['good_for_children']),
+    goodForGroups: _optionalBool(json['good_for_groups']),
+    goodForWatchingSports: _optionalBool(json['good_for_watching_sports']),
+    liveMusic: _optionalBool(json['live_music']),
+    outdoorSeating: _optionalBool(json['outdoor_seating']),
+    servesBeer: _optionalBool(json['serves_beer']),
+    servesBreakfast: _optionalBool(json['serves_breakfast']),
+    servesBrunch: _optionalBool(json['serves_brunch']),
+    servesCocktails: _optionalBool(json['serves_cocktails']),
+    servesCoffee: _optionalBool(json['serves_coffee']),
+    servesDessert: _optionalBool(json['serves_dessert']),
+    servesDinner: _optionalBool(json['serves_dinner']),
+    servesLunch: _optionalBool(json['serves_lunch']),
+    servesVegetarianFood: _optionalBool(json['serves_vegetarian_food']),
+    servesWine: _optionalBool(json['serves_wine']),
     preference: LocationPreference.search,
   );
+}
+
+String? magicSearchPhotoUrl(String? photoReference,
+    {Map<String, String>? env}) {
+  final ref = photoReference?.trim();
+  if (ref == null || ref.isEmpty) return null;
+  if (ref.startsWith('http://') || ref.startsWith('https://')) return ref;
+
+  final apiKey = (env ?? _dotenvEnvOrEmpty())['GOOGLE_PLACE_API_KEY']?.trim();
+  if (apiKey == null || apiKey.isEmpty) return null;
+
+  if (ref.startsWith('places/')) {
+    return Uri.https(
+      'places.googleapis.com',
+      '/v1/$ref/media',
+      {
+        'maxHeightPx': '2000',
+        'maxWidthPx': '2000',
+        'key': apiKey,
+      },
+    ).toString();
+  }
+
+  return Uri.https(
+    'maps.googleapis.com',
+    '/maps/api/place/photo',
+    {
+      'maxwidth': '1600',
+      'photoreference': ref,
+      'key': apiKey,
+    },
+  ).toString();
 }
 
 String? _optionalString(dynamic value) {
@@ -186,4 +262,17 @@ String? _typesToString(dynamic value) {
     return value.map((item) => item.toString()).join(',');
   }
   return _optionalString(value);
+}
+
+List<String>? _optionalStringList(dynamic value) {
+  if (value is List) {
+    final items = <String>[];
+    for (final item in value) {
+      final text = item?.toString().trim();
+      if (text != null && text.isNotEmpty) items.add(text);
+    }
+    return items.isEmpty ? null : items;
+  }
+  final single = _optionalString(value);
+  return single == null ? null : [single];
 }

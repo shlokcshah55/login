@@ -1,19 +1,23 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:login/models/proximal_models.dart';
 
 class RecommendationsApi {
   static const int defaultMaxResults = 30;
-  static const String _baseUrl =
+  static const String defaultBaseUrl =
       'https://pinit-recommendations-api-jkqbw4i75a-nw.a.run.app';
   static const String _path = '/recommendations/proximal';
   static const String _addLocationPath = '/locations/add';
 
   final http.Client _client;
+  final String _baseUrl;
 
-  RecommendationsApi({http.Client? client}) : _client = client ?? http.Client();
+  RecommendationsApi({http.Client? client, String? baseUrl})
+      : _client = client ?? http.Client(),
+        _baseUrl = baseUrl ?? resolveRecommendationsApiBaseUrl();
 
   Future<ProximalResponse> fetchProximal({
     required String userId,
@@ -205,6 +209,7 @@ class RecommendationsApi {
       body: jsonEncode({
         'google_place_id': trimmed,
         'classify_photo': classifyPhoto,
+        'generate_emoji': true,
         'source': source,
       }),
     );
@@ -224,6 +229,33 @@ class RecommendationsApi {
       return locationId.toInt();
     }
     return null;
+  }
+}
+
+String resolveRecommendationsApiBaseUrl({Map<String, String>? env}) {
+  final source = env ?? _dotenvEnvOrEmpty();
+  final override =
+      (source['RECOMMENDATIONS_API_URL'] ?? source['MAGIC_SEARCH_API_URL'])
+          ?.trim();
+  if (override == null || override.isEmpty) {
+    return RecommendationsApi.defaultBaseUrl;
+  }
+
+  var normalized = override.replaceFirst(RegExp(r'/+$'), '');
+  if (normalized.endsWith('/locations/magic-search')) {
+    normalized = normalized.substring(
+      0,
+      normalized.length - '/locations/magic-search'.length,
+    );
+  }
+  return normalized;
+}
+
+Map<String, String> _dotenvEnvOrEmpty() {
+  try {
+    return dotenv.env;
+  } catch (_) {
+    return const {};
   }
 }
 
