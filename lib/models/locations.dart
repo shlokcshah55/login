@@ -444,6 +444,7 @@ class LocationModel {
 
   factory LocationModel.fromJson(
       Map<String, dynamic> json, String? locationImage) {
+    final cuisinePrimary = json[SupabaseConstants.columnCuisinePrimary];
     return LocationModel(
       locationId: json[SupabaseConstants.columnLocationId] as int,
       name: json[SupabaseConstants.columnName] ?? 'Unknown',
@@ -458,7 +459,10 @@ class LocationModel {
               json[SupabaseConstants.columnIngestedAt].toString())
           : null,
       phoneNumber: json[SupabaseConstants.columnPhoneNumber],
-      cuisine: json[SupabaseConstants.columnCuisine],
+      // Prefer `cuisine_primary` when present, since it's the normalized
+      // cuisine used throughout filtering + ranking. Fall back to legacy
+      // `cuisine` for older rows.
+      cuisine: cuisinePrimary ?? json[SupabaseConstants.columnCuisine],
       rating: (json[SupabaseConstants.columnRating] as num?)?.toDouble(),
       userRatingsTotal:
           (json[SupabaseConstants.columnUserRatingsTotal] as num?)?.toInt(),
@@ -483,7 +487,7 @@ class LocationModel {
       openNow: _safeBool(json[SupabaseConstants.columnOpenNow]),
       cuisineDetected: json[SupabaseConstants.columnCuisineDetected],
       cuisineSource: json[SupabaseConstants.columnCuisineSource],
-      cuisinePrimary: json[SupabaseConstants.columnCuisinePrimary],
+      cuisinePrimary: cuisinePrimary,
       topReviewLanguage: json[SupabaseConstants.columnTopReviewLanguage],
       topLanguageShare:
           (json[SupabaseConstants.columnTopLanguageShare] as num?)?.toDouble(),

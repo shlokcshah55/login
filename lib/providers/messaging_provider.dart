@@ -193,6 +193,60 @@ class MessagingProvider with ChangeNotifier {
       // Mark as read if we received a new message
       await _markAsRead();
     }
+
+    if (payload.eventType == PostgresChangeEvent.update) {
+      final updatedId = payload.newRecord['id']?.toString();
+      if (updatedId == null) return;
+
+      final newLiked = payload.newRecord['liked'] as bool?;
+      if (newLiked == null) return;
+
+      final index = _messages.indexWhere((message) => message.id == updatedId);
+      if (index == -1) return;
+
+      if (_messages[index].liked == newLiked) return;
+
+      _messages[index] = _messages[index].copyWith(liked: newLiked);
+      notifyListeners();
+    }
+  }
+
+  Future<void> toggleMessageLiked(MessageModel message) async {
+    if (message.senderId == currentUserId) return;
+
+    final index = _messages.indexWhere((m) => m.id == message.id);
+    if (index == -1) return;
+
+    final optimisticLiked = !_messages[index].liked;
+    _messages[index] = _messages[index].copyWith(liked: optimisticLiked);
+    notifyListeners();
+
+    try {
+      final serverLiked = await _messagingHelper.setMessageLiked(
+        messageId: message.id,
+        liked: optimisticLiked,
+      );
+
+      if (serverLiked == optimisticLiked) return;
+
+      final latestIndex = _messages.indexWhere((m) => m.id == message.id);
+      if (latestIndex == -1) return;
+
+      _messages[latestIndex] =
+          _messages[latestIndex].copyWith(liked: serverLiked);
+      notifyListeners();
+    } catch (e) {
+      final latestIndex = _messages.indexWhere((m) => m.id == message.id);
+      if (latestIndex == -1) return;
+
+      _messages[latestIndex] =
+          _messages[latestIndex].copyWith(liked: !optimisticLiked);
+      notifyListeners();
+
+      if (kDebugMode) {
+        print('MessagingProvider: Error toggling message liked: $e');
+      }
+    }
   }
 
   /// Mark the bubble as read

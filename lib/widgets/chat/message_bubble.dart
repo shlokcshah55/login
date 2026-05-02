@@ -9,6 +9,7 @@ class MessageBubble extends StatelessWidget {
   final bool isFromCurrentUser;
   final bool showSenderInfo;
   final ValueChanged<MessageModel>? onLocationTap;
+  final ValueChanged<MessageModel>? onDoubleTap;
 
   const MessageBubble({
     Key? key,
@@ -16,10 +17,15 @@ class MessageBubble extends StatelessWidget {
     required this.isFromCurrentUser,
     this.showSenderInfo = true,
     this.onLocationTap,
+    this.onDoubleTap,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    final timestampColor = isFromCurrentUser
+        ? PinitColors.cream.withValues(alpha: 0.72)
+        : PinitColors.mute;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
       child: Row(
@@ -57,81 +63,126 @@ class MessageBubble extends StatelessWidget {
                   constraints: BoxConstraints(
                     maxWidth: MediaQuery.of(context).size.width * 0.72,
                   ),
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
-                  decoration: BoxDecoration(
-                      color: isFromCurrentUser
-                          ? PinitColors.aubergine
-                          : PinitColors.creamSunk,
-                      borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(20),
-                        topRight: const Radius.circular(20),
-                        bottomLeft: Radius.circular(isFromCurrentUser ? 20 : 8),
-                        bottomRight:
-                            Radius.circular(isFromCurrentUser ? 8 : 20),
-                      ),
-                      border: Border.all(
-                        color: isFromCurrentUser
-                            ? PinitColors.aubergine
-                            : PinitColors.creamDeep,
-                        width: 1.5,
-                      ),
-                      boxShadow: isFromCurrentUser
-                          ? const [
-                              BoxShadow(
-                                color: PinitColors.black,
-                                blurRadius: 0,
-                                offset: Offset(5, 5),
-                              ),
-                            ]
-                          : const [
-                              BoxShadow(
-                                color: PinitColors.aubergine,
-                                blurRadius: 0,
-                                offset: Offset(5, 5),
-                              ),
-                            ]),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (message.locationId != null) ...[
-                        _SharedLocationCard(
-                          message: message,
-                          isFromCurrentUser: isFromCurrentUser,
-                          onTap: onLocationTap == null
-                              ? null
-                              : () => onLocationTap!(message),
-                        ),
-                        if (message.content.trim().isNotEmpty)
-                          const SizedBox(height: 10),
-                      ],
-                      if (message.locationId == null ||
-                          message.content.trim().isNotEmpty)
-                        Text(
-                          message.content.trim().isEmpty &&
-                                  message.locationId != null
-                              ? 'Shared a place'
-                              : message.content,
-                          style: AppTypography.sans(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: isFromCurrentUser
-                                ? PinitColors.cream
-                                : PinitColors.aubergine,
-                            height: 1.35,
-                          ),
-                        ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _formatTime(message.createdAt),
-                        style: AppTypography.sans(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
+                  child: GestureDetector(
+                    onDoubleTap: onDoubleTap == null
+                        ? null
+                        : () => onDoubleTap!(message),
+                    behavior: HitTestBehavior.translucent,
+                    child: Container(
+                      decoration: BoxDecoration(
                           color: isFromCurrentUser
-                              ? PinitColors.cream.withValues(alpha: 0.72)
-                              : PinitColors.mute,
-                        ),
+                              ? PinitColors.aubergine
+                              : PinitColors.creamSunk,
+                          borderRadius: BorderRadius.only(
+                            topLeft: const Radius.circular(20),
+                            topRight: const Radius.circular(20),
+                            bottomLeft:
+                                Radius.circular(isFromCurrentUser ? 20 : 8),
+                            bottomRight:
+                                Radius.circular(isFromCurrentUser ? 8 : 20),
+                          ),
+                          border: Border.all(
+                            color: isFromCurrentUser
+                                ? PinitColors.aubergine
+                                : PinitColors.creamDeep,
+                            width: 1.5,
+                          ),
+                          boxShadow: isFromCurrentUser
+                              ? const [
+                                  BoxShadow(
+                                    color: PinitColors.black,
+                                    blurRadius: 0,
+                                    offset: Offset(5, 5),
+                                  ),
+                                ]
+                              : const [
+                                  BoxShadow(
+                                    color: PinitColors.aubergine,
+                                    blurRadius: 0,
+                                    offset: Offset(5, 5),
+                                  ),
+                                ]),
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (message.locationId != null) ...[
+                                  _SharedLocationCard(
+                                    message: message,
+                                    isFromCurrentUser: isFromCurrentUser,
+                                    onTap: onLocationTap == null
+                                        ? null
+                                        : () => onLocationTap!(message),
+                                  ),
+                                  if (message.content.trim().isNotEmpty)
+                                    const SizedBox(height: 10),
+                                ],
+                                if (message.locationId == null ||
+                                    message.content.trim().isNotEmpty)
+                                  Text(
+                                    message.content.trim().isEmpty &&
+                                            message.locationId != null
+                                        ? 'Shared a place'
+                                        : message.content,
+                                    style: AppTypography.sans(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                      color: isFromCurrentUser
+                                          ? PinitColors.cream
+                                          : PinitColors.aubergine,
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  _formatTime(message.createdAt),
+                                  style: AppTypography.sans(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: timestampColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Positioned(
+                            right: -6,
+                            bottom: -6,
+                            child: IgnorePointer(
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 140),
+                                switchInCurve: Curves.easeOutBack,
+                                switchOutCurve: Curves.easeIn,
+                                transitionBuilder: (child, animation) =>
+                                    ScaleTransition(
+                                  scale: animation,
+                                  child: FadeTransition(
+                                    opacity: animation,
+                                    child: child,
+                                  ),
+                                ),
+                                child: message.liked
+                                    ? Icon(
+                                        Icons.favorite_rounded,
+                                        key: const ValueKey('liked'),
+                                        size: 18,
+                                        color: PinitColors.accent,
+                                      )
+                                    : const SizedBox(
+                                        key: ValueKey('unliked'),
+                                        width: 0,
+                                        height: 0,
+                                      ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ],

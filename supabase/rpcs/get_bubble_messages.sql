@@ -1,7 +1,7 @@
 DROP FUNCTION IF EXISTS public.get_bubble_messages(uuid, integer, timestamp with time zone);
 
 CREATE FUNCTION public.get_bubble_messages(p_bubble_id uuid, p_limit integer DEFAULT 50, p_before_timestamp timestamp with time zone DEFAULT NULL::timestamp with time zone)
- RETURNS TABLE(id uuid, sender_id uuid, sender_name text, sender_avatar_url text, content text, message_type text, metadata jsonb, created_at timestamp with time zone, updated_at timestamp with time zone, replied_to_message_id uuid, location_id bigint)
+ RETURNS TABLE(id uuid, sender_id uuid, sender_name text, sender_avatar_url text, content text, message_type text, metadata jsonb, created_at timestamp with time zone, updated_at timestamp with time zone, replied_to_message_id uuid, location_id bigint, liked boolean)
  LANGUAGE plpgsql
  SECURITY DEFINER
 AS $function$BEGIN
@@ -27,7 +27,8 @@ AS $function$BEGIN
         m.created_at,
         m.updated_at,
         m.replied_to_message_id,
-        m.location_id
+        m.location_id,
+        m.liked
     FROM messages m
     JOIN users u ON m.sender_id = u.supabase_id
     WHERE m.bubble_id = p_bubble_id 

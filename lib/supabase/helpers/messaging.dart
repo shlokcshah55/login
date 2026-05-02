@@ -155,6 +155,26 @@ class MessagingHelper {
     }
   }
 
+  /// Like/unlike a message
+  Future<bool> setMessageLiked({
+    required String messageId,
+    required bool liked,
+  }) async {
+    try {
+      final result = await _client.rpc('set_message_liked', params: {
+        'p_message_id': messageId,
+        'p_liked': liked,
+      });
+
+      return result as bool? ?? liked;
+    } catch (e) {
+      if (kDebugMode) {
+        print('MessagingHelper: Error setting message liked: $e');
+      }
+      rethrow;
+    }
+  }
+
   /// Get unread message count for a bubble
   Future<int> getUnreadCount(String bubbleId) async {
     try {
@@ -219,6 +239,17 @@ class MessagingHelper {
         .channel('messages:$bubbleId')
         .onPostgresChanges(
           event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: SupabaseConstants.tableMessages,
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: SupabaseConstants.columnBubbleId,
+            value: bubbleId,
+          ),
+          callback: onEvent,
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
           schema: 'public',
           table: SupabaseConstants.tableMessages,
           filter: PostgresChangeFilter(

@@ -88,7 +88,7 @@ class LocationProcessor:
             "classify_photo": True,
             "generate_image": True,
             "source": "tiktok",
-            "process_synchronously": True,
+            # "process_synchronously": True,
         }
         try:
             response = requests.post(RECOMMENDATIONS_API_URL, json=payload, timeout=180)

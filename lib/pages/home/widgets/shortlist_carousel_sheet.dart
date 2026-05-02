@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
@@ -51,12 +52,15 @@ class ShortlistCarouselSheet extends StatefulWidget {
 
 class _ShortlistCarouselSheetState extends State<ShortlistCarouselSheet> {
   late final PageController _controller;
+  late final List<LocationModel> _items;
+  int _currentIndex = 0;
   bool _isClosing = false;
 
   @override
   void initState() {
     super.initState();
     _controller = PageController(viewportFraction: 0.94);
+    _items = List<LocationModel>.of(widget.items);
   }
 
   @override
@@ -76,9 +80,31 @@ class _ShortlistCarouselSheetState extends State<ShortlistCarouselSheet> {
   }
 
   void _handlePageChanged(int index) {
-    if (index == widget.items.length) {
+    _currentIndex = index;
+    if (index == _items.length) {
       unawaited(
         Future<void>.delayed(const Duration(milliseconds: 240), _exitToMode),
+      );
+    }
+  }
+
+  void _removeFromShortlist(LocationModel location) {
+    if (_isClosing) return;
+
+    context.read<ShortlistProvider>().remove(location.locationId);
+
+    setState(() {
+      _items.removeWhere((item) => item.locationId == location.locationId);
+      if (_currentIndex > _items.length) {
+        _currentIndex = _items.length;
+      }
+    });
+
+    HapticFeedback.lightImpact();
+
+    if (_items.isEmpty) {
+      unawaited(
+        Future<void>.delayed(const Duration(milliseconds: 220), _exitToMode),
       );
     }
   }
@@ -119,38 +145,54 @@ class _ShortlistCarouselSheetState extends State<ShortlistCarouselSheet> {
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: Text(
-                'Shortlist',
-                style: AppTypography.brand(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w600,
-                  color: pinit.PinitColors.aubergine,
-                  letterSpacing: 0.1,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Shortlist',
+                    style: AppTypography.brand(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w600,
+                      color: pinit.PinitColors.aubergine,
+                      letterSpacing: 0.1,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Swipe up to remove',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: pinit.PinitColors.mute,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
           const SizedBox(height: 14),
           SizedBox(
             height: 206,
-            child: widget.items.isEmpty
+            child: _items.isEmpty
                 ? const _EmptyState()
                 : PageView.builder(
                     controller: _controller,
-                    itemCount: widget.items.length + 1,
+                    itemCount: _items.length + 1,
                     physics: const BouncingScrollPhysics(
                       parent: AlwaysScrollableScrollPhysics(),
                     ),
                     onPageChanged: _handlePageChanged,
                     itemBuilder: (context, index) {
-                      if (index == widget.items.length) {
+                      if (index == _items.length) {
                         return _KeepExploringCard(
                           mode: widget.currentMode,
                           onTap: _exitToMode,
                         );
                       }
+                      final location = _items[index];
                       return _ShortlistCarouselCard(
-                        location: widget.items[index],
+                        location: location,
+                        onSwipeUpRemove: () => _removeFromShortlist(location),
                       );
                     },
                   ),
@@ -163,9 +205,12 @@ class _ShortlistCarouselSheetState extends State<ShortlistCarouselSheet> {
 
 class _ShortlistCarouselCard extends StatelessWidget {
   final LocationModel location;
+  final VoidCallback onSwipeUpRemove;
 
   const _ShortlistCarouselCard({
+    super.key,
     required this.location,
+    required this.onSwipeUpRemove,
   });
 
   bool get _isWavy => (location.vibe?.wavyScore ?? 0) > 0.45;
@@ -268,215 +313,271 @@ class _ShortlistCarouselCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      child: GestureDetector(
-        onTap: () => _openLocationCard(context),
-        child: Container(
-          decoration: BoxDecoration(
-            color: pinit.PinitColors.cream,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: _borderColor,
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
+      child: Dismissible(
+        key: ValueKey<String>('shortlist_remove_${location.locationId}'),
+        direction: DismissDirection.up,
+        dismissThresholds: const {DismissDirection.up: 0.35},
+        background: const SizedBox.shrink(),
+        secondaryBackground: _ShortlistRemoveBackground(
+          borderColor: _borderColor,
+        ),
+        onDismissed: (_) => onSwipeUpRemove(),
+        child: GestureDetector(
+          onTap: () => _openLocationCard(context),
+          child: Container(
+            decoration: BoxDecoration(
+              color: pinit.PinitColors.cream,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
                 color: _borderColor,
-                blurRadius: 0,
-                offset: const Offset(4, 4),
+                width: 1.5,
               ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(8.5),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(
-                  width: 122,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      _LocationImage(location: location),
-                      const Positioned.fill(
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Color(0x00000000),
-                                Color(0x33000000),
-                              ],
-                              stops: [0.55, 1.0],
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (location.emoji != null && location.emoji!.isNotEmpty)
-                        Positioned(
-                          top: 8,
-                          left: 8,
-                          child: Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              color: pinit.PinitColors.cream,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: pinit.PinitColors.aubergine,
-                                width: 1.4,
-                              ),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              location.emoji!,
-                              style: const TextStyle(fontSize: 16),
-                            ),
-                          ),
-                        ),
-                      if (location.openNow != null)
-                        Positioned(
-                          bottom: 8,
-                          left: 8,
-                          right: 8,
-                          child: _PinitPill(
-                            label: location.openNow! ? 'OPEN' : 'CLOSED',
-                            icon: location.openNow!
-                                ? FeatherIcons.checkCircle
-                                : FeatherIcons.xCircle,
-                            filled: true,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                Container(
-                  width: 1.5,
+              boxShadow: [
+                BoxShadow(
                   color: _borderColor,
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Container(
-                        color: pinit.PinitColors.creamSunk,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              FeatherIcons.bookmark,
-                              size: 11,
-                              color: pinit.PinitColors.mute,
-                            ),
-                            const SizedBox(width: 5),
-                            Expanded(
-                              child: Text(
-                                'SHORTLIST',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.dmSans(
-                                  fontSize: 10,
-                                  color: pinit.PinitColors.mute,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 1.0,
-                                ),
-                              ),
-                            ),
-                            if (location.rating != null) ...[
-                              _CompactRating(
-                                rating: location.rating!,
-                                reviewCount: location.userRatingsTotal,
-                              ),
-                              const SizedBox(width: 6),
-                            ],
-                            if (location.matchScore != null &&
-                                location.matchScore! > 0.1)
-                              _MatchBadge(
-                                score: (location.matchScore! * 100).round(),
-                              ),
-                          ],
-                        ),
-                      ),
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(14, 10, 12, 10),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                location.name,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.dmSans(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w800,
-                                  color: pinit.PinitColors.aubergine,
-                                  height: 1.15,
-                                  letterSpacing: -0.3,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                _summaryText,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.dmSans(
-                                  fontSize: 11.5,
-                                  color: pinit.PinitColors.mute,
-                                  fontWeight: FontWeight.w500,
-                                  height: 1.3,
-                                ),
-                              ),
-                              const Spacer(),
-                              SizedBox(
-                                height: 24,
-                                child: ListView(
-                                  scrollDirection: Axis.horizontal,
-                                  physics: const BouncingScrollPhysics(),
-                                  children: [
-                                    if (location.priceLevel != null &&
-                                        location.priceLevel! > 0)
-                                      _PinitPill(
-                                        label: '£' * location.priceLevel!,
-                                        filled: true,
-                                      ),
-                                    if (location.cuisine != null &&
-                                        location.cuisine!.isNotEmpty)
-                                      _PinitPill(label: location.cuisine!),
-                                    ..._topVibeTags.map((entry) {
-                                      final style = _vibeStyles[entry.key];
-                                      if (style == null) {
-                                        return const SizedBox.shrink();
-                                      }
-                                      return _PinitPill(
-                                        label: style.label,
-                                        icon: style.icon,
-                                        accent: entry.key == 'wavy',
-                                      );
-                                    }),
-                                    if (location.isOpenLate == true)
-                                      const _PinitPill(
-                                        label: 'Late Night',
-                                        icon: FeatherIcons.moon,
-                                      ),
-                                    ..._featureMicros,
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                  blurRadius: 0,
+                  offset: const Offset(4, 4),
                 ),
               ],
             ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8.5),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(
+                    width: 122,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        _LocationImage(location: location),
+                        const Positioned.fill(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Color(0x00000000),
+                                  Color(0x33000000),
+                                ],
+                                stops: [0.55, 1.0],
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (location.emoji != null &&
+                            location.emoji!.isNotEmpty)
+                          Positioned(
+                            top: 8,
+                            left: 8,
+                            child: Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: pinit.PinitColors.cream,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: pinit.PinitColors.aubergine,
+                                  width: 1.4,
+                                ),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                location.emoji!,
+                                style: const TextStyle(fontSize: 16),
+                              ),
+                            ),
+                          ),
+                        if (location.openNow != null)
+                          Positioned(
+                            bottom: 8,
+                            left: 8,
+                            right: 8,
+                            child: _PinitPill(
+                              label: location.openNow! ? 'OPEN' : 'CLOSED',
+                              icon: location.openNow!
+                                  ? FeatherIcons.checkCircle
+                                  : FeatherIcons.xCircle,
+                              filled: true,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    width: 1.5,
+                    color: _borderColor,
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Container(
+                          color: pinit.PinitColors.creamSunk,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                FeatherIcons.bookmark,
+                                size: 11,
+                                color: pinit.PinitColors.mute,
+                              ),
+                              const SizedBox(width: 5),
+                              Expanded(
+                                child: Text(
+                                  'SHORTLIST',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 10,
+                                    color: pinit.PinitColors.mute,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 1.0,
+                                  ),
+                                ),
+                              ),
+                              if (location.rating != null) ...[
+                                _CompactRating(
+                                  rating: location.rating!,
+                                  reviewCount: location.userRatingsTotal,
+                                ),
+                                const SizedBox(width: 6),
+                              ],
+                              if (location.matchScore != null &&
+                                  location.matchScore! > 0.1)
+                                _MatchBadge(
+                                  score: (location.matchScore! * 100).round(),
+                                ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(14, 10, 12, 10),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  location.name,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w800,
+                                    color: pinit.PinitColors.aubergine,
+                                    height: 1.15,
+                                    letterSpacing: -0.3,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  _summaryText,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 11.5,
+                                    color: pinit.PinitColors.mute,
+                                    fontWeight: FontWeight.w500,
+                                    height: 1.3,
+                                  ),
+                                ),
+                                const Spacer(),
+                                SizedBox(
+                                  height: 24,
+                                  child: ListView(
+                                    scrollDirection: Axis.horizontal,
+                                    physics: const BouncingScrollPhysics(),
+                                    children: [
+                                      if (location.priceLevel != null &&
+                                          location.priceLevel! > 0)
+                                        _PinitPill(
+                                          label: '£' * location.priceLevel!,
+                                          filled: true,
+                                        ),
+                                      if (location.cuisine != null &&
+                                          location.cuisine!.isNotEmpty)
+                                        _PinitPill(label: location.cuisine!),
+                                      ..._topVibeTags.map((entry) {
+                                        final style = _vibeStyles[entry.key];
+                                        if (style == null) {
+                                          return const SizedBox.shrink();
+                                        }
+                                        return _PinitPill(
+                                          label: style.label,
+                                          icon: style.icon,
+                                          accent: entry.key == 'wavy',
+                                        );
+                                      }),
+                                      if (location.isOpenLate == true)
+                                        const _PinitPill(
+                                          label: 'Late Night',
+                                          icon: FeatherIcons.moon,
+                                        ),
+                                      ..._featureMicros,
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ShortlistRemoveBackground extends StatelessWidget {
+  final Color borderColor;
+
+  const _ShortlistRemoveBackground({
+    required this.borderColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: pinit.PinitColors.creamSunk,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: borderColor,
+          width: 1.5,
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      alignment: Alignment.center,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            FeatherIcons.trash2,
+            size: 14,
+            color: pinit.PinitColors.aubergine,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'Remove from shortlist',
+            style: GoogleFonts.dmSans(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: pinit.PinitColors.aubergine,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
       ),
     );
   }

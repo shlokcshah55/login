@@ -157,18 +157,24 @@ class _BubbleMessagingPageState extends State<BubbleMessagingPage> {
                                                 provider.currentUserId,
                                             onLoadMore: () =>
                                                 provider.loadMoreMessages(),
-                                            emptyTitle:
-                                                _activeView ==
-                                                        BubbleMessageView.pins
-                                                    ? 'No shared places yet'
-                                                    : 'No messages yet',
-                                            emptySubtitle:
-                                                _activeView ==
-                                                        BubbleMessageView.pins
-                                                    ? 'When someone sends a place into this bubble, it will land here as a tappable pin.'
-                                                    : 'Break the silence and drop the first plan, pin, or opinion.',
-                                            onLocationTap:
-                                                _handleLocationTap,
+                                            emptyTitle: _activeView ==
+                                                    BubbleMessageView.pins
+                                                ? 'No shared places yet'
+                                                : 'No messages yet',
+                                            emptySubtitle: _activeView ==
+                                                    BubbleMessageView.pins
+                                                ? 'When someone sends a place into this bubble, it will land here as a tappable pin.'
+                                                : 'Break the silence and drop the first plan, pin, or opinion.',
+                                            onLocationTap: _handleLocationTap,
+                                            onMessageDoubleTap:
+                                                widget.bubble.memberCount == 2
+                                                    ? (message) {
+                                                        provider
+                                                            .toggleMessageLiked(
+                                                          message,
+                                                        );
+                                                      }
+                                                    : null,
                                           ),
                                         ),
                                       ],

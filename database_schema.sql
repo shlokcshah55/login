@@ -171,6 +171,7 @@ CREATE TABLE public.messages (
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
   is_deleted boolean DEFAULT false,
+  liked boolean NOT NULL DEFAULT false,
   replied_to_message_id uuid,
   location_id bigint,
   CONSTRAINT messages_pkey PRIMARY KEY (id),

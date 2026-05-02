@@ -15,6 +15,7 @@ class MessageList extends StatelessWidget {
   final String emptyTitle;
   final String emptySubtitle;
   final ValueChanged<MessageModel>? onLocationTap;
+  final ValueChanged<MessageModel>? onMessageDoubleTap;
 
   const MessageList({
     Key? key,
@@ -28,6 +29,7 @@ class MessageList extends StatelessWidget {
     this.emptySubtitle =
         'Break the silence and drop the first plan, pin, or opinion.',
     this.onLocationTap,
+    this.onMessageDoubleTap,
   }) : super(key: key);
 
   @override
@@ -76,6 +78,7 @@ class MessageList extends StatelessWidget {
             isFromCurrentUser: isFromCurrentUser,
             showSenderInfo: showSenderInfo && !isFromCurrentUser,
             onLocationTap: onLocationTap,
+            onDoubleTap: isFromCurrentUser ? null : onMessageDoubleTap,
           );
         },
       ),
