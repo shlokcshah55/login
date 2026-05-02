@@ -193,6 +193,8 @@ class RecommendationsApi {
   Future<int?> addLocationByGooglePlaceId({
     required String googlePlaceId,
     bool classifyPhoto = true,
+    bool generateEmoji = true,
+    bool processSynchronously = false,
     String source = 'in-app',
   }) async {
     final trimmed = googlePlaceId.trim();
@@ -209,7 +211,8 @@ class RecommendationsApi {
       body: jsonEncode({
         'google_place_id': trimmed,
         'classify_photo': classifyPhoto,
-        'generate_emoji': true,
+        'generate_emoji': generateEmoji,
+        'process_synchronously': processSynchronously,
         'source': source,
       }),
     );
@@ -234,9 +237,11 @@ class RecommendationsApi {
 
 String resolveRecommendationsApiBaseUrl({Map<String, String>? env}) {
   final source = env ?? _dotenvEnvOrEmpty();
-  final override =
-      (source['RECOMMENDATIONS_API_URL'] ?? source['MAGIC_SEARCH_API_URL'])
-          ?.trim();
+  final recommendationsOverride = source['RECOMMENDATIONS_API_URL']?.trim();
+  final magicSearchOverride = source['MAGIC_SEARCH_API_URL']?.trim();
+  final override = recommendationsOverride?.isNotEmpty == true
+      ? recommendationsOverride
+      : magicSearchOverride;
   if (override == null || override.isEmpty) {
     return RecommendationsApi.defaultBaseUrl;
   }
