@@ -1,3 +1,6 @@
+-- Explicitly set is_curated = false when a user manually creates a collection.
+-- Previously the column default handled this silently; making it explicit
+-- ensures the intent is clear and guards against any future default change.
 CREATE OR REPLACE FUNCTION public.create_collection(
     p_name text,
     p_description text DEFAULT NULL,
@@ -36,5 +39,4 @@ EXCEPTION
     WHEN OTHERS THEN
         RETURN jsonb_build_object('success', FALSE, 'error', SQLERRM);
 END;
-$function$
-;
+$function$;

@@ -46,6 +46,10 @@ class CollectionModel {
   final String? photo;
   final String? ownerName;
   final String? ownerAvatarUrl;
+  final bool isPublic;
+  final bool canEdit;
+  final bool isSaved;
+  final int saveCount;
 
   CollectionModel({
     required this.id,
@@ -56,6 +60,10 @@ class CollectionModel {
     this.photo,
     this.ownerName,
     this.ownerAvatarUrl,
+    this.isPublic = true,
+    this.canEdit = true,
+    this.isSaved = false,
+    this.saveCount = 0,
   });
 
   factory CollectionModel.fromItem(CollectionItem item) => CollectionModel(
@@ -67,17 +75,48 @@ class CollectionModel {
         photo: item.photo,
         ownerName: item.ownerName,
         ownerAvatarUrl: item.ownerAvatarUrl,
+        isPublic: item.isPublic,
+        canEdit: item.canEdit,
+        isSaved: item.isSaved,
+        saveCount: item.saveCount,
+      );
+
+  CollectionModel copyWith({
+    String? id,
+    String? name,
+    int? placeCount,
+    String? emoji,
+    String? coverColor,
+    String? photo,
+    String? ownerName,
+    String? ownerAvatarUrl,
+    bool? isPublic,
+    bool? canEdit,
+    bool? isSaved,
+    int? saveCount,
+  }) =>
+      CollectionModel(
+        id: id ?? this.id,
+        name: name ?? this.name,
+        placeCount: placeCount ?? this.placeCount,
+        emoji: emoji ?? this.emoji,
+        coverColor: coverColor ?? this.coverColor,
+        photo: photo ?? this.photo,
+        ownerName: ownerName ?? this.ownerName,
+        ownerAvatarUrl: ownerAvatarUrl ?? this.ownerAvatarUrl,
+        isPublic: isPublic ?? this.isPublic,
+        canEdit: canEdit ?? this.canEdit,
+        isSaved: isSaved ?? this.isSaved,
+        saveCount: saveCount ?? this.saveCount,
       );
 }
 
 class CollectionsGrid extends StatefulWidget {
   final bool generatedCollections;
-  final VoidCallback? onImportNotes;
 
   const CollectionsGrid({
     Key? key,
     this.generatedCollections = false,
-    this.onImportNotes,
   }) : super(key: key);
 
   @override
@@ -87,12 +126,14 @@ class CollectionsGrid extends StatefulWidget {
 class _CollectionsGridState extends State<CollectionsGrid>
     with SingleTickerProviderStateMixin {
   final List<CollectionModel> _collections = [];
+  final List<CollectionModel> _savedCollections = [];
   final List<CollectionModel> _friendCollections = [];
   final CollectionsHelper _helper = CollectionsHelper();
 
   bool _isLoading = false;
   bool _isGenerating = false;
   String? _loadError;
+  String? _quickAddingCollectionId;
   late bool _hasGenerated;
 
   late AnimationController _fillController;
@@ -135,13 +176,19 @@ class _CollectionsGridState extends State<CollectionsGrid>
     });
     try {
       final results = await Future.wait([
-        _helper.getUserCollections(userId),
+        _helper.getUserCollectionLibrary(userId),
         _helper.getFriendsCollections(userId),
       ]);
       if (mounted) {
         setState(() {
-          _collections.clear();
-          _collections.addAll(results[0].map(CollectionModel.fromItem));
+          final library =
+              results[0].map(CollectionModel.fromItem).toList(growable: false);
+          _collections
+            ..clear()
+            ..addAll(library.where((c) => c.canEdit));
+          _savedCollections
+            ..clear()
+            ..addAll(library.where((c) => !c.canEdit));
           _friendCollections.clear();
           _friendCollections.addAll(results[1].map(CollectionModel.fromItem));
         });
@@ -151,6 +198,110 @@ class _CollectionsGridState extends State<CollectionsGrid>
       if (mounted) setState(() => _loadError = e.toString());
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _quickAddCollection(CollectionModel collection) async {
+    if (_quickAddingCollectionId != null) return;
+    setState(() => _quickAddingCollectionId = collection.id);
+    try {
+      await _helper.saveCollection(collection.id);
+      if (!mounted) return;
+
+      setState(() {
+        final friendIndex =
+            _friendCollections.indexWhere((c) => c.id == collection.id);
+        if (friendIndex != -1) {
+          final current = _friendCollections[friendIndex];
+          if (!current.isSaved) {
+            _friendCollections[friendIndex] = current.copyWith(
+              isSaved: true,
+              saveCount: current.saveCount + 1,
+            );
+          }
+        }
+
+        if (_savedCollections.every((c) => c.id != collection.id)) {
+          _savedCollections.insert(
+            0,
+            collection.copyWith(
+              canEdit: false,
+              isSaved: true,
+              saveCount: collection.saveCount + 1,
+            ),
+          );
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      unawaited(
+        AppFeedback.showError(
+          context,
+          title: 'Couldn’t add',
+          message: 'Failed to add eat-list. Please try again.',
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _quickAddingCollectionId = null);
+    }
+  }
+
+  Future<void> _quickUnsaveCollection(CollectionModel collection) async {
+    if (_quickAddingCollectionId != null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove saved eat-list?'),
+        content: const Text('This will remove it from your Saved Eat-Lists.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _quickAddingCollectionId = collection.id);
+    try {
+      await _helper.unsaveCollection(collection.id);
+      if (!mounted) return;
+
+      setState(() {
+        _savedCollections.removeWhere((c) => c.id == collection.id);
+
+        final friendIndex =
+            _friendCollections.indexWhere((c) => c.id == collection.id);
+        if (friendIndex != -1) {
+          final current = _friendCollections[friendIndex];
+          if (current.isSaved) {
+            _friendCollections[friendIndex] = current.copyWith(
+              isSaved: false,
+              saveCount:
+                  (current.saveCount - 1) < 0 ? 0 : current.saveCount - 1,
+            );
+          }
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      unawaited(
+        AppFeedback.showError(
+          context,
+          title: 'Couldn’t remove',
+          message: 'Failed to remove saved eat-list. Please try again.',
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _quickAddingCollectionId = null);
     }
   }
 
@@ -232,8 +383,11 @@ class _CollectionsGridState extends State<CollectionsGrid>
     }
   }
 
-  Widget _buildGrid(List<CollectionModel> collections,
-      {bool showOwner = false}) {
+  Widget _buildGrid(
+    List<CollectionModel> collections, {
+    bool forceShowOwner = false,
+    bool showQuickAdd = false,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: GridView.builder(
@@ -247,12 +401,29 @@ class _CollectionsGridState extends State<CollectionsGrid>
           childAspectRatio: 0.78,
         ),
         itemCount: collections.length,
-        itemBuilder: (context, index) => _CollectionCard(
-          collection: collections[index],
-          showOwner: showOwner,
-          onEdit: showOwner ? null : () => _openEditSheet(collections[index]),
-          onDeleted: showOwner ? null : _loadCollections,
-        ),
+        itemBuilder: (context, index) {
+          final collection = collections[index];
+          final showOwner = forceShowOwner ||
+              (!collection.canEdit && collection.ownerName != null);
+          return _CollectionCard(
+            collection: collection,
+            showOwner: showOwner,
+            showQuickAdd: showQuickAdd,
+            quickAddInProgress: _quickAddingCollectionId == collection.id,
+            onQuickAdd: showQuickAdd
+                ? () {
+                    if (collection.isSaved) {
+                      unawaited(_quickUnsaveCollection(collection));
+                    } else {
+                      unawaited(_quickAddCollection(collection));
+                    }
+                  }
+                : null,
+            onEdit:
+                collection.canEdit ? () => _openEditSheet(collection) : null,
+            onDeleted: collection.canEdit ? _loadCollections : null,
+          );
+        },
       ),
     );
   }
@@ -268,88 +439,6 @@ class _CollectionsGridState extends State<CollectionsGrid>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (widget.onImportNotes != null) ...[
-                GestureDetector(
-                  onTap: widget.onImportNotes,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: PinitColors.aubergine,
-                        width: 1.5,
-                      ),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: PinitColors.aubergine,
-                          blurRadius: 0,
-                          offset: Offset(4, 4),
-                        ),
-                      ],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(18.5),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        color: PinitColors.creamSunk,
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 58,
-                              height: 58,
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: PinitColors.cream,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: PinitColors.creamDeep,
-                                  width: 1.2,
-                                ),
-                              ),
-                              child: Image.asset(
-                                'lib/assets/upload.png',
-                                fit: BoxFit.contain,
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Import notes',
-                                    style: GoogleFonts.dmSans(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w700,
-                                      color: PinitColors.aubergine,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    'Pull places from Apple Notes or Notion',
-                                    style: GoogleFonts.dmSans(
-                                      fontSize: 13,
-                                      color: PinitColors.aubergineSoft,
-                                      height: 1.35,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            const Icon(
-                              FeatherIcons.chevronRight,
-                              size: 16,
-                              color: PinitColors.aubergineSoft,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
@@ -543,10 +632,37 @@ class _CollectionsGridState extends State<CollectionsGrid>
               ],
             ),
           )
-        else if (_collections.isEmpty)
+        else if (_collections.isEmpty && _savedCollections.isEmpty)
           _EmptyCollections(onCreateTap: _openCreateCollectionSheet)
-        else
-          _buildGrid(_collections),
+        else ...[
+          if (_collections.isNotEmpty) _buildGrid(_collections),
+          if (_savedCollections.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Saved Eat-Lists',
+                    style: TextStyle(
+                      fontFamily: 'Rova',
+                      fontSize: 24,
+                      fontWeight: FontWeight.w100,
+                      color: PinitColors.aubergine,
+                      letterSpacing: 1.2,
+                      height: 1.05,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _buildGrid(
+              _savedCollections,
+              forceShowOwner: true,
+              showQuickAdd: true,
+            ),
+          ],
+        ],
 
         // ── Explore ──
         if (!_isLoading && _friendCollections.isNotEmpty) ...[
@@ -569,7 +685,11 @@ class _CollectionsGridState extends State<CollectionsGrid>
               ],
             ),
           ),
-          _buildGrid(_friendCollections, showOwner: true),
+          _buildGrid(
+            _friendCollections,
+            forceShowOwner: true,
+            showQuickAdd: true,
+          ),
         ],
       ],
     );
@@ -579,12 +699,18 @@ class _CollectionsGridState extends State<CollectionsGrid>
 class _CollectionCard extends StatefulWidget {
   final CollectionModel collection;
   final bool showOwner;
+  final bool showQuickAdd;
+  final bool quickAddInProgress;
+  final VoidCallback? onQuickAdd;
   final VoidCallback? onEdit;
   final VoidCallback? onDeleted;
 
   const _CollectionCard({
     required this.collection,
     this.showOwner = false,
+    this.showQuickAdd = false,
+    this.quickAddInProgress = false,
+    this.onQuickAdd,
     this.onEdit,
     this.onDeleted,
   });
@@ -775,6 +901,43 @@ class _CollectionCardState extends State<_CollectionCard> {
                             ),
                           ),
                         ),
+                      if (widget.showQuickAdd && !_showDelete)
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: GestureDetector(
+                            onTap: widget.quickAddInProgress
+                                ? null
+                                : widget.onQuickAdd,
+                            behavior: HitTestBehavior.opaque,
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: widget.collection.isSaved
+                                    ? PinitColors.aubergine
+                                        .withValues(alpha: 0.92)
+                                    : Colors.black.withValues(alpha: 0.45),
+                                shape: BoxShape.circle,
+                              ),
+                              child: widget.quickAddInProgress
+                                  ? const SizedBox(
+                                      width: 13,
+                                      height: 13,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : Icon(
+                                      widget.collection.isSaved
+                                          ? FeatherIcons.check
+                                          : FeatherIcons.plus,
+                                      size: 13,
+                                      color: Colors.white,
+                                    ),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -847,7 +1010,7 @@ class _CollectionCardState extends State<_CollectionCard> {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        '${widget.collection.placeCount} place${widget.collection.placeCount == 1 ? "" : "s"}',
+                        _buildMetaText(widget.collection),
                         style: GoogleFonts.dmSans(
                           fontSize: 11,
                           fontWeight: FontWeight.w500,
@@ -863,6 +1026,15 @@ class _CollectionCardState extends State<_CollectionCard> {
         ),
       ),
     );
+  }
+
+  String _buildMetaText(CollectionModel collection) {
+    final placesText =
+        '${collection.placeCount} place${collection.placeCount == 1 ? "" : "s"}';
+    if (collection.canEdit) return placesText;
+    final savesText =
+        '${collection.saveCount} save${collection.saveCount == 1 ? "" : "s"}';
+    return '$placesText • $savesText';
   }
 
   Widget _buildImage(
@@ -896,6 +1068,9 @@ class _CollectionCardState extends State<_CollectionCard> {
     );
   }
 }
+
+// Auto-generated collections that the user is not allowed to delete.
+const Set<String> _kUndeletableCollectionNames = {'Been To', 'Shared Finds'};
 
 class _EmptyCollections extends StatelessWidget {
   final VoidCallback onCreateTap;
@@ -977,9 +1152,6 @@ class CollectionDetailSheet extends StatefulWidget {
   @override
   State<CollectionDetailSheet> createState() => CollectionDetailSheetState();
 }
-
-// Auto-generated collections that the user is not allowed to delete.
-const Set<String> _kUndeletableCollectionNames = {'Been To', 'Shared Finds'};
 
 class CollectionDetailSheetState extends State<CollectionDetailSheet> {
   final CollectionsHelper _helper = CollectionsHelper();
@@ -1604,11 +1776,13 @@ class _EditCollectionSheetState extends State<_EditCollectionSheet> {
   bool _saving = false;
   bool _deleting = false;
   String? _error;
+  late bool _isPublic;
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.collection.name);
+    _isPublic = widget.collection.isPublic;
   }
 
   @override
@@ -1706,6 +1880,7 @@ class _EditCollectionSheetState extends State<_EditCollectionSheet> {
         collectionId: widget.collection.id,
         name: name,
         coverColor: coverUrl,
+        isPublic: _isPublic,
       );
 
       if (mounted) {
@@ -1889,6 +2064,73 @@ class _EditCollectionSheetState extends State<_EditCollectionSheet> {
               ),
               onChanged: (_) => setState(() {}),
               onSubmitted: (_) => _save(),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Gatekeep toggle
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: PinitColors.surfaceLight,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Text(
+                          'Gatekeep',
+                          style: GoogleFonts.dmSans(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: PinitColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        GestureDetector(
+                          onTap: () {
+                            showDialog<void>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: Text(
+                                  'Gatekeep',
+                                  style: GoogleFonts.dmSans(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                content: Text(
+                                  'Gatekeeping means your friends won\'t be able to see your eat-list',
+                                  style: GoogleFonts.dmSans(),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.of(ctx).pop(),
+                                    child: const Text('Got it'),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                          child: const Icon(
+                            Icons.info_outline,
+                            size: 16,
+                            color: PinitColors.mute,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: !_isPublic,
+                    onChanged: _saving
+                        ? null
+                        : (val) => setState(() => _isPublic = !val),
+                    activeThumbColor: PinitColors.aubergine,
+                  ),
+                ],
+              ),
             ),
 
             if (_error != null) ...[

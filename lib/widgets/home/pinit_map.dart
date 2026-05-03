@@ -440,6 +440,7 @@ class _PinitMapState extends State<PinitMap> {
     final locationListManager = context.watch<LocationListManager>();
     final mapStateProvider = context.watch<MapStateProvider>();
     final mapStateReader = context.read<MapStateProvider>();
+    final homeViewModel = context.watch<HomeViewModel>();
 
     final dpr = MediaQuery.of(context).devicePixelRatio;
     locationListManager.setDevicePixelRatio(dpr);
@@ -461,10 +462,17 @@ class _PinitMapState extends State<PinitMap> {
     }
 
     final currentPosition = locationListManager.currentPosition;
+    final isMagicSearchActive = homeViewModel.isMagicSearchActive;
+    final hasMagicSearchQuery =
+        homeViewModel.headerSearchController.text.trim().isNotEmpty;
     final supportsSearchThisArea =
         locationListManager.currentListType == LocationListType.recommended ||
-            locationListManager.currentListType == LocationListType.bubble;
-    final isSearchingArea = locationListManager.isSearchingArea;
+            locationListManager.currentListType == LocationListType.bubble ||
+            (isMagicSearchActive &&
+                hasMagicSearchQuery &&
+                locationListManager.currentListType == LocationListType.search);
+    final isSearchingArea = locationListManager.isSearchingArea ||
+        (isMagicSearchActive && locationListManager.isMagicSearching);
 
     final initialCenter = currentPosition ??
         const LatLng(PinitMap.DEFAULT_LAT, PinitMap.DEFAULT_LNG);

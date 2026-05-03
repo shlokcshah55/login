@@ -123,9 +123,6 @@ class _CollapsedSearchEntry extends StatelessWidget {
       return AnimatedBuilder(
         animation: Listenable.merge([controller, focusNode]),
         builder: (context, _) {
-          final hasText = controller.text.trim().isNotEmpty;
-          final showClear = focusNode.hasFocus || hasText;
-
           return Listener(
             behavior: HitTestBehavior.translucent,
             onPointerDown: (_) =>
@@ -185,40 +182,6 @@ class _CollapsedSearchEntry extends StatelessWidget {
                           onSubmitted != null ? (_) => onSubmitted!() : null,
                     ),
                   ),
-                  if (showClear) ...[
-                    const SizedBox(width: 10),
-                    GestureDetector(
-                      onTap: () {
-                        if (hasText) {
-                          controller.clear();
-                          onChanged('');
-                          focusNode.requestFocus();
-                        } else {
-                          focusNode.unfocus();
-                        }
-                      },
-                      child: Container(
-                        width: 28,
-                        height: 28,
-                        decoration: BoxDecoration(
-                          color:
-                              pinit.PinitColors.cream.withValues(alpha: 0.14),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color:
-                                pinit.PinitColors.cream.withValues(alpha: 0.35),
-                            width: 1.2,
-                          ),
-                        ),
-                        alignment: Alignment.center,
-                        child: const Icon(
-                          CupertinoIcons.xmark,
-                          color: pinit.PinitColors.cream,
-                          size: 14,
-                        ),
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -345,6 +308,25 @@ class _InlineActiveSearchViewState extends State<_InlineActiveSearchView>
   }
 
   @override
+  void didUpdateWidget(covariant _InlineActiveSearchView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.state.query == widget.state.query) return;
+    if (widget.controller.text == widget.state.query) return;
+
+    final nextQuery = widget.state.query;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (widget.controller.text == nextQuery) return;
+      widget.controller.value = widget.controller.value.copyWith(
+        text: nextQuery,
+        selection: TextSelection.collapsed(offset: nextQuery.length),
+        composing: TextRange.empty,
+      );
+    });
+  }
+
+  @override
   void dispose() {
     _motionController.dispose();
     super.dispose();
@@ -352,14 +334,6 @@ class _InlineActiveSearchViewState extends State<_InlineActiveSearchView>
 
   @override
   Widget build(BuildContext context) {
-    if (widget.controller.text != widget.state.query) {
-      widget.controller.value = widget.controller.value.copyWith(
-        text: widget.state.query,
-        selection: TextSelection.collapsed(offset: widget.state.query.length),
-        composing: TextRange.empty,
-      );
-    }
-
     return AnimatedBuilder(
       animation: _motionController,
       builder: (context, _) {
@@ -392,6 +366,10 @@ class _InlineActiveSearchViewState extends State<_InlineActiveSearchView>
               _SearchErrorBanner(message: widget.state.result.errorMessage!),
             ],
             const SizedBox(height: 14),
+            if (!widget.isMagicSearchActive) ...[
+              const _MagicSearchHintPopover(),
+              const SizedBox(height: 12),
+            ],
             Expanded(
               child: _PlaceResultsList(
                 items: widget.state.result.placeItems,
@@ -556,12 +534,18 @@ class _MagicSearchButton extends StatelessWidget {
               ),
             ],
           ),
-          child: Icon(
-            FeatherIcons.zap,
-            color: isMagicSearchActive
-                ? pinit.PinitColors.cream
-                : pinit.PinitColors.accent,
-            size: 22,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 160),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeOutCubic,
+            child: Icon(
+              isMagicSearchActive ? CupertinoIcons.xmark : FeatherIcons.zap,
+              key: ValueKey<bool>(isMagicSearchActive),
+              color: isMagicSearchActive
+                  ? pinit.PinitColors.cream
+                  : pinit.PinitColors.accent,
+              size: isMagicSearchActive ? 20 : 22,
+            ),
           ),
         ),
       ),
@@ -622,15 +606,26 @@ class _SearchOverlayState extends State<_SearchOverlay>
   }
 
   @override
-  Widget build(BuildContext context) {
-    if (widget.controller.text != widget.state.query) {
+  void didUpdateWidget(covariant _SearchOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.state.query == widget.state.query) return;
+    if (widget.controller.text == widget.state.query) return;
+
+    final nextQuery = widget.state.query;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (widget.controller.text == nextQuery) return;
       widget.controller.value = widget.controller.value.copyWith(
-        text: widget.state.query,
-        selection: TextSelection.collapsed(offset: widget.state.query.length),
+        text: nextQuery,
+        selection: TextSelection.collapsed(offset: nextQuery.length),
         composing: TextRange.empty,
       );
-    }
+    });
+  }
 
+  @override
+  Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _motionController,
       builder: (context, _) {
@@ -1854,4 +1849,95 @@ class _SearchResultSaveTick extends StatelessWidget {
       ),
     );
   }
+}
+
+class _MagicSearchHintPopover extends StatelessWidget {
+  const _MagicSearchHintPopover();
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: const _PopoverBubblePainter(),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 21, 14, 12),
+        child: Text(
+          'Switch to magic search to satisfy a specific vibe, craving or dish you are after!',
+          style: AppTypography.sans(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: pinit.PinitColors.cream,
+              height: 1.3,
+              letterSpacing: 1.2),
+        ),
+      ),
+    );
+  }
+}
+
+class _PopoverBubblePainter extends CustomPainter {
+  const _PopoverBubblePainter();
+
+  static const double _arrowWidth = 16.0;
+  static const double _arrowHeight = 10.0;
+  static const double _radius = 12.0;
+  static const double _borderWidth = 1.5;
+
+  Path _buildPath(Size size, double arrowTipX) {
+    const r = _radius;
+    const ah = _arrowHeight;
+    final w = size.width;
+    final h = size.height;
+
+    return Path()
+      ..moveTo(r, ah)
+      ..lineTo(arrowTipX - _arrowWidth / 2, ah)
+      ..lineTo(arrowTipX, 0)
+      ..lineTo(arrowTipX + _arrowWidth / 2, ah)
+      ..lineTo(w - r, ah)
+      ..arcToPoint(Offset(w, ah + r), radius: const Radius.circular(r))
+      ..lineTo(w, h - r)
+      ..arcToPoint(Offset(w - r, h), radius: const Radius.circular(r))
+      ..lineTo(r, h)
+      ..arcToPoint(Offset(0, h - r), radius: const Radius.circular(r))
+      ..lineTo(0, ah + r)
+      ..arcToPoint(Offset(r, ah), radius: const Radius.circular(r))
+      ..close();
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final arrowTipX = size.width - 27.0;
+    final path = _buildPath(size, arrowTipX);
+
+    // Hard aubergine shadow (offset 3,3 — matches app style)
+    canvas.save();
+    canvas.translate(3, 3);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = pinit.PinitColors.aubergine
+        ..style = PaintingStyle.fill,
+    );
+    canvas.restore();
+
+    // Accent (orange) fill
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = pinit.PinitColors.accent
+        ..style = PaintingStyle.fill,
+    );
+
+    // Aubergine border
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = pinit.PinitColors.aubergine
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = _borderWidth,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

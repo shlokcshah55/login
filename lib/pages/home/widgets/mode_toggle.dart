@@ -7,6 +7,31 @@ import 'package:login/supabase/helpers/collections.dart';
 /// Mode toggle enum.
 enum HomeMode { you, explore, bubble }
 
+/// Single centered chip used while viewing magic search results.
+class MagicSearchChipRow extends StatelessWidget {
+  const MagicSearchChipRow({
+    super.key,
+    this.onTap,
+  });
+
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _Chip(
+          label: 'MAGIC SEARCH',
+          icon: FeatherIcons.zap,
+          state: _ChipState.filled,
+          onTap: onTap ?? () {},
+        ),
+      ],
+    );
+  }
+}
+
 /// Unified home chip row with an inline collections dropdown.
 class HomeChipRow extends StatefulWidget {
   const HomeChipRow({
@@ -120,10 +145,7 @@ class _HomeChipRowState extends State<HomeChipRow> {
                 : MainAxisAlignment.start,
             children: [
               for (var i = 0; i < chips.length; i++) ...[
-                if (chips.length > 1)
-                  Expanded(child: chips[i])
-                else
-                  chips[i],
+                if (chips.length > 1) Expanded(child: chips[i]) else chips[i],
                 if (i < chips.length - 1) const SizedBox(width: 6),
               ],
             ],
@@ -185,14 +207,15 @@ class _HomeChipRowState extends State<HomeChipRow> {
                                 ),
                               )
                             : ConstrainedBox(
-                                constraints: const BoxConstraints(maxHeight: 280),
+                                constraints:
+                                    const BoxConstraints(maxHeight: 280),
                                 child: SingleChildScrollView(
                                   child: Column(
                                     children: widget.collections
                                         .map(
                                           (collection) => Padding(
-                                            padding:
-                                                const EdgeInsets.only(bottom: 8),
+                                            padding: const EdgeInsets.only(
+                                                bottom: 8),
                                             child: _CollectionDropdownRow(
                                               collection: collection,
                                               isActive:
@@ -350,6 +373,11 @@ class _CollectionDropdownRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final owner = collection.ownerName;
+    final isReadOnly = !collection.canEdit && owner != null && owner.isNotEmpty;
+    final subtitle = isReadOnly
+        ? 'By $owner • ${collection.placeCount} place${collection.placeCount == 1 ? '' : 's'}'
+        : '${collection.placeCount} place${collection.placeCount == 1 ? '' : 's'}';
     return Container(
       decoration: BoxDecoration(
         color: isActive ? PinitColors.creamSunk : PinitColors.cream,
@@ -379,7 +407,7 @@ class _CollectionDropdownRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${collection.placeCount} place${collection.placeCount == 1 ? '' : 's'}',
+                    subtitle,
                     style: GoogleFonts.dmSans(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,

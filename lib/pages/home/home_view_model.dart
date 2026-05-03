@@ -3,8 +3,8 @@ import 'dart:developer';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:login/utils/geo_types.dart';
-import 'package:login/controllers/home_controller.dart';
 import 'package:login/models/bubble.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/pages/home/widgets/mode_toggle.dart';
@@ -28,7 +28,6 @@ class HomeViewModel extends ChangeNotifier {
   final ShortlistProvider shortlistProvider;
   final SupabaseService supabaseService;
   final UserDataProvider userDataProvider;
-  late final HomeController _homeController;
   late final HeaderSearchCoordinator _headerSearchCoordinator;
   final CollectionsHelper _collectionsHelper = CollectionsHelper();
   final AnalyticsService _analyticsService = AnalyticsService();
@@ -41,10 +40,8 @@ class HomeViewModel extends ChangeNotifier {
   // ── Overlay state ─────────────────────────────────────────────
   bool _showSearchOverlay = false;
   bool _showGavelOverlay = false;
-  bool _isMagicSearchActive = true;
-  bool _showMagicSearchActivated = false;
-  bool _showMagicSearchDeactivated = false;
-  bool _hasShownMagicSearchIntro = false;
+  bool _isMagicSearchActive = false;
+  bool _showMagicSearchSuggestions = true;
   double _justDecideMinutes = 15.0;
   bool _showJustDecideSwipeMode = false;
   List<LocationModel> _justDecideLocations = [];
@@ -63,11 +60,14 @@ class HomeViewModel extends ChangeNotifier {
   bool _initialized = false;
   bool _isBubbleModeActive = false;
   Bubble? _activeBubble;
-  bool _initialRecommendationsFetched = false;
+  Future<void>? _initialRecommendationsPrefetch;
   bool _initialDefaultListResolved = false;
   bool _isResolvingInitialDefaultList = false;
   bool _userSelectedHomeMode = false;
   String? _selectedMarkerBeforeHeaderPreview;
+  bool _disposed = false;
+  bool _externalNotifyQueued = false;
+  bool _prefetchQueued = false;
 
   HomeViewModel({
     required this.locationListManager,
@@ -77,10 +77,6 @@ class HomeViewModel extends ChangeNotifier {
     required this.supabaseService,
     required this.userDataProvider,
   }) {
-    _homeController = HomeController(
-      locationListManager: locationListManager,
-      mapStateProvider: mapStateProvider,
-    );
     _headerSearchCoordinator = HeaderSearchCoordinator(
       repository: LiveHeaderSearchRepository(
         locationListManager: locationListManager,
@@ -96,8 +92,7 @@ class HomeViewModel extends ChangeNotifier {
   bool get showSearchOverlay => _showSearchOverlay;
   bool get showGavelOverlay => _showGavelOverlay;
   bool get isMagicSearchActive => _isMagicSearchActive;
-  bool get showMagicSearchActivated => _showMagicSearchActivated;
-  bool get showMagicSearchDeactivated => _showMagicSearchDeactivated;
+  bool get showMagicSearchSuggestions => _showMagicSearchSuggestions;
   double get justDecideMinutes => _justDecideMinutes;
   bool get showJustDecideSwipeMode => _showJustDecideSwipeMode;
   List<LocationModel> get justDecideLocations => _justDecideLocations;
@@ -166,8 +161,9 @@ class HomeViewModel extends ChangeNotifier {
         break;
       case HomeMode.explore:
         locationListManager.setCurrentListType(LocationListType.recommended);
-        // Lazy-load recommendations the first time Explore is opened.
-        _maybeFetchInitialRecommendations();
+        // Warm recommendations in the background so Explore doesn't immediately
+        // land on a loading state on first open.
+        unawaited(_prefetchInitialRecommendationsIfReady());
         break;
       case HomeMode.bubble:
         locationListManager.setCurrentListType(LocationListType.bubble);
@@ -176,19 +172,38 @@ class HomeViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Fetches recommendations once, the first time the user enters Explore mode
-  /// and a location is available. If Explore is opened before a location is
-  /// known, [_onExternalStateChanged] will pick it up when the stream arrives.
-  void _maybeFetchInitialRecommendations() {
-    if (_initialRecommendationsFetched) return;
-    if (_homeMode != HomeMode.explore) return;
-    if (locationListManager.currentPosition == null) return;
+  Future<void> _prefetchInitialRecommendationsIfReady() {
+    if (_initialRecommendationsPrefetch != null) {
+      return _initialRecommendationsPrefetch!;
+    }
 
-    _initialRecommendationsFetched = true;
-    log("HomeViewModel: Explore active, fetching initial recommendations");
-    _homeController.fetchAndPlotRecommendedPins(
-      locationListManager.currentPosition,
-    );
+    // Don't start a network call if we don't yet have the required inputs.
+    if (SupabaseClientManager().currentUser == null) {
+      return Future.value();
+    }
+    final position = locationListManager.currentPosition;
+    if (position == null) return Future.value();
+
+    _initialRecommendationsPrefetch = () async {
+      // Avoid triggering provider notifications while widgets are building.
+      if (SchedulerBinding.instance.schedulerPhase != SchedulerPhase.idle) {
+        await SchedulerBinding.instance.endOfFrame;
+      }
+      const double defaultRadiusKm = 5.0;
+      await locationListManager.fetchRecommendedLocations(
+        latitude: position.latitude,
+        longitude: position.longitude,
+        radiusKm: defaultRadiusKm,
+      );
+
+      final lastCenter = locationListManager.lastSearchedCenter;
+      final lastRadius = locationListManager.lastSearchedRadius;
+      if (lastCenter != null && lastRadius != null) {
+        mapStateProvider.setLastSearchedArea(lastCenter, lastRadius);
+      }
+    }();
+
+    return _initialRecommendationsPrefetch!;
   }
 
   Future<void> _resolveInitialDefaultListIfReady() async {
@@ -210,18 +225,41 @@ class HomeViewModel extends ChangeNotifier {
         return;
       }
 
-      _initialDefaultListResolved = true;
+      // Always warm recommendations so Explore is ready if/when the user taps it.
+      _scheduleRecommendationsPrefetch();
+
       final shouldUsePicks =
           locationListManager.shouldDefaultPinsToRecommendations(
         userPosition: position,
       );
       if (!shouldUsePicks) {
+        _initialDefaultListResolved = true;
         return;
       }
 
+      // Only switch to Picks after the recommendations endpoint returns, so we
+      // don't immediately land the user on a loading state.
+      _initialDefaultListResolved = true;
+      await _prefetchInitialRecommendationsIfReady();
+      if (_initialRecommendationsPrefetch == null) {
+        // Recommendations couldn't be fetched (e.g. user not ready / no auth);
+        // don't auto-switch away from Saved.
+        return;
+      }
+
+      // Re-check: the user might have tapped another mode while we were
+      // fetching recommendations.
+      if (_userSelectedHomeMode ||
+          _isBubbleModeActive ||
+          _activeCollectionId != null ||
+          locationListManager.currentListType != LocationListType.saved) {
+        return;
+      }
+
+      _homeMode = HomeMode.explore;
+      _lastNonBubbleMode = HomeMode.explore;
       await locationListManager
           .setCurrentListType(LocationListType.recommended);
-      await _homeController.fetchAndPlotRecommendedPins(position);
     } finally {
       _isResolvingInitialDefaultList = false;
     }
@@ -278,17 +316,55 @@ class HomeViewModel extends ChangeNotifier {
     shortlistProvider.addListener(_onExternalStateChanged);
 
     _lastSelectedMarkerId = mapStateProvider.selectedMarkerId;
+    unawaited(_prefetchInitialRecommendationsIfReady());
     unawaited(_resolveInitialDefaultListIfReady());
     unawaited(loadCollections());
   }
 
   void _onExternalStateChanged() {
-    // If the user is already in Explore mode, fetch recommendations as soon
-    // as a location becomes available. In You mode we stay lazy — the
-    // carousel sticks to saved locations until Explore is tapped.
-    _maybeFetchInitialRecommendations();
+    // Always warm recommendations in the background so Explore is ready without
+    // an immediate loading state when opened.
+    _scheduleRecommendationsPrefetch();
     unawaited(_resolveInitialDefaultListIfReady());
-    notifyListeners();
+    _notifyListenersSafely();
+  }
+
+  void _scheduleRecommendationsPrefetch() {
+    if (_disposed) return;
+    if (_initialRecommendationsPrefetch != null) return;
+    if (_prefetchQueued) return;
+    _prefetchQueued = true;
+
+    // Defer so we never trigger a LocationListManager notifyListeners while we're
+    // inside another provider's notification/build cycle.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _prefetchQueued = false;
+      if (_disposed) return;
+      unawaited(_prefetchInitialRecommendationsIfReady());
+    });
+  }
+
+  void _notifyListenersSafely() {
+    if (_disposed) return;
+
+    // If we're in the middle of building/layout/paint, notifying immediately can
+    // trip "markNeedsBuild called during build" depending on who triggered the
+    // upstream provider notification. Defer to the next frame.
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    final shouldDefer = phase == SchedulerPhase.persistentCallbacks ||
+        phase == SchedulerPhase.midFrameMicrotasks;
+    if (!shouldDefer) {
+      notifyListeners();
+      return;
+    }
+
+    if (_externalNotifyQueued) return;
+    _externalNotifyQueued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _externalNotifyQueued = false;
+      if (_disposed) return;
+      notifyListeners();
+    });
   }
 
   void _onSelectedMarkerChanged() {
@@ -317,23 +393,17 @@ class HomeViewModel extends ChangeNotifier {
         }
       });
     }
-    notifyListeners();
+    _notifyListenersSafely();
   }
 
   void _onHeaderSearchChanged() {
     _syncBottomNavVisibilityForSearch();
-    notifyListeners();
+    _notifyListenersSafely();
   }
 
   void _onHeaderSearchFocusChanged() {
-    if (_isMagicSearchActive &&
-        headerSearchFocusNode.hasFocus &&
-        !_hasShownMagicSearchIntro) {
-      _hasShownMagicSearchIntro = true;
-      _showMagicSearchActivated = true;
-    }
     _syncBottomNavVisibilityForSearch();
-    notifyListeners();
+    _notifyListenersSafely();
   }
 
   void _syncBottomNavVisibilityForSearch() {
@@ -480,37 +550,32 @@ class HomeViewModel extends ChangeNotifier {
 
   void toggleMagicSearch() {
     _analyticsService.registerUserInteraction(
-        interactionKey: 'toggle_magic_search');
+      interactionKey: 'toggle_magic_search',
+    );
     _isMagicSearchActive = !_isMagicSearchActive;
     if (_isMagicSearchActive) {
-      _showMagicSearchActivated = true;
-      _showMagicSearchDeactivated = false;
-      _hasShownMagicSearchIntro = true;
+      _showMagicSearchSuggestions = true;
     } else {
-      _showMagicSearchActivated = false;
-      _showMagicSearchDeactivated = true;
-      // Switch back to You mode when exiting magic search.
+      _showMagicSearchSuggestions = false;
       setHomeMode(HomeMode.you);
     }
     _syncBottomNavVisibilityForSearch();
     notifyListeners();
   }
 
-  void dismissMagicSearchActivated() {
-    if (!_showMagicSearchActivated) return;
-    _showMagicSearchActivated = false;
-    notifyListeners();
-  }
-
-  void dismissMagicSearchDeactivated() {
-    if (!_showMagicSearchDeactivated) return;
-    _showMagicSearchDeactivated = false;
+  void dismissMagicSearchSuggestions() {
+    if (!_showMagicSearchSuggestions) return;
+    _showMagicSearchSuggestions = false;
     notifyListeners();
   }
 
   Future<void> submitMagicSearch(String query) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return;
+
+    // Once the user submits a query we move into “results mode” — the
+    // suggestion panel should collapse so the header stays compact.
+    dismissMagicSearchSuggestions();
 
     log("HomeViewModel: Triggering magic search for: $trimmed");
     _analyticsService.trackFeature(
@@ -524,7 +589,21 @@ class HomeViewModel extends ChangeNotifier {
       interactionKey: 'magic_search_submit',
     );
 
-    await locationListManager.magicSearch(trimmed);
+    final viewData = await mapStateProvider.getVisibleCenterAndRadius();
+    final radiusKm =
+        (viewData != null ? viewData['radius'] as double : null) ?? 2.0;
+
+    await locationListManager.magicSearch(
+      trimmed,
+      radiusKm: radiusKm,
+    );
+
+    if (viewData != null) {
+      mapStateProvider.setLastSearchedArea(
+        viewData['center'] as LatLng,
+        radiusKm,
+      );
+    }
 
     if (locationListManager.error != null) {
       log("HomeViewModel: Magic search error: ${locationListManager.error}");
@@ -548,10 +627,16 @@ class HomeViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final collections = await _collectionsHelper.getUserCollections(user.id);
-      collections.sort(
-        (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
-      );
+      final collections =
+          await _collectionsHelper.getUserCollectionLibrary(user.id);
+      collections.sort((a, b) {
+        if (a.canEdit != b.canEdit) return a.canEdit ? -1 : 1;
+        final aOwner = (a.ownerName ?? '').toLowerCase();
+        final bOwner = (b.ownerName ?? '').toLowerCase();
+        final ownerCmp = aOwner.compareTo(bOwner);
+        if (ownerCmp != 0) return ownerCmp;
+        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      });
       _collections = collections;
     } catch (_) {
       _collections = [];
@@ -739,7 +824,21 @@ class HomeViewModel extends ChangeNotifier {
 
     log("HomeViewModel: Triggering sweet treat search for: $trimmed");
 
-    await locationListManager.magicSearch(trimmed);
+    final viewData = await mapStateProvider.getVisibleCenterAndRadius();
+    final radiusKm =
+        (viewData != null ? viewData['radius'] as double : null) ?? 2.0;
+
+    await locationListManager.magicSearch(
+      trimmed,
+      radiusKm: radiusKm,
+    );
+
+    if (viewData != null) {
+      mapStateProvider.setLastSearchedArea(
+        viewData['center'] as LatLng,
+        radiusKm,
+      );
+    }
 
     if (locationListManager.error != null) {
       log("HomeViewModel: Sweet treat search error: ${locationListManager.error}");
@@ -758,6 +857,19 @@ class HomeViewModel extends ChangeNotifier {
 
     final center = viewData['center'] as LatLng;
     final radiusKm = viewData['radius'] as double;
+
+    if (_isMagicSearchActive &&
+        locationListManager.currentListType == LocationListType.search) {
+      final query = headerSearchController.text.trim();
+      if (query.isNotEmpty) {
+        await locationListManager.magicSearch(
+          query,
+          radiusKm: radiusKm,
+        );
+        mapStateProvider.setLastSearchedArea(center, radiusKm);
+        return;
+      }
+    }
 
     if (_isBubbleModeActive &&
         _homeMode == HomeMode.bubble &&
@@ -875,6 +987,7 @@ class HomeViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _headerSearchCoordinator.removeListener(_onHeaderSearchChanged);
     mapStateProvider.removeListener(_onSelectedMarkerChanged);
     locationListManager.removeListener(_onExternalStateChanged);

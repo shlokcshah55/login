@@ -33,6 +33,7 @@ const Map<String, IconData> vibeIcons = {
 String vibeDisplayName(String tag) {
   return tag
       .replaceAll('_', ' ')
+      .replaceAll('-', ' ')
       .split(' ')
       .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
       .join(' ');

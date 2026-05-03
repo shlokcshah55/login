@@ -1,18 +1,17 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:typed_data';
-import 'dart:ui' show ImageFilter;
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
+import 'package:login/pages/profile/widgets/collections_grid.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
+import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/supabase/constants.dart';
-import 'package:login/supabase/helpers/notes_import.dart';
+import 'package:login/supabase/helpers/collections.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/supabase/supabase_client.dart';
 import 'package:login/themes/app_typography.dart';
@@ -40,19 +39,19 @@ class _SwipeSaveStepState extends State<SwipeSaveStep>
     with SingleTickerProviderStateMixin {
   static const double _maxCardWidth = 290;
   static const double _contentSidePadding = 20;
-  static const double _cardImageAspectRatio = 16 / 10;
-  static const double _swipeAreaMinHeight = 240;
-  static const double _swipeAreaMaxHeight = 320;
+  static const double _swipeAreaMinHeight = 170;
+  static const double _swipeAreaMaxHeight = 280;
+  static const double _collectionsPanelMinHeight = 185;
+  static const double _collectionsPanelMaxHeight = 220;
 
   int _currentIndex = 0;
   Offset _dragOffset = Offset.zero;
   bool _isDragging = false;
   final Set<int> _savedLocationIds = <int>{};
-  final TextEditingController _pasteController = TextEditingController();
-  final FocusNode _pasteFocusNode = FocusNode();
-  final FocusNode _pastePreviewFocusNode = FocusNode(canRequestFocus: false);
-  bool _isPasteOverlayOpen = false;
-  bool _isImporting = false;
+  final CollectionsHelper _collectionsHelper = CollectionsHelper();
+  bool _loadingCollections = false;
+  List<CollectionItem> _exploreCollections = const [];
+  String? _savingCollectionId;
 
   late final AnimationController _swipeAnimController;
   late Animation<Offset> _slideAnimation;
@@ -72,121 +71,81 @@ class _SwipeSaveStepState extends State<SwipeSaveStep>
         Tween<Offset>(begin: Offset.zero, end: Offset.zero).animate(
       CurvedAnimation(parent: _swipeAnimController, curve: Curves.easeOut),
     );
+
+    unawaited(_loadExploreCollections());
   }
 
   @override
   void dispose() {
-    _pasteController.dispose();
-    _pasteFocusNode.dispose();
-    _pastePreviewFocusNode.dispose();
     _swipeAnimController.dispose();
     super.dispose();
   }
 
-  void _openPasteOverlay() {
-    if (_isPasteOverlayOpen) return;
-    setState(() => _isPasteOverlayOpen = true);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      FocusScope.of(context).requestFocus(_pasteFocusNode);
-    });
-  }
+  Future<void> _handleLetsGo() async => widget.onLetsGo();
 
-  void _closePasteOverlay() {
-    if (!_isPasteOverlayOpen) return;
-    FocusScope.of(context).unfocus();
-    setState(() => _isPasteOverlayOpen = false);
-  }
+  static const List<String> _curatedCollectionIds = [
+    '2e98c6f0-d593-4b47-b57c-fdc1e329e92e',
+    '2fb5f049-46f0-41d3-962b-3ccfd7e4f0d4',
+    '993ec69d-e4f2-420e-bd30-d9b014bc599b',
+    'f56b2482-911f-415d-a43c-dba67158997d',
+    'b4fc413a-79bf-4d8f-ba48-edc7388a66da',
+  ];
 
-  List<String> _parsePlaces(String raw) {
-    final trimmed = raw.trim();
-    if (trimmed.isEmpty) return const [];
-
-    final parts = trimmed.split(RegExp(r'[,;\n]+'));
-    final places = <String>[];
-    for (final part in parts) {
-      final item = part.trim();
-      if (item.isEmpty) continue;
-      places.add(item);
-    }
-
-    return places;
-  }
-
-  String _buildMarkdownForPlaces(List<String> places) {
-    final buffer = StringBuffer()
-      ..writeln('# Places to pin')
-      ..writeln();
-
-    for (final place in places) {
-      buffer.writeln('- $place');
-    }
-
-    return buffer.toString();
-  }
-
-  Future<bool> _submitPasteToNotesImport() async {
-    final places = _parsePlaces(_pasteController.text);
-    if (places.isEmpty) return true;
-
-    if (_isImporting) return false;
-    setState(() => _isImporting = true);
-
+  Future<void> _loadExploreCollections() async {
+    if (_loadingCollections) return;
+    final userId = SupabaseClientManager().currentUser?.id;
+    setState(() => _loadingCollections = true);
     try {
-      final userId = SupabaseClientManager().currentUser?.id;
-      if (userId == null || userId.trim().isEmpty) {
-        await AppFeedback.showError(
-          context,
-          title: 'Not logged in',
-          message: 'Please log in again and try that.',
-        );
-        return false;
-      }
-
-      final markdown = _buildMarkdownForPlaces(places);
-      final bytes = Uint8List.fromList(utf8.encode(markdown));
-      final fileName =
-          'pinit-places-${DateTime.now().toIso8601String().replaceAll(':', '-')}.md';
-      final file = PlatformFile(
-        name: fileName,
-        size: bytes.length,
-        bytes: bytes,
-      );
-
-      final service = context.read<SupabaseService>();
-      await service.notesImport.importFile(
-        userId: userId,
-        file: file,
-        sourceName: 'Onboarding places',
-      );
-
-      return true;
-    } on NotesImportException catch (error) {
-      await AppFeedback.showError(
-        context,
-        title: 'Couldn’t import',
-        message: error.message,
-      );
-      return false;
+      final items = await _collectionsHelper.getCollectionsByIds(
+          _curatedCollectionIds, userId);
+      if (!mounted) return;
+      setState(() => _exploreCollections = items);
     } catch (_) {
-      await AppFeedback.showError(
-        context,
-        title: 'Couldn’t import',
-        message: 'Try again in a moment.',
-      );
-      return false;
+      if (!mounted) return;
+      setState(() => _exploreCollections = const []);
     } finally {
-      if (mounted) setState(() => _isImporting = false);
+      if (mounted) setState(() => _loadingCollections = false);
     }
   }
 
-  Future<void> _handleLetsGo() async {
-    _closePasteOverlay();
-    if (_pasteController.text.trim().isNotEmpty) {
-      final ok = await _submitPasteToNotesImport();
-      if (!ok) return;
+  Future<void> _toggleSaveCollection(CollectionItem collection) async {
+    if (_savingCollectionId != null) return;
+    setState(() => _savingCollectionId = collection.collectionId);
+    try {
+      if (collection.isSaved) {
+        await _collectionsHelper.unsaveCollection(collection.collectionId);
+      } else {
+        await _collectionsHelper.saveCollection(collection.collectionId);
+      }
+      if (!mounted) return;
+
+      setState(() {
+        final index = _exploreCollections
+            .indexWhere((c) => c.collectionId == collection.collectionId);
+        if (index == -1) return;
+        final current = _exploreCollections[index];
+        final nextSaved = !current.isSaved;
+        final nextCount = nextSaved
+            ? current.saveCount + 1
+            : (current.saveCount - 1) < 0
+                ? 0
+                : current.saveCount - 1;
+        final next = current.copyWith(isSaved: nextSaved, saveCount: nextCount);
+        _exploreCollections = List<CollectionItem>.from(_exploreCollections)
+          ..[index] = next;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      unawaited(
+        AppFeedback.showError(
+          context,
+          title: 'Couldn’t update',
+          message: 'Please try again.',
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _savingCollectionId = null);
     }
-    widget.onLetsGo();
   }
 
   void _onDragStart(DragStartDetails _) {
@@ -289,20 +248,29 @@ class _SwipeSaveStepState extends State<SwipeSaveStep>
               Expanded(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    final swipeAreaHeight = (constraints.maxHeight * 0.42)
+                    const double fixedOverhead = 185;
+                    final collectionsPanelHeight =
+                        (constraints.maxHeight * 0.33)
+                            .clamp(
+                                _collectionsPanelMinHeight,
+                                _collectionsPanelMaxHeight)
+                            .toDouble();
+                    final swipeAreaHeight = (constraints.maxHeight -
+                            fixedOverhead -
+                            collectionsPanelHeight)
                         .clamp(_swipeAreaMinHeight, _swipeAreaMaxHeight)
                         .toDouble();
 
-                    return SingleChildScrollView(
+                    return Padding(
                       padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Text(
-                            'Let\'s get you started with some recs',
+                            'Get started with a few picks from us!',
                             textAlign: TextAlign.center,
                             style: AppTypography.brand(
-                              fontSize: 30,
+                              fontSize: 22,
                               fontWeight: FontWeight.w100,
                               color: PinitColors.aubergine,
                               letterSpacing: 0.6,
@@ -310,40 +278,64 @@ class _SwipeSaveStepState extends State<SwipeSaveStep>
                             ),
                           ),
                           const SizedBox(height: 12),
-                          Text(
-                            "Swipe right if you'd go, left if it's not a bit of you.",
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.dmSans(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1.2,
-                              color: PinitColors.aubergineSoft,
-                              decoration: TextDecoration.none,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
                           SizedBox(
                             height: swipeAreaHeight,
                             child: widget.recommendations.isEmpty
                                 ? _buildEmptyState()
                                 : Center(
-                                    child: _buildSwipeArea(cardWidth),
+                                    child: _buildSwipeArea(
+                                        cardWidth, swipeAreaHeight),
                                   ),
                           ),
-                          const SizedBox(height: 18),
-                          Text(
-                            'and give us any places you want to pin to begin with!',
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.dmSans(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1.2,
-                              color: PinitColors.aubergineSoft,
-                              decoration: TextDecoration.none,
-                            ),
+                          const SizedBox(height: 10),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.arrow_back_rounded,
+                                  size: 18, color: Color(0xFFEF4444)),
+                              const SizedBox(width: 6),
+                              Text(
+                                'skip',
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1.2,
+                                  color: PinitColors.aubergineSoft,
+                                  decoration: TextDecoration.none,
+                                ),
+                              ),
+                              const SizedBox(width: 20),
+                              Text(
+                                'save',
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1.2,
+                                  color: PinitColors.aubergineSoft,
+                                  decoration: TextDecoration.none,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              const Icon(Icons.arrow_forward_rounded,
+                                  size: 18, color: Color(0xFF10B981)),
+                            ],
                           ),
                           const SizedBox(height: 10),
-                          _buildPastePanel(context, cardWidth: cardWidth),
+                          Text(
+                            'And save a few of our handmade eat-lists',
+                            textAlign: TextAlign.center,
+                            style: AppTypography.brand(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w100,
+                              color: PinitColors.aubergine,
+                              letterSpacing: 0.6,
+                              height: 1.0,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildCollectionsPanel(context,
+                              cardWidth: cardWidth,
+                              panelHeight: collectionsPanelHeight),
                         ],
                       ),
                     );
@@ -358,166 +350,78 @@ class _SwipeSaveStepState extends State<SwipeSaveStep>
               location: _expandedLocation!,
               onClose: _closeExpanded,
             ),
-          if (_isPasteOverlayOpen)
-            _buildPasteOverlay(context, cardWidth: cardWidth),
         ],
       ),
     );
   }
 
-  Widget _buildPastePanel(BuildContext context, {required double cardWidth}) {
+  Widget _buildCollectionsPanel(BuildContext context,
+      {required double cardWidth, required double panelHeight}) {
     return Center(
       child: SizedBox(
         width: cardWidth,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildPasteTextBox(
-              height: 150,
-              readOnly: true,
-              focusNode: _pastePreviewFocusNode,
-              onTap: _openPasteOverlay,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPasteOverlay(BuildContext context, {required double cardWidth}) {
-    final viewInsets = MediaQuery.viewInsetsOf(context);
-    final screenHeight = MediaQuery.sizeOf(context).height;
-    final topPadding = MediaQuery.paddingOf(context).top;
-    final overlayHeight = (screenHeight - viewInsets.bottom - topPadding - 210)
-        .clamp(240.0, 380.0)
-        .toDouble();
-
-    return Positioned.fill(
-      child: Stack(
-        children: [
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: _isImporting ? null : _closePasteOverlay,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 160),
-              curve: Curves.easeOut,
-              child: ClipRect(
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-                  child: Container(
-                    color: Colors.black.withValues(alpha: 0.18),
+        height: panelHeight,
+        child: _loadingCollections
+              ? const Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(PinitColors.aubergine),
+                    ),
                   ),
-                ),
-              ),
-            ),
-          ),
-          SafeArea(
-            child: AnimatedPadding(
-              duration: const Duration(milliseconds: 160),
-              curve: Curves.easeOut,
-              padding: EdgeInsets.fromLTRB(24, 18, 24, 18 + viewInsets.bottom),
-              child: Align(
-                alignment: Alignment.topCenter,
-                child: SizedBox(
-                  width: cardWidth,
-                  child: Stack(
-                    children: [
-                      _buildPasteTextBox(
-                        height: overlayHeight,
-                        readOnly: false,
-                        focusNode: _pasteFocusNode,
-                        onTap: null,
-                        contentPadding:
-                            const EdgeInsets.fromLTRB(14, 44, 14, 12),
-                      ),
-                      Positioned(
-                        top: 12,
-                        left: 14,
+                )
+              : _exploreCollections.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Text(
-                          'Paste places',
+                          'No friend eat-lists yet — you can still start swiping.',
+                          textAlign: TextAlign.center,
                           style: GoogleFonts.dmSans(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.0,
-                            color: PinitColors.aubergine,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: PinitColors.aubergineSoft,
+                            height: 1.35,
                           ),
                         ),
                       ),
-                      Positioned(
-                        top: 2,
-                        right: 2,
-                        child: IconButton(
-                          onPressed: _isImporting ? null : _closePasteOverlay,
-                          icon: const Icon(FeatherIcons.x),
-                          iconSize: 18,
-                          splashRadius: 18,
-                          color: PinitColors.aubergine,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+                    )
+                  : ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                      clipBehavior: Clip.none,
+                      itemCount: _exploreCollections.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 12),
+                      itemBuilder: (context, index) {
+                        final c = _exploreCollections[index];
+                        final saving = _savingCollectionId == c.collectionId;
+                        return SizedBox(
+                          width: 160,
+                          child: _ExploreCollectionCard(
+                            collection: c,
+                            saving: saving,
+                            onToggleSave: () => _toggleSaveCollection(c),
+                            onTap: () => _openCollectionDetail(c),
+                          ),
+                        );
+                      },
+                    ),
       ),
     );
   }
 
-  Widget _buildPasteTextBox({
-    required double height,
-    required bool readOnly,
-    required FocusNode? focusNode,
-    required VoidCallback? onTap,
-    EdgeInsets? contentPadding,
-  }) {
-    return Container(
-      height: height,
-      decoration: BoxDecoration(
-        color: PinitColors.cream,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: PinitColors.aubergine, width: 1.5),
-        boxShadow: const [
-          BoxShadow(
-            color: PinitColors.aubergine,
-            blurRadius: 0,
-            offset: Offset(3, 3),
-          ),
-        ],
-      ),
-      child: TextField(
-        controller: _pasteController,
-        focusNode: focusNode,
-        autofocus: !readOnly && focusNode != null,
-        readOnly: readOnly,
-        showCursor: !readOnly,
-        enableInteractiveSelection: !readOnly,
-        keyboardType: TextInputType.multiline,
-        expands: true,
-        minLines: null,
-        maxLines: null,
-        textInputAction: TextInputAction.newline,
-        cursorColor: PinitColors.aubergine,
-        style: GoogleFonts.dmSans(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: PinitColors.aubergine,
-        ),
-        decoration: InputDecoration(
-          hintText: 'Dishoom, Padella, Lina Stores…',
-          hintStyle: GoogleFonts.dmSans(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: PinitColors.mute,
-          ),
-          border: InputBorder.none,
-          isDense: true,
-          contentPadding:
-              contentPadding ?? const EdgeInsets.fromLTRB(14, 12, 14, 12),
-        ),
-        onTap: onTap,
-        onChanged: (_) => setState(() {}),
+  void _openCollectionDetail(CollectionItem collection) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => CollectionDetailSheet(
+        collection: CollectionModel.fromItem(collection),
+        onEdit: null,
+        onDeleted: null,
       ),
     );
   }
@@ -560,7 +464,7 @@ class _SwipeSaveStepState extends State<SwipeSaveStep>
     );
   }
 
-  Widget _buildSwipeArea(double cardWidth) {
+  Widget _buildSwipeArea(double cardWidth, double cardHeight) {
     final current = _allSwiped ? null : widget.recommendations[_currentIndex];
     final next = _currentIndex + 1 < widget.recommendations.length
         ? widget.recommendations[_currentIndex + 1]
@@ -572,6 +476,7 @@ class _SwipeSaveStepState extends State<SwipeSaveStep>
         if (next != null)
           SizedBox(
             width: cardWidth,
+            height: cardHeight,
             child: _buildCard(context, next, interactive: false),
           ),
         if (current != null)
@@ -617,6 +522,7 @@ class _SwipeSaveStepState extends State<SwipeSaveStep>
               },
               child: SizedBox(
                 width: cardWidth,
+                height: cardHeight,
                 child: _buildCard(context, current, interactive: true),
               ),
             ),
@@ -755,8 +661,7 @@ class _SwipeSaveStepState extends State<SwipeSaveStep>
                 ],
               ),
             ),
-            AspectRatio(
-              aspectRatio: _cardImageAspectRatio,
+            Expanded(
               child: _buildCardImage(loc),
             ),
             Container(height: 1.5, color: PinitColors.aubergine),
@@ -956,7 +861,7 @@ class _SwipeSaveStepState extends State<SwipeSaveStep>
               Expanded(
                 flex: 2,
                 child: ElevatedButton(
-                  onPressed: _isImporting ? null : _handleLetsGo,
+                  onPressed: _handleLetsGo,
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     backgroundColor: PinitColors.aubergine,
@@ -966,29 +871,248 @@ class _SwipeSaveStepState extends State<SwipeSaveStep>
                       borderRadius: BorderRadius.circular(20),
                     ),
                   ),
-                  child: _isImporting
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor:
-                                AlwaysStoppedAnimation(PinitColors.cream),
-                          ),
-                        )
-                      : Text(
-                          "Let’s go!",
-                          style: GoogleFonts.dmSans(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
+                  child: Text(
+                    "Let’s go!",
+                    style: GoogleFonts.dmSans(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
                 ),
               ),
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+// Maps auto-generated collection labels to their bundled asset paths.
+// Auto-generated collections whose cover is a bundled SVG illustration.
+const Map<String, String> _kCollectionSvgAssets = {
+  'Shared Finds': 'lib/assets/illustrations/Untitled design-3.svg',
+  'Been To': 'lib/assets/illustrations/Brazuca - Date Night.svg',
+};
+
+const Map<String, String> _kCollectionAssets = {
+  'Date Night 🌹': 'lib/assets/collection/date_night.png',
+  'Brunch O\'Clock 🍳': 'lib/assets/collection/lunch.png',
+  'On The Run 🏃': 'lib/assets/collection/lunch.png',
+  'Midnight Munchies 🌙': 'lib/assets/collection/midnight.png',
+  'Grab A Coffee ☕': 'lib/assets/collection/coffee.png',
+  'Drinks Up 🍻': 'lib/assets/collection/pub.png',
+  'Outside Outside ☀️': 'lib/assets/collection/summer.png',
+};
+
+class _ExploreCollectionCard extends StatelessWidget {
+  final CollectionItem collection;
+  final bool saving;
+  final VoidCallback onTap;
+  final VoidCallback onToggleSave;
+
+  const _ExploreCollectionCard({
+    required this.collection,
+    required this.saving,
+    required this.onTap,
+    required this.onToggleSave,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final assetPath = _kCollectionAssets[collection.name];
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: PinitColors.aubergine, width: 1.5),
+          boxShadow: const [
+            BoxShadow(
+              color: PinitColors.aubergine,
+              blurRadius: 0,
+              offset: Offset(4, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14.5),
+          child: Container(
+            color: PinitColors.creamSunk,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      _buildImage(
+                        assetPath: assetPath,
+                        coverColor: collection.coverColor,
+                        networkPhoto: collection.photo,
+                        name: collection.name,
+                      ),
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: GestureDetector(
+                          onTap: saving ? null : onToggleSave,
+                          behavior: HitTestBehavior.opaque,
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: collection.isSaved
+                                  ? PinitColors.aubergine
+                                      .withValues(alpha: 0.92)
+                                  : Colors.black.withValues(alpha: 0.45),
+                              shape: BoxShape.circle,
+                            ),
+                            child: saving
+                                ? const SizedBox(
+                                    width: 13,
+                                    height: 13,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : Icon(
+                                    collection.isSaved
+                                        ? FeatherIcons.check
+                                        : FeatherIcons.plus,
+                                    size: 13,
+                                    color: Colors.white,
+                                  ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (collection.ownerName != null &&
+                          collection.ownerName!.isNotEmpty) ...[
+                        Row(
+                          children: [
+                            if (collection.ownerAvatarUrl != null)
+                              ClipOval(
+                                child: CachedNetworkImage(
+                                  imageUrl: collection.ownerAvatarUrl!,
+                                  width: 18,
+                                  height: 18,
+                                  fit: BoxFit.cover,
+                                ),
+                              )
+                            else
+                              Container(
+                                width: 18,
+                                height: 18,
+                                decoration: const BoxDecoration(
+                                  color: PinitColors.creamDeep,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.person,
+                                  size: 11,
+                                  color: PinitColors.mute,
+                                ),
+                              ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                collection.ownerName!.toUpperCase(),
+                                style: GoogleFonts.dmSans(
+                          fontSize: 11,
+                          color:
+                              pinit.PinitColors.aubergine,
+                          letterSpacing: 1.2,
+                          fontWeight: FontWeight.w500,
+                        ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                      ],
+                      Text(
+                        collection.name,
+                        style: GoogleFonts.dmSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: PinitColors.aubergineSoft,
+                          height: 1.15,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        _buildMetaText(collection),
+                        style: GoogleFonts.dmSans(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: PinitColors.mute,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _buildMetaText(CollectionItem collection) {
+    final placesText =
+        '${collection.placeCount} place${collection.placeCount == 1 ? "" : "s"}';
+    final savesText =
+        '${collection.saveCount} save${collection.saveCount == 1 ? "" : "s"}';
+    return '$placesText • $savesText';
+  }
+
+  Widget _buildImage({
+    required String name,
+    required String? assetPath,
+    required String? coverColor,
+    required String? networkPhoto,
+  }) {
+    final svgAsset = _kCollectionSvgAssets[name];
+    if (svgAsset != null) {
+      return SvgPicture.asset(
+        svgAsset,
+        fit: BoxFit.cover,
+        width: double.infinity,
+      );
+    }
+    if (assetPath != null) {
+      return Image.asset(assetPath, fit: BoxFit.cover, width: double.infinity);
+    }
+    final photoUrl = coverColor ?? networkPhoto;
+    if (photoUrl != null) {
+      return CachedNetworkImage(
+        imageUrl: photoUrl,
+        fit: BoxFit.cover,
+        width: double.infinity,
+      );
+    }
+    return Container(
+      color: PinitColors.creamDeep,
+      child: const Center(
+        child: Icon(
+          FeatherIcons.bookmark,
+          size: 28,
+          color: PinitColors.mute,
+        ),
       ),
     );
   }

@@ -14,6 +14,7 @@ import 'package:login/pages/home/widgets/feature_intro_overlay.dart';
 import 'package:login/pages/home/widgets/home_filter_sheet.dart';
 import 'package:login/pages/home/widgets/home_header_search_shell.dart';
 import 'package:login/pages/home/widgets/home_map_layer.dart';
+import 'package:login/pages/home/widgets/magic_search_suggestions.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
 import 'package:login/themes/app_typography.dart';
 import 'package:login/themes/pinit_colors.dart';
@@ -29,6 +30,7 @@ import 'package:login/providers/user_data_provider.dart';
 import 'package:login/providers/bubble_mode_provider.dart';
 import 'package:login/providers/navigation_provider.dart';
 import 'package:login/services/did_you_know_wizard_service.dart';
+import 'package:login/services/notes_import_submitted_service.dart';
 import 'package:login/services/what_we_do_wizard_service.dart';
 import 'package:login/services/wizard_completion_popover_service.dart';
 import 'package:login/supabase/service.dart';
@@ -85,6 +87,7 @@ class _HomePageState extends State<HomePage> {
   bool _isMagicSearchNoResultsPopoverVisible = false;
   bool _hasShownSavedEmptyPopover = false;
   bool _isSavedEmptyPopoverVisible = false;
+  bool _notesImportWasSubmitted = false;
 
   @override
   void initState() {
@@ -108,6 +111,13 @@ class _HomePageState extends State<HomePage> {
 
     _locationListManager.addListener(_checkForErrors);
     _bubbleModeProvider.addListener(_handleBubbleModeRequest);
+    unawaited(_loadNotesImportFlag());
+  }
+
+  Future<void> _loadNotesImportFlag() async {
+    final submitted = await NotesImportSubmittedService().hasBeenSubmitted();
+    if (!mounted) return;
+    setState(() => _notesImportWasSubmitted = submitted);
   }
 
   @override
@@ -234,6 +244,7 @@ class _HomePageState extends State<HomePage> {
       _hasShownSavedEmptyPopover = false;
       return;
     }
+    if (_notesImportWasSubmitted) return;
     if (!widget.isActive ||
         _isWhatWeDoWizardVisible ||
         _whatWeDoWizardScheduled ||
@@ -645,88 +656,96 @@ class _HomePageState extends State<HomePage> {
                                         ),
                                       ),
                                     ),
-                                    const SizedBox(height: 10),
-                                    GestureDetector(
-                                      onTap: _openHomeFilters,
-                                      child: Stack(
-                                        clipBehavior: Clip.none,
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 8,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: pinit.PinitColors.cream,
-                                              borderRadius:
-                                                  BorderRadius.circular(999),
-                                              border: Border.all(
-                                                color:
-                                                    pinit.PinitColors.aubergine,
-                                                width: 1.5,
+                                    if (!(viewModel.isMagicSearchActive &&
+                                        viewModel.currentListType ==
+                                            LocationListType.search)) ...[
+                                      const SizedBox(height: 10),
+                                      GestureDetector(
+                                        onTap: _openHomeFilters,
+                                        child: Stack(
+                                          clipBehavior: Clip.none,
+                                          children: [
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                horizontal: 12,
+                                                vertical: 8,
                                               ),
-                                              boxShadow: [
-                                                BoxShadow(
+                                              decoration: BoxDecoration(
+                                                color: pinit.PinitColors.cream,
+                                                borderRadius:
+                                                    BorderRadius.circular(999),
+                                                border: Border.all(
                                                   color: pinit
                                                       .PinitColors.aubergine,
-                                                  blurRadius: 0,
-                                                  offset: const Offset(3, 3),
+                                                  width: 1.5,
                                                 ),
-                                              ],
-                                            ),
-                                            child: Icon(
-                                              FeatherIcons.sliders,
-                                              size: 15,
-                                              color:
-                                                  pinit.PinitColors.aubergine,
-                                            ),
-                                          ),
-                                          if (_selectedVibeTagIds.isNotEmpty ||
-                                              _selectedCuisineTagIds.isNotEmpty)
-                                            Positioned(
-                                              top: -4,
-                                              right: -2,
-                                              child: Container(
-                                                constraints:
-                                                    const BoxConstraints(
-                                                  minWidth: 18,
-                                                  minHeight: 18,
-                                                ),
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                  horizontal: 5,
-                                                  vertical: 2,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  color:
-                                                      pinit.PinitColors.accent,
-                                                  borderRadius:
-                                                      BorderRadius.circular(
-                                                          999),
-                                                  border: Border.all(
-                                                    color:
-                                                        pinit.PinitColors.cream,
-                                                    width: 1.2,
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: pinit
+                                                        .PinitColors.aubergine,
+                                                    blurRadius: 0,
+                                                    offset: const Offset(3, 3),
                                                   ),
-                                                ),
-                                                child: Center(
-                                                  child: Text(
-                                                    '${_selectedVibeTagIds.length + _selectedCuisineTagIds.length}',
-                                                    style: AppTypography.sans(
-                                                      fontSize: 10,
-                                                      fontWeight:
-                                                          FontWeight.w800,
+                                                ],
+                                              ),
+                                              child: Icon(
+                                                FeatherIcons.sliders,
+                                                size: 15,
+                                                color:
+                                                    pinit.PinitColors.aubergine,
+                                              ),
+                                            ),
+                                            if (_selectedVibeTagIds
+                                                    .isNotEmpty ||
+                                                _selectedCuisineTagIds
+                                                    .isNotEmpty)
+                                              Positioned(
+                                                top: -4,
+                                                right: -2,
+                                                child: Container(
+                                                  constraints:
+                                                      const BoxConstraints(
+                                                    minWidth: 18,
+                                                    minHeight: 18,
+                                                  ),
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                    horizontal: 5,
+                                                    vertical: 2,
+                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    color: pinit
+                                                        .PinitColors.accent,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                      999,
+                                                    ),
+                                                    border: Border.all(
                                                       color: pinit
                                                           .PinitColors.cream,
-                                                      height: 1.0,
+                                                      width: 1.2,
+                                                    ),
+                                                  ),
+                                                  child: Center(
+                                                    child: Text(
+                                                      '${_selectedVibeTagIds.length + _selectedCuisineTagIds.length}',
+                                                      style: AppTypography.sans(
+                                                        fontSize: 10,
+                                                        fontWeight:
+                                                            FontWeight.w800,
+                                                        color: pinit
+                                                            .PinitColors.cream,
+                                                        height: 1.0,
+                                                      ),
                                                     ),
                                                   ),
                                                 ),
                                               ),
-                                            ),
-                                        ],
+                                          ],
+                                        ),
                                       ),
-                                    ),
+                                    ],
                                   ],
                                 ),
                                 Column(
@@ -735,7 +754,10 @@ class _HomePageState extends State<HomePage> {
                                   children: [
                                     if (viewModel.homeMode ==
                                             HomeMode.explore &&
-                                        viewModel.locations.isNotEmpty) ...[
+                                        viewModel.locations.isNotEmpty &&
+                                        !(viewModel.isMagicSearchActive &&
+                                            viewModel.currentListType ==
+                                                LocationListType.search)) ...[
                                       Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
@@ -894,43 +916,6 @@ class _HomePageState extends State<HomePage> {
                     BubbleModeOverlay(
                       bubble: viewModel.activeBubble!,
                       onDeactivate: viewModel.deactivateBubbleMode,
-                    ),
-
-                  // ─── Magic search activated toast ──────────────
-                  if (viewModel.showMagicSearchActivated)
-                    Positioned.fill(
-                      child: Listener(
-                        behavior: HitTestBehavior.translucent,
-                        onPointerDown: (_) {
-                          viewModel.dismissMagicSearchActivated();
-                        },
-                        child: Padding(
-                          padding: EdgeInsets.only(
-                            top: MediaQuery.of(context).viewInsets.bottom + 100,
-                          ),
-                          child: const Center(
-                            child: IgnorePointer(
-                              child: _MagicSearchActivatedToast(),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-
-                  // ─── Magic search deactivated toast ────────────
-                  if (viewModel.showMagicSearchDeactivated)
-                    Positioned.fill(
-                      child: Listener(
-                        behavior: HitTestBehavior.translucent,
-                        onPointerDown: (_) {
-                          viewModel.dismissMagicSearchDeactivated();
-                        },
-                        child: const Center(
-                          child: IgnorePointer(
-                            child: _MagicSearchDeactivatedToast(),
-                          ),
-                        ),
-                      ),
                     ),
 
                   // ─── Just Decide swipe mode ────────────────────
@@ -1216,9 +1201,19 @@ class _TopPanel extends StatelessWidget {
                     viewModel.openHeaderSearch();
                   },
                   onMagicSearchTap: () {
+                    // Magic search uses the inline "zap" search pill; keep the
+                    // full header-search surface closed.
                     viewModel.closeHeaderSearch();
+
+                    final wasMagicSearchActive = viewModel.isMagicSearchActive;
                     viewModel.toggleMagicSearch();
-                    if (!viewModel.isMagicSearchActive) {
+
+                    if (!wasMagicSearchActive &&
+                        viewModel.isMagicSearchActive) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        viewModel.headerSearchFocusNode.requestFocus();
+                      });
+                    } else {
                       viewModel.headerSearchFocusNode.unfocus();
                     }
                   },
@@ -1285,9 +1280,18 @@ class _TopPanel extends StatelessWidget {
                   viewModel.openHeaderSearch();
                 },
                 onMagicSearchTap: () {
+                  // Magic search uses the inline "zap" search pill; keep the
+                  // full header-search surface closed.
                   viewModel.closeHeaderSearch();
+
+                  final wasMagicSearchActive = viewModel.isMagicSearchActive;
                   viewModel.toggleMagicSearch();
-                  if (!viewModel.isMagicSearchActive) {
+
+                  if (!wasMagicSearchActive && viewModel.isMagicSearchActive) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      viewModel.headerSearchFocusNode.requestFocus();
+                    });
+                  } else {
                     viewModel.headerSearchFocusNode.unfocus();
                   }
                 },
@@ -1342,33 +1346,65 @@ class _TopPanel extends StatelessWidget {
                   unawaited(viewModel.selectHeaderSearchLocation(location));
                 },
                 onPreviewEnd: () {},
-                footer: HomeChipRow(
-                  currentMode: viewModel.homeMode,
-                  onModeChanged: viewModel.setHomeMode,
-                  activeBubbleName: viewModel.activeBubbleName,
-                  collections: viewModel.collections,
-                  isLoadingCollections: viewModel.isLoadingCollections,
-                  activeCollectionId: viewModel.activeCollectionId,
-                  onCollectionMenuOpened: () {
-                    unawaited(viewModel.loadCollections());
-                  },
-                  onCollectionsVisibilityChanged: viewModel.setEatListsOpen,
-                  onCollectionSelected: (collection) {
-                    unawaited(() async {
-                      final shown = await viewModel.showCollectionOnMap(
-                        collection,
-                      );
-                      if (!context.mounted || shown) return;
-                      unawaited(
-                        AppFeedback.showError(
-                          context,
-                          title: 'Nothing in there',
-                          message: 'No places found in ${collection.name}.',
-                        ),
-                      );
-                    }());
-                  },
-                ),
+                footer: viewModel.isMagicSearchActive &&
+                        viewModel.currentListType == LocationListType.search
+                    ? MagicSearchChipRow(
+                        onTap: () {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            viewModel.headerSearchFocusNode.requestFocus();
+                          });
+                        },
+                      )
+                    : viewModel.isMagicSearchActive &&
+                            viewModel.showMagicSearchSuggestions
+                        ? MagicSearchSuggestions(
+                            onSelected: (query) {
+                              viewModel.dismissMagicSearchSuggestions();
+                              viewModel.headerSearchController.value = viewModel
+                                  .headerSearchController.value
+                                  .copyWith(
+                                text: query,
+                                selection: TextSelection.collapsed(
+                                  offset: query.length,
+                                ),
+                                composing: TextRange.empty,
+                              );
+                              viewModel.closeHeaderSearch(clearQuery: false);
+                              unawaited(viewModel.submitMagicSearch(query));
+                            },
+                            onDismiss: viewModel.dismissMagicSearchSuggestions,
+                          )
+                        : HomeChipRow(
+                            currentMode: viewModel.homeMode,
+                            onModeChanged: viewModel.setHomeMode,
+                            activeBubbleName: viewModel.activeBubbleName,
+                            collections: viewModel.collections,
+                            isLoadingCollections:
+                                viewModel.isLoadingCollections,
+                            activeCollectionId: viewModel.activeCollectionId,
+                            onCollectionMenuOpened: () {
+                              unawaited(viewModel.loadCollections());
+                            },
+                            onCollectionsVisibilityChanged:
+                                viewModel.setEatListsOpen,
+                            onCollectionSelected: (collection) {
+                              unawaited(() async {
+                                final shown =
+                                    await viewModel.showCollectionOnMap(
+                                  collection,
+                                );
+                                if (!context.mounted || shown) return;
+                                unawaited(
+                                  AppFeedback.showError(
+                                    context,
+                                    title: 'Nothing in there',
+                                    message:
+                                        'No places found in ${collection.name}.',
+                                  ),
+                                );
+                              }());
+                            },
+                          ),
               ),
           ],
         ),
@@ -1494,336 +1530,6 @@ class _MagicSearchGeneratingCardState extends State<_MagicSearchGeneratingCard>
           ),
         ),
       ),
-    );
-  }
-}
-
-class _MagicSearchActivatedToast extends StatefulWidget {
-  const _MagicSearchActivatedToast();
-
-  @override
-  State<_MagicSearchActivatedToast> createState() =>
-      _MagicSearchActivatedToastState();
-}
-
-class _MagicSearchActivatedToastState extends State<_MagicSearchActivatedToast>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 900),
-  )..forward();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final entrance = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOutBack,
-    );
-
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) {
-        final safeEntrance = entrance.value.clamp(0.0, 1.0);
-        final glow = Curves.easeOut.transform(
-          (_controller.value * 1.2).clamp(0.0, 1.0),
-        );
-        final shimmer = Curves.easeInOut.transform(
-          (_controller.value * 1.35).clamp(0.0, 1.0),
-        );
-
-        return Transform.translate(
-          offset: Offset(0, (1 - safeEntrance) * -20),
-          child: Transform.scale(
-            scale: 0.92 + (safeEntrance * 0.08),
-            child: Opacity(
-              opacity: safeEntrance,
-              child: Stack(
-                alignment: Alignment.center,
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    width: 268 + (glow * 18),
-                    height: 122 + (glow * 10),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          pinit.PinitColors.accent.withValues(
-                            alpha: 0.26 - (glow * 0.08),
-                          ),
-                          pinit.PinitColors.accent.withValues(alpha: 0),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Container(
-                    constraints: const BoxConstraints(maxWidth: 320),
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-                    decoration: BoxDecoration(
-                      color: pinit.PinitColors.accent,
-                      borderRadius: BorderRadius.circular(28),
-                      border: Border.all(
-                        color: pinit.PinitColors.aubergine,
-                        width: 1.5,
-                      ),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: pinit.PinitColors.aubergine,
-                          blurRadius: 0,
-                          offset: Offset(4, 4),
-                        ),
-                      ],
-                    ),
-                    child: Stack(
-                      children: [
-                        Positioned(
-                          top: 4,
-                          right: 2,
-                          child: Opacity(
-                            opacity: 0.18 + (shimmer * 0.16),
-                            child: Container(
-                              width: 84,
-                              height: 84,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: pinit.PinitColors.cream,
-                              ),
-                            ),
-                          ),
-                        ),
-                        Row(
-                          children: [
-                            Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                color: pinit.PinitColors.cream
-                                    .withValues(alpha: 0.18),
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: pinit.PinitColors.cream
-                                      .withValues(alpha: 0.3),
-                                  width: 1.2,
-                                ),
-                              ),
-                              child: const Icon(
-                                FeatherIcons.zap,
-                                color: pinit.PinitColors.cream,
-                                size: 18,
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'MAGIC SEARCH',
-                                    style: GoogleFonts.dmSans(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                      color: pinit.PinitColors.cream
-                                          .withValues(alpha: 0.78),
-                                      letterSpacing: 1.6,
-                                      height: 1,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    'Activated',
-                                    style: AppTypography.brand(
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.w100,
-                                      color: pinit.PinitColors.cream,
-                                      letterSpacing: 0.3,
-                                      height: 1.0,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    'Search a vibe, a really specific dish or anything you are craving.',
-                                    style: AppTypography.sans(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: pinit.PinitColors.cream
-                                          .withValues(alpha: 0.9),
-                                      height: 1.2,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _MagicSearchDeactivatedToast extends StatefulWidget {
-  const _MagicSearchDeactivatedToast();
-
-  @override
-  State<_MagicSearchDeactivatedToast> createState() =>
-      _MagicSearchDeactivatedToastState();
-}
-
-class _MagicSearchDeactivatedToastState
-    extends State<_MagicSearchDeactivatedToast>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 900),
-  )..forward();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final entrance = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOutBack,
-    );
-
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) {
-        final safeEntrance = entrance.value.clamp(0.0, 1.0);
-        final shimmer = Curves.easeInOut.transform(
-          (_controller.value * 1.35).clamp(0.0, 1.0),
-        );
-
-        return Transform.translate(
-          offset: Offset(0, (1 - safeEntrance) * -20),
-          child: Transform.scale(
-            scale: 0.92 + (safeEntrance * 0.08),
-            child: Opacity(
-              opacity: safeEntrance,
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 320),
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-                decoration: BoxDecoration(
-                  color: pinit.PinitColors.cream,
-                  borderRadius: BorderRadius.circular(28),
-                  border: Border.all(
-                    color: pinit.PinitColors.aubergine,
-                    width: 1.5,
-                  ),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: pinit.PinitColors.aubergine,
-                      blurRadius: 0,
-                      offset: Offset(4, 4),
-                    ),
-                  ],
-                ),
-                child: Stack(
-                  children: [
-                    Positioned(
-                      top: 4,
-                      right: 2,
-                      child: Opacity(
-                        opacity: 0.08 + (shimmer * 0.08),
-                        child: Container(
-                          width: 84,
-                          height: 84,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: pinit.PinitColors.aubergine,
-                          ),
-                        ),
-                      ),
-                    ),
-                    Row(
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: pinit.PinitColors.creamSunk,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: pinit.PinitColors.aubergine
-                                  .withValues(alpha: 0.3),
-                              width: 1.2,
-                            ),
-                          ),
-                          child: const Icon(
-                            FeatherIcons.search,
-                            color: pinit.PinitColors.aubergine,
-                            size: 18,
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'MAGIC SEARCH',
-                                style: GoogleFonts.dmSans(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: pinit.PinitColors.aubergine
-                                      .withValues(alpha: 0.5),
-                                  letterSpacing: 1.6,
-                                  height: 1,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                'Fine be boring...',
-                                style: AppTypography.brand(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.w100,
-                                  color: pinit.PinitColors.aubergine,
-                                  letterSpacing: 0.3,
-                                  height: 1.0,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                'Magic search is off and you can now search for specific places!',
-                                style: AppTypography.sans(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: pinit.PinitColors.aubergine
-                                      .withValues(alpha: 0.7),
-                                  height: 1.2,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
     );
   }
 }

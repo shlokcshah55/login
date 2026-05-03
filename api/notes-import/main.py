@@ -56,7 +56,7 @@ class NotesImportProcessor:
             raise ValueError("Provide either note text or an uploaded file")
 
         source_name = resolved_source_name or "uploaded-note"
-        suffix = Path(source_name).suffix.lower()
+        suffix = Path(filename or "").suffix.lower()
 
         if suffix in {".txt", ".md", ".markdown", ".csv"} or content_type == "text/plain":
             return file_bytes.decode("utf-8", errors="ignore").strip(), source_name

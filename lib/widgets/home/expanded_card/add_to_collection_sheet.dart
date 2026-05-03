@@ -43,7 +43,7 @@ class _AddToCollectionSheetState extends State<AddToCollectionSheet> {
       return;
     }
     try {
-      final items = await CollectionsHelper().getUserCollections(userId);
+      final items = await CollectionsHelper().getUserCollectionLibrary(userId);
       if (mounted) {
         setState(() {
           _collections = items;
@@ -282,7 +282,8 @@ class _AddToCollectionSheetState extends State<AddToCollectionSheet> {
                   final c = _collections[i];
                   final isAdding = _addingId == c.collectionId;
                   final alreadyIn = _alreadyAdded.contains(c.collectionId);
-                  final disabled = isAdding || alreadyIn;
+                  final isReadOnly = !c.canEdit;
+                  final disabled = isAdding || alreadyIn || isReadOnly;
                   return Opacity(
                     opacity: alreadyIn ? 0.45 : 1.0,
                     child: GestureDetector(
@@ -332,7 +333,9 @@ class _AddToCollectionSheetState extends State<AddToCollectionSheet> {
                                   Text(
                                     alreadyIn
                                         ? 'Already added'
-                                        : '${c.placeCount} ${c.placeCount == 1 ? 'place' : 'places'}',
+                                        : isReadOnly
+                                            ? 'Read-only • by ${c.ownerName ?? 'Unknown'}'
+                                            : '${c.placeCount} ${c.placeCount == 1 ? 'place' : 'places'}',
                                     style: GoogleFonts.dmSans(
                                       fontSize: 12,
                                       color: PinitColors.mute,
@@ -354,6 +357,12 @@ class _AddToCollectionSheetState extends State<AddToCollectionSheet> {
                             else if (alreadyIn)
                               const Icon(
                                 Icons.check_circle_rounded,
+                                size: 22,
+                                color: PinitColors.aubergineSoft,
+                              )
+                            else if (isReadOnly)
+                              const Icon(
+                                Icons.lock_rounded,
                                 size: 22,
                                 color: PinitColors.aubergineSoft,
                               )

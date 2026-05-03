@@ -145,22 +145,12 @@ class HottestSharedPlacesSection extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'COMMON SHARED PLACES',
-                style: GoogleFonts.dmSans(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: PinitColors.aubergineSoft,
-                  letterSpacing: 0.12 * 11,
-                ),
-              ),
-              const SizedBox(height: 6),
               const Text(
                 'Hottest shared places',
                 style: TextStyle(
                   fontFamily: 'Rova',
                   fontSize: 28,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w100,
                   color: PinitColors.aubergine,
                   letterSpacing: 1.0,
                   height: 1.05,
@@ -168,7 +158,7 @@ class HottestSharedPlacesSection extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Top places people are sharing videos from',
+                'Top places people have pinned from social media',
                 style: GoogleFonts.dmSans(
                   fontSize: 13,
                   color: PinitColors.aubergineSoft,

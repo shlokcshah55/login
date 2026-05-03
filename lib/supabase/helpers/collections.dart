@@ -17,6 +17,10 @@ class CollectionItem {
   final int placeCount;
   final String? ownerName;
   final String? ownerAvatarUrl;
+  final bool isPublic;
+  final bool canEdit;
+  final bool isSaved;
+  final int saveCount;
 
   const CollectionItem({
     required this.collectionId,
@@ -27,7 +31,40 @@ class CollectionItem {
     required this.placeCount,
     this.ownerName,
     this.ownerAvatarUrl,
+    this.isPublic = true,
+    this.canEdit = true,
+    this.isSaved = false,
+    this.saveCount = 0,
   });
+
+  CollectionItem copyWith({
+    String? collectionId,
+    String? name,
+    String? emoji,
+    String? coverColor,
+    String? photo,
+    int? placeCount,
+    String? ownerName,
+    String? ownerAvatarUrl,
+    bool? isPublic,
+    bool? canEdit,
+    bool? isSaved,
+    int? saveCount,
+  }) =>
+      CollectionItem(
+        collectionId: collectionId ?? this.collectionId,
+        name: name ?? this.name,
+        emoji: emoji ?? this.emoji,
+        coverColor: coverColor ?? this.coverColor,
+        photo: photo ?? this.photo,
+        placeCount: placeCount ?? this.placeCount,
+        ownerName: ownerName ?? this.ownerName,
+        ownerAvatarUrl: ownerAvatarUrl ?? this.ownerAvatarUrl,
+        isPublic: isPublic ?? this.isPublic,
+        canEdit: canEdit ?? this.canEdit,
+        isSaved: isSaved ?? this.isSaved,
+        saveCount: saveCount ?? this.saveCount,
+      );
 
   factory CollectionItem.fromJson(Map<String, dynamic> json) => CollectionItem(
         collectionId: json['collection_id'] as String,
@@ -38,6 +75,10 @@ class CollectionItem {
         placeCount: (json['place_count'] as num).toInt(),
         ownerName: json['owner_name'] as String?,
         ownerAvatarUrl: json['owner_avatar_url'] as String?,
+        isPublic: json['is_public'] as bool? ?? true,
+        canEdit: json['can_edit'] as bool? ?? true,
+        isSaved: json['is_saved'] as bool? ?? false,
+        saveCount: (json['save_count'] as num?)?.toInt() ?? 0,
       );
 }
 
@@ -77,12 +118,14 @@ class CollectionsHelper {
   /// Load collections for [userId] via the get_user_collections RPC.
   /// Throws on failure so the caller can show an appropriate error state.
   Future<List<CollectionItem>> getUserCollections(String userId) async {
-    debugPrint('[CollectionsHelper] getUserCollections — calling RPC for $userId');
+    debugPrint(
+        '[CollectionsHelper] getUserCollections — calling RPC for $userId');
     final response = await _client.rpc(
       'get_user_collections',
       params: {'p_user_id': userId},
     );
-    debugPrint('[CollectionsHelper] raw response type: ${response.runtimeType}');
+    debugPrint(
+        '[CollectionsHelper] raw response type: ${response.runtimeType}');
     debugPrint('[CollectionsHelper] raw response: $response');
     final items = (response as List)
         .map((row) => CollectionItem.fromJson(row as Map<String, dynamic>))
@@ -91,9 +134,27 @@ class CollectionsHelper {
     return items;
   }
 
+  /// Load the user's full collection library (owned + saved).
+  /// Saved collections are read-only (`canEdit == false`) and include the owner info.
+  Future<List<CollectionItem>> getUserCollectionLibrary(String userId) async {
+    debugPrint(
+        '[CollectionsHelper] getUserCollectionLibrary — calling RPC for $userId');
+    final response = await _client.rpc(
+      'get_user_collection_library',
+      params: {'p_user_id': userId},
+    );
+    final items = (response as List)
+        .map((row) => CollectionItem.fromJson(row as Map<String, dynamic>))
+        .toList();
+    debugPrint(
+        '[CollectionsHelper] parsed ${items.length} library collections');
+    return items;
+  }
+
   /// Fetch full [LocationModel] objects for all locations in [collectionId].
   /// The RPC now returns all location columns directly, so no second query needed.
-  Future<List<LocationModel>> getLocationsForCollection(String collectionId) async {
+  Future<List<LocationModel>> getLocationsForCollection(
+      String collectionId) async {
     debugPrint('[CollectionsHelper] getLocationsForCollection $collectionId');
 
     final rows = await _client.rpc(
@@ -170,26 +231,30 @@ class CollectionsHelper {
     );
     final result = Map<String, dynamic>.from(response as Map);
     if (result['success'] != true) {
-      throw Exception(result['error'] as String? ?? 'Failed to delete collection');
+      throw Exception(
+          result['error'] as String? ?? 'Failed to delete collection');
     }
   }
 
-  /// Update a collection's name and cover_color (stores photo URL).
+  /// Update a collection's name, cover_color, and/or is_public flag.
   Future<void> updateCollection({
     required String collectionId,
     required String name,
     String? coverColor,
+    bool? isPublic,
   }) async {
     await _client.rpc('update_collection', params: {
       'p_collection_id': collectionId,
       'p_name': name,
       'p_cover_color': coverColor,
+      'p_is_public': isPublic,
     });
   }
 
   /// Load the public collections belonging to a specific user.
   Future<List<CollectionItem>> getUserPublicCollections(String userId) async {
-    debugPrint('[CollectionsHelper] getUserPublicCollections — calling RPC for $userId');
+    debugPrint(
+        '[CollectionsHelper] getUserPublicCollections — calling RPC for $userId');
     final response = await _client.rpc(
       'get_user_public_collections',
       params: {'p_user_id': userId},
@@ -203,7 +268,8 @@ class CollectionsHelper {
 
   /// Load public collections from friends (people the current user follows).
   Future<List<CollectionItem>> getFriendsCollections(String userId) async {
-    debugPrint('[CollectionsHelper] getFriendsCollections — calling RPC for $userId');
+    debugPrint(
+        '[CollectionsHelper] getFriendsCollections — calling RPC for $userId');
     final response = await _client.rpc(
       'get_other_collections',
       params: {'p_user_id': userId},
@@ -211,7 +277,45 @@ class CollectionsHelper {
     final items = (response as List)
         .map((row) => CollectionItem.fromJson(row as Map<String, dynamic>))
         .toList();
-    debugPrint('[CollectionsHelper] parsed ${items.length} friends collections');
+    debugPrint(
+        '[CollectionsHelper] parsed ${items.length} friends collections');
     return items;
+  }
+
+  /// Fetch specific collections by their IDs, with save state for [userId].
+  Future<List<CollectionItem>> getCollectionsByIds(
+      List<String> collectionIds, String? userId) async {
+    final response = await _client.rpc(
+      'get_collections_by_ids',
+      params: {
+        'p_collection_ids': collectionIds,
+        if (userId != null) 'p_user_id': userId,
+      },
+    );
+    return (response as List)
+        .map((row) => CollectionItem.fromJson(row as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<void> saveCollection(String collectionId) async {
+    final result = await _client.rpc(
+      'save_collection',
+      params: {'p_collection_id': collectionId},
+    );
+    final map = Map<String, dynamic>.from(result as Map);
+    if (map['success'] != true) {
+      throw Exception(map['error'] as String? ?? 'Failed to save collection');
+    }
+  }
+
+  Future<void> unsaveCollection(String collectionId) async {
+    final result = await _client.rpc(
+      'unsave_collection',
+      params: {'p_collection_id': collectionId},
+    );
+    final map = Map<String, dynamic>.from(result as Map);
+    if (map['success'] != true) {
+      throw Exception(map['error'] as String? ?? 'Failed to unsave collection');
+    }
   }
 }

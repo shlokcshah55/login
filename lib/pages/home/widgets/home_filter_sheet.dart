@@ -204,6 +204,7 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
       _HomeFilterCategory.vibe => vibeDisplayName(rawLabel),
       _HomeFilterCategory.cuisine => rawLabel
           .replaceAll('_', ' ')
+          .replaceAll('-', ' ')
           .split(' ')
           .map(
             (word) => word.isEmpty
@@ -341,66 +342,6 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
                     ),
                   ),
                 ],
-              ),
-              const SizedBox(height: 18),
-              SizedBox(
-                width: double.infinity,
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: PinitColors.aubergine,
-                        blurRadius: 0,
-                        offset: Offset(3, 3),
-                      ),
-                    ],
-                  ),
-                  child: Material(
-                    color: PinitColors.accent,
-                    borderRadius: BorderRadius.circular(20),
-                    child: InkWell(
-                      onTap: () {
-                        Navigator.of(
-                          context,
-                        ).pop(_buildResult(launchSweetTreat: true));
-                      },
-                      borderRadius: BorderRadius.circular(20),
-                      splashColor: PinitColors.cream.withValues(alpha: 0.08),
-                      highlightColor: PinitColors.cream.withValues(alpha: 0.05),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 15),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: PinitColors.aubergine,
-                            width: 1.5,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.cake_rounded,
-                              size: 18,
-                              color: PinitColors.cream,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Sweet Treat',
-                              style: GoogleFonts.dmSans(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w800,
-                                color: PinitColors.cream,
-                                letterSpacing: 0.4,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
               ),
               const SizedBox(height: 18),
               Container(
@@ -592,31 +533,29 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
                               ),
                             ),
                           )
-                        : ListView.separated(
+                        : SingleChildScrollView(
                             physics: const BouncingScrollPhysics(),
-                            itemCount: activeTags.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(height: 10),
-                            itemBuilder: (context, index) {
-                              final tag = activeTags[index];
-                              final tagId = _tagId(tag);
-                              final rawLabel = _tagLabel(tag);
-                              final icon =
-                                  _activeCategory == _HomeFilterCategory.vibe
-                                      ? vibeIcons[rawLabel] ??
-                                          Icons.local_offer_rounded
-                                      : _cuisineIcons[rawLabel] ??
-                                          Icons.restaurant_rounded;
-                              return _SelectableFilterRow(
-                                label: _displayLabel(
-                                  _activeCategory,
-                                  tag,
-                                ),
-                                icon: icon,
-                                isSelected: activeSelected.contains(tagId),
-                                onTap: () => _toggleTag(_activeCategory, tagId),
-                              );
-                            },
+                            child: Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: activeTags.map((tag) {
+                                final tagId = _tagId(tag);
+                                final rawLabel = _tagLabel(tag);
+                                final icon =
+                                    _activeCategory == _HomeFilterCategory.vibe
+                                        ? vibeIcons[rawLabel] ??
+                                            Icons.local_offer_rounded
+                                        : _cuisineIcons[rawLabel] ??
+                                            Icons.restaurant_rounded;
+                                return _FilterChip(
+                                  label: _displayLabel(_activeCategory, tag),
+                                  icon: icon,
+                                  isSelected: activeSelected.contains(tagId),
+                                  onTap: () =>
+                                      _toggleTag(_activeCategory, tagId),
+                                );
+                              }).toList(),
+                            ),
                           ),
               ),
               const SizedBox(height: 18),
@@ -765,8 +704,8 @@ class _AvailabilityOptionPill extends StatelessWidget {
   }
 }
 
-class _SelectableFilterRow extends StatelessWidget {
-  const _SelectableFilterRow({
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({
     required this.label,
     required this.icon,
     required this.isSelected,
@@ -784,66 +723,35 @@ class _SelectableFilterRow extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(999),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: isSelected ? PinitColors.cream : PinitColors.creamSunk,
-            borderRadius: BorderRadius.circular(18),
+            color: isSelected ? PinitColors.aubergine : PinitColors.creamSunk,
+            borderRadius: BorderRadius.circular(999),
             border: Border.all(
               color: isSelected ? PinitColors.aubergine : PinitColors.creamDeep,
               width: 1.5,
             ),
           ),
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? PinitColors.aubergine.withValues(alpha: 0.08)
-                      : PinitColors.creamDeep,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, size: 19, color: PinitColors.aubergine),
+              Icon(
+                icon,
+                size: 15,
+                color: isSelected ? PinitColors.cream : PinitColors.aubergine,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  label,
-                  style: GoogleFonts.dmSans(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: PinitColors.aubergine,
-                    letterSpacing: -0.2,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 12),
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                curve: Curves.easeOut,
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: isSelected ? PinitColors.aubergine : PinitColors.cream,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: isSelected
-                        ? PinitColors.aubergine
-                        : PinitColors.creamDeep,
-                    width: 1.5,
-                  ),
-                ),
-                child: Icon(
-                  isSelected ? Icons.check_rounded : Icons.add_rounded,
-                  size: 16,
+              const SizedBox(width: 7),
+              Text(
+                label,
+                style: GoogleFonts.dmSans(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
                   color: isSelected ? PinitColors.cream : PinitColors.aubergine,
+                  letterSpacing: -0.1,
                 ),
               ),
             ],

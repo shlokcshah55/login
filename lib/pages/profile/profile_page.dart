@@ -230,7 +230,6 @@ class _ProfilePageState extends State<ProfilePage>
       case 1:
         return CollectionsGrid(
           generatedCollections: user.generatedCollections,
-          onImportNotes: () => _showNotesImportSheet(context, user),
         );
       case 2:
         return _buildDiscoverSection();
@@ -686,25 +685,6 @@ class _ProfilePageState extends State<ProfilePage>
     Share.share(
       "I've got Pinit and I want to be your friend! 🍽️ Join me on the app: $appStoreUrl",
       subject: 'Join me on Pinit!',
-    );
-  }
-
-  void _showNotesImportSheet(BuildContext context, UserModel user) {
-    HapticFeedback.mediumImpact();
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => NotesImportSheet(
-        onImportFile: (file, sourceName) async {
-          final service = Provider.of<SupabaseService>(context, listen: false);
-          return service.notesImport.importFile(
-            userId: user.supabaseId ?? '',
-            file: file,
-            sourceName: sourceName,
-          );
-        },
-      ),
     );
   }
 }

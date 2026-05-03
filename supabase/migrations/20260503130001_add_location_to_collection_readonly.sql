@@ -1,14 +1,16 @@
+-- Make non-owned collections read-only for add_location_to_collection.
+
 CREATE OR REPLACE FUNCTION public.add_location_to_collection(
     p_collection_id uuid,
-    p_location_id bigint,
-    p_note text DEFAULT NULL
+    p_location_id   bigint,
+    p_note          text DEFAULT NULL
 )
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
-AS $function$
+AS $$
 DECLARE
-    v_user_id UUID;
+    v_user_id   uuid;
     v_collection collections%ROWTYPE;
 BEGIN
     v_user_id := auth.uid();
@@ -30,7 +32,6 @@ BEGIN
         RETURN jsonb_build_object('success', FALSE, 'error', 'Permission denied: read-only collection');
     END IF;
 
-    -- If the collection is private, only the owner can add locations
     IF NOT v_collection.is_public AND v_collection.created_by != v_user_id THEN
         RETURN jsonb_build_object('success', FALSE, 'error', 'Permission denied: collection is private');
     END IF;
@@ -48,5 +49,9 @@ EXCEPTION
     WHEN OTHERS THEN
         RETURN jsonb_build_object('success', FALSE, 'error', SQLERRM);
 END;
-$function$
-;
+$$;
+
+GRANT ALL ON FUNCTION public.add_location_to_collection(uuid, bigint, text) TO anon;
+GRANT ALL ON FUNCTION public.add_location_to_collection(uuid, bigint, text) TO authenticated;
+GRANT ALL ON FUNCTION public.add_location_to_collection(uuid, bigint, text) TO service_role;
+

@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:login/services/notes_import_submitted_service.dart';
 import 'package:login/supabase/helpers/notes_import.dart';
 import 'package:login/widgets/feedback/app_feedback.dart';
 
@@ -85,6 +88,7 @@ class _NotesImportSheetState extends State<NotesImportSheet> {
           : _sourceNameController.text.trim();
 
       final response = await widget.onImportFile(_selectedFile!, sourceName);
+      unawaited(NotesImportSubmittedService().markSubmitted());
 
       if (!mounted) return;
 
