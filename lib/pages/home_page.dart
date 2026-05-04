@@ -88,6 +88,7 @@ class _HomePageState extends State<HomePage> {
   bool _hasShownSavedEmptyPopover = false;
   bool _isSavedEmptyPopoverVisible = false;
   bool _notesImportWasSubmitted = false;
+  bool _showFirstCarouselSwipeHint = false;
 
   @override
   void initState() {
@@ -396,7 +397,13 @@ class _HomePageState extends State<HomePage> {
       _isWhatWeDoWizardVisible = false;
       _whatWeDoWizardEligibilityChecked = true;
       _whatWeDoWizardShouldShow = false;
+      _showFirstCarouselSwipeHint = true;
     });
+  }
+
+  void _dismissFirstCarouselSwipeHint() {
+    if (!_showFirstCarouselSwipeHint || !mounted) return;
+    setState(() => _showFirstCarouselSwipeHint = false);
   }
 
   void _scheduleDidYouKnowWizardIfNeeded(UserDataProvider userDataProvider) {
@@ -900,10 +907,24 @@ class _HomePageState extends State<HomePage> {
                               selectedMarkerId: viewModel.selectedMarkerId,
                               bottomNavVisible: viewModel.bottomNavVisible,
                               onPageChanged: viewModel.onCarouselPageChanged,
-                              onScrollStart: viewModel.onCarouselScrollStart,
+                              showFirstItemSwipeHint:
+                                  _showFirstCarouselSwipeHint &&
+                                      viewModel.locations.isNotEmpty,
+                              onFirstItemSwipeHintCompleted:
+                                  _dismissFirstCarouselSwipeHint,
+                              onScrollStart: () {
+                                _dismissFirstCarouselSwipeHint();
+                                viewModel.onCarouselScrollStart();
+                              },
                               onLocationSelected: viewModel.onLocationSelected,
-                              onSwipeUp: viewModel.onCarouselSwipeUp,
-                              onSwipeDown: viewModel.onCarouselSwipeDown,
+                              onSwipeUp: (location) {
+                                _dismissFirstCarouselSwipeHint();
+                                viewModel.onCarouselSwipeUp(location);
+                              },
+                              onSwipeDown: (location) {
+                                _dismissFirstCarouselSwipeHint();
+                                viewModel.onCarouselSwipeDown(location);
+                              },
                             ),
                         ],
                       ),

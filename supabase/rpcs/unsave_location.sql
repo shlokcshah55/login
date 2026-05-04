@@ -10,6 +10,8 @@ DECLARE
     v_user_vibes     REAL[];
     v_multiplier     NUMERIC;
     v_interaction_weight NUMERIC;
+    v_top_k INTEGER := 2;
+    v_top_k_indices INTEGER[];
 BEGIN
     -- Step 1: Look up the original save row so we know which multiplier
     --         was applied when the user first saved this location.
@@ -53,11 +55,27 @@ BEGIN
        AND v_location_vibes IS NOT NULL
        AND array_length(v_user_vibes, 1) >= 25
        AND array_length(v_location_vibes, 1) >= 25 THEN
+        -- Mirror save_location_with_tags by undoing only the top-K vibe
+        -- dimensions (ranked by location.vibe_vector).
+        SELECT array_agg(i ORDER BY score DESC NULLS LAST, i)
+          INTO v_top_k_indices
+        FROM (
+            SELECT i, v_location_vibes[i] AS score
+            FROM generate_series(1, 25) AS i
+            ORDER BY score DESC NULLS LAST, i
+            LIMIT v_top_k
+        ) ranked;
+
         UPDATE users
         SET vibe_tag_affinity = (
             SELECT array_agg(
                 LEAST(100.0, GREATEST(0.0,
-                    v_user_vibes[i] - ((v_location_vibes[i] - v_user_vibes[i]) / 100.0) * v_multiplier * v_interaction_weight
+                    CASE
+                        WHEN i = ANY(v_top_k_indices) THEN
+                            v_user_vibes[i] - ((v_location_vibes[i] - v_user_vibes[i]) / 100.0) * v_multiplier * v_interaction_weight
+                        ELSE
+                            v_user_vibes[i]
+                    END
                 ))
                 ORDER BY i
             )

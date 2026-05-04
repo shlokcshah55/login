@@ -19,6 +19,8 @@ AS $function$DECLARE
     v_user_vibes REAL[];
     v_multiplier NUMERIC;
     v_interaction_weight NUMERIC;
+    v_top_k INTEGER := 2;
+    v_top_k_indices INTEGER[];
     v_shared_collection_id UUID;
     v_has_social_enrichment BOOLEAN := (p_social_vibe_vector IS NOT NULL OR p_social_extraction IS NOT NULL);
 BEGIN
@@ -94,11 +96,27 @@ BEGIN
        AND v_location_vibes IS NOT NULL
        AND array_length(v_user_vibes, 1) >= 25
        AND array_length(v_location_vibes, 1) >= 25 THEN
+        -- Update only the top-K vibe dimensions for this location (ranked by
+        -- location.vibe_vector), leaving the rest unchanged to avoid global drift.
+        SELECT array_agg(i ORDER BY score DESC NULLS LAST, i)
+          INTO v_top_k_indices
+        FROM (
+            SELECT i, v_location_vibes[i] AS score
+            FROM generate_series(1, 25) AS i
+            ORDER BY score DESC NULLS LAST, i
+            LIMIT v_top_k
+        ) ranked;
+
         UPDATE users
         SET vibe_tag_affinity = (
             SELECT array_agg(
                 LEAST(100.0, GREATEST(0.0,
-                    v_user_vibes[i] + ((v_location_vibes[i] - v_user_vibes[i]) / 100.0) * v_multiplier * v_interaction_weight
+                    CASE
+                        WHEN i = ANY(v_top_k_indices) THEN
+                            v_user_vibes[i] + ((v_location_vibes[i] - v_user_vibes[i]) / 100.0) * v_multiplier * v_interaction_weight
+                        ELSE
+                            v_user_vibes[i]
+                    END
                 ))
                 ORDER BY i
             )

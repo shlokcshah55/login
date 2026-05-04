@@ -1,13 +1,29 @@
 import logging
 import math
 import os
+from pathlib import Path
 import sys
 
 import requests
 from dotenv import load_dotenv
 from supabase import create_client, Client
+from postgrest.exceptions import APIError
 
-load_dotenv()
+def _load_env() -> None:
+    # Prefer an explicit .env path to avoid python-dotenv stack introspection
+    # issues when running under different entrypoints.
+    base = Path(__file__).resolve()
+    candidates = [
+        base.parent / ".env",
+        base.parent / ".env.local",
+        base.parents[2] / ".env",
+    ]
+    for p in candidates:
+        if p.exists():
+            load_dotenv(dotenv_path=p, override=False)
+
+
+_load_env()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -80,9 +96,32 @@ class LocationProcessor:
 
         return (bayesian_rating / 5.0) * min(review_trust, 0.85 + 0.15 * (bayesian_rating / 5.0))
 
-    def add_location(self, place_id: str, rating: float, user_ratings_total: int,
-                     lat: float | None, lng: float | None) -> None:
+    def add_location(
+        self,
+        place_id: str,
+        rating: float,
+        user_ratings_total: int,
+        lat: float | None,
+        lng: float | None,
+    ) -> int | None:
         """POST the place_id to the recommendations API, then seed location_popularity_app."""
+        def lookup_location_id() -> int | None:
+            # Fast-path: if the location already exists, use it.
+            try:
+                res = (
+                    self.supabase.table("locations")
+                    .select("location_id")
+                    .eq("google_place_id", place_id)
+                    .limit(1)
+                    .execute()
+                )
+                if res.data and len(res.data) > 0 and res.data[0].get("location_id") is not None:
+                    return int(res.data[0]["location_id"])
+            except Exception:
+                # Lookup is a best-effort fallback; don't fail the whole pipeline.
+                return None
+            return None
+
         payload = {
             "google_place_id": place_id,
             "classify_photo": True,
@@ -99,32 +138,66 @@ class LocationProcessor:
             location_id = data.get("location_id") or data.get("id")
             if not location_id:
                 logger.warning("No location_id in API response for place_id %s — skipping popularity insert", place_id)
-                return
+                return lookup_location_id()
 
             google_baseline_score = self._calculate_google_baseline_score(rating, user_ratings_total)
             # New locations have no video insights yet
             video_insight_score = 0.0
-            geog = f"POINT({lng} {lat})" if lat is not None and lng is not None else None
 
-            self.supabase.table("location_popularity_app").insert({
-                "location_id": location_id,
-                "saves_count": 0,
-                "dislikes_count": 0,
-                "been_to_count": 0,
-                "quality_score": 0,
-                "share_count": 0,
-                "app_engagement_score": 0,
-                "google_baseline_score": google_baseline_score,
-                "video_insight_score": video_insight_score,
-                "geog": geog,
-            }).execute()
-            logger.info(
-                "Seeded location_popularity_app for location_id=%s "
-                "(google_baseline=%.4f, video_insight=%.4f, geog=%s)",
-                location_id, google_baseline_score, video_insight_score, geog,
-            )
+            try:
+                self.supabase.table("location_popularity_app").insert(
+                    {
+                        "location_id": location_id,
+                        "saves_count": 0,
+                        "dislikes_count": 0,
+                        "been_to_count": 0,
+                        "quality_score": 0,
+                        "share_count": 0,
+                        "app_engagement_score": 0,
+                        "google_baseline_score": google_baseline_score,
+                        "video_insight_score": video_insight_score,
+                        "quality_score": 0.1,
+                    }
+                ).execute()
+                logger.info(
+                    "Seeded location_popularity_app for location_id=%s "
+                    "(google_baseline=%.4f, video_insight=%.4f)",
+                    location_id,
+                    google_baseline_score,
+                    video_insight_score,
+                )
+            except Exception as exc:
+                # Some versions of supabase/postgrest will raise APIError, others may bubble
+                # a dict-like payload. We only care that duplicates are non-fatal.
+                code = None
+                payload = None
+                if isinstance(exc, APIError) and exc.args:
+                    payload = exc.args[0]
+                elif isinstance(exc, dict):
+                    payload = exc
+                elif getattr(exc, "args", None):
+                    payload = exc.args[0] if exc.args else None
+
+                if isinstance(payload, dict):
+                    code = payload.get("code")
+
+                if code == "23505":
+                    logger.info(
+                        "location_popularity_app already exists for location_id=%s; continuing",
+                        location_id,
+                    )
+                else:
+                    logger.warning(
+                        "Failed to seed location_popularity_app for location_id=%s (%s). Continuing anyway.",
+                        location_id,
+                        exc,
+                    )
+            return int(location_id)
         except Exception as exc:
             logger.error("Failed to add location %s: %s", place_id, exc)
+            # Fallback: if the recommendations API or popularity insert failed,
+            # try to use an existing location row by google_place_id.
+            return lookup_location_id()
 
     def process(self, names: list[str]) -> None:
         for name in names:

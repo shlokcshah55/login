@@ -7,6 +7,8 @@ AS $function$DECLARE
     v_location_vibes REAL[];
     v_user_vibes REAL[];
     v_interaction_weight NUMERIC;
+    v_top_k INTEGER := 2;
+    v_top_k_indices INTEGER[];
 BEGIN
     -- Step 1: Verify Location Exists
     SELECT location_id INTO v_location_id
@@ -51,11 +53,27 @@ BEGIN
        AND v_location_vibes IS NOT NULL
        AND array_length(v_user_vibes, 1) >= 25
        AND array_length(v_location_vibes, 1) >= 25 THEN
+        -- Only apply the dislike "push away" to the top-K vibe dimensions for
+        -- the location. This keeps changes legible and prevents broad decay.
+        SELECT array_agg(i ORDER BY score DESC NULLS LAST, i)
+          INTO v_top_k_indices
+        FROM (
+            SELECT i, v_location_vibes[i] AS score
+            FROM generate_series(1, 25) AS i
+            ORDER BY score DESC NULLS LAST, i
+            LIMIT v_top_k
+        ) ranked;
+
         UPDATE users
         SET vibe_tag_affinity = (
             SELECT array_agg(
                 LEAST(100.0, GREATEST(0.0,
-                    v_user_vibes[i] + ((v_user_vibes[i] - v_location_vibes[i]) / 100.0) * 2.0 * v_interaction_weight
+                    CASE
+                        WHEN i = ANY(v_top_k_indices) THEN
+                            v_user_vibes[i] + ((v_user_vibes[i] - v_location_vibes[i]) / 100.0) * 2.0 * v_interaction_weight
+                        ELSE
+                            v_user_vibes[i]
+                    END
                 ))
                 ORDER BY i
             )

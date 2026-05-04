@@ -14,6 +14,7 @@ class CollectionItem {
   final String? emoji;
   final String? coverColor;
   final String? photo;
+  final String? curatedCity;
   final int placeCount;
   final String? ownerName;
   final String? ownerAvatarUrl;
@@ -28,6 +29,7 @@ class CollectionItem {
     this.emoji,
     this.coverColor,
     this.photo,
+    this.curatedCity,
     required this.placeCount,
     this.ownerName,
     this.ownerAvatarUrl,
@@ -43,6 +45,7 @@ class CollectionItem {
     String? emoji,
     String? coverColor,
     String? photo,
+    String? curatedCity,
     int? placeCount,
     String? ownerName,
     String? ownerAvatarUrl,
@@ -57,6 +60,7 @@ class CollectionItem {
         emoji: emoji ?? this.emoji,
         coverColor: coverColor ?? this.coverColor,
         photo: photo ?? this.photo,
+        curatedCity: curatedCity ?? this.curatedCity,
         placeCount: placeCount ?? this.placeCount,
         ownerName: ownerName ?? this.ownerName,
         ownerAvatarUrl: ownerAvatarUrl ?? this.ownerAvatarUrl,
@@ -72,6 +76,7 @@ class CollectionItem {
         emoji: json['emoji'] as String?,
         coverColor: json['cover_color'] as String?,
         photo: json['photo'] as String?,
+        curatedCity: json['curated_city'] as String?,
         placeCount: (json['place_count'] as num).toInt(),
         ownerName: json['owner_name'] as String?,
         ownerAvatarUrl: json['owner_avatar_url'] as String?,

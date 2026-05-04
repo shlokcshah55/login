@@ -1159,6 +1159,7 @@ class CollectionDetailSheetState extends State<CollectionDetailSheet> {
   bool _isLoading = true;
   bool _showingOnMap = false;
   bool _isDeleting = false;
+  final Set<int> _removingLocationIds = <int>{};
   String? _error;
 
   @override
@@ -1276,9 +1277,61 @@ class CollectionDetailSheetState extends State<CollectionDetailSheet> {
     }
   }
 
+  Future<void> _removeLocation(LocationModel location) async {
+    if (!widget.collection.canEdit) return;
+    final locationId = location.locationId;
+    if (_removingLocationIds.contains(locationId)) return;
+
+    final index = _locations.indexWhere((l) => l.locationId == locationId);
+    if (index == -1) return;
+
+    setState(() {
+      _removingLocationIds.add(locationId);
+      _locations = List<LocationModel>.from(_locations)..removeAt(index);
+    });
+
+    try {
+      final result = await SupabaseClientManager().client.rpc(
+        'remove_location_from_collection',
+        params: {
+          'p_collection_id': widget.collection.id,
+          'p_location_id': locationId,
+        },
+      );
+      final map = Map<String, dynamic>.from(result as Map);
+      if (map['success'] != true) {
+        throw Exception(map['error'] as String? ?? 'Failed to remove');
+      }
+      if (mounted) {
+        context
+            .read<LocationListManager>()
+            .invalidateCollectionCache(widget.collection.id);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        final next = List<LocationModel>.from(_locations);
+        next.insert(index, location);
+        _locations = next;
+      });
+      unawaited(
+        AppFeedback.showError(
+          context,
+          title: 'Couldn’t remove',
+          message: 'Failed to remove from eat-list. Please try again.',
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _removingLocationIds.remove(locationId));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final placeCount = _isLoading ? widget.collection.placeCount : _locations.length;
 
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
@@ -1330,7 +1383,7 @@ class CollectionDetailSheetState extends State<CollectionDetailSheet> {
                               ),
                             ),
                             Text(
-                              '${widget.collection.placeCount} place${widget.collection.placeCount == 1 ? "" : "s"}',
+                              '$placeCount place${placeCount == 1 ? "" : "s"}',
                               style: GoogleFonts.dmSans(
                                 fontSize: 13,
                                 color: PinitColors.aubergineSoft,
@@ -1488,7 +1541,13 @@ class CollectionDetailSheetState extends State<CollectionDetailSheet> {
                                   20, 16, 20, 20 + bottomPadding),
                               itemCount: _locations.length,
                               itemBuilder: (_, i) =>
-                                  _LocationRow(location: _locations[i]),
+                                  _LocationRow(
+                                    location: _locations[i],
+                                    canRemove: widget.collection.canEdit,
+                                    removing: _removingLocationIds
+                                        .contains(_locations[i].locationId),
+                                    onRemove: () => _removeLocation(_locations[i]),
+                                  ),
                             ),
             ),
           ],
@@ -1504,7 +1563,16 @@ class CollectionDetailSheetState extends State<CollectionDetailSheet> {
 
 class _LocationRow extends StatelessWidget {
   final LocationModel location;
-  const _LocationRow({required this.location});
+  final bool canRemove;
+  final bool removing;
+  final VoidCallback? onRemove;
+
+  const _LocationRow({
+    required this.location,
+    required this.canRemove,
+    required this.removing,
+    required this.onRemove,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1646,6 +1714,42 @@ class _LocationRow extends StatelessWidget {
                 ),
               ),
             ),
+            if (canRemove)
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: GestureDetector(
+                  onTap: removing ? null : onRemove,
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: PinitColors.creamSunk,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: Colors.red.withValues(alpha: 0.35),
+                        width: 1.25,
+                      ),
+                    ),
+                    child: Center(
+                      child: removing
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.red,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.close_rounded,
+                              size: 18,
+                              color: Colors.red,
+                            ),
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),

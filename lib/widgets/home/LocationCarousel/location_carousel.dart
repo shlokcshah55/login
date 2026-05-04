@@ -56,10 +56,12 @@ class LocationCarousel extends StatelessWidget {
   final Set<int> beenToLocationIds;
   final String? selectedMarkerId;
   final bool bottomNavVisible;
+  final bool showFirstItemSwipeHint;
   final ValueChanged<int> onPageChanged;
   final ValueChanged<LocationModel> onLocationSelected;
   final void Function(LocationModel location)? onSwipeUp;
   final void Function(LocationModel location)? onSwipeDown;
+  final VoidCallback? onFirstItemSwipeHintCompleted;
 
   const LocationCarousel({
     Key? key,
@@ -68,10 +70,12 @@ class LocationCarousel extends StatelessWidget {
     this.beenToLocationIds = const <int>{},
     required this.selectedMarkerId,
     required this.bottomNavVisible,
+    this.showFirstItemSwipeHint = false,
     required this.onPageChanged,
     required this.onLocationSelected,
     this.onSwipeUp,
     this.onSwipeDown,
+    this.onFirstItemSwipeHintCompleted,
   }) : super(key: key);
 
   @override
@@ -107,10 +111,12 @@ class LocationCarousel extends StatelessWidget {
               location: location,
               isSelected: isSelected,
               bottomNavVisible: bottomNavVisible,
+              showSwipeHint: showFirstItemSwipeHint && index == 0,
               beenToLocationIds: beenToLocationIds,
               onLocationSelected: onLocationSelected,
               onSwipeUp: onSwipeUp,
               onSwipeDown: onSwipeDown,
+              onSwipeHintCompleted: onFirstItemSwipeHintCompleted,
             ),
           );
         },
@@ -126,19 +132,23 @@ class _SwipeableCard extends StatefulWidget {
   final LocationModel location;
   final bool isSelected;
   final bool bottomNavVisible;
+  final bool showSwipeHint;
   final Set<int> beenToLocationIds;
   final ValueChanged<LocationModel> onLocationSelected;
   final void Function(LocationModel)? onSwipeUp;
   final void Function(LocationModel)? onSwipeDown;
+  final VoidCallback? onSwipeHintCompleted;
 
   const _SwipeableCard({
     required this.location,
     required this.isSelected,
     required this.bottomNavVisible,
+    required this.showSwipeHint,
     required this.beenToLocationIds,
     required this.onLocationSelected,
     this.onSwipeUp,
     this.onSwipeDown,
+    this.onSwipeHintCompleted,
   });
 
   @override
@@ -149,10 +159,58 @@ class _SwipeableCardState extends State<_SwipeableCard>
     with SingleTickerProviderStateMixin {
   double _dragY = 0;
   bool _showShortlistConfirmed = false;
+  bool _swipeHintPlayed = false;
   Timer? _shortlistFeedbackTimer;
+  late final AnimationController _swipeHintController;
   static const _threshold = 60.0;
 
+  @override
+  void initState() {
+    super.initState();
+    _swipeHintController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1700),
+    );
+    if (widget.showSwipeHint) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _playSwipeHintIfNeeded();
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(_SwipeableCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.showSwipeHint) {
+      _swipeHintPlayed = false;
+      _swipeHintController.reset();
+      return;
+    }
+    if (!oldWidget.showSwipeHint || oldWidget.location != widget.location) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _playSwipeHintIfNeeded();
+      });
+    }
+  }
+
+  void _playSwipeHintIfNeeded() {
+    if (!mounted ||
+        !widget.showSwipeHint ||
+        _swipeHintPlayed ||
+        _swipeHintController.isAnimating) {
+      return;
+    }
+    _swipeHintPlayed = true;
+    _swipeHintController.forward(from: 0).whenComplete(() {
+      if (!mounted) return;
+      widget.onSwipeHintCompleted?.call();
+    });
+  }
+
   void _onVerticalDragUpdate(DragUpdateDetails d) {
+    _swipeHintController.stop();
+    _swipeHintController.reset();
+    _swipeHintPlayed = true;
     setState(() => _dragY += d.delta.dy);
   }
 
@@ -174,6 +232,7 @@ class _SwipeableCardState extends State<_SwipeableCard>
   @override
   void dispose() {
     _shortlistFeedbackTimer?.cancel();
+    _swipeHintController.dispose();
     super.dispose();
   }
 
@@ -202,13 +261,62 @@ class _SwipeableCardState extends State<_SwipeableCard>
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              _CarouselCard(
-                location: widget.location,
-                isSelected: widget.isSelected,
-                bottomNavVisible: widget.bottomNavVisible,
-                beenToLocationIds: widget.beenToLocationIds,
-                onLocationSelected: widget.onLocationSelected,
+              AnimatedBuilder(
+                animation: _swipeHintController,
+                builder: (context, child) {
+                  final progress =
+                      (_swipeHintController.value / 0.34).clamp(0.0, 1.0);
+                  final bounce = math.sin(progress * math.pi);
+                  return Transform.translate(
+                    offset: Offset(0, -10 * bounce),
+                    child: Transform.scale(
+                      scale: 1 + (0.018 * bounce),
+                      child: child,
+                    ),
+                  );
+                },
+                child: _CarouselCard(
+                  location: widget.location,
+                  isSelected: widget.isSelected,
+                  bottomNavVisible: widget.bottomNavVisible,
+                  beenToLocationIds: widget.beenToLocationIds,
+                  onLocationSelected: widget.onLocationSelected,
+                ),
               ),
+              if (widget.showSwipeHint && _swipeHintController.value < 1)
+                AnimatedBuilder(
+                  animation: _swipeHintController,
+                  builder: (context, child) {
+                    final value = _swipeHintController.value;
+                    final swipeProgress =
+                        const Interval(0.26, 0.88, curve: Curves.easeOutCubic)
+                            .transform(value);
+                    final opacity =
+                        const Interval(0.20, 0.42, curve: Curves.easeOut)
+                                .transform(value) *
+                            (1 -
+                                const Interval(0.82, 1.0, curve: Curves.easeIn)
+                                    .transform(value));
+                    return Positioned(
+                      key: const ValueKey('first_carousel_swipe_hint'),
+                      bottom: -42 - (26 * swipeProgress),
+                      left: 0,
+                      right: 0,
+                      child: IgnorePointer(
+                        child: Opacity(
+                          opacity: opacity.clamp(0.0, 1.0),
+                          child: Transform.scale(
+                            scale: 0.92 + (0.08 * swipeProgress),
+                            child: child,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                  child: const Center(
+                    child: _SwipeUpShortlistHint(),
+                  ),
+                ),
               // Swipe up shortlist feedback
               Positioned(
                 bottom: -34,
@@ -315,6 +423,50 @@ class _SwipeableCardState extends State<_SwipeableCard>
                 ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SwipeUpShortlistHint extends StatelessWidget {
+  const _SwipeUpShortlistHint();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: PinitColors.aubergine,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: PinitColors.aubergine,
+          width: 1.5,
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: PinitColors.aubergine,
+            blurRadius: 0,
+            offset: Offset(3, 3),
+          ),
+        ],
+      ),
+      child: const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.keyboard_arrow_up_rounded,
+              size: 18,
+              color: PinitColors.cream,
+            ),
+            SizedBox(width: 4),
+            Icon(
+              Icons.playlist_add_check_rounded,
+              size: 16,
+              color: PinitColors.cream,
+            ),
+          ],
         ),
       ),
     );

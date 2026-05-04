@@ -12,6 +12,8 @@ class HomeCarousel extends StatelessWidget {
   final ValueChanged<LocationModel> onLocationSelected;
   final void Function(LocationModel location)? onSwipeUp;
   final void Function(LocationModel location)? onSwipeDown;
+  final bool showFirstItemSwipeHint;
+  final VoidCallback? onFirstItemSwipeHintCompleted;
 
   const HomeCarousel({
     Key? key,
@@ -24,6 +26,8 @@ class HomeCarousel extends StatelessWidget {
     required this.onLocationSelected,
     this.onSwipeUp,
     this.onSwipeDown,
+    this.showFirstItemSwipeHint = false,
+    this.onFirstItemSwipeHintCompleted,
   }) : super(key: key);
 
   @override
@@ -40,10 +44,12 @@ class HomeCarousel extends StatelessWidget {
         locations: locations,
         selectedMarkerId: selectedMarkerId,
         bottomNavVisible: bottomNavVisible,
+        showFirstItemSwipeHint: showFirstItemSwipeHint,
         onPageChanged: onPageChanged,
         onLocationSelected: onLocationSelected,
         onSwipeUp: onSwipeUp,
         onSwipeDown: onSwipeDown,
+        onFirstItemSwipeHintCompleted: onFirstItemSwipeHintCompleted,
       ),
     );
   }

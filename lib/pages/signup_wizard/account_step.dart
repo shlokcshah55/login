@@ -13,7 +13,6 @@ import '../../supabase/service.dart';
 import '../../widgets/auth/legal_consent_section.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/profile/profile_photo_selector.dart';
-import '../auth_handler.dart';
 import '../profile/widgets/pinit_colors.dart';
 
 class AccountStep extends StatefulWidget {
@@ -391,12 +390,9 @@ class _AccountStepState extends State<AccountStep>
         wizardState.setProfilePicture(profilePictureUrl);
       }
 
-      // Navigate to MainScreen via AuthHandler (which will show wizard completion popover)
+      // Proceed to the next wizard step.
       if (mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const AuthHandler()),
-          (route) => false,
-        );
+        widget.onNext();
       }
     } catch (e) {
       errorNotifier.value = 'Failed to complete signup: ${e.toString()}';

@@ -9,6 +9,7 @@ import '../../widgets/feedback/app_feedback.dart';
 import '../auth_handler.dart';
 import '../profile/widgets/pinit_colors.dart';
 import 'account_step.dart';
+import 'steps/curated_eat_lists_step.dart';
 import 'steps/dietary_step.dart';
 import 'steps/vibe_step.dart';
 
@@ -43,7 +44,7 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
   }
 
   void _nextStep() {
-    if (_currentStep < 2) {
+    if (_currentStep < 3) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
@@ -219,10 +220,15 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
                   ),
                   VibeStep(
                     onNext: () {
-                      _completeWizard();
+                      _nextStep();
                     },
                     onBack: _previousStep,
                     isLoadingRestaurants: _isCompletingWizard,
+                  ),
+                  CuratedEatListsStep(
+                    onBack: _previousStep,
+                    onComplete: _completeWizard,
+                    isCompleting: _isCompletingWizard,
                   ),
                 ],
               ),

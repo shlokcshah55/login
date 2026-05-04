@@ -37,4 +37,43 @@ void main() {
 
     expect(find.text('Been'), findsOneWidget);
   });
+
+  testWidgets('carousel can show a swipe-up hint on the first item only',
+      (tester) async {
+    final locations = [
+      LocationModel(
+        locationId: 1,
+        name: 'First Cafe',
+        createdAt: DateTime(2026, 4, 15),
+      ),
+      LocationModel(
+        locationId: 2,
+        name: 'Second Cafe',
+        createdAt: DateTime(2026, 4, 15),
+      ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            height: 260,
+            child: LocationCarousel(
+              pageController: PageController(),
+              locations: locations,
+              showFirstItemSwipeHint: true,
+              selectedMarkerId: null,
+              bottomNavVisible: true,
+              onPageChanged: (_) {},
+              onLocationSelected: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('first_carousel_swipe_hint')), findsOne);
+  });
 }

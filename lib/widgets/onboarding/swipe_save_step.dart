@@ -84,11 +84,14 @@ class _SwipeSaveStepState extends State<SwipeSaveStep>
   Future<void> _handleLetsGo() async => widget.onLetsGo();
 
   static const List<String> _curatedCollectionIds = [
-    '2e98c6f0-d593-4b47-b57c-fdc1e329e92e',
-    '2fb5f049-46f0-41d3-962b-3ccfd7e4f0d4',
-    '993ec69d-e4f2-420e-bd30-d9b014bc599b',
-    'f56b2482-911f-415d-a43c-dba67158997d',
-    'b4fc413a-79bf-4d8f-ba48-edc7388a66da',
+    'e9f50774-b41a-4712-b230-2700aad37ebd', // Date Night 🌹
+    '33df0d5e-1a26-4cbe-8356-9ea2b46ddece', // Cheap Eats 💸
+    '9e352f72-96b2-45dc-ae65-97e66a661262', // Vegetarian & Vegan 🌿
+    'f1e64a86-ff68-4a95-a2c6-7d755bdd8485', // Splurge / Special Occasion 🌟
+    '17ce4d6a-8239-45fc-b129-7e03241c77a3', // Group Dining / Big Night Out 🎉
+    '85eedbc1-69cc-4d67-99e6-9b898e026628', // Hidden Gems / Under the Radar 🌍
+    '12c325c0-d0b5-4ee3-8327-838f0b7615cf', // Comfort Food / Casual Classics 🍝
+    'a897ae62-6ec0-4096-8e28-641554d8ab7e', // Crowd Favourites / The London Essentials 🏆
   ];
 
   Future<void> _loadExploreCollections() async {
