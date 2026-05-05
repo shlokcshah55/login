@@ -113,10 +113,10 @@ class _HomePageState extends State<HomePage> {
     unawaited(_syncProfileChecklistCollapsed());
   }
 
-  Future<void> _syncProfileChecklistCollapsed() async {
+  Future<void> _syncProfileChecklistCollapsed({bool force = false}) async {
     final userId = SupabaseClientManager().currentUser?.id;
     if (userId == null) return;
-    if (_profileChecklistCollapsedUserId == userId) return;
+    if (!force && _profileChecklistCollapsedUserId == userId) return;
     final collapsed =
         await _profileCompletionCardPreferencesService.isCollapsed(
       userId: userId,
@@ -140,7 +140,7 @@ class _HomePageState extends State<HomePage> {
     if (!oldWidget.isActive && widget.isActive) {
       _handleBubbleModeRequest();
       _handlePendingFocusLocation();
-      unawaited(_syncProfileChecklistCollapsed());
+      unawaited(_syncProfileChecklistCollapsed(force: true));
       _checkForErrors();
     }
   }

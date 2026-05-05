@@ -132,7 +132,12 @@ class _ProfileCompletionChecklistCardState
             child: ClipRRect(
               borderRadius: BorderRadius.circular(_innerRadius),
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  _homeCardCollapsed ? 12 : 14,
+                  16,
+                  _homeCardCollapsed ? 10 : 12,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -162,102 +167,145 @@ class _ProfileCompletionChecklistCardState
                           ),
                         ),
                         const Spacer(),
-                        InkWell(
-                          onTap: _toggleHomeCardCollapsed,
-                          borderRadius: BorderRadius.circular(_microRadius),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 7,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _homeCardCollapsed
-                                  ? PinitColors.teal
-                                  : PinitColors.creamDeep,
-                              borderRadius: BorderRadius.circular(_microRadius),
-                              border: Border.all(
-                                color: PinitColors.aubergine,
-                                width: 1.6,
+                        Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: _toggleHomeCardCollapsed,
+                            borderRadius: BorderRadius.circular(_microRadius),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 7,
                               ),
-                            ),
-                            child: Icon(
-                              _homeCardCollapsed
-                                  ? Icons.unfold_more_rounded
-                                  : Icons.unfold_less_rounded,
-                              size: 18,
-                              color: PinitColors.aubergine,
+                              decoration: BoxDecoration(
+                                color: _homeCardCollapsed
+                                    ? PinitColors.teal
+                                    : PinitColors.creamDeep,
+                                borderRadius:
+                                    BorderRadius.circular(_microRadius),
+                                border: Border.all(
+                                  color: PinitColors.aubergine,
+                                  width: 1.6,
+                                ),
+                              ),
+                              child: Icon(
+                                _homeCardCollapsed
+                                    ? Icons.unfold_more_rounded
+                                    : Icons.unfold_less_rounded,
+                                size: 18,
+                                color: PinitColors.aubergine,
+                              ),
                             ),
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Text(
-                          'Finish your profile',
-                          style: const TextStyle(
-                            fontFamily: 'Rova',
-                            fontSize: 18,
-                            fontWeight: FontWeight.w100,
-                            color: PinitColors.aubergine,
-                            letterSpacing: 1.0,
-                            height: 1.05,
+                    if (_homeCardCollapsed)
+                      Row(
+                        children: [
+                          Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: PinitColors.creamDeep,
+                              borderRadius: BorderRadius.circular(_microRadius),
+                              border: Border.all(
+                                color: PinitColors.aubergine,
+                                width: 1.4,
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.checklist_rounded,
+                              size: 16,
+                              color: PinitColors.aubergine,
+                            ),
                           ),
-                        ),
-                        const Spacer(),
-                        _ProgressPill(done: completedCount, total: 4),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    _ChecklistRow(
-                      done: state.hasEatList,
-                      icon: Icons.collections_bookmark_rounded,
-                      title: 'Add an eat-list',
-                      subtitle: 'Adopt one or create your own',
-                      tileColor: PinitColors.teal,
-                      onTap: () {
-                        final cb = widget.onRequestScrollToEatLists;
-                        if (cb != null) {
-                          cb();
-                          return;
-                        }
-                        widget.onSelectProfileTab(1);
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    _ChecklistRow(
-                      done: hasSavedFive,
-                      icon: Icons.bookmark_add_rounded,
-                      title: 'Save 5 places',
-                      subtitle: 'Build your first map',
-                      tileColor: PinitColors.accent,
-                      onTap: () => context
-                          .read<NavigationProvider>()
-                          .navigateToHomeSearch(),
-                    ),
-                    const SizedBox(height: 8),
-                    _ChecklistRow(
-                      done: state.hasSocialSave,
-                      icon: Icons.share_rounded,
-                      title: 'Share a TikTok or Reel',
-                      subtitle: 'Pin directly from socials',
-                      tileColor: PinitColors.creamDeep,
-                      onTap: () async {
-                        await WhatWeDoWizardOverlay.push(context);
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    _ChecklistRow(
-                      done: hasFollowAndBubble,
-                      icon: Icons.group_add_rounded,
-                      title: 'Make a friend + create a bubble',
-                      subtitle: 'Start planning together',
-                      tileColor: PinitColors.teal.withValues(alpha: 0.22),
-                      onTap: () {
-                        widget.onSelectProfileTab(2);
-                      },
-                    ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Finish your profile',
+                              style: const TextStyle(
+                                fontFamily: 'Rova',
+                                fontSize: 17,
+                                fontWeight: FontWeight.w100,
+                                color: PinitColors.aubergine,
+                                letterSpacing: 1.0,
+                                height: 1.05,
+                              ),
+                            ),
+                          ),
+                          _ProgressPill(done: completedCount, total: 4),
+                        ],
+                      )
+                    else ...[
+                      Row(
+                        children: [
+                          Text(
+                            'Finish your profile',
+                            style: const TextStyle(
+                              fontFamily: 'Rova',
+                              fontSize: 18,
+                              fontWeight: FontWeight.w100,
+                              color: PinitColors.aubergine,
+                              letterSpacing: 1.0,
+                              height: 1.05,
+                            ),
+                          ),
+                          const Spacer(),
+                          _ProgressPill(done: completedCount, total: 4),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      _ChecklistRow(
+                        done: state.hasEatList,
+                        icon: Icons.collections_bookmark_rounded,
+                        title: 'Add an eat-list',
+                        subtitle: 'Adopt one or create your own',
+                        tileColor: PinitColors.teal,
+                        onTap: () {
+                          final cb = widget.onRequestScrollToEatLists;
+                          if (cb != null) {
+                            cb();
+                            return;
+                          }
+                          widget.onSelectProfileTab(1);
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      _ChecklistRow(
+                        done: hasSavedFive,
+                        icon: Icons.bookmark_add_rounded,
+                        title: 'Save 5 places',
+                        subtitle: 'Build your first map',
+                        tileColor: PinitColors.accent,
+                        onTap: () => context
+                            .read<NavigationProvider>()
+                            .navigateToHomeSearch(),
+                      ),
+                      const SizedBox(height: 8),
+                      _ChecklistRow(
+                        done: state.hasSocialSave,
+                        icon: Icons.share_rounded,
+                        title: 'Share a TikTok or Reel',
+                        subtitle: 'Pin directly from socials',
+                        tileColor: PinitColors.creamDeep,
+                        onTap: () async {
+                          await WhatWeDoWizardOverlay.push(context);
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      _ChecklistRow(
+                        done: hasFollowAndBubble,
+                        icon: Icons.group_add_rounded,
+                        title: 'Make a friend + create a bubble',
+                        subtitle: 'Start planning together',
+                        tileColor: PinitColors.teal.withValues(alpha: 0.22),
+                        onTap: () {
+                          widget.onSelectProfileTab(2);
+                        },
+                      ),
+                    ],
                   ],
                 ),
               ),
