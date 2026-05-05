@@ -12,7 +12,6 @@ import '../../services/what_we_do_wizard_service.dart';
 import '../../widgets/feedback/app_feedback.dart';
 import '../auth_handler.dart';
 import '../profile/widgets/pinit_colors.dart';
-import 'steps/curated_eat_lists_step.dart';
 import 'steps/dietary_step.dart';
 
 class WizardCompletionPage extends StatelessWidget {
@@ -48,47 +47,6 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
   bool _isCompletingWizard = false;
   @override
   void dispose() => super.dispose();
-
-  Future<void> _openCuratedEatListsSheet() async {
-    if (!mounted) return;
-
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (sheetContext) {
-        final maxHeight = MediaQuery.sizeOf(sheetContext).height * 0.92;
-        return SafeArea(
-          child: Container(
-            constraints: BoxConstraints(maxHeight: maxHeight),
-            margin: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-            decoration: BoxDecoration(
-              color: PinitColors.surfaceLight,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.18),
-                  blurRadius: 22,
-                  offset: const Offset(0, -6),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: CuratedEatListsStep(
-                onBack: () => Navigator.of(sheetContext).pop(),
-                onComplete: () async {
-                  Navigator.of(sheetContext).pop();
-                  await _completeWizard();
-                },
-                isCompleting: _isCompletingWizard,
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
 
   Future<void> _completeWizard() async {
     setState(() {
@@ -248,7 +206,7 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
               child: DietaryStep(
                 onNext: () {
                   if (_isCompletingWizard) return;
-                  _openCuratedEatListsSheet();
+                  _completeWizard();
                 },
                 onBack: () => Navigator.of(context).pop(),
               ),

@@ -47,6 +47,7 @@ class _ProfilePageState extends State<ProfilePage>
   int _followersCount = 0;
   int _followingCount = 0;
   final List<String> _tabs = ['Hot', 'Eat-Lists', 'People'];
+  final _eatListsAnchorKey = GlobalKey();
 
   @override
   void initState() {
@@ -182,6 +183,7 @@ class _ProfilePageState extends State<ProfilePage>
                           if (!mounted) return;
                           setState(() => _selectedTab = i);
                         },
+                        onRequestScrollToEatLists: _scrollToEatLists,
                       ),
                     ),
                     SliverAppBar(
@@ -193,6 +195,12 @@ class _ProfilePageState extends State<ProfilePage>
                       automaticallyImplyLeading: false,
                       toolbarHeight: 20,
                       flexibleSpace: _buildPinnedTabs(),
+                    ),
+                    SliverToBoxAdapter(
+                      child: SizedBox(
+                        key: _eatListsAnchorKey,
+                        height: 1,
+                      ),
                     ),
                     SliverToBoxAdapter(
                       child: _buildTabContent(
@@ -244,6 +252,25 @@ class _ProfilePageState extends State<ProfilePage>
       default:
         return const SizedBox.shrink();
     }
+  }
+
+  void _scrollToEatLists() {
+    if (!mounted) return;
+    // Switch tabs first so the correct content exists below the pinned header.
+    if (_selectedTab != 1) {
+      setState(() => _selectedTab = 1);
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _eatListsAnchorKey.currentContext;
+      if (ctx == null) return;
+      // Leave some breathing room below the pinned tab bar.
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeOutCubic,
+        alignment: 0.06,
+      );
+    });
   }
 
   Widget _buildDiscoverSection() {

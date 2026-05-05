@@ -11,7 +11,6 @@ import '../../widgets/feedback/app_feedback.dart';
 import '../auth_handler.dart';
 import '../profile/widgets/pinit_colors.dart';
 import 'account_step.dart';
-import 'steps/curated_eat_lists_step.dart';
 import 'steps/dietary_step.dart';
 
 class SignupWizardPage extends StatelessWidget {
@@ -60,47 +59,6 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
         curve: Curves.easeInOut,
       );
     }
-  }
-
-  Future<void> _openCuratedEatListsSheet() async {
-    if (!mounted) return;
-
-    await showModalBottomSheet<void>(
-      context: this.context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (sheetContext) {
-        final maxHeight = MediaQuery.sizeOf(sheetContext).height * 0.92;
-        return SafeArea(
-          child: Container(
-            constraints: BoxConstraints(maxHeight: maxHeight),
-            margin: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-            decoration: BoxDecoration(
-              color: PinitColors.surfaceLight,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.18),
-                  blurRadius: 22,
-                  offset: const Offset(0, -6),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: CuratedEatListsStep(
-                onBack: () => Navigator.of(sheetContext).pop(),
-                onComplete: () async {
-                  Navigator.of(sheetContext).pop();
-                  await _completeWizard();
-                },
-                isCompleting: _isCompletingWizard,
-              ),
-            ),
-          ),
-        );
-      },
-    );
   }
 
   Future<void> _completeWizard() async {
@@ -259,7 +217,7 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
                     DietaryStep(
                       onNext: () {
                         if (_isCompletingWizard) return;
-                        unawaited(_openCuratedEatListsSheet());
+                        unawaited(_completeWizard());
                       },
                       onBack: _previousStep,
                     ),

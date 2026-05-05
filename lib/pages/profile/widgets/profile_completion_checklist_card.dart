@@ -12,10 +12,12 @@ import 'package:provider/provider.dart';
 
 class ProfileCompletionChecklistCard extends StatefulWidget {
   final ValueChanged<int> onSelectProfileTab;
+  final VoidCallback? onRequestScrollToEatLists;
 
   const ProfileCompletionChecklistCard({
     super.key,
     required this.onSelectProfileTab,
+    this.onRequestScrollToEatLists,
   });
 
   @override
@@ -163,7 +165,14 @@ class _ProfileCompletionChecklistCardState
                       title: 'Add an eat-list',
                       subtitle: 'Adopt one or create your own',
                       tileColor: PinitColors.teal,
-                      onTap: () => widget.onSelectProfileTab(1),
+                      onTap: () {
+                        final cb = widget.onRequestScrollToEatLists;
+                        if (cb != null) {
+                          cb();
+                          return;
+                        }
+                        widget.onSelectProfileTab(1);
+                      },
                     ),
                     const SizedBox(height: 8),
                     _ChecklistRow(
@@ -195,11 +204,12 @@ class _ProfileCompletionChecklistCardState
                       subtitle: 'Start planning together',
                       tileColor: PinitColors.teal.withValues(alpha: 0.22),
                       onTap: () {
-                        if (!state.isFollowingSomeone) {
-                          widget.onSelectProfileTab(2);
+                        final cb = widget.onRequestScrollToEatLists;
+                        if (cb != null) {
+                          cb();
                           return;
                         }
-                        context.read<NavigationProvider>().navigateToTab(1);
+                        widget.onSelectProfileTab(1);
                       },
                     ),
                   ],
