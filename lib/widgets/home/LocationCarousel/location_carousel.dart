@@ -53,6 +53,7 @@ const Map<String, _VibeTagStyle> _vibeStyles = {
 class LocationCarousel extends StatelessWidget {
   final PageController pageController;
   final List<LocationModel> locations;
+  final Widget? leadingCard;
   final Set<int> beenToLocationIds;
   final String? selectedMarkerId;
   final bool bottomNavVisible;
@@ -67,6 +68,7 @@ class LocationCarousel extends StatelessWidget {
     Key? key,
     required this.pageController,
     required this.locations,
+    this.leadingCard,
     this.beenToLocationIds = const <int>{},
     required this.selectedMarkerId,
     required this.bottomNavVisible,
@@ -80,7 +82,12 @@ class LocationCarousel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (locations.isEmpty) return const SizedBox.shrink();
+    // Allow the leading onboarding card to render even when there are no
+    // locations yet (e.g. fresh accounts before recommendations return).
+    if (locations.isEmpty && leadingCard == null) {
+      return const SizedBox.shrink();
+    }
+    final leadingCount = leadingCard == null ? 0 : 1;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
@@ -88,13 +95,26 @@ class LocationCarousel extends StatelessWidget {
       height: bottomNavVisible ? 185.0 : 215.0,
       child: PageView.builder(
         controller: pageController,
-        itemCount: locations.length,
+        itemCount: locations.length + leadingCount,
         pageSnapping: true,
         physics: const BouncingScrollPhysics(
           parent: AlwaysScrollableScrollPhysics(),
         ),
         itemBuilder: (context, index) {
-          final location = locations[index];
+          if (leadingCount == 1 && index == 0) {
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOutQuint,
+              margin:
+                  const EdgeInsets.symmetric(horizontal: 6.0, vertical: 8.0),
+              transform: Matrix4.diagonal3Values(0.96, 0.96, 1.0),
+              transformAlignment: Alignment.center,
+              child: leadingCard,
+            );
+          }
+
+          final locationIndex = index - leadingCount;
+          final location = locations[locationIndex];
           final isSelected = selectedMarkerId == location.locationId.toString();
           return AnimatedContainer(
             duration: const Duration(milliseconds: 300),
@@ -111,7 +131,7 @@ class LocationCarousel extends StatelessWidget {
               location: location,
               isSelected: isSelected,
               bottomNavVisible: bottomNavVisible,
-              showSwipeHint: showFirstItemSwipeHint && index == 0,
+              showSwipeHint: showFirstItemSwipeHint && locationIndex == 0,
               beenToLocationIds: beenToLocationIds,
               onLocationSelected: onLocationSelected,
               onSwipeUp: onSwipeUp,

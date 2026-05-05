@@ -1,3 +1,23 @@
+-- Remove social enrichment plumbing (social_vibe_vector / social_extraction)
+-- and simplify save_location_with_tags back to the 5-arg signature used by
+-- the app clients.
+
+-- 1) Drop any social enrichment columns (safe if they were never added).
+ALTER TABLE public.user_location_actions
+  DROP COLUMN IF EXISTS social_vibe_vector,
+  DROP COLUMN IF EXISTS social_extraction,
+  DROP COLUMN IF EXISTS social_extraction_version;
+
+-- 2) Drop helper functions that only existed to blend in social vectors.
+DROP FUNCTION IF EXISTS public.blend_vibe_vectors(integer[], real[], real);
+
+-- 3) Replace save_location_with_tags with the simple 5-arg version.
+--    (Also resolves any PostgREST overload ambiguity by leaving only one
+--    matching signature for typical callers.)
+DROP FUNCTION IF EXISTS public.save_location_with_tags(
+  uuid, integer, text, boolean, text, real[], jsonb, smallint
+);
+
 CREATE OR REPLACE FUNCTION public.save_location_with_tags(
     p_user_id uuid,
     p_location_id integer,
@@ -9,7 +29,8 @@ CREATE OR REPLACE FUNCTION public.save_location_with_tags(
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO 'public'
-AS $function$DECLARE
+AS $function$
+DECLARE
     v_location_id INTEGER;
     v_action_exists BOOLEAN := FALSE;
     v_timestamp TIMESTAMPTZ := NOW();
@@ -54,13 +75,9 @@ BEGIN
     -- Step 4: Update Location Popularity
     PERFORM increment_saves_count(v_location_id);
 
+    -- Step 5: Update User Vibe Vector (top-K only). Guarded against NULL / short vectors.
     SELECT calculate_interaction_weight(p_user_id) INTO v_interaction_weight;
 
-    -- Step 5: Update User Vibe Vector — but only if BOTH the user and the
-    -- location have populated vibe vectors. When the location has no
-    -- vibe_vector (hasn't been classified yet) the arithmetic below would
-    -- propagate NULLs and wipe the user's whole affinity array to NULL.
-    -- Same guard protects against unseeded users.
     SELECT vibe_vector INTO v_location_vibes FROM locations WHERE location_id = v_location_id;
     SELECT vibe_tag_affinity INTO v_user_vibes FROM users WHERE supabase_id = p_user_id;
 
@@ -74,8 +91,6 @@ BEGIN
        AND v_location_vibes IS NOT NULL
        AND array_length(v_user_vibes, 1) >= 25
        AND array_length(v_location_vibes, 1) >= 25 THEN
-        -- Update only the top-K vibe dimensions for this location (ranked by
-        -- location.vibe_vector), leaving the rest unchanged to avoid global drift.
         SELECT array_agg(i ORDER BY score DESC NULLS LAST, i)
           INTO v_top_k_indices
         FROM (
@@ -140,5 +155,9 @@ EXCEPTION
             'action_created', FALSE, 'message', 'Location already saved (race condition)');
     WHEN OTHERS THEN
         RETURN jsonb_build_object('success', FALSE, 'error', SQLERRM);
-END;$function$
-;
+END;
+$function$;
+
+GRANT EXECUTE ON FUNCTION public.save_location_with_tags(uuid, integer, text, boolean, text)
+  TO anon, authenticated, service_role;
+

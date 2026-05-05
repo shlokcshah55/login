@@ -5,6 +5,7 @@ import 'package:login/widgets/home/LocationCarousel/location_carousel.dart';
 class HomeCarousel extends StatelessWidget {
   final PageController pageController;
   final List<LocationModel> locations;
+  final Widget? leadingCard;
   final String? selectedMarkerId;
   final bool bottomNavVisible;
   final ValueChanged<int> onPageChanged;
@@ -19,6 +20,7 @@ class HomeCarousel extends StatelessWidget {
     Key? key,
     required this.pageController,
     required this.locations,
+    this.leadingCard,
     required this.selectedMarkerId,
     required this.bottomNavVisible,
     required this.onPageChanged,
@@ -42,6 +44,7 @@ class HomeCarousel extends StatelessWidget {
       child: LocationCarousel(
         pageController: pageController,
         locations: locations,
+        leadingCard: leadingCard,
         selectedMarkerId: selectedMarkerId,
         bottomNavVisible: bottomNavVisible,
         showFirstItemSwipeHint: showFirstItemSwipeHint,

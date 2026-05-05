@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/signup_wizard_state.dart';
@@ -11,7 +13,6 @@ import '../profile/widgets/pinit_colors.dart';
 import 'account_step.dart';
 import 'steps/curated_eat_lists_step.dart';
 import 'steps/dietary_step.dart';
-import 'steps/vibe_step.dart';
 
 class SignupWizardPage extends StatelessWidget {
   const SignupWizardPage({super.key});
@@ -44,7 +45,7 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
   }
 
   void _nextStep() {
-    if (_currentStep < 3) {
+    if (_currentStep < 1) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
@@ -59,6 +60,47 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
         curve: Curves.easeInOut,
       );
     }
+  }
+
+  Future<void> _openCuratedEatListsSheet() async {
+    if (!mounted) return;
+
+    await showModalBottomSheet<void>(
+      context: this.context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        final maxHeight = MediaQuery.sizeOf(sheetContext).height * 0.92;
+        return SafeArea(
+          child: Container(
+            constraints: BoxConstraints(maxHeight: maxHeight),
+            margin: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+            decoration: BoxDecoration(
+              color: PinitColors.surfaceLight,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.18),
+                  blurRadius: 22,
+                  offset: const Offset(0, -6),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: CuratedEatListsStep(
+                onBack: () => Navigator.of(sheetContext).pop(),
+                onComplete: () async {
+                  Navigator.of(sheetContext).pop();
+                  await _completeWizard();
+                },
+                isCompleting: _isCompletingWizard,
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _completeWizard() async {
@@ -80,7 +122,7 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
 
       // Step 1: Atomically mark the wizard complete + persist spice
       // tolerance + seed dietary tag affinities. Vibe tags were already
-      // written by vibe_step via updateUserTagsPhotos.
+      // initialized on account creation; no additional onboarding steps.
       await supabase.users.finalizeSignupWizard(
         wizardState.userId!,
         spiceTolerance: wizardState.spiceTolerance,
@@ -156,85 +198,76 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
         child: Material(
           color: PinitColors.surfaceLight,
           child: Column(
-          children: [
-          //   // Progress Indicator
-          //   Padding(
-          //     padding:
-          //         const EdgeInsets.symmetric(horizontal: 24.0, vertical: 5),
-          //     child: Column(
-          //       crossAxisAlignment: CrossAxisAlignment.start,
-          //       children: [
-          //         Text(
-          //           _stepTitles[_currentStep],
-          //           style: const TextStyle(
-          //             fontFamily: 'Rova',
-          //             fontSize: 32,
-          //             fontWeight: FontWeight.w100,
-          //             color: PinitColors.aubergine,
-          //             letterSpacing: 1.5,
-          //           ),
-          //         ),
-          //         const SizedBox(height: 12),
-          //         // Progress bar
-          //         Container(
-          //           height: 12,
-          //           decoration: BoxDecoration(
-          //             color: PinitColors.creamDeep,
-          //             borderRadius: BorderRadius.circular(4),
-          //           ),
-          //           child: LayoutBuilder(
-          //             builder: (context, constraints) {
-          //               return AnimatedContainer(
-          //                 duration: const Duration(milliseconds: 400),
-          //                 curve: Curves.easeOutQuint,
-          //                 width: constraints.maxWidth * _calculateProgress(),
-          //                 decoration: BoxDecoration(
-          //                   color: PinitColors.accent,
-          //                   borderRadius: BorderRadius.circular(4),
-          //                 ),
-          //               );
-          //             },
-          //           ),
-          //         ),
-          //       ],
-          //     ),
-          //   ),
-            // Page Content
-            Expanded(
-              child: PageView(
-                controller: _pageController,
-                physics:
-                    const NeverScrollableScrollPhysics(), // Disable swipe, use buttons
-                onPageChanged: (index) {
-                  setState(() {
-                    _currentStep = index;
-                  });
-                },
-                children: [
-                  AccountStep(
-                    onNext: _nextStep,
-                  ),
-                  DietaryStep(
-                    onNext: _nextStep,
-                    onBack: _previousStep,
-                  ),
-                  VibeStep(
-                    onNext: () {
-                      _nextStep();
-                    },
-                    onBack: _previousStep,
-                    isLoadingRestaurants: _isCompletingWizard,
-                  ),
-                  CuratedEatListsStep(
-                    onBack: _previousStep,
-                    onComplete: _completeWizard,
-                    isCompleting: _isCompletingWizard,
-                  ),
-                ],
+            children: [
+              //   // Progress Indicator
+              //   Padding(
+              //     padding:
+              //         const EdgeInsets.symmetric(horizontal: 24.0, vertical: 5),
+              //     child: Column(
+              //       crossAxisAlignment: CrossAxisAlignment.start,
+              //       children: [
+              //         Text(
+              //           _stepTitles[_currentStep],
+              //           style: const TextStyle(
+              //             fontFamily: 'Rova',
+              //             fontSize: 32,
+              //             fontWeight: FontWeight.w100,
+              //             color: PinitColors.aubergine,
+              //             letterSpacing: 1.5,
+              //           ),
+              //         ),
+              //         const SizedBox(height: 12),
+              //         // Progress bar
+              //         Container(
+              //           height: 12,
+              //           decoration: BoxDecoration(
+              //             color: PinitColors.creamDeep,
+              //             borderRadius: BorderRadius.circular(4),
+              //           ),
+              //           child: LayoutBuilder(
+              //             builder: (context, constraints) {
+              //               return AnimatedContainer(
+              //                 duration: const Duration(milliseconds: 400),
+              //                 curve: Curves.easeOutQuint,
+              //                 width: constraints.maxWidth * _calculateProgress(),
+              //                 decoration: BoxDecoration(
+              //                   color: PinitColors.accent,
+              //                   borderRadius: BorderRadius.circular(4),
+              //                 ),
+              //               );
+              //             },
+              //           ),
+              //         ),
+              //       ],
+              //     ),
+              //   ),
+              // Page Content
+              Expanded(
+                child: PageView(
+                  controller: _pageController,
+                  physics:
+                      const NeverScrollableScrollPhysics(), // Disable swipe, use buttons
+                  onPageChanged: (index) {
+                    setState(() {
+                      _currentStep = index;
+                    });
+                  },
+                  children: [
+                    AccountStep(
+                      onNext: _nextStep,
+                    ),
+                    DietaryStep(
+                      onNext: () {
+                        if (_isCompletingWizard) return;
+                        unawaited(_openCuratedEatListsSheet());
+                      },
+                      onBack: _previousStep,
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
         ),
       ),
     );

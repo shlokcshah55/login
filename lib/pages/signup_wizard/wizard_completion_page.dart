@@ -12,8 +12,8 @@ import '../../services/what_we_do_wizard_service.dart';
 import '../../widgets/feedback/app_feedback.dart';
 import '../auth_handler.dart';
 import '../profile/widgets/pinit_colors.dart';
+import 'steps/curated_eat_lists_step.dart';
 import 'steps/dietary_step.dart';
-import 'steps/vibe_step.dart';
 
 class WizardCompletionPage extends StatelessWidget {
   const WizardCompletionPage({super.key});
@@ -44,36 +44,50 @@ class _WizardCompletionContent extends StatefulWidget {
 }
 
 class _WizardCompletionContentState extends State<_WizardCompletionContent> {
-  final PageController _pageController = PageController();
-  int _currentStep = 0; // 0 = Dietary, 1 = Vibe
-
-  final List<String> _stepTitles = [
-    'Dietary Preferences',
-    'Your Vibe',
-  ];
+  static const String _stepTitle = 'Dietary Preferences';
   bool _isCompletingWizard = false;
   @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
+  void dispose() => super.dispose();
 
-  void _nextStep() {
-    if (_currentStep < 1) {
-      _pageController.nextPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    }
-  }
+  Future<void> _openCuratedEatListsSheet() async {
+    if (!mounted) return;
 
-  void _previousStep() {
-    if (_currentStep > 0) {
-      _pageController.previousPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    }
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        final maxHeight = MediaQuery.sizeOf(sheetContext).height * 0.92;
+        return SafeArea(
+          child: Container(
+            constraints: BoxConstraints(maxHeight: maxHeight),
+            margin: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+            decoration: BoxDecoration(
+              color: PinitColors.surfaceLight,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.18),
+                  blurRadius: 22,
+                  offset: const Offset(0, -6),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: CuratedEatListsStep(
+                onBack: () => Navigator.of(sheetContext).pop(),
+                onComplete: () async {
+                  Navigator.of(sheetContext).pop();
+                  await _completeWizard();
+                },
+                isCompleting: _isCompletingWizard,
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _completeWizard() async {
@@ -95,7 +109,7 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
 
       // Step 1: Atomically mark the wizard complete + persist spice
       // tolerance + seed dietary tag affinities. Vibe tags were already
-      // written by vibe_step via updateUserTagsPhotos.
+      // initialized on account creation; no additional onboarding steps.
       await supabase.users.finalizeSignupWizard(
         userId,
         spiceTolerance: wizardState.spiceTolerance,
@@ -171,11 +185,6 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
     // Note: Don't set _isCompletingWizard = false on success since we're navigating away
   }
 
-  double _calculateProgress() {
-    // Total: 2 steps
-    return (_currentStep + 1) / 2.0;
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -199,7 +208,7 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
                       ),
                       const SizedBox(width: 20),
                       Text(
-                        _stepTitles[_currentStep],
+                        _stepTitle,
                         style: const TextStyle(
                           fontFamily: 'Rova',
                           fontSize: 22,
@@ -222,7 +231,7 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
                         return AnimatedContainer(
                           duration: const Duration(milliseconds: 400),
                           curve: Curves.easeOutQuint,
-                          width: constraints.maxWidth * _calculateProgress(),
+                          width: constraints.maxWidth,
                           decoration: BoxDecoration(
                             color: PinitColors.accent,
                             borderRadius: BorderRadius.circular(2),
@@ -236,28 +245,12 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
             ),
             // Page Content
             Expanded(
-              child: PageView(
-                controller: _pageController,
-                physics:
-                    const NeverScrollableScrollPhysics(), // Disable swipe, use buttons
-                onPageChanged: (index) {
-                  setState(() {
-                    _currentStep = index;
-                  });
+              child: DietaryStep(
+                onNext: () {
+                  if (_isCompletingWizard) return;
+                  _openCuratedEatListsSheet();
                 },
-                children: [
-                  DietaryStep(
-                    onNext: _nextStep,
-                    onBack: () => Navigator.of(context).pop(),
-                  ),
-                  VibeStep(
-                    onNext: () {
-                      _completeWizard();
-                    },
-                    onBack: _previousStep,
-                    isLoadingRestaurants: _isCompletingWizard,
-                  ),
-                ],
+                onBack: () => Navigator.of(context).pop(),
               ),
             ),
           ],

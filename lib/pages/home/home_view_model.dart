@@ -112,6 +112,19 @@ class HomeViewModel extends ChangeNotifier {
   String? get selectedMarkerId => mapStateProvider.selectedMarkerId;
   List<LocationModel> get locations =>
       locationListManager.currentItems.keys.toList();
+  bool get shouldShowProfileChecklistCard {
+    final type = locationListManager.currentListType;
+    if (type == LocationListType.recommended) return true;
+    // Fresh accounts often start in Saved before we auto-switch to Picks.
+    // Show the checklist card there too so it's visible immediately.
+    if (type == LocationListType.saved &&
+        locationListManager.savedLocations.isEmpty) {
+      return true;
+    }
+    return false;
+  }
+
+  int get carouselLeadingCount => shouldShowProfileChecklistCard ? 1 : 0;
   bool get isBubbleModeActive => _isBubbleModeActive;
   Bubble? get activeBubble => _activeBubble;
   bool get isLoadingRecommendations =>
@@ -376,17 +389,18 @@ class HomeViewModel extends ChangeNotifier {
       _debounce = Timer(const Duration(milliseconds: 100), () {
         if (newSelectedMarkerId == null) return;
         final index = locations.indexWhere(
-          (loc) => loc.locationId == newSelectedMarkerId,
+          (loc) => loc.locationId.toString() == newSelectedMarkerId,
         );
 
-        if (index != -1 &&
+        final targetIndex = index == -1 ? -1 : index + carouselLeadingCount;
+        if (targetIndex != -1 &&
             pageController.hasClients &&
-            pageController.page?.round() != index) {
+            pageController.page?.round() != targetIndex) {
           log(
-            "HomeViewModel: Scrolling carousel to index $index for marker $newSelectedMarkerId",
+            "HomeViewModel: Scrolling carousel to index $targetIndex for marker $newSelectedMarkerId",
           );
           pageController.animateToPage(
-            index,
+            targetIndex,
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeInOut,
           );
@@ -424,7 +438,13 @@ class HomeViewModel extends ChangeNotifier {
 
   void onCarouselPageChanged(int index) {
     bottomNavVisibilityProvider.hide();
-    final location = locations[index];
+    if (carouselLeadingCount == 1 && index == 0) {
+      // Checklist card — don't select a marker.
+      return;
+    }
+    final locationIndex = index - carouselLeadingCount;
+    if (locationIndex < 0 || locationIndex >= locations.length) return;
+    final location = locations[locationIndex];
     mapStateProvider.setSelectedMarkerId(
       location.locationId.toString(),
       triggeredByCarousel: true,

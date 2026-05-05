@@ -15,6 +15,7 @@ import 'package:login/pages/home/widgets/home_filter_sheet.dart';
 import 'package:login/pages/home/widgets/home_header_search_shell.dart';
 import 'package:login/pages/home/widgets/home_map_layer.dart';
 import 'package:login/pages/home/widgets/magic_search_suggestions.dart';
+import 'package:login/pages/home/widgets/profile_completion_carousel_card.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
 import 'package:login/themes/app_typography.dart';
 import 'package:login/themes/pinit_colors.dart';
@@ -29,16 +30,12 @@ import 'package:login/providers/shortlist_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:login/providers/bubble_mode_provider.dart';
 import 'package:login/providers/navigation_provider.dart';
-import 'package:login/services/did_you_know_wizard_service.dart';
 import 'package:login/services/notes_import_submitted_service.dart';
-import 'package:login/services/what_we_do_wizard_service.dart';
 import 'package:login/services/wizard_completion_popover_service.dart';
 import 'package:login/supabase/service.dart';
-import 'package:login/widgets/did_you_know_wizard_dialog.dart';
 import 'package:login/widgets/home/bubble_mode_overlay.dart';
 import 'package:login/widgets/home/no_magic_search_results_popover.dart';
 import 'package:login/widgets/home/no_recommendations_popover.dart';
-import 'package:login/widgets/profile/no_saved_locations_popover.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:login/widgets/feedback/app_feedback.dart';
 import 'package:login/widgets/swipe_card_stack.dart';
@@ -66,9 +63,6 @@ class _HomePageState extends State<HomePage> {
   late final BubbleModeProvider _bubbleModeProvider;
   late final SupabaseService _supabaseService;
   late final UserDataProvider _userDataProvider;
-  final DidYouKnowWizardService _didYouKnowWizardService =
-      DidYouKnowWizardService();
-  final WhatWeDoWizardService _whatWeDoWizardService = WhatWeDoWizardService();
   final WizardCompletionPopoverService _wizardCompletionPopoverService =
       WizardCompletionPopoverService();
   Set<String> _selectedVibeTagIds = <String>{};
@@ -77,11 +71,6 @@ class _HomePageState extends State<HomePage> {
   bool _wizardPopoverShown = false;
   bool _isWizardPopoverVisible = false;
   bool _wizardPopoverEligibilityChecked = false;
-  bool _whatWeDoWizardScheduled = false;
-  bool _isWhatWeDoWizardVisible = false;
-  bool _whatWeDoWizardEligibilityChecked = false;
-  bool _whatWeDoWizardShouldShow = false;
-  bool _didYouKnowWizardCheckScheduled = false;
   String? _lastHandledError;
   bool _isNoRecommendationsPopoverVisible = false;
   bool _isMagicSearchNoResultsPopoverVisible = false;
@@ -125,7 +114,6 @@ class _HomePageState extends State<HomePage> {
   void didUpdateWidget(HomePage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!oldWidget.isActive && widget.isActive) {
-      _didYouKnowWizardCheckScheduled = false;
       _handleBubbleModeRequest();
       _handlePendingFocusLocation();
     }
@@ -134,10 +122,20 @@ class _HomePageState extends State<HomePage> {
   void _handlePendingFocusLocation() {
     final navProvider = context.read<NavigationProvider>();
     final location = navProvider.pendingFocusLocation;
-    if (location == null) return;
-    navProvider.clearPendingFocusLocation();
-    _locationListManager.focusSingleLocation(location);
-    _mapStateProvider.setSelectedMarkerId(location.locationId.toString());
+    final shouldOpenSearch = navProvider.pendingOpenHomeSearch;
+    if (location != null) {
+      navProvider.clearPendingFocusLocation();
+      _locationListManager.focusSingleLocation(location);
+      _mapStateProvider.setSelectedMarkerId(location.locationId.toString());
+    }
+
+    if (shouldOpenSearch) {
+      navProvider.clearPendingHomeSearch();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        unawaited(_viewModel.openHeaderSearch());
+      });
+    }
   }
 
   void _checkForErrors() {
@@ -240,75 +238,12 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _scheduleSavedEmptyPopoverIfNeeded() {
-    final hasSaves = _locationListManager.savedLocations.isNotEmpty;
-    if (hasSaves) {
-      _hasShownSavedEmptyPopover = false;
-      return;
-    }
-    if (_notesImportWasSubmitted) return;
-    if (!widget.isActive ||
-        _isWhatWeDoWizardVisible ||
-        _whatWeDoWizardScheduled ||
-        _locationListManager.isLoadingSaved ||
-        !_locationListManager.hasLoadedSavedLocations ||
-        _hasShownSavedEmptyPopover ||
-        _isSavedEmptyPopoverVisible ||
-        _isWizardPopoverVisible ||
-        (_wizardPopoverScheduled && !_wizardPopoverShown)) {
-      return;
-    }
-    _hasShownSavedEmptyPopover = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      if (ModalRoute.of(context)?.isCurrent != true) {
-        _hasShownSavedEmptyPopover = false;
-        return;
-      }
-      final hasSavesNow = _locationListManager.savedLocations.isNotEmpty;
-      if (hasSavesNow ||
-          _isWhatWeDoWizardVisible ||
-          _whatWeDoWizardScheduled ||
-          _locationListManager.isLoadingSaved ||
-          !_locationListManager.hasLoadedSavedLocations ||
-          _isSavedEmptyPopoverVisible ||
-          _isWizardPopoverVisible ||
-          (_wizardPopoverScheduled && !_wizardPopoverShown)) {
-        _hasShownSavedEmptyPopover = false;
-        return;
-      }
-      _showSavedEmptyPopover();
-    });
+    // Disabled: onboarding should be driven via the profile checklist, not popups.
+    return;
   }
 
   Future<void> _showSavedEmptyPopover() async {
-    _isSavedEmptyPopoverVisible = true;
-    await showGeneralDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: 'Dismiss',
-      barrierColor: Colors.black.withValues(alpha: 0.18),
-      transitionDuration: const Duration(milliseconds: 260),
-      pageBuilder: (dialogContext, _, __) {
-        return const NoSavedLocationsPopover();
-      },
-      transitionBuilder: (dialogContext, animation, _, child) {
-        final curved = CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeOutCubic,
-          reverseCurve: Curves.easeInCubic,
-        );
-        return FadeTransition(
-          opacity: curved,
-          child: ScaleTransition(
-            scale: Tween<double>(begin: 0.94, end: 1.0).animate(curved),
-            child: child,
-          ),
-        );
-      },
-    );
-    if (mounted) {
-      _isSavedEmptyPopoverVisible = false;
-    }
+    // No-op. Popup disabled.
   }
 
   Future<void> _handleBubbleModeRequest() async {
@@ -337,7 +272,6 @@ class _HomePageState extends State<HomePage> {
       return;
     }
     if (_wizardPopoverEligibilityChecked) return;
-    if (_isWhatWeDoWizardVisible || _whatWeDoWizardScheduled) return;
     final userData = userDataProvider.supabaseUserData;
     if (userData == null || userData.wizardCompleted) return;
     if (!_locationListManager.hasLoadedSavedLocations ||
@@ -352,107 +286,13 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  void _scheduleWhatWeDoWizardIfNeeded(UserDataProvider userDataProvider) {
-    if (_isWhatWeDoWizardVisible ||
-        _whatWeDoWizardScheduled ||
-        !widget.isActive) {
-      return;
-    }
-    if (_whatWeDoWizardEligibilityChecked && !_whatWeDoWizardShouldShow) {
-      return;
-    }
-    _whatWeDoWizardScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      if (ModalRoute.of(context)?.isCurrent != true) {
-        setState(() => _whatWeDoWizardScheduled = false);
-        return;
-      }
-      unawaited(_maybeShowWhatWeDoWizard());
-    });
-  }
-
-  Future<void> _maybeShowWhatWeDoWizard() async {
-    final shouldShow = await _whatWeDoWizardService.shouldShowNow();
-    if (!mounted) return;
-    setState(() {
-      _whatWeDoWizardEligibilityChecked = true;
-      _whatWeDoWizardShouldShow = shouldShow;
-      if (!shouldShow) _whatWeDoWizardScheduled = false;
-    });
-    if (!shouldShow) {
-      return;
-    }
-
-    if (!mounted) return;
-    setState(() {
-      _isWhatWeDoWizardVisible = true;
-      _whatWeDoWizardScheduled = false;
-    });
-
-    await WhatWeDoWizardOverlay.push(context);
-    await _whatWeDoWizardService.markCompleted();
-    if (!mounted) return;
-    setState(() {
-      _isWhatWeDoWizardVisible = false;
-      _whatWeDoWizardEligibilityChecked = true;
-      _whatWeDoWizardShouldShow = false;
-      _showFirstCarouselSwipeHint = true;
-    });
-  }
-
   void _dismissFirstCarouselSwipeHint() {
     if (!_showFirstCarouselSwipeHint || !mounted) return;
     setState(() => _showFirstCarouselSwipeHint = false);
   }
 
-  void _scheduleDidYouKnowWizardIfNeeded(UserDataProvider userDataProvider) {
-    if (_isWhatWeDoWizardVisible || _whatWeDoWizardScheduled) return;
-    if (DidYouKnowWizardService.previewTikTokWizardEnabled) {
-      if (_didYouKnowWizardCheckScheduled || !widget.isActive) return;
-      _didYouKnowWizardCheckScheduled = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        if (ModalRoute.of(context)?.isCurrent != true) {
-          _didYouKnowWizardCheckScheduled = false;
-          return;
-        }
-        unawaited(_didYouKnowWizardService.showPreviewTikTokWizard(context));
-      });
-      return;
-    }
-
-    if (_didYouKnowWizardCheckScheduled || !widget.isActive) return;
-    if (_isWizardPopoverVisible ||
-        (_wizardPopoverScheduled && !_wizardPopoverShown)) {
-      return;
-    }
-    if (_isSavedEmptyPopoverVisible ||
-        _isNoRecommendationsPopoverVisible ||
-        _isMagicSearchNoResultsPopoverVisible) {
-      return;
-    }
-
-    final userData = userDataProvider.supabaseUserData;
-    if (userData == null || !userData.wizardCompleted) return;
-
-    _didYouKnowWizardCheckScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      if (ModalRoute.of(context)?.isCurrent != true) {
-        _didYouKnowWizardCheckScheduled = false;
-        return;
-      }
-      unawaited(_didYouKnowWizardService.maybeShowBestTip(context));
-    });
-  }
-
   Future<void> _showWizardPopoverIfNeeded() async {
     if (_wizardPopoverShown || !widget.isActive) return;
-    if (_isWhatWeDoWizardVisible || _whatWeDoWizardScheduled) {
-      _wizardPopoverScheduled = false;
-      return;
-    }
     final userDataProvider = context.read<UserDataProvider>();
     final userData = userDataProvider.supabaseUserData;
     if (userData == null || userData.wizardCompleted) {
@@ -558,12 +398,8 @@ class _HomePageState extends State<HomePage> {
       child: Consumer<HomeViewModel>(
         builder: (context, viewModel, _) {
           final userDataProvider = context.watch<UserDataProvider>();
-          _scheduleWhatWeDoWizardIfNeeded(userDataProvider);
-          if (!_isWhatWeDoWizardVisible && !_whatWeDoWizardScheduled) {
-            _scheduleWizardPopoverIfNeeded(userDataProvider);
-            _scheduleSavedEmptyPopoverIfNeeded();
-            _scheduleDidYouKnowWizardIfNeeded(userDataProvider);
-          }
+          _scheduleWizardPopoverIfNeeded(userDataProvider);
+          _scheduleSavedEmptyPopoverIfNeeded();
           final isInlineHeaderSearch =
               viewModel.isHeaderSearchActive && !viewModel.isMagicSearchActive;
           final carouselBottom = viewModel.bottomNavVisible ? 110.0 : 20.0;
@@ -572,7 +408,7 @@ class _HomePageState extends State<HomePage> {
           return Scaffold(
             resizeToAvoidBottomInset: false,
             body: AbsorbPointer(
-              absorbing: _isWhatWeDoWizardVisible || _whatWeDoWizardScheduled,
+              absorbing: false,
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
@@ -904,6 +740,10 @@ class _HomePageState extends State<HomePage> {
                             HomeCarousel(
                               pageController: viewModel.pageController,
                               locations: viewModel.locations,
+                              leadingCard:
+                                  viewModel.shouldShowProfileChecklistCard
+                                      ? const ProfileCompletionCarouselCard()
+                                      : null,
                               selectedMarkerId: viewModel.selectedMarkerId,
                               bottomNavVisible: viewModel.bottomNavVisible,
                               onPageChanged: viewModel.onCarouselPageChanged,

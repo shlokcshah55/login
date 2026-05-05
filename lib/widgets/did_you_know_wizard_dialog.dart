@@ -3,13 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:login/models/locations.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
-import 'package:login/supabase/service.dart';
 import 'package:login/themes/app_typography.dart';
 import 'package:login/widgets/feedback/app_feedback.dart';
-import 'package:login/widgets/onboarding/swipe_save_step.dart';
-import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 enum DidYouKnowWizardId {
@@ -108,9 +104,7 @@ class DidYouKnowWizards {
       DidYouKnowWizardPage(
         illustrationAssetPath: 'lib/assets/wizards/Send-to-bubble.png',
         title: '',
-        description:
-'Send your bubble a place you think they\'d like',
-
+        description: 'Send your bubble a place you think they\'d like',
       ),
     ],
   );
@@ -190,8 +184,7 @@ class _DidYouKnowWizardDialogState extends State<DidYouKnowWizardDialog> {
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
     final pages = widget.wizard.pages;
-    final isScreenshotWizard =
-        pages.isNotEmpty &&
+    final isScreenshotWizard = pages.isNotEmpty &&
         pages.every(
           (p) => _WizardMediaCard._isScreenshotAsset(p.illustrationAssetPath),
         );
@@ -241,25 +234,28 @@ class _DidYouKnowWizardDialogState extends State<DidYouKnowWizardDialog> {
                   ),
                 ],
               ),
-              child:
-                  isScreenshotWizard ? _ScreenshotWizardBody(
-                    pages: pages,
-                    pageController: _pageController,
-                    pageIndex: _pageIndex,
-                    onPageChanged: (index) => setState(() => _pageIndex = index),
-                    header: widget.wizard.header,
-                    onClose: () => Navigator.of(context).pop(),
-                    wizardId: widget.wizard.id,
-                  ) : _IllustrationWizardBody(
-                    pages: pages,
-                    pageController: _pageController,
-                    pageIndex: _pageIndex,
-                    onPageChanged: (index) => setState(() => _pageIndex = index),
-                    header: widget.wizard.header,
-                    onClose: () => Navigator.of(context).pop(),
-                    useDarkTheme: useDarkDialogBackground,
-                    wizardId: widget.wizard.id,
-                  ),
+              child: isScreenshotWizard
+                  ? _ScreenshotWizardBody(
+                      pages: pages,
+                      pageController: _pageController,
+                      pageIndex: _pageIndex,
+                      onPageChanged: (index) =>
+                          setState(() => _pageIndex = index),
+                      header: widget.wizard.header,
+                      onClose: () => Navigator.of(context).pop(),
+                      wizardId: widget.wizard.id,
+                    )
+                  : _IllustrationWizardBody(
+                      pages: pages,
+                      pageController: _pageController,
+                      pageIndex: _pageIndex,
+                      onPageChanged: (index) =>
+                          setState(() => _pageIndex = index),
+                      header: widget.wizard.header,
+                      onClose: () => Navigator.of(context).pop(),
+                      useDarkTheme: useDarkDialogBackground,
+                      wizardId: widget.wizard.id,
+                    ),
             ),
           ),
         ),
@@ -401,9 +397,11 @@ class _IllustrationWizardBody extends StatelessWidget {
                               count: pages.length,
                               index: pageIndex,
                               activeColor: Colors.white,
-                              inactiveColor: Colors.white.withValues(alpha: 0.30),
+                              inactiveColor:
+                                  Colors.white.withValues(alpha: 0.30),
                             )
-                          : _DotIndicator(count: pages.length, index: pageIndex),
+                          : _DotIndicator(
+                              count: pages.length, index: pageIndex),
                       const SizedBox(height: 16),
                       Text(
                         page.title,
@@ -496,9 +494,8 @@ class _ScreenshotWizardBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final activePage = pages.isEmpty
-        ? null
-        : pages[(pageIndex.clamp(0, pages.length - 1))];
+    final activePage =
+        pages.isEmpty ? null : pages[(pageIndex.clamp(0, pages.length - 1))];
     final isTryItOutPage = wizardId == DidYouKnowWizardId.tiktokSharing &&
         pages.isNotEmpty &&
         pageIndex == pages.length - 1;
@@ -570,39 +567,39 @@ class _ScreenshotWizardBody extends StatelessWidget {
                         letterSpacing: 0.2,
                       ),
                     ),
-                  if ((activePage?.title ?? '').trim().isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    Text(
-                      activePage!.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.dmSans(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white.withValues(alpha: 0.92),
-                        letterSpacing: 0.6,
-                        height: 1.15,
+                    if ((activePage?.title ?? '').trim().isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        activePage!.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.dmSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white.withValues(alpha: 0.92),
+                          letterSpacing: 0.6,
+                          height: 1.15,
+                        ),
                       ),
-                    ),
-                  ],
-                  if ((activePage?.description ?? '').trim().isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    Text(
-                      activePage!.description,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.sans(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white.withValues(alpha: 0.82),
-                        height: 1.35,
+                    ],
+                    if ((activePage?.description ?? '').trim().isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        activePage!.description,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.sans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withValues(alpha: 0.82),
+                          height: 1.35,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
-          ),
           ),
           Positioned(
             top: 14,
@@ -662,7 +659,7 @@ class _ScreenshotWizardBody extends StatelessWidget {
                             fontSize: 16,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 0.3,
-                                                    ),
+                          ),
                         ),
                       ),
                     ),
@@ -701,47 +698,19 @@ class WhatWeDoWizardOverlay extends StatefulWidget {
 }
 
 class _WhatWeDoWizardOverlayState extends State<WhatWeDoWizardOverlay> {
-  late final PageController _sectionController;
   late final PageController _tiktokController;
   int _tiktokIndex = 0;
-  bool _loadingPlaces = true;
-  List<LocationModel> _places = const [];
 
   @override
   void initState() {
     super.initState();
-    _sectionController = PageController();
     _tiktokController = PageController();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_loadPlaces());
-    });
   }
 
   @override
   void dispose() {
-    _sectionController.dispose();
     _tiktokController.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadPlaces() async {
-    setState(() => _loadingPlaces = true);
-    try {
-      final supabase = context.read<SupabaseService>();
-      const ids = <int>[5853, 1757, 142110, 6946, 1773];
-      final rows = await supabase.locations.getLocationsByIds(ids);
-      if (!mounted) return;
-      setState(() {
-        _places = rows;
-        _loadingPlaces = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _places = const [];
-        _loadingPlaces = false;
-      });
-    }
   }
 
   @override
@@ -751,163 +720,98 @@ class _WhatWeDoWizardOverlayState extends State<WhatWeDoWizardOverlay> {
     final maxHeight = size.height * 0.88;
     final pages = DidYouKnowWizards.tiktokSharing.pages;
 
-    final onTiktokLastPage = pages.isNotEmpty && _tiktokIndex == pages.length - 1;
+    final onTiktokLastPage =
+        pages.isNotEmpty && _tiktokIndex == pages.length - 1;
 
-    return PopScope(
-      canPop: false,
-      child: Material(
-        color: Colors.transparent,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () {},
-          child: SafeArea(
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: maxWidth,
-                    maxHeight: maxHeight,
-                  ),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          PinitColors.aubergine,
-                          Color(0xFF0B0B0D),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(28),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.18),
-                        width: 1.5,
-                      ),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: PinitColors.aubergine,
-                          blurRadius: 0,
-                          offset: Offset(3, 3),
-                        ),
+    return Material(
+      color: Colors.transparent,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {},
+        child: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: maxWidth,
+                  maxHeight: maxHeight,
+                ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        PinitColors.aubergine,
+                        Color(0xFF0B0B0D),
                       ],
                     ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(28),
-                      child: PageView(
-                        controller: _sectionController,
-                        physics: const NeverScrollableScrollPhysics(),
-                        children: [
-                          _ScreenshotWizardBody(
-                            pages: pages,
-                            pageController: _tiktokController,
-                            pageIndex: _tiktokIndex,
-                            onPageChanged: (i) =>
-                                setState(() => _tiktokIndex = i),
-                            header: DidYouKnowWizards.tiktokSharing.header,
-                            onClose: () {},
-                            wizardId: DidYouKnowWizardId.tiktokSharing,
-                            showClose: false,
-                            bottomAction: onTiktokLastPage
-                                ? SizedBox(
-                                    width: double.infinity,
-                                    child: ElevatedButton(
-                                      onPressed: () {
-                                        _sectionController.nextPage(
-                                          duration: const Duration(
-                                            milliseconds: 260,
-                                          ),
-                                          curve: Curves.easeOutCubic,
-                                        );
-                                      },
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.white
-                                            .withValues(alpha: 0.12),
-                                        foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 14,
-                                          horizontal: 18,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(14),
-                                          side: BorderSide(
-                                            color: Colors.white
-                                                .withValues(alpha: 0.22),
-                                            width: 1.2,
-                                          ),
-                                        ),
-                                        elevation: 0,
-                                        shadowColor: Colors.transparent,
-                                      ),
-                                      child: Text(
-                                        'Maybe later',
-                                        style: GoogleFonts.dmSans(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w800,
-                                          letterSpacing: 0.3,
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                : null,
-                          ),
-                          _loadingPlaces
-                              ? const _SwipeStepLoading()
-                              : SwipeSaveStep(
-                                  onBack: () {
-                                    _sectionController.previousPage(
-                                      duration:
-                                          const Duration(milliseconds: 260),
-                                      curve: Curves.easeOutCubic,
-                                    );
-                                  },
-                                  onLetsGo: () => Navigator.of(context).pop(),
-                                  recommendations: _places,
-                                ),
-                        ],
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.18),
+                      width: 1.5,
+                    ),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: PinitColors.aubergine,
+                        blurRadius: 0,
+                        offset: Offset(3, 3),
                       ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(28),
+                    child: _ScreenshotWizardBody(
+                      pages: pages,
+                      pageController: _tiktokController,
+                      pageIndex: _tiktokIndex,
+                      onPageChanged: (i) => setState(() => _tiktokIndex = i),
+                      header: DidYouKnowWizards.tiktokSharing.header,
+                      onClose: () => Navigator.of(context).pop(),
+                      wizardId: DidYouKnowWizardId.tiktokSharing,
+                      showClose: true,
+                      bottomAction: onTiktokLastPage
+                          ? SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: () => Navigator.of(context).pop(),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor:
+                                      Colors.white.withValues(alpha: 0.12),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                    horizontal: 18,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    side: BorderSide(
+                                      color:
+                                          Colors.white.withValues(alpha: 0.22),
+                                      width: 1.2,
+                                    ),
+                                  ),
+                                  elevation: 0,
+                                  shadowColor: Colors.transparent,
+                                ),
+                                child: Text(
+                                  'Got it',
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                              ),
+                            )
+                          : null,
                     ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SwipeStepLoading extends StatelessWidget {
-  const _SwipeStepLoading();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: PinitColors.cream,
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(
-              width: 26,
-              height: 26,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.5,
-                valueColor: AlwaysStoppedAnimation(PinitColors.aubergine),
-              ),
-            ),
-            const SizedBox(height: 14),
-            Text(
-              'Loading places…',
-              style: GoogleFonts.dmSans(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: PinitColors.aubergine,
-              ),
-            ),
-          ],
         ),
       ),
     );

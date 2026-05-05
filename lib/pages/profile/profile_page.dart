@@ -17,8 +17,8 @@ import 'widgets/profile_header.dart';
 import 'widgets/hidden_gems_section.dart';
 import 'widgets/collections_grid.dart';
 import 'widgets/recent_activity_section.dart';
-import 'widgets/notes_import_sheet.dart';
 import 'widgets/pinit_colors.dart';
+import 'widgets/profile_completion_checklist_card.dart';
 import 'edit_profile_page.dart';
 import 'preferences_page.dart';
 import 'other_user_profile_page.dart';
@@ -175,6 +175,14 @@ class _ProfilePageState extends State<ProfilePage>
                     ),
                     const SliverToBoxAdapter(
                       child: SizedBox(height: 20),
+                    ),
+                    SliverToBoxAdapter(
+                      child: ProfileCompletionChecklistCard(
+                        onSelectProfileTab: (i) {
+                          if (!mounted) return;
+                          setState(() => _selectedTab = i);
+                        },
+                      ),
                     ),
                     SliverAppBar(
                       pinned: true,

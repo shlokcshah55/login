@@ -12,6 +12,7 @@ class SupabaseConstants {
   static const String tableBubbleLocations = 'bubble_locations';
   static const String tableCollections = 'collections';
   static const String tableCollectionLocations = 'collection_locations';
+  static const String tableCollectionSaves = 'collection_saves';
   static const String tableTags = 'tags';
   static const String tableUserTags = 'user_tag_affinities';
   static const String tableUserTagAffinities = 'user_tag_affinities';

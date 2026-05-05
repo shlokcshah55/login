@@ -1320,6 +1320,10 @@ class LocationHelper {
       });
 
       final success = result['success'] == true;
+      if (!success) {
+        final err = (result is Map<String, dynamic>) ? result['error'] : null;
+        print('[LocationHelper] save_location_with_tags failed: ${err ?? result}');
+      }
       if (success) {
         _analyticsService.trackFeature(
           'location_saved',

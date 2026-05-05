@@ -13,6 +13,7 @@ class PinitColors {
   static const Color aubergineSoft  = Color(0xFF6B3866);
   static const Color mute           = Color(0xFF8A7A72);
   static const Color accent         = Color(0xFFEC3D2C);
+  static const Color teal           = Color(0xFF1FA89A);
 
   // ── Backwards-compat aliases ─────────────────────────────────
   static const Color background     = cream;
@@ -119,5 +120,4 @@ static const Color success = Color(0xFF34C759);
   }
 
 }
-
 
