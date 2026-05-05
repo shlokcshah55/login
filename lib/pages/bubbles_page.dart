@@ -17,6 +17,7 @@ import 'package:login/providers/bubble_mode_provider.dart';
 import 'package:login/providers/navigation_provider.dart';
 import 'package:login/pages/bubble_messaging_page.dart';
 import 'package:login/pages/profile/other_user_profile_page.dart';
+import 'package:login/utils/route_open_guard.dart';
 import 'package:login/widgets/chat/bubble_discover_view.dart';
 import 'package:login/widgets/feedback/app_feedback.dart';
 import 'package:login/widgets/profile/user_card.dart';
@@ -1228,9 +1229,15 @@ class _BubblesPageState extends State<BubblesPage>
   }
 
   void _showUserProfileDialog(UserModel user) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => OtherUserProfilePage(user: user),
+    final userKey = user.supabaseId ?? user.email;
+    unawaited(
+      RouteOpenGuard.run<void>(
+        'other-user-profile:$userKey',
+        () => Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) => OtherUserProfilePage(user: user),
+          ),
+        ),
       ),
     );
   }

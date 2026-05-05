@@ -226,13 +226,6 @@ class _DidYouKnowWizardDialogState extends State<DidYouKnowWizardDialog> {
                       : PinitColors.creamDeep,
                   width: 1.5,
                 ),
-                boxShadow: const [
-                  BoxShadow(
-                    color: PinitColors.aubergine,
-                    blurRadius: 0,
-                    offset: Offset(3, 3),
-                  ),
-                ],
               ),
               child: isScreenshotWizard
                   ? _ScreenshotWizardBody(
@@ -320,6 +313,7 @@ class _IllustrationWizardBody extends StatelessWidget {
           const SizedBox(height: 14),
           Row(
             children: [
+
               Expanded(
                 child: Text(
                   'DID YOU KNOW',
@@ -543,6 +537,8 @@ class _ScreenshotWizardBody extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                                        const SizedBox(height: 32),
+
                     Text(
                       'DID YOU KNOW',
                       maxLines: 1,
@@ -715,14 +711,13 @@ class _WhatWeDoWizardOverlayState extends State<WhatWeDoWizardOverlay> {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-    final maxWidth = 440.0;
-    final maxHeight = size.height * 0.88;
     final pages = DidYouKnowWizards.tiktokSharing.pages;
 
     final onTiktokLastPage =
         pages.isNotEmpty && _tiktokIndex == pages.length - 1;
-
+      final size = MediaQuery.sizeOf(context);
+    final maxWidth = 440.0;
+    final maxHeight = size.height * 0.88;
     return Material(
       color: Colors.transparent,
       child: GestureDetector(
@@ -843,7 +838,7 @@ class _ScreenshotPage extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.all(8),
           child: Align(
-            alignment: const Alignment(0, 0),
+            alignment: const Alignment(0, 0.1),
             child: Image.asset(
               assetPath,
               fit: BoxFit.contain,

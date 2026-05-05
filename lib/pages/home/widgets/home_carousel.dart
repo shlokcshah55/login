@@ -6,6 +6,7 @@ class HomeCarousel extends StatelessWidget {
   final PageController pageController;
   final List<LocationModel> locations;
   final Widget? leadingCard;
+  final double? heightOverride;
   final String? selectedMarkerId;
   final bool bottomNavVisible;
   final ValueChanged<int> onPageChanged;
@@ -21,6 +22,7 @@ class HomeCarousel extends StatelessWidget {
     required this.pageController,
     required this.locations,
     this.leadingCard,
+    this.heightOverride,
     required this.selectedMarkerId,
     required this.bottomNavVisible,
     required this.onPageChanged,
@@ -47,6 +49,7 @@ class HomeCarousel extends StatelessWidget {
         leadingCard: leadingCard,
         selectedMarkerId: selectedMarkerId,
         bottomNavVisible: bottomNavVisible,
+        heightOverride: heightOverride,
         showFirstItemSwipeHint: showFirstItemSwipeHint,
         onPageChanged: onPageChanged,
         onLocationSelected: onLocationSelected,

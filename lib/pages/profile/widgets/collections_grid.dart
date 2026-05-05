@@ -128,12 +128,16 @@ class _CollectionsGridState extends State<CollectionsGrid>
   final List<CollectionModel> _collections = [];
   final List<CollectionModel> _savedCollections = [];
   final List<CollectionModel> _friendCollections = [];
+  final List<CollectionItem> _curatedItems = [];
   final CollectionsHelper _helper = CollectionsHelper();
 
   bool _isLoading = false;
   bool _isGenerating = false;
   String? _loadError;
   String? _quickAddingCollectionId;
+  String? _savingCuratedId;
+  List<String> _curatedCityTabs = const [];
+  String _selectedCuratedCity = '';
   late bool _hasGenerated;
 
   late AnimationController _fillController;
@@ -178,6 +182,7 @@ class _CollectionsGridState extends State<CollectionsGrid>
       final results = await Future.wait([
         _helper.getUserCollectionLibrary(userId),
         _helper.getFriendsCollections(userId),
+        _helper.getCuratedCollections(userId),
       ]);
       if (mounted) {
         setState(() {
@@ -191,6 +196,20 @@ class _CollectionsGridState extends State<CollectionsGrid>
             ..addAll(library.where((c) => !c.canEdit));
           _friendCollections.clear();
           _friendCollections.addAll(results[1].map(CollectionModel.fromItem));
+
+          _curatedItems
+            ..clear()
+            ..addAll(results[2]);
+          final cities = results[2]
+              .map((c) => (c.curatedCity ?? '').trim())
+              .where((c) => c.isNotEmpty)
+              .toSet()
+              .toList()
+            ..sort();
+          _curatedCityTabs = ['All', ...cities];
+          if (_selectedCuratedCity.isEmpty) {
+            _selectedCuratedCity = 'All';
+          }
         });
       }
     } catch (e) {
@@ -198,6 +217,53 @@ class _CollectionsGridState extends State<CollectionsGrid>
       if (mounted) setState(() => _loadError = e.toString());
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _toggleCuratedSave(CollectionItem item) async {
+    if (_savingCuratedId != null) return;
+    setState(() => _savingCuratedId = item.collectionId);
+    try {
+      if (item.isSaved) {
+        await _helper.unsaveCollection(item.collectionId);
+      } else {
+        await _helper.saveCollection(item.collectionId);
+      }
+      if (!mounted) return;
+
+      setState(() {
+        final idx =
+            _curatedItems.indexWhere((c) => c.collectionId == item.collectionId);
+        if (idx == -1) return;
+        final nextSaved = !item.isSaved;
+        final nextCount = nextSaved
+            ? item.saveCount + 1
+            : (item.saveCount - 1) < 0
+                ? 0
+                : item.saveCount - 1;
+        _curatedItems[idx] =
+            item.copyWith(isSaved: nextSaved, saveCount: nextCount);
+
+        if (nextSaved) {
+          final model = CollectionModel.fromItem(_curatedItems[idx]);
+          if (_savedCollections.every((c) => c.id != model.id)) {
+            _savedCollections.insert(0, model);
+          }
+        } else {
+          _savedCollections.removeWhere((c) => c.id == item.collectionId);
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      unawaited(
+        AppFeedback.showError(
+          context,
+          title: "Couldn't update",
+          message: 'Please try again.',
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _savingCuratedId = null);
     }
   }
 
@@ -381,6 +447,120 @@ class _CollectionsGridState extends State<CollectionsGrid>
         _fillController.reset();
       }
     }
+  }
+
+  Widget _buildCuratedSection() {
+    final isAll = _selectedCuratedCity.toLowerCase() == 'all';
+    final filtered = _curatedItems.where((c) {
+      if (isAll) return true;
+      return (c.curatedCity ?? '').trim().toLowerCase() ==
+          _selectedCuratedCity.trim().toLowerCase();
+    }).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
+          child: const Text(
+            'Pinit Eat-Lists',
+            style: TextStyle(
+              fontFamily: 'Rova',
+              fontSize: 24,
+              fontWeight: FontWeight.w100,
+              color: PinitColors.aubergine,
+              letterSpacing: 1.2,
+              height: 1.05,
+            ),
+          ),
+        ),
+        if (_curatedCityTabs.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 0, 12),
+            child: SizedBox(
+              height: 36,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.only(right: 24),
+                itemCount: _curatedCityTabs.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (context, i) {
+                  final city = _curatedCityTabs[i];
+                  final isActive = city == _selectedCuratedCity;
+                  return GestureDetector(
+                    onTap: () => setState(() => _selectedCuratedCity = city),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isActive
+                            ? PinitColors.aubergine
+                            : PinitColors.creamSunk,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: isActive
+                              ? PinitColors.black
+                              : PinitColors.creamDeep,
+                          width: 1.5,
+                        ),
+                        boxShadow: isActive
+                            ? const [
+                                BoxShadow(
+                                  color: PinitColors.black,
+                                  blurRadius: 0,
+                                  offset: Offset(2, 2),
+                                )
+                              ]
+                            : null,
+                      ),
+                      child: Text(
+                        city.toUpperCase(),
+                        style: GoogleFonts.dmSans(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: isActive
+                              ? PinitColors.cream
+                              : PinitColors.aubergine,
+                          letterSpacing: 1.0,
+                          height: 1.0,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: GridView.builder(
+            shrinkWrap: true,
+            padding: EdgeInsets.zero,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 0.78,
+            ),
+            itemCount: filtered.length,
+            itemBuilder: (context, index) {
+              final item = filtered[index];
+              final saving = _savingCuratedId == item.collectionId;
+              return _CollectionCard(
+                collection: CollectionModel.fromItem(item),
+                showOwner: false,
+                showQuickAdd: true,
+                quickAddInProgress: saving,
+                onQuickAdd: saving ? null : () => _toggleCuratedSave(item),
+                onEdit: null,
+                onDeleted: null,
+              );
+            },
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildGrid(
@@ -691,6 +871,10 @@ class _CollectionsGridState extends State<CollectionsGrid>
             showQuickAdd: true,
           ),
         ],
+
+        // ── Pinit Curated ──
+        if (!_isLoading && _curatedItems.isNotEmpty)
+          _buildCuratedSection(),
       ],
     );
   }

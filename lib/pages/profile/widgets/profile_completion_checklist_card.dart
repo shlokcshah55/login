@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:login/providers/navigation_provider.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
+import 'package:login/services/profile_completion_card_preferences_service.dart';
 import 'package:login/services/profile_completion_checklist_service.dart';
 import 'package:login/supabase/supabase_client.dart';
 import 'package:login/widgets/did_you_know_wizard_dialog.dart';
@@ -28,13 +29,42 @@ class ProfileCompletionChecklistCard extends StatefulWidget {
 class _ProfileCompletionChecklistCardState
     extends State<ProfileCompletionChecklistCard> {
   final _service = ProfileCompletionChecklistService();
+  final _homeCardPrefs = ProfileCompletionCardPreferencesService();
   Future<ProfileCompletionChecklistState>? _future;
 
   int _lastSavedCount = -1;
+  bool _homeCardCollapsed = false;
+  String? _homeCardPrefUserId;
   static const _borderWidth = 2.2;
   static const _cardRadius = 10.0;
   static const _innerRadius = 8.5;
   static const _microRadius = 8.0;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_syncHomeCardCollapsedPreference());
+  }
+
+  Future<void> _syncHomeCardCollapsedPreference() async {
+    final userId = SupabaseClientManager().currentUser?.id;
+    if (userId == null) return;
+    if (_homeCardPrefUserId == userId) return;
+    final collapsed = await _homeCardPrefs.isCollapsed(userId: userId);
+    if (!mounted) return;
+    setState(() {
+      _homeCardPrefUserId = userId;
+      _homeCardCollapsed = collapsed;
+    });
+  }
+
+  void _toggleHomeCardCollapsed() {
+    final userId = SupabaseClientManager().currentUser?.id;
+    if (userId == null) return;
+    final next = !_homeCardCollapsed;
+    setState(() => _homeCardCollapsed = next);
+    unawaited(_homeCardPrefs.setCollapsed(userId: userId, collapsed: next));
+  }
 
   @override
   void didChangeDependencies() {
@@ -47,6 +77,13 @@ class _ProfileCompletionChecklistCardState
   Widget build(BuildContext context) {
     final userId = SupabaseClientManager().currentUser?.id;
     if (userId == null) return const SizedBox.shrink();
+
+    if (_homeCardPrefUserId != userId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        unawaited(_syncHomeCardCollapsedPreference());
+      });
+    }
 
     final savedCount =
         context.watch<LocationListManager>().savedLocations.length;
@@ -125,16 +162,30 @@ class _ProfileCompletionChecklistCardState
                           ),
                         ),
                         const Spacer(),
-                        Container(
-                          width: 14,
-                          height: 14,
-                          decoration: BoxDecoration(
-                            color: PinitColors.accent,
-                            borderRadius:
-                                BorderRadius.circular(_microRadius - 2),
-                            border: Border.all(
+                        InkWell(
+                          onTap: _toggleHomeCardCollapsed,
+                          borderRadius: BorderRadius.circular(_microRadius),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 7,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _homeCardCollapsed
+                                  ? PinitColors.teal
+                                  : PinitColors.creamDeep,
+                              borderRadius: BorderRadius.circular(_microRadius),
+                              border: Border.all(
+                                color: PinitColors.aubergine,
+                                width: 1.6,
+                              ),
+                            ),
+                            child: Icon(
+                              _homeCardCollapsed
+                                  ? Icons.unfold_more_rounded
+                                  : Icons.unfold_less_rounded,
+                              size: 18,
                               color: PinitColors.aubergine,
-                              width: 1.4,
                             ),
                           ),
                         ),
@@ -200,16 +251,11 @@ class _ProfileCompletionChecklistCardState
                     _ChecklistRow(
                       done: hasFollowAndBubble,
                       icon: Icons.group_add_rounded,
-                      title: 'Follow a friend + create a bubble',
+                      title: 'Make a friend + create a bubble',
                       subtitle: 'Start planning together',
                       tileColor: PinitColors.teal.withValues(alpha: 0.22),
                       onTap: () {
-                        final cb = widget.onRequestScrollToEatLists;
-                        if (cb != null) {
-                          cb();
-                          return;
-                        }
-                        widget.onSelectProfileTab(1);
+                        widget.onSelectProfileTab(2);
                       },
                     ),
                   ],

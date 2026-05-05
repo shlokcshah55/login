@@ -21,6 +21,7 @@ import 'package:login/models/notifications/video_processed_notification.dart';
 import 'package:login/widgets/profile/notifications_popover.dart';
 import 'package:login/services/notification_routes.dart';
 import 'package:login/services/analytics_service.dart';
+import 'package:login/utils/route_open_guard.dart';
 
 class FCMService {
   static final FCMService _instance = FCMService._internal();
@@ -584,11 +585,20 @@ class FCMService {
       final user = await SupabaseService().users.getUserProfileById(userId);
       if (user == null) return;
 
-      navigatorKey.currentState?.push(
-        MaterialPageRoute(
-          builder: (_) => OtherUserProfilePage(
-            user: user,
-            highlightPendingRequest: highlightPendingRequest,
+      final navigator = navigatorKey.currentState;
+      if (navigator == null) return;
+
+      final userKey = user.supabaseId ?? user.email;
+      unawaited(
+        RouteOpenGuard.run<void>(
+          'other-user-profile:$userKey',
+          () => navigator.push<void>(
+            MaterialPageRoute(
+              builder: (_) => OtherUserProfilePage(
+                user: user,
+                highlightPendingRequest: highlightPendingRequest,
+              ),
+            ),
           ),
         ),
       );

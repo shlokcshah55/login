@@ -17,6 +17,7 @@ import 'package:login/providers/nav_bar/visibility_provider.dart';
 import 'package:login/providers/shortlist_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:login/services/analytics_service.dart';
+import 'package:login/services/collections_library_events.dart';
 import 'package:login/supabase/helpers/collections.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/supabase/supabase_client.dart';
@@ -31,6 +32,7 @@ class HomeViewModel extends ChangeNotifier {
   late final HeaderSearchCoordinator _headerSearchCoordinator;
   final CollectionsHelper _collectionsHelper = CollectionsHelper();
   final AnalyticsService _analyticsService = AnalyticsService();
+  StreamSubscription<void>? _collectionsLibrarySub;
 
   final TextEditingController magicSearchController = TextEditingController();
   final TextEditingController headerSearchController = TextEditingController();
@@ -327,6 +329,16 @@ class HomeViewModel extends ChangeNotifier {
     locationListManager.addListener(_onExternalStateChanged);
     bottomNavVisibilityProvider.addListener(_onExternalStateChanged);
     shortlistProvider.addListener(_onExternalStateChanged);
+
+    _collectionsLibrarySub =
+        CollectionsLibraryEvents.instance.changes.listen((_) {
+      if (_disposed) return;
+      // Avoid calling notifyListeners during an unrelated build/notify cycle.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_disposed) return;
+        unawaited(loadCollections(force: true));
+      });
+    });
 
     _lastSelectedMarkerId = mapStateProvider.selectedMarkerId;
     unawaited(_prefetchInitialRecommendationsIfReady());
@@ -1013,6 +1025,7 @@ class HomeViewModel extends ChangeNotifier {
     locationListManager.removeListener(_onExternalStateChanged);
     bottomNavVisibilityProvider.removeListener(_onExternalStateChanged);
     shortlistProvider.removeListener(_onExternalStateChanged);
+    _collectionsLibrarySub?.cancel();
     bottomNavVisibilityProvider.setLocked(false);
     pageController.dispose();
     magicSearchController.dispose();

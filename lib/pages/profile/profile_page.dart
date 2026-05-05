@@ -25,6 +25,7 @@ import 'other_user_profile_page.dart';
 import 'user_list_page.dart';
 import '../../widgets/profile/find_friends_section.dart';
 import '../../widgets/profile/notifications_popover.dart';
+import 'package:login/utils/route_open_guard.dart';
 
 class ProfilePage extends StatefulWidget {
   final bool isActive;
@@ -277,9 +278,15 @@ class _ProfilePageState extends State<ProfilePage>
     return FindFriendsSection(
       theme: Theme.of(context),
       onUserTap: (user) {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => OtherUserProfilePage(user: user),
+        final userKey = user.supabaseId ?? user.email;
+        unawaited(
+          RouteOpenGuard.run<void>(
+            'other-user-profile:$userKey',
+            () => Navigator.of(context).push<void>(
+              MaterialPageRoute(
+                builder: (context) => OtherUserProfilePage(user: user),
+              ),
+            ),
           ),
         );
       },

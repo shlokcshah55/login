@@ -25,55 +25,13 @@ class CuratedEatListsStep extends StatefulWidget {
 }
 
 class _CuratedEatListsStepState extends State<CuratedEatListsStep> {
-  static const List<String> _majorCities = [
-    'All',
-    'London',
-    'New York',
-    'Los Angeles',
-    'San Francisco',
-    'Paris',
-    'Berlin',
-    'Barcelona',
-    'Rome',
-    'Amsterdam',
-  ];
-
-  static const List<String> _curatedCollectionIds = [
-    'e9f50774-b41a-4712-b230-2700aad37ebd', // Date Night 🌹
-    '33df0d5e-1a26-4cbe-8356-9ea2b46ddece', // Cheap Eats 💸
-    '9e352f72-96b2-45dc-ae65-97e66a661262', // Vegetarian & Vegan 🌿
-    'f1e64a86-ff68-4a95-a2c6-7d755bdd8485', // Splurge / Special Occasion 🌟
-    '17ce4d6a-8239-45fc-b129-7e03241c77a3', // Group Dining / Big Night Out 🎉
-    '85eedbc1-69cc-4d67-99e6-9b898e026628', // Hidden Gems / Under the Radar 🌍
-    '12c325c0-d0b5-4ee3-8327-838f0b7615cf', // Comfort Food / Casual Classics 🍝
-    'a897ae62-6ec0-4096-8e28-641554d8ab7e', // Crowd Favourites / The London Essentials 🏆
-  ];
-
-  static const Map<String, String> _curatedDescriptions = {
-    'e9f50774-b41a-4712-b230-2700aad37ebd':
-        'Romantic, intimate, atmospheric — places that set the mood',
-    '33df0d5e-1a26-4cbe-8356-9ea2b46ddece':
-        'Great food without the guilt trip on your wallet',
-    '9e352f72-96b2-45dc-ae65-97e66a661262':
-        'Plant-forward spots that convert even the most committed carnivore',
-    'f1e64a86-ff68-4a95-a2c6-7d755bdd8485':
-        'Fine dining & Michelin stars for when cost is no object',
-    '17ce4d6a-8239-45fc-b129-7e03241c77a3':
-        'Loud, lively, made for big tables and celebrations',
-    '85eedbc1-69cc-4d67-99e6-9b898e026628':
-        'Beloved by locals, under-discussed by tourists',
-    '12c325c0-d0b5-4ee3-8327-838f0b7615cf':
-        'The spots you return to again and again',
-    'a897ae62-6ec0-4096-8e28-641554d8ab7e':
-        'The restaurants every Londoner has an opinion on — and usually loves',
-  };
-
   final CollectionsHelper _collectionsHelper = CollectionsHelper();
   final TextEditingController _searchController = TextEditingController();
 
   bool _isLoading = false;
   String? _savingCollectionId;
   List<CollectionItem> _collections = const [];
+  List<String> _cityTabs = const ['All'];
   String _selectedCity = 'All';
 
   @override
@@ -94,21 +52,20 @@ class _CuratedEatListsStepState extends State<CuratedEatListsStep> {
   Future<void> _load() async {
     if (_isLoading) return;
     final userId = SupabaseClientManager().currentUser?.id;
-    if (userId == null) return;
 
     setState(() => _isLoading = true);
     try {
-      final items =
-          await _collectionsHelper.getCollectionsByIds(_curatedCollectionIds, userId);
+      final items = await _collectionsHelper.getCuratedCollections(userId);
       if (!mounted) return;
+      final cities = items
+          .map((c) => (c.curatedCity ?? '').trim())
+          .where((c) => c.isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort();
       setState(() {
         _collections = items;
-        if (_selectedCity == 'All') {
-          final firstCity = items
-              .map((c) => (c.curatedCity ?? '').trim())
-              .firstWhere((c) => c.isNotEmpty, orElse: () => '');
-          if (firstCity.isNotEmpty) _selectedCity = firstCity;
-        }
+        _cityTabs = ['All', ...cities];
       });
     } catch (_) {
       if (!mounted) return;
@@ -126,11 +83,29 @@ class _CuratedEatListsStepState extends State<CuratedEatListsStep> {
         final curated = (c.curatedCity ?? '').trim().toLowerCase();
         if (curated != city) return false;
       }
-      final name = c.name.toLowerCase();
-      final desc = (_curatedDescriptions[c.collectionId] ?? '').toLowerCase();
       if (q.isEmpty) return true;
-      return name.contains(q) || desc.contains(q);
+      return c.name.toLowerCase().contains(q) ||
+          (c.curatedCity ?? '').toLowerCase().contains(q);
     }).toList(growable: false);
+  }
+
+  /// Builds a flat list of items interleaved with city header markers.
+  /// Each item is either a String (city header) or a CollectionItem.
+  List<Object> get _listItems {
+    final filtered = _filteredCollections;
+    if (_selectedCity.toLowerCase() != 'all') return filtered;
+
+    final result = <Object>[];
+    String? lastCity;
+    for (final c in filtered) {
+      final city = (c.curatedCity ?? '').trim();
+      if (city != lastCity) {
+        if (city.isNotEmpty) result.add(city);
+        lastCity = city;
+      }
+      result.add(c);
+    }
+    return result;
   }
 
   Future<void> _toggleSaveCollection(CollectionItem collection) async {
@@ -182,7 +157,7 @@ class _CuratedEatListsStepState extends State<CuratedEatListsStep> {
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _filteredCollections;
+    final items = _listItems;
 
     return Container(
       color: PinitColors.surfaceLight,
@@ -217,7 +192,7 @@ class _CuratedEatListsStepState extends State<CuratedEatListsStep> {
                   ),
                   const SizedBox(height: 14),
                   _CityPills(
-                    cities: _majorCities,
+                    cities: _cityTabs,
                     selected: _selectedCity,
                     onSelected: (city) {
                       setState(() => _selectedCity = city);
@@ -234,7 +209,7 @@ class _CuratedEatListsStepState extends State<CuratedEatListsStep> {
                                   PinitColors.aubergine),
                             ),
                           )
-                        : filtered.isEmpty
+                        : items.isEmpty
                             ? Center(
                                 child: Text(
                                   'No matches.',
@@ -245,23 +220,40 @@ class _CuratedEatListsStepState extends State<CuratedEatListsStep> {
                                   ),
                                 ),
                               )
-                            : ListView.separated(
-                                itemCount: filtered.length,
-                                separatorBuilder: (_, __) =>
-                                    const SizedBox(height: 10),
+                            : ListView.builder(
+                                itemCount: items.length,
                                 itemBuilder: (context, i) {
-                                  final c = filtered[i];
+                                  final item = items[i];
+                                  if (item is String) {
+                                    return Padding(
+                                      padding: const EdgeInsets.only(
+                                          top: 16, bottom: 8),
+                                      child: Text(
+                                        item.toUpperCase(),
+                                        style: GoogleFonts.dmSans(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800,
+                                          color: PinitColors.aubergineSoft,
+                                          letterSpacing: 1.2,
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                  final c = item as CollectionItem;
                                   final saving =
                                       _savingCollectionId == c.collectionId;
-                                  final desc =
-                                      _curatedDescriptions[c.collectionId] ?? '';
-                                  return _CuratedRow(
-                                    collection: c,
-                                    cityLabel: c.curatedCity,
-                                    description: desc,
-                                    saving: saving,
-                                    onToggle: () => _toggleSaveCollection(c),
-                                    onTap: () => _openDetail(c),
+                                  return Padding(
+                                    padding:
+                                        const EdgeInsets.only(bottom: 10),
+                                    child: _CuratedRow(
+                                      collection: c,
+                                      cityLabel: c.curatedCity,
+                                      description: c.description ?? '',
+                                      saving: saving,
+                                      onToggle: () =>
+                                          _toggleSaveCollection(c),
+                                      onTap: () => _openDetail(c),
+                                    ),
                                   );
                                 },
                               ),

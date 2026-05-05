@@ -14,6 +14,7 @@ import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/providers/navigation_provider.dart';
 import 'package:login/services/fcm_service.dart';
 import 'package:login/supabase/service.dart';
+import 'package:login/utils/route_open_guard.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:login/widgets/feedback/app_feedback.dart';
 import 'package:provider/provider.dart';
@@ -117,11 +118,15 @@ class _NotificationsPopoverState extends State<NotificationsPopover> {
           _notifications = _visibleNotifications(FCMService().notifications);
         });
 
-        await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => OtherUserProfilePage(
-              user: user,
-              highlightPendingRequest: highlightPending,
+        final userKey = user.supabaseId ?? user.email;
+        await RouteOpenGuard.run<void>(
+          'other-user-profile:$userKey',
+          () => Navigator.of(context).push<void>(
+            MaterialPageRoute(
+              builder: (_) => OtherUserProfilePage(
+                user: user,
+                highlightPendingRequest: highlightPending,
+              ),
             ),
           ),
         );
@@ -170,9 +175,15 @@ class _NotificationsPopoverState extends State<NotificationsPopover> {
       // Navigate to requester's profile
       final user = await auth.getUserProfileById(notification.userId);
       if (!mounted || user == null) return;
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => OtherUserProfilePage(user: user),
+      final userKey = user.supabaseId ?? user.email;
+      unawaited(
+        RouteOpenGuard.run<void>(
+          'other-user-profile:$userKey',
+          () => Navigator.of(context).push<void>(
+            MaterialPageRoute(
+              builder: (_) => OtherUserProfilePage(user: user),
+            ),
+          ),
         ),
       );
     } catch (e) {

@@ -65,7 +65,6 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
     setState(() {
       _isCompletingWizard = true;
     });
-
     try {
       // Use this.context from the State class, not the build method's context
       final wizardState =
@@ -136,7 +135,6 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
       setState(() {
         _isCompletingWizard = false;
       });
-
       if (mounted) {
         await AppFeedback.showError(
           this.context,

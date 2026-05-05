@@ -57,6 +57,7 @@ class LocationCarousel extends StatelessWidget {
   final Set<int> beenToLocationIds;
   final String? selectedMarkerId;
   final bool bottomNavVisible;
+  final double? heightOverride;
   final bool showFirstItemSwipeHint;
   final ValueChanged<int> onPageChanged;
   final ValueChanged<LocationModel> onLocationSelected;
@@ -72,6 +73,7 @@ class LocationCarousel extends StatelessWidget {
     this.beenToLocationIds = const <int>{},
     required this.selectedMarkerId,
     required this.bottomNavVisible,
+    this.heightOverride,
     this.showFirstItemSwipeHint = false,
     required this.onPageChanged,
     required this.onLocationSelected,
@@ -92,7 +94,7 @@ class LocationCarousel extends StatelessWidget {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOutQuint,
-      height: bottomNavVisible ? 185.0 : 215.0,
+      height: heightOverride ?? (bottomNavVisible ? 185.0 : 215.0),
       child: PageView.builder(
         controller: pageController,
         itemCount: locations.length + leadingCount,
@@ -109,6 +111,7 @@ class LocationCarousel extends StatelessWidget {
                   const EdgeInsets.symmetric(horizontal: 6.0, vertical: 8.0),
               transform: Matrix4.diagonal3Values(0.96, 0.96, 1.0),
               transformAlignment: Alignment.center,
+              alignment: Alignment.center,
               child: leadingCard,
             );
           }

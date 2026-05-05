@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -5,10 +7,12 @@ import 'package:login/models/users.dart';
 import 'package:login/pages/profile/other_user_profile_page.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/supabase/service.dart';
+import 'package:login/utils/route_open_guard.dart';
 import 'package:login/widgets/profile/user_card.dart';
 import 'package:provider/provider.dart';
 
-typedef UserListLoader = Future<List<UserModel>> Function(SupabaseService service);
+typedef UserListLoader = Future<List<UserModel>> Function(
+    SupabaseService service);
 
 class UserListPage extends StatefulWidget {
   final String title;
@@ -87,10 +91,16 @@ class _UserListPageState extends State<UserListPage> {
                           return UserCard(
                             user: user,
                             onTap: (u) {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      OtherUserProfilePage(user: u),
+                              final userKey = u.supabaseId ?? u.email;
+                              unawaited(
+                                RouteOpenGuard.run<void>(
+                                  'other-user-profile:$userKey',
+                                  () => Navigator.of(context).push<void>(
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          OtherUserProfilePage(user: u),
+                                    ),
+                                  ),
                                 ),
                               );
                             },
@@ -127,8 +137,7 @@ class _UserListPageState extends State<UserListPage> {
                 decoration: BoxDecoration(
                   color: PinitColors.creamSunk,
                   shape: BoxShape.circle,
-                  border:
-                      Border.all(color: PinitColors.creamDeep, width: 1.5),
+                  border: Border.all(color: PinitColors.creamDeep, width: 1.5),
                 ),
                 child: const Icon(
                   Icons.arrow_back_rounded,

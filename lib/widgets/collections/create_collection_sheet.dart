@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/services/analytics_service.dart';
+import 'package:login/services/collections_library_events.dart';
 import 'package:login/supabase/supabase_client.dart';
 import 'package:login/widgets/feedback/app_feedback.dart';
 
@@ -59,6 +60,7 @@ class _CreateCollectionSheetState extends State<CreateCollectionSheet> {
         registerTap: true,
         interactionKey: 'collection_created',
       );
+      CollectionsLibraryEvents.instance.notifyChanged();
 
       if (mounted) {
         Navigator.pop(context);

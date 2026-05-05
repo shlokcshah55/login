@@ -31,8 +31,10 @@ import 'package:login/providers/user_data_provider.dart';
 import 'package:login/providers/bubble_mode_provider.dart';
 import 'package:login/providers/navigation_provider.dart';
 import 'package:login/services/notes_import_submitted_service.dart';
+import 'package:login/services/profile_completion_card_preferences_service.dart';
 import 'package:login/services/wizard_completion_popover_service.dart';
 import 'package:login/supabase/service.dart';
+import 'package:login/supabase/supabase_client.dart';
 import 'package:login/widgets/home/bubble_mode_overlay.dart';
 import 'package:login/widgets/home/no_magic_search_results_popover.dart';
 import 'package:login/widgets/home/no_recommendations_popover.dart';
@@ -65,6 +67,9 @@ class _HomePageState extends State<HomePage> {
   late final UserDataProvider _userDataProvider;
   final WizardCompletionPopoverService _wizardCompletionPopoverService =
       WizardCompletionPopoverService();
+  final ProfileCompletionCardPreferencesService
+      _profileCompletionCardPreferencesService =
+      ProfileCompletionCardPreferencesService();
   Set<String> _selectedVibeTagIds = <String>{};
   Set<String> _selectedCuisineTagIds = <String>{};
   bool _wizardPopoverScheduled = false;
@@ -78,6 +83,9 @@ class _HomePageState extends State<HomePage> {
   bool _isSavedEmptyPopoverVisible = false;
   bool _notesImportWasSubmitted = false;
   bool _showFirstCarouselSwipeHint = false;
+  int _carouselPageIndex = 0;
+  bool _profileChecklistCollapsed = false;
+  String? _profileChecklistCollapsedUserId;
 
   @override
   void initState() {
@@ -102,6 +110,22 @@ class _HomePageState extends State<HomePage> {
     _locationListManager.addListener(_checkForErrors);
     _bubbleModeProvider.addListener(_handleBubbleModeRequest);
     unawaited(_loadNotesImportFlag());
+    unawaited(_syncProfileChecklistCollapsed());
+  }
+
+  Future<void> _syncProfileChecklistCollapsed() async {
+    final userId = SupabaseClientManager().currentUser?.id;
+    if (userId == null) return;
+    if (_profileChecklistCollapsedUserId == userId) return;
+    final collapsed =
+        await _profileCompletionCardPreferencesService.isCollapsed(
+      userId: userId,
+    );
+    if (!mounted) return;
+    setState(() {
+      _profileChecklistCollapsedUserId = userId;
+      _profileChecklistCollapsed = collapsed;
+    });
   }
 
   Future<void> _loadNotesImportFlag() async {
@@ -116,8 +140,14 @@ class _HomePageState extends State<HomePage> {
     if (!oldWidget.isActive && widget.isActive) {
       _handleBubbleModeRequest();
       _handlePendingFocusLocation();
+      unawaited(_syncProfileChecklistCollapsed());
+      _checkForErrors();
     }
   }
+
+  bool get _isHomeRecommendationsTabActive =>
+      widget.isActive &&
+      _locationListManager.currentListType == LocationListType.recommended;
 
   void _handlePendingFocusLocation() {
     final navProvider = context.read<NavigationProvider>();
@@ -145,13 +175,13 @@ class _HomePageState extends State<HomePage> {
       _lastHandledError = null;
       return;
     }
-    if (error == _lastHandledError) {
-      return;
-    }
-
-    _lastHandledError = error;
 
     if (error == LocationListManager.noRecommendationsInAreaMessage) {
+      // Only show the "not in your area" popover when the user is actively on
+      // the Home page and looking at the Recommendations tab.
+      if (!_isHomeRecommendationsTabActive) return;
+      if (error == _lastHandledError) return;
+      _lastHandledError = error;
       if (_isNoRecommendationsPopoverVisible) return;
       _isNoRecommendationsPopoverVisible = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -160,6 +190,12 @@ class _HomePageState extends State<HomePage> {
       });
       return;
     }
+
+    if (error == _lastHandledError) {
+      return;
+    }
+
+    _lastHandledError = error;
 
     if (error == LocationListManager.noMagicSearchResultsMessage) {
       if (_isMagicSearchNoResultsPopoverVisible) return;
@@ -400,6 +436,13 @@ class _HomePageState extends State<HomePage> {
           final userDataProvider = context.watch<UserDataProvider>();
           _scheduleWizardPopoverIfNeeded(userDataProvider);
           _scheduleSavedEmptyPopoverIfNeeded();
+          final userId = SupabaseClientManager().currentUser?.id;
+          if (userId != null && userId != _profileChecklistCollapsedUserId) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              unawaited(_syncProfileChecklistCollapsed());
+            });
+          }
           final isInlineHeaderSearch =
               viewModel.isHeaderSearchActive && !viewModel.isMagicSearchActive;
           final carouselBottom = viewModel.bottomNavVisible ? 110.0 : 20.0;
@@ -740,13 +783,26 @@ class _HomePageState extends State<HomePage> {
                             HomeCarousel(
                               pageController: viewModel.pageController,
                               locations: viewModel.locations,
-                              leadingCard:
-                                  viewModel.shouldShowProfileChecklistCard
-                                      ? const ProfileCompletionCarouselCard()
-                                      : null,
+                              leadingCard: viewModel
+                                      .shouldShowProfileChecklistCard
+                                  ? ProfileCompletionCarouselCard(
+                                      isCollapsed: _profileChecklistCollapsed,
+                                    )
+                                  : null,
+                              heightOverride: viewModel
+                                          .shouldShowProfileChecklistCard &&
+                                      _carouselPageIndex == 0 &&
+                                      _profileChecklistCollapsed
+                                  ? (viewModel.bottomNavVisible ? 140.0 : 160.0)
+                                  : null,
                               selectedMarkerId: viewModel.selectedMarkerId,
                               bottomNavVisible: viewModel.bottomNavVisible,
-                              onPageChanged: viewModel.onCarouselPageChanged,
+                              onPageChanged: (index) {
+                                if (_carouselPageIndex != index) {
+                                  setState(() => _carouselPageIndex = index);
+                                }
+                                viewModel.onCarouselPageChanged(index);
+                              },
                               showFirstItemSwipeHint:
                                   _showFirstCarouselSwipeHint &&
                                       viewModel.locations.isNotEmpty,

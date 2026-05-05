@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
@@ -7,11 +5,15 @@ import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/navigation_provider.dart';
 import 'package:login/services/profile_completion_checklist_service.dart';
 import 'package:login/supabase/supabase_client.dart';
-import 'package:login/widgets/did_you_know_wizard_dialog.dart';
 import 'package:provider/provider.dart';
 
 class ProfileCompletionCarouselCard extends StatefulWidget {
-  const ProfileCompletionCarouselCard({super.key});
+  final bool isCollapsed;
+
+  const ProfileCompletionCarouselCard({
+    super.key,
+    required this.isCollapsed,
+  });
 
   @override
   State<ProfileCompletionCarouselCard> createState() =>
@@ -58,9 +60,10 @@ class _ProfileCompletionCarouselCardState
             // When bottom nav is visible, the carousel height is smaller
             // (see LocationCarousel). Treat that layout as "compact".
             final isCompact = constraints.maxHeight <= 190;
-            final verticalPadding = isCompact ? 10.0 : 12.0;
-            final rowGap = isCompact ? 8.0 : 10.0;
-            final footerGap = isCompact ? 8.0 : 10.0;
+            final effectiveCompact = isCompact || widget.isCollapsed;
+            final verticalPadding = effectiveCompact ? 10.0 : 12.0;
+            final rowGap = effectiveCompact ? 8.0 : 10.0;
+            final footerGap = effectiveCompact ? 8.0 : 10.0;
 
             return Container(
               decoration: BoxDecoration(
@@ -89,6 +92,7 @@ class _ProfileCompletionCarouselCardState
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Row(
                         children: [
@@ -144,65 +148,42 @@ class _ProfileCompletionCarouselCardState
                         ],
                       ),
                       SizedBox(height: rowGap),
-                      Row(
-                        children: [
-                          Container(
-                            width: isCompact ? 32 : 34,
-                            height: isCompact ? 32 : 34,
-                            decoration: BoxDecoration(
-                              color: PinitColors.creamDeep,
-                              borderRadius: BorderRadius.circular(_microRadius),
-                              border: Border.all(
-                                color: PinitColors.aubergine,
-                                width: 1.4,
+                      if (widget.isCollapsed)
+                        Row(
+                          children: [
+                            Container(
+                              width: 28,
+                              height: 28,
+                              decoration: BoxDecoration(
+                                color: PinitColors.creamDeep,
+                                borderRadius:
+                                    BorderRadius.circular(_microRadius),
+                                border: Border.all(
+                                  color: PinitColors.aubergine,
+                                  width: 1.4,
+                                ),
                               ),
-                            ),
-                            child: Icon(
-                              Icons.checklist_rounded,
-                              size: isCompact ? 17 : 18,
-                              color: PinitColors.aubergine,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Finish setting up',
-                              style: GoogleFonts.dmSans(
-                                fontSize: isCompact ? 14.5 : 15,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0.2,
+                              child: const Icon(
+                                Icons.checklist_rounded,
+                                size: 16,
                                 color: PinitColors.aubergine,
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: rowGap),
-                      if (!isCompact)
-                        Flexible(
-                          child: Text(
-                            state == null
-                                ? 'Loading your checklist…'
-                                : state.isComplete
-                                    ? 'All set. Your profile is complete.'
-                                    : 'Do these once and the app gets way better.',
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.dmSans(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700,
-                              color: PinitColors.aubergineSoft,
-                              height: 1.2,
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                state?.isComplete == true
+                                    ? 'Profile complete'
+                                    : 'Finish setup',
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.2,
+                                  color: PinitColors.aubergine,
+                                ),
+                              ),
                             ),
-                          ),
-                        )
-                      else
-                        const SizedBox.shrink(),
-                      SizedBox(height: footerGap),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton(
+                            ElevatedButton(
                               onPressed: () {
                                 context
                                     .read<NavigationProvider>()
@@ -213,8 +194,11 @@ class _ProfileCompletionCarouselCardState
                                 foregroundColor: PinitColors.cream,
                                 elevation: 0,
                                 padding: const EdgeInsets.symmetric(
-                                  vertical: 12,
+                                  horizontal: 12,
+                                  vertical: 10,
                                 ),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                minimumSize: const Size(0, 36),
                                 shape: RoundedRectangleBorder(
                                   borderRadius:
                                       BorderRadius.circular(_microRadius),
@@ -227,27 +211,113 @@ class _ProfileCompletionCarouselCardState
                                 ),
                               ),
                               child: Text(
-                                state?.isComplete == true
-                                    ? 'View profile'
-                                    : 'Finish',
+                                state?.isComplete == true ? 'View' : 'Finish',
                                 style: GoogleFonts.dmSans(
-                                  fontSize: 13,
+                                  fontSize: 12.5,
                                   fontWeight: FontWeight.w900,
                                   letterSpacing: 0.4,
                                 ),
                               ),
                             ),
+                          ],
+                        )
+                      else
+                        Row(
+                          children: [
+                            Container(
+                              width: effectiveCompact ? 32 : 34,
+                              height: effectiveCompact ? 32 : 34,
+                              decoration: BoxDecoration(
+                                color: PinitColors.creamDeep,
+                                borderRadius:
+                                    BorderRadius.circular(_microRadius),
+                                border: Border.all(
+                                  color: PinitColors.aubergine,
+                                  width: 1.4,
+                                ),
+                              ),
+                              child: Icon(
+                                Icons.checklist_rounded,
+                                size: effectiveCompact ? 17 : 18,
+                                color: PinitColors.aubergine,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Finish setting up',
+                                style: GoogleFonts.dmSans(
+                                  fontSize: effectiveCompact ? 14.5 : 15,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.2,
+                                  color: PinitColors.aubergine,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      SizedBox(height: rowGap),
+                      if (!effectiveCompact)
+                        Text(
+                          state == null
+                              ? 'Loading your checklist…'
+                              : state.isComplete
+                                  ? 'All set. Your profile is complete.'
+                                  : 'Follow these steps to maximise Pinit',
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.dmSans(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: PinitColors.aubergineSoft,
+                            height: 1.2,
                           ),
-                          const SizedBox(width: 10),
-                          _MiniIconButton(
-                            icon: Icons.share_rounded,
-                            tooltip: 'TikTok / Reels',
-                            onTap: () async {
-                              await WhatWeDoWizardOverlay.push(context);
-                            },
-                          ),
-                        ],
-                      ),
+                        )
+                      else
+                        const SizedBox.shrink(),
+                      SizedBox(height: footerGap),
+                      if (!widget.isCollapsed)
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  context
+                                      .read<NavigationProvider>()
+                                      .navigateToTab(2);
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: PinitColors.aubergine,
+                                  foregroundColor: PinitColors.cream,
+                                  elevation: 0,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius:
+                                        BorderRadius.circular(_microRadius),
+                                  ),
+                                  side: BorderSide(
+                                    color: state?.isComplete == true
+                                        ? PinitColors.teal
+                                        : PinitColors.cream,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: Text(
+                                  state?.isComplete == true
+                                      ? 'View profile'
+                                      : 'Finish',
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 0.4,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                     ],
                   ),
                 ),
@@ -256,42 +326,6 @@ class _ProfileCompletionCarouselCardState
           },
         );
       },
-    );
-  }
-}
-
-class _MiniIconButton extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-
-  const _MiniIconButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(
-            _ProfileCompletionCarouselCardState._microRadius),
-        child: Ink(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: PinitColors.teal.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(
-              _ProfileCompletionCarouselCardState._microRadius,
-            ),
-            border: Border.all(color: PinitColors.aubergine, width: 1.6),
-          ),
-          child: Icon(icon, size: 18, color: PinitColors.aubergine),
-        ),
-      ),
     );
   }
 }

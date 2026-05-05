@@ -119,117 +119,77 @@ class _AddToBubbleSheetState extends State<AddToBubbleSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.of(context).padding.bottom;
+    final mediaQuery = MediaQuery.of(context);
+    final keyboardInset = mediaQuery.viewInsets.bottom;
+    final safeBottomInset = mediaQuery.padding.bottom;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: PinitColors.cream,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        border: Border.all(
-          color: PinitColors.creamDeep,
-          width: 1.5,
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      padding: EdgeInsets.only(bottom: keyboardInset),
+      child: Container(
+        decoration: BoxDecoration(
+          color: PinitColors.cream,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          border: Border.all(
+            color: PinitColors.creamDeep,
+            width: 1.5,
+          ),
+          boxShadow: PinitColors.elevatedShadow,
         ),
-        boxShadow: PinitColors.elevatedShadow,
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: PinitColors.creamDeep,
-                    borderRadius: BorderRadius.circular(999),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: PinitColors.creamDeep,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 22),
-              Text(
-                'SEND TO BUBBLES',
-                style: AppTypography.sans(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: PinitColors.aubergineSoft,
-                  letterSpacing: 1.32,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Share this place.',
-                style: AppTypography.brand(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w100,
-                  color: PinitColors.aubergine,
-                  height: 1.0,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                widget.location.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.sans(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: PinitColors.aubergineSoft,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: PinitColors.creamSunk,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: PinitColors.creamDeep,
-                    width: 1.5,
+                const SizedBox(height: 22),
+                Text(
+                  'SEND TO BUBBLES',
+                  style: AppTypography.sans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: PinitColors.aubergineSoft,
+                    letterSpacing: 1.32,
                   ),
                 ),
-                child: TextField(
-                  controller: _noteController,
-                  maxLines: 3,
-                  minLines: 1,
-                  textCapitalization: TextCapitalization.sentences,
+                const SizedBox(height: 12),
+                Text(
+                  'Share this place.',
+                  style: AppTypography.brand(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w100,
+                    color: PinitColors.aubergine,
+                    height: 1.0,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  widget.location.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: AppTypography.sans(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: PinitColors.aubergine,
-                    height: 1.35,
-                  ),
-                  decoration: InputDecoration(
-                    isCollapsed: true,
-                    border: InputBorder.none,
-                    hintText: 'Add a note for the bubble',
-                    hintStyle: AppTypography.sans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: PinitColors.mute,
-                    ),
+                    color: PinitColors.aubergineSoft,
                   ),
                 ),
-              ),
-              const SizedBox(height: 18),
-              if (_loading)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 32),
-                  child: Center(
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.2,
-                      valueColor:
-                          AlwaysStoppedAnimation<Color>(PinitColors.aubergine),
-                    ),
-                  ),
-                )
-              else if (_bubbles.isEmpty)
+                const SizedBox(height: 20),
                 Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: PinitColors.creamSunk,
                     borderRadius: BorderRadius.circular(20),
@@ -238,100 +198,149 @@ class _AddToBubbleSheetState extends State<AddToBubbleSheet> {
                       width: 1.5,
                     ),
                   ),
-                  child: Text(
-                    'You are not in any bubbles yet.',
+                  child: TextField(
+                    controller: _noteController,
+                    maxLines: 3,
+                    minLines: 1,
+                    textCapitalization: TextCapitalization.sentences,
                     style: AppTypography.sans(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: PinitColors.aubergineSoft,
+                      color: PinitColors.aubergine,
+                      height: 1.35,
+                    ),
+                    decoration: InputDecoration(
+                      isCollapsed: true,
+                      border: InputBorder.none,
+                      hintText: 'Add a note for the bubble',
+                      hintStyle: AppTypography.sans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: PinitColors.mute,
+                      ),
                     ),
                   ),
-                )
-              else
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: MediaQuery.of(context).size.height * 0.38,
-                  ),
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: _bubbles.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) {
-                      final bubble = _bubbles[index];
-                      final selected = _selectedBubbleIds.contains(bubble.id);
-                      return _BubbleSelectionTile(
-                        bubble: bubble,
-                        selected: selected,
-                        onTap: () => _toggleBubble(bubble.id),
-                      );
-                    },
-                  ),
                 ),
-              const SizedBox(height: 18),
-              SizedBox(
-                width: double.infinity,
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(999),
-                    onTap:
-                        _sending || _selectedBubbleIds.isEmpty ? null : _send,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      decoration: BoxDecoration(
-                        color: _selectedBubbleIds.isEmpty
-                            ? PinitColors.creamDeep
-                            : PinitColors.aubergine,
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
+                const SizedBox(height: 18),
+                if (_loading)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 32),
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          PinitColors.aubergine,
+                        ),
+                      ),
+                    ),
+                  )
+                else if (_bubbles.isEmpty)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: PinitColors.creamSunk,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: PinitColors.creamDeep,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Text(
+                      'You are not in any bubbles yet.',
+                      style: AppTypography.sans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: PinitColors.aubergineSoft,
+                      ),
+                    ),
+                  )
+                else
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: mediaQuery.size.height * 0.38,
+                    ),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: _bubbles.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (context, index) {
+                        final bubble = _bubbles[index];
+                        final selected = _selectedBubbleIds.contains(bubble.id);
+                        return _BubbleSelectionTile(
+                          bubble: bubble,
+                          selected: selected,
+                          onTap: () => _toggleBubble(bubble.id),
+                        );
+                      },
+                    ),
+                  ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(999),
+                      onTap:
+                          _sending || _selectedBubbleIds.isEmpty ? null : _send,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        decoration: BoxDecoration(
                           color: _selectedBubbleIds.isEmpty
                               ? PinitColors.creamDeep
                               : PinitColors.aubergine,
-                          width: 1.5,
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: _selectedBubbleIds.isEmpty
+                                ? PinitColors.creamDeep
+                                : PinitColors.aubergine,
+                            width: 1.5,
+                          ),
+                          boxShadow: _selectedBubbleIds.isEmpty
+                              ? null
+                              : const [
+                                  BoxShadow(
+                                    color: PinitColors.aubergine,
+                                    blurRadius: 0,
+                                    offset: Offset(3, 3),
+                                  ),
+                                ],
                         ),
-                        boxShadow: _selectedBubbleIds.isEmpty
-                            ? null
-                            : const [
-                                BoxShadow(
-                                  color: PinitColors.aubergine,
-                                  blurRadius: 0,
-                                  offset: Offset(3, 3),
-                                ),
-                              ],
-                      ),
-                      child: Center(
-                        child: _sending
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    PinitColors.cream,
+                        child: Center(
+                          child: _sending
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      PinitColors.cream,
+                                    ),
+                                  ),
+                                )
+                              : Text(
+                                  _selectedBubbleIds.isEmpty
+                                      ? 'SELECT A BUBBLE'
+                                      : 'SEND TO ${_selectedBubbleIds.length} ${_selectedBubbleIds.length == 1 ? 'BUBBLE' : 'BUBBLES'}',
+                                  style: AppTypography.sans(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w100,
+                                    color: _selectedBubbleIds.isEmpty
+                                        ? PinitColors.mute
+                                        : PinitColors.cream,
+                                    letterSpacing: 1.2,
                                   ),
                                 ),
-                              )
-                            : Text(
-                                _selectedBubbleIds.isEmpty
-                                    ? 'SELECT A BUBBLE'
-                                    : 'SEND TO ${_selectedBubbleIds.length} ${_selectedBubbleIds.length == 1 ? 'BUBBLE' : 'BUBBLES'}',
-                                style: AppTypography.sans(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w100,
-                                  color: _selectedBubbleIds.isEmpty
-                                      ? PinitColors.mute
-                                      : PinitColors.cream,
-                                  letterSpacing: 1.2,
-                                ),
-                              ),
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              SizedBox(height: bottomInset > 0 ? 6 : 0),
-            ],
+                SizedBox(height: safeBottomInset > 0 ? 6 : 0),
+              ],
+            ),
           ),
         ),
       ),

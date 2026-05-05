@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:login/services/collections_library_events.dart';
 import '../supabase_client.dart';
 import '../constants.dart';
 import '../../models/locations.dart';
@@ -11,6 +12,7 @@ import 'location.dart';
 class CollectionItem {
   final String collectionId;
   final String name;
+  final String? description;
   final String? emoji;
   final String? coverColor;
   final String? photo;
@@ -26,6 +28,7 @@ class CollectionItem {
   const CollectionItem({
     required this.collectionId,
     required this.name,
+    this.description,
     this.emoji,
     this.coverColor,
     this.photo,
@@ -42,6 +45,7 @@ class CollectionItem {
   CollectionItem copyWith({
     String? collectionId,
     String? name,
+    String? description,
     String? emoji,
     String? coverColor,
     String? photo,
@@ -57,6 +61,7 @@ class CollectionItem {
       CollectionItem(
         collectionId: collectionId ?? this.collectionId,
         name: name ?? this.name,
+        description: description ?? this.description,
         emoji: emoji ?? this.emoji,
         coverColor: coverColor ?? this.coverColor,
         photo: photo ?? this.photo,
@@ -73,6 +78,7 @@ class CollectionItem {
   factory CollectionItem.fromJson(Map<String, dynamic> json) => CollectionItem(
         collectionId: json['collection_id'] as String,
         name: json['name'] as String,
+        description: json['description'] as String?,
         emoji: json['emoji'] as String?,
         coverColor: json['cover_color'] as String?,
         photo: json['photo'] as String?,
@@ -239,6 +245,7 @@ class CollectionsHelper {
       throw Exception(
           result['error'] as String? ?? 'Failed to delete collection');
     }
+    CollectionsLibraryEvents.instance.notifyChanged();
   }
 
   /// Update a collection's name, cover_color, and/or is_public flag.
@@ -254,6 +261,7 @@ class CollectionsHelper {
       'p_cover_color': coverColor,
       'p_is_public': isPublic,
     });
+    CollectionsLibraryEvents.instance.notifyChanged();
   }
 
   /// Load the public collections belonging to a specific user.
@@ -322,5 +330,18 @@ class CollectionsHelper {
     if (map['success'] != true) {
       throw Exception(map['error'] as String? ?? 'Failed to unsave collection');
     }
+  }
+
+  /// Fetch all curated collections grouped by city, with save state for [userId].
+  /// Returns collections ordered by curated_city then name.
+  Future<List<CollectionItem>> getCuratedCollections(String? userId) async {
+    debugPrint('[CollectionsHelper] getCuratedCollections');
+    final response = await _client.rpc(
+      'get_curated_collections',
+      params: {if (userId != null) 'p_user_id': userId},
+    );
+    return (response as List)
+        .map((row) => CollectionItem.fromJson(row as Map<String, dynamic>))
+        .toList();
   }
 }
