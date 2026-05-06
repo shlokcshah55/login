@@ -39,6 +39,7 @@ class SupabaseService extends ChangeNotifier {
   StreamSubscription? _authSubscription;
   bool _hasValidSession = false;
   bool _isValidatingSession = false;
+  bool _pendingAppleWizardRouting = false;
   // Guards against concurrent auth events (e.g. userUpdated / tokenRefreshed)
   // notifying listeners before the signedIn handler has finished creating the
   // user record, which would cause ProfilePage to fetch a non-existent row.
@@ -73,10 +74,12 @@ class SupabaseService extends ChangeNotifier {
   bool get isAuthenticated => _authService.isAuthenticated;
   bool get hasValidSession => _hasValidSession;
   bool get isValidatingSession => _isValidatingSession;
+  bool get pendingAppleWizardRouting => _pendingAppleWizardRouting;
 
   // Cached profile getter - use this to avoid re-fetching after login
   UserModel? get cachedUserProfile => _cachedUserProfile;
   void clearCachedUserProfile() => _cachedUserProfile = null;
+  void clearPendingAppleWizardRouting() => _pendingAppleWizardRouting = false;
 
   // Create single instance of this provider
   static final SupabaseService _instance = SupabaseService._internal();
@@ -244,6 +247,7 @@ class SupabaseService extends ChangeNotifier {
 
     // Reset session state
     _hasValidSession = false;
+    _pendingAppleWizardRouting = false;
 
     if (kDebugMode) {
       print('SupabaseService: Cleared all caches');
@@ -272,20 +276,25 @@ class SupabaseService extends ChangeNotifier {
 
   Future<bool> signInWithApple() async {
     _setLoading(true);
+    _pendingAppleWizardRouting = true;
     try {
       final success = await _authService.signInWithApple();
       _setError(null);
       return success;
     } on AppleSignInCancelledException {
+      _pendingAppleWizardRouting = false;
       _setError(null);
       rethrow;
     } on AppleSignInNetworkException catch (e) {
+      _pendingAppleWizardRouting = false;
       _setError(e.message);
       rethrow;
     } on AuthException catch (e) {
+      _pendingAppleWizardRouting = false;
       _setError(e.message);
       rethrow;
     } catch (e) {
+      _pendingAppleWizardRouting = false;
       _setError('Apple sign in failed: $e');
       rethrow;
     } finally {

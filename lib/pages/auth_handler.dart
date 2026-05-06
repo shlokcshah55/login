@@ -2,6 +2,7 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:login/pages/legal_consent_gate_page.dart';
 import 'package:login/pages/reset_password_page.dart';
+import 'package:login/pages/signup_wizard/wizard_completion_page.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/pages/main_screen.dart';
 import 'package:login/pages/welcome_page.dart';
@@ -9,6 +10,14 @@ import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:login/widgets/loading_widget.dart';
 import 'package:provider/provider.dart';
+
+@visibleForTesting
+bool shouldPresentWizardCompletionAfterAppleSignIn({
+  required bool pendingAppleWizardRouting,
+  required bool wizardCompleted,
+}) {
+  return pendingAppleWizardRouting && !wizardCompleted;
+}
 
 class AuthHandler extends StatefulWidget {
   const AuthHandler({super.key});
@@ -24,6 +33,7 @@ class _AuthHandlerState extends State<AuthHandler> {
   bool _initCallScheduled = false; // Prevents multiple post-frame callbacks
   bool _logoutCleanupScheduled = false;
   bool _hasCleanedLoggedOutState = false;
+  bool _wizardCompletionRouteScheduled = false;
   String? _legalConsentCheckedUserId;
   bool? _hasAcceptedLegalConsent;
 
@@ -223,6 +233,28 @@ class _AuthHandlerState extends State<AuthHandler> {
     });
   }
 
+  void _scheduleWizardCompletionRoute() {
+    if (_wizardCompletionRouteScheduled) return;
+    _wizardCompletionRouteScheduled = true;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+
+      context.read<SupabaseService>().clearPendingAppleWizardRouting();
+
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const WizardCompletionPage(),
+        ),
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _wizardCompletionRouteScheduled = false;
+      });
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     // Listen to SupabaseProvider changes - widget rebuilds when auth state changes
@@ -303,6 +335,25 @@ class _AuthHandlerState extends State<AuthHandler> {
             return LegalConsentGatePage(
               onAccept: _acceptLegalConsent,
             );
+          }
+
+          final userProfile = userDataProvider.supabaseUserData;
+          final shouldPresentWizard = userProfile != null &&
+              shouldPresentWizardCompletionAfterAppleSignIn(
+                pendingAppleWizardRouting:
+                    supabaseProvider.pendingAppleWizardRouting,
+                wizardCompleted: userProfile.wizardCompleted,
+              );
+
+          if (!shouldPresentWizard &&
+              supabaseProvider.pendingAppleWizardRouting &&
+              userProfile?.wizardCompleted == true) {
+            supabaseProvider.clearPendingAppleWizardRouting();
+          }
+
+          if (shouldPresentWizard) {
+            _scheduleWizardCompletionRoute();
+            return const LoadingWidget();
           }
 
           // Show MainScreen - wizard completion handled via popover

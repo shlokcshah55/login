@@ -39,6 +39,43 @@ Set<String> resolveMutualFriendIds({
   return followingIds.intersection(followerIds);
 }
 
+@visibleForTesting
+String deriveDisplayNameFromEmail(String? email) {
+  if (email == null || email.trim().isEmpty) {
+    return '';
+  }
+
+  final emailLocal = email.split('@').first;
+  return emailLocal
+      .replaceAll(RegExp(r'[._+\-]'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+}
+
+@visibleForTesting
+String resolveOAuthDisplayName({
+  String? pendingDisplayName,
+  Map<String, dynamic>? userMetadata,
+  String? email,
+}) {
+  final trimmedPending = pendingDisplayName?.trim();
+  if (trimmedPending != null && trimmedPending.isNotEmpty) {
+    return trimmedPending;
+  }
+
+  final metadataName = (userMetadata?['name'] as String?)?.trim();
+  if (metadataName != null && metadataName.isNotEmpty) {
+    return metadataName;
+  }
+
+  final metadataFullName = (userMetadata?['full_name'] as String?)?.trim();
+  if (metadataFullName != null && metadataFullName.isNotEmpty) {
+    return metadataFullName;
+  }
+
+  return deriveDisplayNameFromEmail(email);
+}
+
 /// Service for handling Supabase authentication operations
 class AuthHelper {
   final SupabaseClient _client = SupabaseClientManager().client;
@@ -187,6 +224,7 @@ class AuthHelper {
     try {
       final user = currentUser;
       if (user == null) return false;
+      final pendingDisplayName = AppleSignInProfileHint.takeDisplayName();
 
       // Check if user exists in your users table
       final existingUser = await _client
@@ -196,19 +234,19 @@ class AuthHelper {
           .maybeSingle();
       print('Checked for existing user record for ${user.email}, found: $existingUser');
 
+      final fallbackName = deriveDisplayNameFromEmail(user.email);
+
       // If user doesn't exist, create a new record
       if (existingUser == null) {
         if (kDebugMode) {
           print('Creating database record for new OAuth user: ${user.email}');
         }
 
-        String name =
-            user.userMetadata?['name'] ?? user.userMetadata?['full_name'] ?? '';
-        if (name.isEmpty && user.email != null) {
-          // Apple only sends the name on first sign-in; fall back to email local part
-          final emailLocal = user.email!.split('@').first;
-          name = emailLocal.replaceAll(RegExp(r'[._+\-]'), ' ').trim();
-        }
+        final name = resolveOAuthDisplayName(
+          pendingDisplayName: pendingDisplayName,
+          userMetadata: user.userMetadata,
+          email: user.email,
+        );
         final username = await _generateUniqueUsername(name, email: user.email);
 
         await _client.rpc('ensure_user_record_exists', params: {
@@ -223,6 +261,22 @@ class AuthHelper {
         }
         return true;
       }
+
+      if (pendingDisplayName != null) {
+        final currentName =
+            (existingUser[SupabaseConstants.columnName] as String?)?.trim() ??
+                '';
+        final shouldRepairName =
+            currentName.isEmpty || currentName == fallbackName;
+
+        if (shouldRepairName) {
+          await _client.rpc('update_user_profile', params: {
+            'p_user_id': user.id,
+            'p_name': pendingDisplayName,
+          });
+        }
+      }
+
       return false;
     } catch (e) {
       if (kDebugMode) {
