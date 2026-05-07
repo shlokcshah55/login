@@ -237,6 +237,31 @@ class SupabaseService extends ChangeNotifier {
     }
   }
 
+  Future<void> deleteMyAccount() async {
+    _setLoading(true);
+    try {
+      await FCMService().clearFCMToken();
+      await _authService.deleteMyAccount();
+      _setError(null);
+    } catch (e) {
+      if (_authService.isAuthenticated) {
+        try {
+          await FCMService().refreshAndSaveToken();
+        } catch (restoreError) {
+          if (kDebugMode) {
+            print(
+              'SupabaseService: Error restoring FCM token after failed delete: $restoreError',
+            );
+          }
+        }
+      }
+      _setError('Delete account failed: $e');
+      rethrow;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   /// Clear all cached data (call on logout or user switch)
   void _clearAllCaches() {
     // Clear cached user profile
@@ -377,11 +402,11 @@ class SupabaseService extends ChangeNotifier {
 
               // Cache profile now so AuthHandler can use it without a race
               _cachedUserProfile = await _authService.getUserProfile();
-              print('Cached user profile after sign in: ${_cachedUserProfile?.name}');
+              print(
+                  'Cached user profile after sign in: ${_cachedUserProfile?.name}');
               // Save FCM token to new user account
               _hasValidSession = true;
 
-              
               await FCMService().refreshAndSaveToken();
 
               // Reinitialize notifications (load from DB and setup Realtime)

@@ -28,9 +28,37 @@ BEGIN
        OR (metadata ->> 'inviterId') = v_user_id::text
        OR (metadata ->> 'senderId') = v_user_id::text;
 
-    -- TODO: Delete collection cover and profile photo assets through the
-    -- Storage API before removing the user record. Direct deletion from
-    -- storage.objects is not allowed in this RPC.
+    DELETE FROM storage.objects AS so
+    WHERE so.bucket_id = 'collection_covers'
+      AND EXISTS (
+          SELECT 1
+          FROM public.collections c
+          WHERE c.created_by = v_user_id
+            AND split_part(so.name, '/', 1) = c.collection_id::text
+      );
+
+    DELETE FROM storage.objects AS so
+    WHERE so.bucket_id = 'profile_photos'
+      AND (
+          so.name = v_user_id::text
+          OR so.name LIKE v_user_id::text || '.%'
+          OR split_part(so.name, '/', 1) = v_user_id::text
+      );
+
+    UPDATE public.location_popularity_app lpa
+    SET saves_count = GREATEST(lpa.saves_count - agg.save_count, 0),
+        dislikes_count = GREATEST(lpa.dislikes_count - agg.dislike_count, 0),
+        updated_at = NOW()
+    FROM (
+        SELECT
+            ula.location_id,
+            COUNT(*) FILTER (WHERE ula.action = 'save')::integer AS save_count,
+            COUNT(*) FILTER (WHERE ula.action = 'dislike')::integer AS dislike_count
+        FROM public.user_location_actions ula
+        WHERE ula.user_id = v_user_id
+        GROUP BY ula.location_id
+    ) agg
+    WHERE lpa.location_id = agg.location_id;
 
     DELETE FROM public.collections
     WHERE created_by = v_user_id;
@@ -55,14 +83,18 @@ BEGIN
     DELETE FROM public.collection_locations
     WHERE added_by = v_user_id;
 
-    DELETE FROM public.bubble_members
-    WHERE user_id = v_user_id;
-
     DELETE FROM public.location_reviews
     WHERE user_id = v_user_id;
 
-    DELETE FROM public.user_location_actions
-    WHERE user_id = v_user_id;
+    IF to_regclass('public.recommendation_runs') IS NOT NULL THEN
+        EXECUTE 'DELETE FROM public.recommendation_runs WHERE user_id = $1'
+        USING v_user_id;
+    END IF;
+
+    IF to_regclass('public.user_recommendations') IS NOT NULL THEN
+        EXECUTE 'DELETE FROM public.user_recommendations WHERE user_id = $1'
+        USING v_user_id;
+    END IF;
 
     DELETE FROM public.user_friends
     WHERE follower_id = v_user_id

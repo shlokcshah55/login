@@ -28,9 +28,22 @@ BEGIN
        OR (metadata ->> 'inviterId') = v_user_id::text
        OR (metadata ->> 'senderId') = v_user_id::text;
 
-    -- TODO: Delete collection cover and profile photo assets through the
-    -- Storage API before removing the user record. Direct deletion from
-    -- storage.objects is not allowed in this RPC.
+    DELETE FROM storage.objects AS so
+    WHERE so.bucket_id = 'collection_covers'
+      AND EXISTS (
+          SELECT 1
+          FROM public.collections c
+          WHERE c.created_by = v_user_id
+            AND split_part(so.name, '/', 1) = c.collection_id::text
+      );
+
+    DELETE FROM storage.objects AS so
+    WHERE so.bucket_id = 'profile_photos'
+      AND (
+          so.name = v_user_id::text
+          OR so.name LIKE v_user_id::text || '.%'
+          OR split_part(so.name, '/', 1) = v_user_id::text
+      );
 
     DELETE FROM public.collections
     WHERE created_by = v_user_id;

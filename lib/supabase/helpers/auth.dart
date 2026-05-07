@@ -14,6 +14,13 @@ import '../supabase_client.dart';
 import '../../models/users.dart';
 import '../constants.dart';
 
+typedef HttpPost = Future<http.Response> Function(
+  Uri url, {
+  Map<String, String>? headers,
+  Object? body,
+  Encoding? encoding,
+});
+
 @visibleForTesting
 Set<String> resolveMutualFriendIds({
   required List<Map<String, dynamic>> followingRows,
@@ -76,10 +83,26 @@ String resolveOAuthDisplayName({
   return deriveDisplayNameFromEmail(email);
 }
 
+@visibleForTesting
+bool didDeleteAccountResponseConfirmAuthDeletion(
+  Map<String, dynamic> result,
+) {
+  return result['success'] == true && result['auth_deleted'] == true;
+}
+
 /// Service for handling Supabase authentication operations
 class AuthHelper {
-  final SupabaseClient _client = SupabaseClientManager().client;
-  final AppleAuthService _appleAuthService = AppleAuthService();
+  AuthHelper({
+    SupabaseClient? client,
+    AppleAuthService? appleAuthService,
+    HttpPost? httpPost,
+  })  : _client = client ?? SupabaseClientManager().client,
+        _appleAuthService = appleAuthService ?? AppleAuthService(),
+        _httpPost = httpPost ?? http.post;
+
+  final SupabaseClient _client;
+  final AppleAuthService _appleAuthService;
+  final HttpPost _httpPost;
   User? get currentUser => _client.auth.currentUser;
   bool get isAuthenticated => currentUser != null;
   Stream<AuthState> get onAuthStateChange => _client.auth.onAuthStateChange;
@@ -232,7 +255,8 @@ class AuthHelper {
           .select()
           .eq(SupabaseConstants.columnSupabaseId, user.id)
           .maybeSingle();
-      print('Checked for existing user record for ${user.email}, found: $existingUser');
+      print(
+          'Checked for existing user record for ${user.email}, found: $existingUser');
 
       final fallbackName = deriveDisplayNameFromEmail(user.email);
 
@@ -294,7 +318,11 @@ class AuthHelper {
     // Clean the name: lowercase, remove non-alphanumeric, remove spaces
     String base = name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
     if (base.isEmpty && email != null) {
-      base = email.split('@').first.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+      base = email
+          .split('@')
+          .first
+          .toLowerCase()
+          .replaceAll(RegExp(r'[^a-z0-9]'), '');
     }
     final prefix = base.isNotEmpty ? base : 'user';
 
@@ -312,9 +340,9 @@ class AuthHelper {
   }
 
   /// Sign out the current user
-  Future<void> signOut() async {
+  Future<void> signOut({SignOutScope scope = SignOutScope.local}) async {
     try {
-      await _client.auth.signOut();
+      await _client.auth.signOut(scope: scope);
     } catch (e) {
       if (kDebugMode) {
         print('Error signing out: $e');
@@ -325,9 +353,8 @@ class AuthHelper {
 
   /// Permanently delete the current authenticated account.
   ///
-  /// We sign out the client first so the local app session is torn down
-  /// immediately, then invoke the RPC once with the access token we captured
-  /// from the pre-sign-out session.
+  /// The RPC must confirm both the profile row and the underlying auth user
+  /// were deleted before we clear the local session.
   Future<void> deleteMyAccount() async {
     try {
       final session = _client.auth.currentSession;
@@ -341,14 +368,11 @@ class AuthHelper {
         throw Exception('Supabase configuration missing');
       }
 
-      final accessToken = session.accessToken;
-      await _client.auth.signOut();
-
-      final response = await http.post(
+      final response = await _httpPost(
         Uri.parse('$supabaseUrl/rest/v1/rpc/delete_my_account'),
         headers: {
           'apikey': supabaseAnonKey,
-          'Authorization': 'Bearer $accessToken',
+          'Authorization': 'Bearer ${session.accessToken}',
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
@@ -370,13 +394,27 @@ class AuthHelper {
         throw Exception('Failed to delete account');
       }
 
+      final responseBody = response.body.trim();
+      if (responseBody.isEmpty) {
+        throw Exception('Failed to delete account');
+      }
+
       final result = Map<String, dynamic>.from(
-        jsonDecode(response.body) as Map,
+        jsonDecode(responseBody) as Map,
       );
-      if (result['success'] != true) {
+      if (!didDeleteAccountResponseConfirmAuthDeletion(result)) {
         throw Exception(
-          result['error'] as String? ?? 'Failed to delete account',
+          result['error'] as String? ??
+              'Account deletion did not remove the auth account',
         );
+      }
+
+      try {
+        await _client.auth.signOut(scope: SignOutScope.local);
+      } catch (e) {
+        if (kDebugMode) {
+          print('Error clearing local session after account deletion: $e');
+        }
       }
     } catch (e) {
       if (kDebugMode) {

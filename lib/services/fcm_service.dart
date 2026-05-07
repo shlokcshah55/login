@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -23,6 +25,31 @@ import 'package:login/services/notification_routes.dart';
 import 'package:login/services/analytics_service.dart';
 import 'package:login/utils/route_open_guard.dart';
 
+@visibleForTesting
+bool shouldSyncFcmToken({
+  required bool isApplePlatform,
+  required String? apnsToken,
+  required String? fcmToken,
+}) {
+  final normalizedFcmToken = fcmToken?.trim();
+  if (normalizedFcmToken == null || normalizedFcmToken.isEmpty) {
+    return false;
+  }
+
+  if (!isApplePlatform) {
+    return true;
+  }
+
+  final normalizedApnsToken = apnsToken?.trim();
+  return normalizedApnsToken != null && normalizedApnsToken.isNotEmpty;
+}
+
+@visibleForTesting
+bool shouldClearFcmToken({required String? currentToken}) {
+  final normalizedToken = currentToken?.trim();
+  return normalizedToken != null && normalizedToken.isNotEmpty;
+}
+
 class FCMService {
   static final FCMService _instance = FCMService._internal();
   factory FCMService() => _instance;
@@ -45,6 +72,7 @@ class FCMService {
   late final NotificationsHelper _notificationsHelper;
   RealtimeChannel? _realtimeChannel;
   bool _messageOpenHandlingRegistered = false;
+  String? _lastKnownFcmToken;
 
   // Holds a tapped notification until MainScreen and the root navigator are
   // ready to actually push routes.
@@ -54,9 +82,15 @@ class FCMService {
   Future<void> saveFCMToken(String fcmToken, {int retryCount = 0}) async {
     try {
       final userId = SupabaseClientManager().currentUser?.id;
+      final normalizedToken = fcmToken.trim();
 
       if (userId == null) {
         print('📲 No user logged in, skipping FCM token save');
+        return;
+      }
+
+      if (normalizedToken.isEmpty) {
+        print('📲 No FCM token available to save');
         return;
       }
 
@@ -64,10 +98,11 @@ class FCMService {
         'update_fcm_token',
         params: {
           'p_user_id': userId,
-          'p_fcm_token': fcmToken,
+          'p_fcm_token': normalizedToken,
         },
       );
 
+      _lastKnownFcmToken = normalizedToken;
       print('📲 FCM token saved to Supabase');
     } catch (e) {
       print('📲 Error saving FCM token: $e');
@@ -90,12 +125,12 @@ class FCMService {
   /// Call this when user logs in to ensure token is associated with their account
   Future<void> refreshAndSaveToken() async {
     try {
-      final token = await FirebaseMessaging.instance.getToken();
-      if (token != null) {
-        await saveFCMToken(token);
-      } else {
-        print('📲 No FCM token available to save');
-      }
+      final token = await _getAvailableFcmToken(
+        unavailableMessage: '📲 No FCM token available to save',
+      );
+      if (token == null) return;
+
+      await saveFCMToken(token);
     } catch (e) {
       print('📲 Error refreshing FCM token: $e');
     }
@@ -112,6 +147,14 @@ class FCMService {
         return;
       }
 
+      final currentToken = _lastKnownFcmToken ??
+          await _getAvailableFcmToken(
+            unavailableMessage: '📲 No FCM token available to clear',
+          );
+      if (!shouldClearFcmToken(currentToken: currentToken)) {
+        return;
+      }
+
       await SupabaseClientManager().client.rpc(
         'update_fcm_token',
         params: {
@@ -120,6 +163,7 @@ class FCMService {
         },
       );
 
+      _lastKnownFcmToken = null;
       print('📲 FCM token cleared from Supabase');
     } catch (e) {
       print('📲 Error clearing FCM token: $e');
@@ -150,13 +194,16 @@ class FCMService {
     }
 
     // Get initial token
-    final token = await FirebaseMessaging.instance.getToken();
+    final token = await _getAvailableFcmToken(
+      unavailableMessage: '📲 No FCM token available to save',
+    );
     if (token != null) {
       await saveFCMToken(token);
     }
 
     // Listen for token refresh
     FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
+      _lastKnownFcmToken = newToken;
       saveFCMToken(newToken);
     });
 
@@ -792,6 +839,36 @@ class FCMService {
     _realtimeChannel?.unsubscribe();
     _realtimeChannel = null;
     _notifications = [];
+    _lastKnownFcmToken = null;
+  }
+
+  Future<String?> _getAvailableFcmToken({
+    required String unavailableMessage,
+  }) async {
+    final isApplePlatform = !kIsWeb && (Platform.isIOS || Platform.isMacOS);
+    String? apnsToken;
+
+    if (isApplePlatform) {
+      apnsToken = await FirebaseMessaging.instance.getAPNSToken();
+      if (apnsToken == null || apnsToken.trim().isEmpty) {
+        print('📲 APNS token not available yet, skipping FCM token sync');
+        return null;
+      }
+    }
+
+    final fcmToken = await FirebaseMessaging.instance.getToken();
+
+    if (!shouldSyncFcmToken(
+      isApplePlatform: isApplePlatform,
+      apnsToken: apnsToken,
+      fcmToken: fcmToken,
+    )) {
+      print(unavailableMessage);
+      return null;
+    }
+
+    _lastKnownFcmToken = fcmToken!.trim();
+    return _lastKnownFcmToken;
   }
 
   /// Get unread count

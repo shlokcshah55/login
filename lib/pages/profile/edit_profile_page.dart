@@ -221,7 +221,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
     if (confirmed != true || !mounted) return;
 
-    final messenger = ScaffoldMessenger.of(context);
     final supabase = context.read<SupabaseService>();
     final userData = context.read<UserDataProvider>();
     final locationList = context.read<LocationListManager>();
@@ -232,7 +231,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     });
 
     try {
-      await supabase.users.deleteMyAccount();
+      await supabase.deleteMyAccount();
 
       if (!mounted) return;
 
@@ -247,21 +246,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
       );
     } catch (e) {
       if (!mounted) return;
-      if (!supabase.isAuthenticated) {
-        await userData.clearUserData();
-        locationList.clearData();
-
-        if (!mounted) return;
-
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const AuthHandler()),
-          (route) => false,
-        );
-      } else {
-        setState(() {
-          _error = 'Could not delete account. We’re working hard to fix this — sorry.';
-        });
-      }
+      setState(() {
+        _error =
+            'Could not delete account. We’re working hard to fix this — sorry.';
+      });
     } finally {
       if (mounted) {
         setState(() => _deleting = false);
