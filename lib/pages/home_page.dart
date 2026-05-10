@@ -141,6 +141,7 @@ class _HomePageState extends State<HomePage> {
       _handleBubbleModeRequest();
       _handlePendingFocusLocation();
       unawaited(_syncProfileChecklistCollapsed(force: true));
+      unawaited(_viewModel.refreshProfileChecklist(force: true));
       _checkForErrors();
     }
   }
@@ -787,6 +788,7 @@ class _HomePageState extends State<HomePage> {
                                       .shouldShowProfileChecklistCard
                                   ? ProfileCompletionCarouselCard(
                                       isCollapsed: _profileChecklistCollapsed,
+                                      state: viewModel.profileChecklistState,
                                     )
                                   : null,
                               heightOverride: viewModel

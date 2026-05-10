@@ -18,6 +18,7 @@ import 'package:login/providers/shortlist_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:login/services/analytics_service.dart';
 import 'package:login/services/collections_library_events.dart';
+import 'package:login/services/profile_completion_checklist_service.dart';
 import 'package:login/supabase/helpers/collections.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/supabase/supabase_client.dart';
@@ -32,6 +33,8 @@ class HomeViewModel extends ChangeNotifier {
   late final HeaderSearchCoordinator _headerSearchCoordinator;
   final CollectionsHelper _collectionsHelper = CollectionsHelper();
   final AnalyticsService _analyticsService = AnalyticsService();
+  final ProfileCompletionChecklistService _profileChecklistService =
+      ProfileCompletionChecklistService();
   StreamSubscription<void>? _collectionsLibrarySub;
 
   final TextEditingController magicSearchController = TextEditingController();
@@ -71,6 +74,12 @@ class HomeViewModel extends ChangeNotifier {
   bool _externalNotifyQueued = false;
   bool _prefetchQueued = false;
 
+  ProfileCompletionChecklistState? _profileChecklistState;
+  String? _profileChecklistUserId;
+  int _profileChecklistSavedCount = -1;
+  bool _profileChecklistFetching = false;
+  bool _profileChecklistFetchQueued = false;
+
   HomeViewModel({
     required this.locationListManager,
     required this.mapStateProvider,
@@ -102,6 +111,14 @@ class HomeViewModel extends ChangeNotifier {
   bool get isLoadingCollections => _isLoadingCollections;
   String? get activeCollectionId => _activeCollectionId;
   bool get isEatListsOpen => _isEatListsOpen;
+  ProfileCompletionChecklistState? get profileChecklistState =>
+      _profileChecklistState;
+  bool get isProfileChecklistComplete =>
+      _profileChecklistState?.isComplete == true;
+
+  Future<void> refreshProfileChecklist({bool force = false}) {
+    return _refreshProfileChecklistIfNeeded(force: force);
+  }
 
   void setEatListsOpen(bool value) {
     if (_isEatListsOpen == value) return;
@@ -115,6 +132,13 @@ class HomeViewModel extends ChangeNotifier {
   List<LocationModel> get locations =>
       locationListManager.currentItems.keys.toList();
   bool get shouldShowProfileChecklistCard {
+    final userId = SupabaseClientManager().currentUser?.id;
+    if (userId == null) return false;
+    if (!locationListManager.hasLoadedSavedLocations ||
+        locationListManager.isLoadingSaved) {
+      return false;
+    }
+    if (isProfileChecklistComplete) return false;
     final type = locationListManager.currentListType;
     if (type == LocationListType.recommended) return true;
     // Fresh accounts often start in Saved before we auto-switch to Picks.
@@ -324,6 +348,7 @@ class HomeViewModel extends ChangeNotifier {
     unawaited(
       locationListManager.setCurrentListType(LocationListType.saved),
     );
+    unawaited(_refreshProfileChecklistIfNeeded(force: true));
     mapStateProvider.setCarouselPageController(pageController);
     mapStateProvider.addListener(_onSelectedMarkerChanged);
     locationListManager.addListener(_onExternalStateChanged);
@@ -351,7 +376,56 @@ class HomeViewModel extends ChangeNotifier {
     // an immediate loading state when opened.
     _scheduleRecommendationsPrefetch();
     unawaited(_resolveInitialDefaultListIfReady());
+    unawaited(_refreshProfileChecklistIfNeeded());
     _notifyListenersSafely();
+  }
+
+  Future<void> _refreshProfileChecklistIfNeeded({bool force = false}) async {
+    if (_disposed) return;
+
+    final userId = SupabaseClientManager().currentUser?.id;
+    if (userId == null) return;
+
+    // Saved count drives one of the checklist steps; avoid fetching until saved
+    // locations have actually loaded so we don't briefly compute the wrong
+    // completion state.
+    if (!locationListManager.hasLoadedSavedLocations ||
+        locationListManager.isLoadingSaved) {
+      return;
+    }
+
+    final savedCount = locationListManager.savedLocations.length;
+    final shouldFetch = force ||
+        userId != _profileChecklistUserId ||
+        savedCount != _profileChecklistSavedCount;
+    if (!shouldFetch) return;
+
+    _profileChecklistUserId = userId;
+    _profileChecklistSavedCount = savedCount;
+
+    if (_profileChecklistFetching) {
+      _profileChecklistFetchQueued = true;
+      return;
+    }
+
+    _profileChecklistFetching = true;
+    try {
+      final state = await _profileChecklistService.fetch(
+        userId: userId,
+        savedCount: savedCount,
+      );
+      if (_disposed) return;
+      _profileChecklistState = state;
+      _notifyListenersSafely();
+    } catch (e) {
+      log('HomeViewModel: Failed to fetch profile checklist: $e');
+    } finally {
+      _profileChecklistFetching = false;
+      if (_profileChecklistFetchQueued) {
+        _profileChecklistFetchQueued = false;
+        unawaited(_refreshProfileChecklistIfNeeded(force: true));
+      }
+    }
   }
 
   void _scheduleRecommendationsPrefetch() {
