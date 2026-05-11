@@ -41,6 +41,7 @@ class _BeenToSwipeRankerState extends State<BeenToSwipeRanker>
 
   bool _rankingComplete = false;
   double? _derivedRating;
+  double _editableRating = 5.0;
 
   // Form state for simplified form after ranking
   final TextEditingController _notesController = TextEditingController();
@@ -166,6 +167,7 @@ class _BeenToSwipeRankerState extends State<BeenToSwipeRanker>
 
       if (_searchDone) {
         _derivedRating = _deriveRating();
+        _editableRating = _derivedRating!;
         setState(() => _rankingComplete = true);
       } else {
         setState(() {
@@ -181,7 +183,7 @@ class _BeenToSwipeRankerState extends State<BeenToSwipeRanker>
     setState(() => _submitting = true);
     try {
       await widget.onSubmitted(
-        _derivedRating!,
+        _editableRating,
         _notesController.text.trim().isEmpty
             ? null
             : _notesController.text.trim(),
@@ -812,9 +814,9 @@ class _BeenToSwipeRankerState extends State<BeenToSwipeRanker>
             ),
             const SizedBox(height: 24),
 
-            // Read-only rating display
+            // Editable rating display
             Container(
-              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
               decoration: BoxDecoration(
                 color: PinitColors.creamSunk,
                 borderRadius: BorderRadius.circular(16),
@@ -826,17 +828,79 @@ class _BeenToSwipeRankerState extends State<BeenToSwipeRanker>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    '${_derivedRating!.toStringAsFixed(1)} / 10',
-                    style: GoogleFonts.dmSans(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w700,
-                      color: PinitColors.aubergine,
-                    ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // Decrement button
+                      GestureDetector(
+                        onTap: _editableRating > 1.0
+                            ? () => setState(() {
+                                  _editableRating = ((_editableRating - 0.1) * 10).round() / 10.0;
+                                  if (_editableRating < 1.0) _editableRating = 1.0;
+                                })
+                            : null,
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: _editableRating > 1.0
+                                ? PinitColors.aubergine
+                                : PinitColors.creamDeep,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            FeatherIcons.minus,
+                            size: 16,
+                            color: _editableRating > 1.0
+                                ? PinitColors.cream
+                                : PinitColors.mute,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Text(
+                          '${_editableRating.toStringAsFixed(1)} / 10',
+                          style: GoogleFonts.dmSans(
+                            fontSize: 32,
+                            fontWeight: FontWeight.w700,
+                            color: PinitColors.aubergine,
+                          ),
+                        ),
+                      ),
+                      // Increment button
+                      GestureDetector(
+                        onTap: _editableRating < 10.0
+                            ? () => setState(() {
+                                  _editableRating = ((_editableRating + 0.1) * 10).round() / 10.0;
+                                  if (_editableRating > 10.0) _editableRating = 10.0;
+                                })
+                            : null,
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: _editableRating < 10.0
+                                ? PinitColors.aubergine
+                                : PinitColors.creamDeep,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            FeatherIcons.plus,
+                            size: 16,
+                            color: _editableRating < 10.0
+                                ? PinitColors.cream
+                                : PinitColors.mute,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Based on your comparisons',
+                    _editableRating == _derivedRating
+                        ? 'Based on your comparisons'
+                        : 'Adjusted from ${_derivedRating!.toStringAsFixed(1)}',
                     style: GoogleFonts.dmSans(
                       fontSize: 12,
                       color: PinitColors.mute,

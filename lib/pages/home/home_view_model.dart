@@ -553,6 +553,29 @@ class HomeViewModel extends ChangeNotifier {
     locationListManager.setCurrentListType(type);
   }
 
+  void trackNoRecommendationsInAreaShown() {
+    final center = locationListManager.lastSearchedCenter ??
+        locationListManager.cameraPosition?.target;
+    final radiusKm = locationListManager.lastSearchedRadius;
+    final camera = locationListManager.cameraPosition;
+
+    _analyticsService.trackFeature(
+      'no_recommendations_in_area_shown',
+      featureName: 'recommendations',
+      screenName: 'home',
+      properties: <String, dynamic>{
+        'list_type': locationListManager.currentListType.name,
+        'vibe_tag_count': locationListManager.vibeTagIds.length,
+        'cuisine_tag_count': locationListManager.cuisineTagIds.length,
+        'availability_filter': locationListManager.availabilityFilter.name,
+        if (center != null) 'center_lat': center.latitude,
+        if (center != null) 'center_lng': center.longitude,
+        if (radiusKm != null) 'radius_km': radiusKm,
+        if (camera != null) 'camera_zoom': camera.zoom,
+      },
+    );
+  }
+
   // ── Header search surface ─────────────────────────────────────
 
   Future<void> openHeaderSearch() async {

@@ -1172,7 +1172,13 @@ class _AccountStepState extends State<AccountStep>
                       width: double.infinity,
                       height: 48,
                       child: ElevatedButton(
-                        onPressed: isLoading ? null : _advanceToNextSubStep,
+                        onPressed: isLoading
+                            ? null
+                            : () {
+                                if (_validatePassword()) {
+                                  _advanceToNextSubStep();
+                                }
+                              },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: PinitColors.aubergine,
                           foregroundColor: Colors.white,

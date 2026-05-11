@@ -148,7 +148,9 @@ class _UserCardState extends State<UserCard> {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    '@${widget.user.email.split('@').first}',
+                    widget.user.username?.isNotEmpty == true
+                        ? '@${widget.user.username}'
+                        : '@${widget.user.email.split('@').first}',
                     style: GoogleFonts.dmSans(
                       fontSize: 11,
                       color: PinitColors.mute,

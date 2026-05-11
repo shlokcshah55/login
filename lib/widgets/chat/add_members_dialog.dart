@@ -250,7 +250,7 @@ class _AddMembersDialogState extends State<AddMembersDialog> {
                         ),
                         cursorColor: PinitColors.aubergine,
                         decoration: InputDecoration(
-                          hintText: 'Search by name or email',
+                          hintText: 'Search by name or username',
                           hintStyle: GoogleFonts.dmSans(
                             fontSize: 14,
                             color: PinitColors.mute,
@@ -365,7 +365,7 @@ class _AddMembersDialogState extends State<AddMembersDialog> {
                                         Text(
                                           _searchController.text.isEmpty
                                               ? 'Your whole circle is already in here.'
-                                              : 'Try a different name or email.',
+                                              : 'Try a different name or username.',
                                           style: bodyStyle,
                                           textAlign: TextAlign.center,
                                         ),
@@ -382,8 +382,10 @@ class _AddMembersDialogState extends State<AddMembersDialog> {
                                       final isSelected = userId != null
                                           ? _selectedUserIds.contains(userId)
                                           : false;
-                                      final displayName =
-                                          friend.name ?? friend.email;
+                                      final displayName = friend.name ??
+                                          (friend.username?.isNotEmpty == true
+                                              ? friend.username!
+                                              : friend.email);
                                       final initial = displayName.isNotEmpty
                                           ? displayName[0].toUpperCase()
                                           : '?';
@@ -467,13 +469,13 @@ class _AddMembersDialogState extends State<AddMembersDialog> {
                                                               .aubergine,
                                                         ),
                                                       ),
-                                                      if (friend.name != null)
+                                                      if (friend.username?.isNotEmpty == true)
                                                         Padding(
                                                           padding:
                                                               const EdgeInsets
                                                                   .only(top: 2),
                                                           child: Text(
-                                                            friend.email,
+                                                            '@${friend.username}',
                                                             style: bodyStyle,
                                                             maxLines: 1,
                                                             overflow:

@@ -11,6 +11,7 @@ import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:login/services/analytics_service.dart';
+import 'package:login/services/recommendations_api.dart';
 import 'package:login/supabase/helpers/location.dart';
 import 'package:login/supabase/helpers/location_reviews.dart';
 import 'package:login/supabase/helpers/video_insights_helper.dart';
@@ -105,6 +106,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   // ── TikTok video insights (lazy-loaded) ──
   VideoInsight? _videoInsight;
   final VideoInsightsHelper _videoInsightsHelper = VideoInsightsHelper();
+  final RecommendationsApi _recommendationsApi = RecommendationsApi();
   String? _resolvedSharedVideoUrl;
   List<SocialVideoPost> _socialVideoPosts = const [];
 
@@ -174,6 +176,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     _seedSocialVideoPost();
     _fetchVideoInsight();
     _fetchSocialVideoPosts();
+    _enrichLocationIfNeeded();
     if (widget.resolveSharedVideoUrlOnOpen) {
       _resolveSharedVideoUrl();
     }
@@ -547,6 +550,29 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     }
     final denom = math.sqrt(magA) * math.sqrt(magB);
     return denom > 0 ? (dot / denom).clamp(0.0, 1.0) : 0.0;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  //  Location enrichment
+  // ─────────────────────────────────────────────────────────────
+
+  Future<void> _enrichLocationIfNeeded() async {
+    final website = widget.location.website?.trim();
+    if (website != null && website.isNotEmpty) return;
+
+    final googlePlaceId = widget.location.googlePlaceId?.trim();
+    if (googlePlaceId == null || googlePlaceId.isEmpty) return;
+
+    try {
+      await _recommendationsApi.addLocationByGooglePlaceId(
+        googlePlaceId: googlePlaceId,
+        source: 'in-app',
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        print('[ExpandedCard] Failed to enrich location: $e');
+      }
+    }
   }
 
   // ─────────────────────────────────────────────────────────────

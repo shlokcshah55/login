@@ -1126,60 +1126,13 @@ class _BubblesPageState extends State<BubblesPage>
       itemCount: _searchResults.length,
       itemBuilder: (context, index) {
         final user = _searchResults[index];
-        return Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          decoration: BoxDecoration(
-            color: PinitColors.creamSunk,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: PinitColors.creamDeep, width: 1),
-            boxShadow: PinitColors.subtleShadow,
-          ),
-          child: ListTile(
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            leading: Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: PinitColors.aubergine,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Center(
-                child: Text(
-                  user.username![0].toUpperCase(),
-                  style: GoogleFonts.dmSans(
-                    color: PinitColors.cream,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
-            title: Text(
-              user.username!,
-              style: GoogleFonts.dmSans(
-                fontWeight: FontWeight.w600,
-                fontSize: 15,
-                color: PinitColors.aubergine,
-              ),
-            ),
-            subtitle: Text(
-              user.email,
-              style: GoogleFonts.dmSans(
-                fontSize: 12,
-                color: PinitColors.mute,
-              ),
-            ),
-            trailing: const Icon(
-              Icons.chevron_right_rounded,
-              color: PinitColors.mute,
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            onTap: () {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: UserCard(
+            user: user,
+            onTap: (u) {
               _searchFocusNode.unfocus();
-              _showUserProfileDialog(user);
+              _showUserProfileDialog(u);
             },
           ),
         );

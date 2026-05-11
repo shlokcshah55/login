@@ -34,9 +34,7 @@ class RecommendationsApi {
     List<String>? cuisines,
     Map<String, dynamic>? filters,
   }) async {
-    final effectiveMaxResults = maxResults < 1
-        ? 1
-        : (maxResults > defaultMaxResults ? defaultMaxResults : maxResults);
+    final effectiveMaxResults = maxResults < 1 ? 1 : maxResults;
 
     // Build filters map — merge cuisines shortcut into explicit filters.
     final mergedFilters = <String, dynamic>{

@@ -185,6 +185,7 @@ class _HomePageState extends State<HomePage> {
       _lastHandledError = error;
       if (_isNoRecommendationsPopoverVisible) return;
       _isNoRecommendationsPopoverVisible = true;
+      _viewModel.trackNoRecommendationsInAreaShown();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         _showNoRecommendationsPopover();
@@ -376,6 +377,8 @@ class _HomePageState extends State<HomePage> {
       initialVibeTagIds: _selectedVibeTagIds,
       initialCuisineTagIds: _selectedCuisineTagIds,
       initialAvailabilityFilter: _locationListManager.availabilityFilter,
+      showMaxResults: _locationListManager.currentListType ==
+          LocationListType.recommended,
     );
     if (!mounted || result == null) return;
     if (result.launchSweetTreat) {
@@ -392,29 +395,7 @@ class _HomePageState extends State<HomePage> {
       availabilityFilter: result.availabilityFilter,
       vibeTagNames: result.vibeTagNames,
       cuisineTagNames: result.cuisineTagNames,
-    );
-  }
-
-  Future<void> _showDealADeckIntro() {
-    return FeatureIntroOverlay.show(
-      context,
-      eyebrow: 'DEAL A DECK',
-      title: 'Stop Umming and Ahhing.',
-      description:
-          'We will deal you a deck of 10 options so you can stop spiralling, pick one fast, and head out.',
-      primaryLabel: 'DEAL A DECK',
-      illustrationPath: 'lib/assets/illustrations/Beep Beep - Campervan 2.svg',
-      icon: Icons.gavel_rounded,
-      iconBackgroundColor: pinit.PinitColors.accent,
-      primaryColor: pinit.PinitColors.accent,
-      onPrimaryTap: () {
-        unawaited(
-          QuickPicksDistancePage.show(
-            context,
-            viewModel: _viewModel,
-          ),
-        );
-      },
+      maxResults: result.maxResults,
     );
   }
 
@@ -639,34 +620,6 @@ class _HomePageState extends State<HomePage> {
                                   mainAxisSize: MainAxisSize.min,
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
-                                    if (viewModel.homeMode ==
-                                            HomeMode.explore &&
-                                        viewModel.locations.isNotEmpty &&
-                                        !(viewModel.isMagicSearchActive &&
-                                            viewModel.currentListType ==
-                                                LocationListType.search)) ...[
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          _HomeActionPill(
-                                            label: 'Deal a deck',
-                                            icon: Icons.gavel_rounded,
-                                            backgroundColor:
-                                                pinit.PinitColors.accent,
-                                            foregroundColor:
-                                                pinit.PinitColors.cream,
-                                            borderColor:
-                                                pinit.PinitColors.aubergine,
-                                            shadowColor:
-                                                pinit.PinitColors.aubergine,
-                                            onTap: () {
-                                              unawaited(_showDealADeckIntro());
-                                            },
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 10),
-                                    ],
                                     Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
@@ -712,6 +665,7 @@ class _HomePageState extends State<HomePage> {
                                                     HomeMode.bubble =>
                                                       LocationListType.bubble,
                                                   },
+                                                  homeViewModel: viewModel.homeMode == HomeMode.explore ? viewModel : null,
                                                 ),
                                               ),
                                             ),

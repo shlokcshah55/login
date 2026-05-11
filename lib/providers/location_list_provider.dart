@@ -1548,6 +1548,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
     AvailabilityFilter availabilityFilter = AvailabilityFilter.any,
     List<String> vibeTagNames = const [],
     List<String> cuisineTagNames = const [],
+    int maxResults = 30,
   }) async {
     // Update filter state
     _vibeTagIds = List.from(vibeTagIds);
@@ -1591,6 +1592,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       await fetchRecommendedLocations(
         latitude: currentLocation.latitude,
         longitude: currentLocation.longitude,
+        maxResults: maxResults,
         vibeTagIds: _vibeTagIds,
         cuisines: _cuisineTagNames.map((c) => c.toLowerCase()).toList(),
       );
@@ -1614,6 +1616,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
         await fetchRecommendedLocations(
           latitude: currentLocation.latitude,
           longitude: currentLocation.longitude,
+          maxResults: maxResults,
         );
       }
     } else {

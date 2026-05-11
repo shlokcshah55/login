@@ -76,8 +76,9 @@ List<BubblesSearchSection> buildBubblesSearchSections({
         (user) => BubblesSearchItem(
           id: user.supabaseId ?? user.email,
           title: user.username ?? user.name ?? user.email,
-          subtitle:
-              user.name?.trim().isNotEmpty == true ? user.name! : user.email,
+          subtitle: user.username?.trim().isNotEmpty == true
+              ? '@${user.username}'
+              : (user.name?.trim().isNotEmpty == true ? user.name! : ''),
           type: BubblesSearchSectionType.people,
           user: user,
         ),

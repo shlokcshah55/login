@@ -14,6 +14,7 @@ class HomeFilterSheetResult {
     this.vibeTagNames = const [],
     this.cuisineTagNames = const [],
     this.launchSweetTreat = false,
+    this.maxResults = 30,
   });
 
   final Set<String> vibeTagIds;
@@ -22,6 +23,7 @@ class HomeFilterSheetResult {
   final List<String> vibeTagNames;
   final List<String> cuisineTagNames;
   final bool launchSweetTreat;
+  final int maxResults;
 
   int get totalSelectedCount =>
       vibeTagIds.length +
@@ -66,17 +68,20 @@ class HomeFilterSheet extends StatefulWidget {
     required this.initialVibeTagIds,
     required this.initialCuisineTagIds,
     this.initialAvailabilityFilter = AvailabilityFilter.any,
+    this.showMaxResults = false,
   });
 
   final Set<String> initialVibeTagIds;
   final Set<String> initialCuisineTagIds;
   final AvailabilityFilter initialAvailabilityFilter;
+  final bool showMaxResults;
 
   static Future<HomeFilterSheetResult?> show(
     BuildContext context, {
     required Set<String> initialVibeTagIds,
     required Set<String> initialCuisineTagIds,
     AvailabilityFilter initialAvailabilityFilter = AvailabilityFilter.any,
+    bool showMaxResults = false,
   }) {
     return showModalBottomSheet<HomeFilterSheetResult>(
       context: context,
@@ -87,6 +92,7 @@ class HomeFilterSheet extends StatefulWidget {
         initialVibeTagIds: initialVibeTagIds,
         initialCuisineTagIds: initialCuisineTagIds,
         initialAvailabilityFilter: initialAvailabilityFilter,
+        showMaxResults: showMaxResults,
       ),
     );
   }
@@ -127,6 +133,7 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
   late Set<String> _selectedVibeTagIds;
   late Set<String> _selectedCuisineTagIds;
   late AvailabilityFilter _selectedAvailabilityFilter;
+  double _maxResults = 30;
 
   List<Map<String, dynamic>> _vibeTags = const [];
   List<Map<String, dynamic>> _cuisineTags = const [];
@@ -241,6 +248,7 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
       vibeTagNames: vibeNames,
       cuisineTagNames: cuisineNames,
       launchSweetTreat: launchSweetTreat,
+      maxResults: _maxResults.round(),
     );
   }
 
@@ -590,7 +598,64 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
                   ),
                 ],
               ),
+              if (widget.showMaxResults) ...[
               const SizedBox(height: 18),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'RECOMMENDATIONS SHOWN',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: PinitColors.aubergineSoft,
+                      letterSpacing: 1.4,
+                      height: 1.0,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: PinitColors.aubergine,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      '${_maxResults.round()}',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: PinitColors.cream,
+                        height: 1.0,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  activeTrackColor: PinitColors.aubergine,
+                  inactiveTrackColor: PinitColors.creamDeep,
+                  thumbColor: PinitColors.aubergine,
+                  overlayColor: PinitColors.aubergine.withValues(alpha: 0.12),
+                  trackHeight: 4,
+                  thumbShape: const RoundSliderThumbShape(
+                    enabledThumbRadius: 10,
+                  ),
+                ),
+                child: Slider(
+                  value: _maxResults,
+                  min: 5,
+                  max: 70,
+                  divisions: 13,
+                  onChanged: (value) => setState(() => _maxResults = value),
+                ),
+              ),
+              const SizedBox(height: 10),
+              ],
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
