@@ -8,6 +8,7 @@ import 'package:login/pages/home/home_view_model.dart';
 import 'package:login/pages/home/quick_picks/quick_picks_distance_page.dart';
 import 'package:login/pages/home/widgets/feature_intro_overlay.dart';
 import 'package:login/providers/location_list_provider.dart';
+import 'package:login/providers/navigation_provider.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/utils/geo_types.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
@@ -58,6 +59,7 @@ class CarouselListPage extends StatefulWidget {
   final String title;
   final LocationListType? listType;
   final HomeViewModel? homeViewModel;
+  final String? collectionId;
 
   const CarouselListPage({
     Key? key,
@@ -65,6 +67,7 @@ class CarouselListPage extends StatefulWidget {
     required this.title,
     this.listType,
     this.homeViewModel,
+    this.collectionId,
   }) : super(key: key);
 
   @override
@@ -79,6 +82,16 @@ class _CarouselListPageState extends State<CarouselListPage> {
   bool get _isSavedSeeAll => widget.listType == LocationListType.saved;
   bool get _isTopPicksSeeAll => widget.listType == LocationListType.recommended;
   bool get _canDealADeck => _isTopPicksSeeAll && widget.homeViewModel != null;
+  bool get _canShowInMap => widget.collectionId != null;
+
+  void _showInMap() {
+    final collectionId = widget.collectionId;
+    if (collectionId == null) return;
+    context
+        .read<NavigationProvider>()
+        .navigateToCollectionMapOnly(collectionId);
+    Navigator.of(context).pop();
+  }
 
   Future<void> _showDealADeckIntro() {
     final viewModel = widget.homeViewModel;
@@ -211,6 +224,34 @@ class _CarouselListPageState extends State<CarouselListPage> {
           ),
         ),
         actions: [
+          if (_canShowInMap)
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: GestureDetector(
+                onTap: _showInMap,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: PinitColors.creamSunk,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: PinitColors.aubergine.withValues(alpha: 0.25),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Text(
+                    'Show in map',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: PinitColors.aubergine,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           if (_canDealADeck)
             Padding(
               padding: const EdgeInsets.only(right: 16),
