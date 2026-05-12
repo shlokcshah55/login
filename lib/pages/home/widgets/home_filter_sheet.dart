@@ -69,12 +69,14 @@ class HomeFilterSheet extends StatefulWidget {
     required this.initialCuisineTagIds,
     this.initialAvailabilityFilter = AvailabilityFilter.any,
     this.showMaxResults = false,
+    this.initialMaxResults = 30,
   });
 
   final Set<String> initialVibeTagIds;
   final Set<String> initialCuisineTagIds;
   final AvailabilityFilter initialAvailabilityFilter;
   final bool showMaxResults;
+  final int initialMaxResults;
 
   static Future<HomeFilterSheetResult?> show(
     BuildContext context, {
@@ -82,6 +84,7 @@ class HomeFilterSheet extends StatefulWidget {
     required Set<String> initialCuisineTagIds,
     AvailabilityFilter initialAvailabilityFilter = AvailabilityFilter.any,
     bool showMaxResults = false,
+    int initialMaxResults = 30,
   }) {
     return showModalBottomSheet<HomeFilterSheetResult>(
       context: context,
@@ -93,6 +96,7 @@ class HomeFilterSheet extends StatefulWidget {
         initialCuisineTagIds: initialCuisineTagIds,
         initialAvailabilityFilter: initialAvailabilityFilter,
         showMaxResults: showMaxResults,
+        initialMaxResults: initialMaxResults,
       ),
     );
   }
@@ -133,7 +137,7 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
   late Set<String> _selectedVibeTagIds;
   late Set<String> _selectedCuisineTagIds;
   late AvailabilityFilter _selectedAvailabilityFilter;
-  double _maxResults = 30;
+  late double _maxResults;
 
   List<Map<String, dynamic>> _vibeTags = const [];
   List<Map<String, dynamic>> _cuisineTags = const [];
@@ -143,6 +147,7 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
   @override
   void initState() {
     super.initState();
+    _maxResults = widget.initialMaxResults.toDouble().clamp(5.0, 70.0);
     _selectedVibeTagIds = Set<String>.from(widget.initialVibeTagIds);
     _selectedCuisineTagIds = Set<String>.from(widget.initialCuisineTagIds);
     // We no longer expose "Closed now" in this sheet.

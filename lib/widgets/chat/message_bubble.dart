@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/themes/app_typography.dart';
 
@@ -357,12 +358,13 @@ class _SharedLocationCard extends StatelessWidget {
                             location?.name ?? 'Place unavailable',
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: AppTypography.brand(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              color: PinitColors.aubergine,
-                              height: 1.0,
-                            ),
+                             style: GoogleFonts.dmSans(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: PinitColors.aubergine,
+                                letterSpacing: -0.8,
+                                height: 1.15,
+                              ),
                           ),
                           if ((location?.vicinity?.trim().isNotEmpty ??
                                   false) ||

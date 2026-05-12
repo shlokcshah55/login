@@ -32,6 +32,8 @@ class SummarySlabSection extends StatelessWidget {
     required this.isBeenTo,
     required this.isBeenToLoading,
     required this.onBeenTo,
+    this.showEditBeenToRating = false,
+    this.onEditBeenToRating,
     this.pinitAvgRating,
     this.pinitReviewCount = 0,
     this.creatorHandle,
@@ -45,6 +47,8 @@ class SummarySlabSection extends StatelessWidget {
   final bool isBeenTo;
   final bool isBeenToLoading;
   final VoidCallback onBeenTo;
+  final bool showEditBeenToRating;
+  final VoidCallback? onEditBeenToRating;
   final double? pinitAvgRating;
   final int pinitReviewCount;
   final String? creatorHandle;
@@ -100,39 +104,74 @@ class SummarySlabSection extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 12),
-            GestureDetector(
-              onTap: (isBeenTo || isBeenToLoading) ? null : onBeenTo,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isBeenTo ? PinitColors.accent : Colors.transparent,
-                  border: Border.all(
-                    color: PinitColors.accent,
-                    width: 1.5,
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                GestureDetector(
+                  onTap: (isBeenTo || isBeenToLoading) ? null : onBeenTo,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isBeenTo ? PinitColors.accent : Colors.transparent,
+                      border: Border.all(
+                        color: PinitColors.accent,
+                        width: 1.5,
+                      ),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: isBeenToLoading
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 1.5,
+                              valueColor:
+                                  AlwaysStoppedAnimation(PinitColors.accent),
+                            ),
+                          )
+                        : Text(
+                            isBeenTo ? "I've been" : 'Been here?',
+                            style: GoogleFonts.dmSans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: isBeenTo
+                                  ? PinitColors.cream
+                                  : PinitColors.accent,
+                            ),
+                          ),
                   ),
-                  borderRadius: BorderRadius.circular(999),
                 ),
-                child: isBeenToLoading
-                    ? const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 1.5,
-                          valueColor:
-                              AlwaysStoppedAnimation(PinitColors.accent),
+                if (showEditBeenToRating) ...[
+                  const SizedBox(width: 8),
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(999),
+                      onTap: isBeenToLoading ? null : onEditBeenToRating,
+                      child: Ink(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: PinitColors.cream,
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: PinitColors.accent.withValues(alpha: 0.35),
+                            width: 1.5,
+                          ),
                         ),
-                      )
-                    : Text(
-                        isBeenTo ? "I've been" : 'Been here?',
-                        style: GoogleFonts.dmSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: isBeenTo
-                              ? PinitColors.cream
-                              : PinitColors.accent,
+                        child: const Icon(
+                          Icons.edit_rounded,
+                          size: 18,
+                          color: PinitColors.accent,
                         ),
                       ),
-              ),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ],
         ),
@@ -239,9 +278,8 @@ class _KeyFactsCluster extends StatelessWidget {
             _FactChip(
               label: '${formatCount(saves)} saves',
               icon: Icons.bookmark_rounded,
-              variant: savesTrending
-                  ? _FactVariant.accent
-                  : _FactVariant.outlined,
+              variant:
+                  savesTrending ? _FactVariant.accent : _FactVariant.outlined,
             ),
           if (location.cuisinePrimary != null)
             _FactChip(

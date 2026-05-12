@@ -9,7 +9,7 @@ import 'package:login/pages/bubbles_page.dart';
 import 'package:login/pages/home_page.dart';
 import 'package:login/pages/profile/profile_page.dart';
 import 'package:login/pages/signup_wizard/wizard_completion_page.dart';
-import 'package:login/pages/splash_screen.dart';
+import 'package:login/pages/auth_handler.dart';
 import 'package:login/services/analytics_service.dart';
 import 'package:login/supabase/supabase_client.dart';
 import 'package:login/themes/pinit_theme.dart';
@@ -148,7 +148,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           ),
         );
       },
-      home: const SplashScreenActual(),
+      home: const AuthHandler(),
       routes: {
         '/home': (context) => const HomePage(),
         '/profile': (context) => const ProfilePage(),

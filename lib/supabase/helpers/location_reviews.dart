@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:login/services/been_to_rankings_events.dart';
 import '../constants.dart';
 import '../supabase_client.dart';
 
@@ -138,10 +139,47 @@ class LocationReviewsHelper {
           'p_gatekeep': gatekeep,
         },
       );
+      final userId = SupabaseClientManager().currentUser?.id;
+      if (userId != null) {
+        BeenToRankingsEvents.instance.notifyChanged(userId);
+      }
       return Map<String, dynamic>.from(response as Map);
     } catch (e) {
       if (kDebugMode) {
         print('LocationReviewsHelper: submitBeenTo failed: $e');
+      }
+      rethrow;
+    }
+  }
+
+  /// Update an existing "been to" review without inserting a new row.
+  /// Intended for editing a previously submitted rating/notes.
+  ///
+  /// Rating is 1.0-10.0 with 0.1 increments. Gatekeep maps to the private column.
+  Future<Map<String, dynamic>?> updateBeenTo({
+    required int locationId,
+    required double rating,
+    String? content,
+    bool gatekeep = false,
+  }) async {
+    try {
+      final response = await _client.rpc(
+        'update_location_review',
+        params: {
+          'p_location_id': locationId,
+          'p_rating': rating,
+          'p_content': content,
+          'p_gatekeep': gatekeep,
+        },
+      );
+      final userId = SupabaseClientManager().currentUser?.id;
+      if (userId != null) {
+        BeenToRankingsEvents.instance.notifyChanged(userId);
+      }
+      return Map<String, dynamic>.from(response as Map);
+    } catch (e) {
+      if (kDebugMode) {
+        print('LocationReviewsHelper: updateBeenTo failed: $e');
       }
       rethrow;
     }
@@ -209,7 +247,6 @@ class LocationReviewsHelper {
         params: {
           'p_name': 'Been To',
           'p_is_public': true,
-          
         },
       );
       return result as String?;

@@ -72,6 +72,9 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   // ── Been to state ──
   bool _isBeenTo = false;
   bool _isBeenToLoading = false;
+  double? _beenToRating;
+  String? _beenToNotes;
+  bool _beenToGatekeep = false;
   final LocationReviewsHelper _reviewsHelper = LocationReviewsHelper();
 
   // ── Pinit avg rating state ──
@@ -236,7 +239,12 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
       context.read<LocationListManager>().markLocationBeenTo(
             widget.location.locationId,
           );
-      setState(() => _isBeenTo = true);
+      setState(() {
+        _isBeenTo = true;
+        _beenToRating = (review['rating'] as num?)?.toDouble();
+        _beenToNotes = review['content'] as String?;
+        _beenToGatekeep = review['private'] as bool? ?? false;
+      });
     } catch (_) {}
   }
 
@@ -256,6 +264,11 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     );
     if (mounted) {
       context.read<LocationListManager>().markLocationBeenTo(locationId);
+      setState(() {
+        _beenToRating = rating;
+        _beenToNotes = notes;
+        _beenToGatekeep = gatekeep;
+      });
     }
     try {
       final collectionId = await _reviewsHelper.getOrCreateBeenToCollection();
@@ -325,6 +338,42 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     } finally {
       if (mounted) setState(() => _isBeenToLoading = false);
     }
+  }
+
+  Future<void> _onEditBeenToTap() async {
+    if (!_isBeenTo || _isBeenToLoading) return;
+    final existingRating = _beenToRating;
+    if (existingRating == null) return;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => BeenToReviewSheet(
+        locationName: widget.location.name,
+        initialRating: existingRating,
+        initialNotes: _beenToNotes,
+        initialGatekeep: _beenToGatekeep,
+        submitLabel: 'Update rating',
+        onSubmit: (rating, notes, gatekeep) async {
+          await _reviewsHelper.updateBeenTo(
+            locationId: widget.location.locationId,
+            rating: rating,
+            content: notes,
+            gatekeep: gatekeep,
+          );
+          if (!mounted) return;
+          setState(() {
+            _beenToRating = rating;
+            _beenToNotes = notes;
+            _beenToGatekeep = gatekeep;
+            _isBeenTo = true;
+          });
+          _fetchPinitAvgRating();
+          _fetchPinitReviews();
+        },
+      ),
+    );
   }
 
   Future<void> _toggleSave() async {
@@ -958,6 +1007,8 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                 isBeenTo: _isBeenTo,
                 isBeenToLoading: _isBeenToLoading,
                 onBeenTo: _onBeenToTap,
+                showEditBeenToRating: _isBeenTo && _beenToRating != null,
+                onEditBeenToRating: _onEditBeenToTap,
                 pinitAvgRating: _pinitAvgRating,
                 pinitReviewCount: _pinitReviewCount,
                 creatorHandle: _videoInsight?.creatorHandle,

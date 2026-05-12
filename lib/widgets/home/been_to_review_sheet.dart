@@ -7,11 +7,19 @@ class BeenToReviewSheet extends StatefulWidget {
   final String locationName;
   final Future<void> Function(double rating, String? notes, bool gatekeep)
       onSubmit;
+  final double? initialRating;
+  final String? initialNotes;
+  final bool? initialGatekeep;
+  final String submitLabel;
 
   const BeenToReviewSheet({
     Key? key,
     required this.locationName,
     required this.onSubmit,
+    this.initialRating,
+    this.initialNotes,
+    this.initialGatekeep,
+    this.submitLabel = 'Log visit',
   }) : super(key: key);
 
   @override
@@ -19,10 +27,18 @@ class BeenToReviewSheet extends StatefulWidget {
 }
 
 class _BeenToReviewSheetState extends State<BeenToReviewSheet> {
-  double _rating = 5.0;
-  final TextEditingController _notesController = TextEditingController();
-  bool _gatekeep = false;
+  late double _rating;
+  late final TextEditingController _notesController;
+  late bool _gatekeep;
   bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _rating = (widget.initialRating ?? 5.0).clamp(1.0, 10.0);
+    _notesController = TextEditingController(text: widget.initialNotes ?? '');
+    _gatekeep = widget.initialGatekeep ?? false;
+  }
 
   @override
   void dispose() {
@@ -63,8 +79,7 @@ class _BeenToReviewSheetState extends State<BeenToReviewSheet> {
     return Container(
       decoration: BoxDecoration(
         color: PinitColors.cream,
-        borderRadius:
-            const BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
       ),
       child: SingleChildScrollView(
         padding: EdgeInsets.only(bottom: bottomPadding),
@@ -127,8 +142,8 @@ class _BeenToReviewSheetState extends State<BeenToReviewSheet> {
               Row(
                 children: [
                   GestureDetector(
-                    onTap: () =>
-                        setState(() => _rating = (_rating - 0.1).clamp(1.0, 10.0)),
+                    onTap: () => setState(
+                        () => _rating = (_rating - 0.1).clamp(1.0, 10.0)),
                     child: Container(
                       width: 40,
                       height: 40,
@@ -161,8 +176,8 @@ class _BeenToReviewSheetState extends State<BeenToReviewSheet> {
                   ),
                   const SizedBox(width: 12),
                   GestureDetector(
-                    onTap: () =>
-                        setState(() => _rating = (_rating + 0.1).clamp(1.0, 10.0)),
+                    onTap: () => setState(
+                        () => _rating = (_rating + 0.1).clamp(1.0, 10.0)),
                     child: Container(
                       width: 40,
                       height: 40,
@@ -301,7 +316,7 @@ class _BeenToReviewSheetState extends State<BeenToReviewSheet> {
                         ),
                         onPressed: _submit,
                         child: Text(
-                          'Log visit',
+                          widget.submitLabel,
                           style: GoogleFonts.dmSans(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,

@@ -1746,6 +1746,146 @@ class CollectionDetailSheetState extends State<CollectionDetailSheet> {
 }
 
 // ─────────────────────────────────────────────────────────────
+//  Collection detail page (full-screen "see-all" style)
+// ─────────────────────────────────────────────────────────────
+
+/// Full-screen version of the collection detail view.
+///
+/// Used for viewing other users' public eat-lists to avoid the semi-modal,
+/// draggable bottom sheet presentation.
+class CollectionDetailPage extends StatefulWidget {
+  final CollectionModel collection;
+
+  const CollectionDetailPage({
+    super.key,
+    required this.collection,
+  });
+
+  @override
+  State<CollectionDetailPage> createState() => _CollectionDetailPageState();
+}
+
+class _CollectionDetailPageState extends State<CollectionDetailPage> {
+  final CollectionsHelper _helper = CollectionsHelper();
+  List<LocationModel> _locations = const [];
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final locs =
+          await _helper.getLocationsForCollection(widget.collection.id);
+      if (!mounted) return;
+      setState(() {
+        _locations = locs;
+        _isLoading = false;
+        _error = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final placeCount =
+        _isLoading ? widget.collection.placeCount : _locations.length;
+
+    return Scaffold(
+      backgroundColor: PinitColors.background,
+      appBar: AppBar(
+        backgroundColor: PinitColors.background,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        titleSpacing: 16,
+        title: Row(
+          children: [
+            if (widget.collection.emoji != null) ...[
+              Text(
+                widget.collection.emoji!,
+                style: const TextStyle(fontSize: 22),
+              ),
+              const SizedBox(width: 10),
+            ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.collection.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: PinitColors.aubergine,
+                      letterSpacing: -0.3,
+                      height: 1.2,
+                    ),
+                  ),
+                  Text(
+                    '$placeCount place${placeCount == 1 ? "" : "s"}',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 13,
+                      color: PinitColors.aubergineSoft,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      _error!,
+                      style: const TextStyle(color: PinitColors.textSecondary),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                )
+              : _locations.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'No places in this eat-list yet.',
+                        style: TextStyle(color: PinitColors.textSecondary),
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: EdgeInsets.fromLTRB(
+                        20,
+                        16,
+                        20,
+                        20 + MediaQuery.of(context).padding.bottom,
+                      ),
+                      itemCount: _locations.length,
+                      itemBuilder: (_, i) => _LocationRow(
+                        location: _locations[i],
+                        canRemove: false,
+                        removing: false,
+                        onRemove: null,
+                      ),
+                    ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 //  Location row — mirrors _TrendingCard in trending_now_section
 // ─────────────────────────────────────────────────────────────
 

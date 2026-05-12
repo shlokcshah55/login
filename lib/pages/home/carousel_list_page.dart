@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
-import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/pages/home/home_view_model.dart';
-import 'package:login/pages/home/quick_picks/quick_picks_distance_page.dart';
-import 'package:login/pages/home/widgets/feature_intro_overlay.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/navigation_provider.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
@@ -80,8 +77,6 @@ class _CarouselListPageState extends State<CarouselListPage> {
   _SavedSort _savedSort = _SavedSort.none;
 
   bool get _isSavedSeeAll => widget.listType == LocationListType.saved;
-  bool get _isTopPicksSeeAll => widget.listType == LocationListType.recommended;
-  bool get _canDealADeck => _isTopPicksSeeAll && widget.homeViewModel != null;
   bool get _canShowInMap => widget.collectionId != null;
 
   void _showInMap() {
@@ -91,32 +86,6 @@ class _CarouselListPageState extends State<CarouselListPage> {
         .read<NavigationProvider>()
         .navigateToCollectionMapOnly(collectionId);
     Navigator.of(context).pop();
-  }
-
-  Future<void> _showDealADeckIntro() {
-    final viewModel = widget.homeViewModel;
-    if (viewModel == null) return Future.value();
-
-    return FeatureIntroOverlay.show(
-      context,
-      eyebrow: 'DEAL A DECK',
-      title: 'Stop Umming and Ahhing.',
-      description:
-          'We will deal you a deck of 10 options so you can stop spiralling, pick one fast, and head out.',
-      primaryLabel: 'DEAL A DECK',
-      illustrationPath: 'lib/assets/illustrations/Beep Beep - Campervan 2.svg',
-      icon: Icons.gavel_rounded,
-      iconBackgroundColor: PinitColors.accent,
-      primaryColor: PinitColors.accent,
-      onPrimaryTap: () {
-        unawaited(
-          QuickPicksDistancePage.show(
-            context,
-            viewModel: viewModel,
-          ),
-        );
-      },
-    );
   }
 
   @override
@@ -248,52 +217,6 @@ class _CarouselListPageState extends State<CarouselListPage> {
                       color: PinitColors.aubergine,
                       letterSpacing: 0.3,
                     ),
-                  ),
-                ),
-              ),
-            ),
-          if (_canDealADeck)
-            Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: GestureDetector(
-                onTap: _showDealADeckIntro,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: PinitColors.accent,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: PinitColors.aubergine,
-                      width: 1.5,
-                    ),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: PinitColors.aubergine,
-                        blurRadius: 0,
-                        offset: Offset(3, 3),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.gavel_rounded,
-                        size: 14,
-                        color: PinitColors.cream,
-                      ),
-                      const SizedBox(width: 7),
-                      Text(
-                        'Deal a deck',
-                        style: GoogleFonts.dmSans(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: PinitColors.cream,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ],
                   ),
                 ),
               ),

@@ -63,6 +63,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
   List<String> _vibeTagNames = []; // resolved text values for vibe tags
   List<String> _cuisineTagNames = []; // resolved text values for cuisine tags
   AvailabilityFilter _availabilityFilter = AvailabilityFilter.any;
+  int _filterMaxResults = RecommendationsApi.defaultMaxResults;
 
   // Cached unfiltered locations for client-side filtering (per list type)
   List<LocationModel> _allRecommendedLocations = [];
@@ -128,6 +129,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
   List<String> get vibeTagIds => List.unmodifiable(_vibeTagIds);
   List<String> get cuisineTagIds => List.unmodifiable(_cuisineTagIds);
   AvailabilityFilter get availabilityFilter => _availabilityFilter;
+  int get filterMaxResults => _filterMaxResults;
   bool get hasActiveFilters =>
       _vibeTagIds.isNotEmpty ||
       _cuisineTagIds.isNotEmpty ||
@@ -842,6 +844,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
     }
 
     _isLoadingSaved = true;
+    notifyListeners();
     print('[fetchSavedLocations] Starting fetch for user $requestUserId');
     final stopwatch = Stopwatch()..start();
 
@@ -922,6 +925,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
     } finally {
       stopwatch.stop();
       _isLoadingSaved = false;
+      notifyListeners();
     }
   }
 
@@ -1556,6 +1560,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
     _availabilityFilter = availabilityFilter;
     _vibeTagNames = List.from(vibeTagNames);
     _cuisineTagNames = List.from(cuisineTagNames);
+    _filterMaxResults = maxResults;
 
     print("🎯 [LocationListManager] applyFilters called");
     print("   Vibe tag IDs (${_vibeTagIds.length}): $_vibeTagIds");
@@ -1577,12 +1582,16 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       return;
     }
 
-    // EXPLORE tab + cuisine filters → server-side recommendations fetch.
-    // Cuisine matching can't be done reliably on the client (free-text
-    // mismatch), so we let the API filter by cuisine_tag_ids and re-rank.
-    // Vibe filters tag along when present.
-    if (_currentListType == LocationListType.recommended && hasCuisine) {
-      print("   🌐 EXPLORE: server-side fetch (cuisine filter active)");
+    // EXPLORE tab + cuisine filters or non-default maxResults → server-side
+    // recommendations fetch. Cuisine matching can't be done reliably on the
+    // client (free-text mismatch), so we let the API filter by cuisine and
+    // re-rank. A custom maxResults also requires a fresh fetch because local
+    // filtering can only narrow the cached pool, never expand it.
+    final needsServerFetch = _currentListType == LocationListType.recommended &&
+        (hasCuisine || maxResults != RecommendationsApi.defaultMaxResults);
+    if (needsServerFetch) {
+      print(
+          "   🌐 EXPLORE: server-side fetch (cuisine=$hasCuisine, maxResults=$maxResults)");
       final currentLocation = currentPosition ?? await getCurrentLocation();
       if (currentLocation == null) {
         print("   ⚠️ No location yet — can't refetch with filters");
@@ -1594,7 +1603,9 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
         longitude: currentLocation.longitude,
         maxResults: maxResults,
         vibeTagIds: _vibeTagIds,
-        cuisines: _cuisineTagNames.map((c) => c.toLowerCase()).toList(),
+        cuisines: hasCuisine
+            ? _cuisineTagNames.map((c) => c.toLowerCase()).toList()
+            : null,
       );
       notifyListeners();
       return;

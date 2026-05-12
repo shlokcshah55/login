@@ -7,14 +7,18 @@ import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/users.dart';
+import 'package:login/pages/home/carousel_list_page.dart';
+import 'package:login/pages/profile/user_list_page.dart';
+import 'package:login/providers/location_list_provider.dart';
 import 'package:login/services/fcm_service.dart';
 import 'package:login/supabase/helpers/collections.dart';
 import 'package:login/supabase/service.dart';
+import 'package:login/utils/route_open_guard.dart';
 import 'package:login/widgets/feedback/app_feedback.dart';
 import 'package:provider/provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'widgets/pinit_colors.dart';
-import 'widgets/collections_grid.dart';
+import 'widgets/been_to_rankings_section.dart';
 
 class OtherUserProfilePage extends StatefulWidget {
   final UserModel user;
@@ -39,6 +43,7 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
   late UserModel _user;
   bool _pendingIncomingRequest = false;
   bool _processingRequestAction = false;
+  bool _theyFollowMe = false;
 
   final CollectionsHelper _collectionsHelper = CollectionsHelper();
 
@@ -71,11 +76,15 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
         _collectionsHelper.getUserPublicCollections(widget.user.supabaseId!),
         supabaseService.users.getUserProfileById(widget.user.supabaseId!),
         supabaseService.users.getIncomingFollowRequests(),
+        supabaseService.users.getFollowers(),
       ]);
 
       final incoming = (results[3] as List<UserModel>);
+      final myFollowers = (results[4] as List<UserModel>);
       final hasPendingFromThisUser =
           incoming.any((u) => u.supabaseId == widget.user.supabaseId);
+      final theyFollowMe =
+          myFollowers.any((u) => u.supabaseId == widget.user.supabaseId);
 
       if (mounted) {
         setState(() {
@@ -84,6 +93,7 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
           final fullUser = results[2] as UserModel?;
           if (fullUser != null) _user = fullUser;
           _pendingIncomingRequest = hasPendingFromThisUser;
+          _theyFollowMe = theyFollowMe;
           _isLoading = false;
         });
       }
@@ -395,6 +405,16 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
                           ),
                         ),
                       ),
+                      if (_publicCollections
+                          .any((c) => c.name.trim() == 'Been To'))
+                        SliverToBoxAdapter(
+                          child: BeenToRankingsSection(
+                            userId: _user.supabaseId!,
+                            showGateKeepToggle: false,
+                            allowExpand: false,
+                            maxPlaces: 5,
+                          ),
+                        ),
                       SliverToBoxAdapter(child: _buildEatListsSection()),
                       const SliverToBoxAdapter(child: SizedBox(height: 100)),
                     ],
@@ -534,14 +554,61 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
   }
 
   Widget _buildStatsRow() {
+    final isMutual = _followStatus == 'accepted' && _theyFollowMe;
     return Row(
       children: [
         _buildStat(_publicCollections.length.toString(), 'Eat-Lists'),
         _buildStatDivider(),
-        _buildStat(_user.followersCount.toString(), 'Followers'),
+        _buildStat(
+          _user.followersCount.toString(),
+          'Followers',
+          onTap: isMutual ? _openFollowers : null,
+        ),
         _buildStatDivider(),
-        _buildStat(_user.followingCount.toString(), 'Following'),
+        _buildStat(
+          _user.followingCount.toString(),
+          'Following',
+          onTap: isMutual ? _openFollowing : null,
+        ),
       ],
+    );
+  }
+
+  void _openFollowers() {
+    final userId = _user.supabaseId!;
+    final name = _user.name ?? 'Their';
+    unawaited(
+      RouteOpenGuard.run<void>(
+        'user-followers:$userId',
+        () => Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) => UserListPage(
+              title: '$name\'s Followers',
+              loader: (s) => s.users.getFollowers(userId: userId),
+              emptyMessage: 'No followers yet',
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openFollowing() {
+    final userId = _user.supabaseId!;
+    final name = _user.name ?? 'Their';
+    unawaited(
+      RouteOpenGuard.run<void>(
+        'user-following:$userId',
+        () => Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) => UserListPage(
+              title: '$name\'s Following',
+              loader: (s) => s.users.getFollowingList(userId: userId),
+              emptyMessage: 'Not following anyone yet',
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -552,8 +619,8 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
         color: PinitColors.cream.withValues(alpha: 0.18),
       );
 
-  Widget _buildStat(String value, String label) {
-    return Column(
+  Widget _buildStat(String value, String label, {VoidCallback? onTap}) {
+    final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -569,16 +636,38 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
           ),
         ),
         const SizedBox(height: 3),
-        Text(
-          label,
-          style: GoogleFonts.dmSans(
-            fontSize: 11,
-            fontWeight: FontWeight.w500,
-            color: PinitColors.cream.withValues(alpha: 0.65),
-            letterSpacing: 0.2,
-          ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: GoogleFonts.dmSans(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: PinitColors.cream.withValues(alpha: 0.65),
+                letterSpacing: 0.2,
+              ),
+            ),
+            if (onTap != null) ...[
+              const SizedBox(width: 3),
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 13,
+                color: PinitColors.cream.withValues(alpha: 0.5),
+              ),
+            ],
+          ],
         ),
       ],
+    );
+
+    if (onTap == null) return content;
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      child: content,
     );
   }
 
@@ -678,8 +767,10 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
   }
 
   Widget _buildEatListsSection() {
-    if (_publicCollections.isNotEmpty) {
-      return _PublicCollectionsSection(collections: _publicCollections);
+    final collections =
+        _publicCollections.where((c) => c.name.trim() != 'Been To').toList();
+    if (collections.isNotEmpty) {
+      return _PublicCollectionsSection(collections: collections);
     }
 
     final name = (_user.name != null && _user.name!.trim().isNotEmpty)
@@ -1139,14 +1230,31 @@ class _PublicCollectionCard extends StatelessWidget {
 
   const _PublicCollectionCard({required this.collection});
 
-  void _openDetails(BuildContext context) {
+  Future<void> _openDetails(BuildContext context) async {
     HapticFeedback.selectionClick();
-    showModalBottomSheet(
+    final helper = CollectionsHelper();
+    showDialog<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => CollectionDetailSheet(
-        collection: CollectionModel.fromItem(collection),
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          color: PinitColors.aubergine,
+        ),
+      ),
+    );
+    final locations = await helper.getLocationsForCollection(collection.collectionId);
+    if (!context.mounted) return;
+    Navigator.of(context).pop(); // loading dialog
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CarouselListPage(
+          locations: locations,
+          title: collection.name,
+          listType: LocationListType.search,
+          homeViewModel: null,
+          collectionId: collection.collectionId,
+        ),
       ),
     );
   }

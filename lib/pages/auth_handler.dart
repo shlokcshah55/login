@@ -8,7 +8,7 @@ import 'package:login/pages/main_screen.dart';
 import 'package:login/pages/welcome_page.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
-import 'package:login/widgets/loading_widget.dart';
+import 'package:login/widgets/launch_splash_body.dart';
 import 'package:provider/provider.dart';
 
 @visibleForTesting
@@ -294,18 +294,18 @@ class _AuthHandlerState extends State<AuthHandler> {
       body: Builder(builder: (context) {
         // Show loading during session validation
         if (supabaseProvider.isValidatingSession) {
-          return const LoadingWidget();
+          return const LaunchSplashBody();
         }
 
         if (supabaseProvider.isAuthenticated &&
             !supabaseProvider.hasValidSession) {
-          return const LoadingWidget();
+          return const LaunchSplashBody();
         }
 
         if (supabaseProvider.isAuthenticated &&
             supabaseProvider.hasValidSession &&
             !_hasInitializedData) {
-          return const LoadingWidget();
+          return const LaunchSplashBody();
         }
 
         if (_isCheckingLegalConsent ||
@@ -313,7 +313,7 @@ class _AuthHandlerState extends State<AuthHandler> {
                 supabaseProvider.hasValidSession &&
                 currentUserId != null &&
                 _legalConsentCheckedUserId != currentUserId)) {
-          return const LoadingWidget();
+          return const LaunchSplashBody();
         }
 
         // Check Supabase authentication and session validity
@@ -325,7 +325,15 @@ class _AuthHandlerState extends State<AuthHandler> {
           if (_isInitializing ||
               (userDataProvider.isLoading &&
                   userDataProvider.supabaseUserData == null)) {
-            return const LoadingWidget();
+            return const LaunchSplashBody();
+          }
+
+          // Keep the launch splash visible until saved locations are loaded.
+          final locationListManager =
+              Provider.of<LocationListManager>(context, listen: true);
+          if (locationListManager.isLoadingSaved ||
+              !locationListManager.hasLoadedSavedLocations) {
+            return const LaunchSplashBody();
           }
 
           // User is logged in with valid session
@@ -353,7 +361,7 @@ class _AuthHandlerState extends State<AuthHandler> {
 
           if (shouldPresentWizard) {
             _scheduleWizardCompletionRoute();
-            return const LoadingWidget();
+            return const LaunchSplashBody();
           }
 
           // Show MainScreen - wizard completion handled via popover

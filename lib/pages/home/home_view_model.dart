@@ -1046,6 +1046,7 @@ class HomeViewModel extends ChangeNotifier {
     final didSearch = await locationListManager.searchThisArea(
       center: center,
       radiusKm: radiusKm,
+      maxResults: locationListManager.filterMaxResults,
     );
 
     if (didSearch) {

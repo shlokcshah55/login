@@ -38,6 +38,8 @@ import 'package:login/widgets/home/no_magic_search_results_popover.dart';
 import 'package:login/widgets/home/no_recommendations_popover.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:login/widgets/feedback/app_feedback.dart';
+import 'package:login/pages/home/quick_picks/quick_picks_distance_page.dart';
+import 'package:login/pages/home/widgets/feature_intro_overlay.dart';
 import 'package:login/widgets/swipe_card_stack.dart';
 import 'package:login/widgets/wizard_completion_popover.dart';
 import 'package:login/supabase/helpers/collections.dart';
@@ -73,6 +75,7 @@ class _HomePageState extends State<HomePage> {
       ProfileCompletionCardPreferencesService();
   Set<String> _selectedVibeTagIds = <String>{};
   Set<String> _selectedCuisineTagIds = <String>{};
+  int _maxResults = 30;
   bool _wizardPopoverScheduled = false;
   bool _wizardPopoverShown = false;
   bool _isWizardPopoverVisible = false;
@@ -487,6 +490,29 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  Future<void> _showDealADeckIntro(HomeViewModel viewModel) {
+    return FeatureIntroOverlay.show(
+      context,
+      eyebrow: 'DEAL A DECK',
+      title: 'Stop Umming and Ahhing.',
+      description:
+          'We will deal you a deck of 10 options so you can stop spiralling, pick one fast, and head out.',
+      primaryLabel: 'DEAL A DECK',
+      illustrationPath: 'lib/assets/illustrations/Beep Beep - Campervan 2.svg',
+      icon: Icons.gavel_rounded,
+      iconBackgroundColor: pinit.PinitColors.accent,
+      primaryColor: pinit.PinitColors.accent,
+      onPrimaryTap: () {
+        unawaited(
+          QuickPicksDistancePage.show(
+            context,
+            viewModel: viewModel,
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _openHomeFilters() async {
     final result = await HomeFilterSheet.show(
       context,
@@ -495,6 +521,7 @@ class _HomePageState extends State<HomePage> {
       initialAvailabilityFilter: _locationListManager.availabilityFilter,
       showMaxResults:
           _locationListManager.currentListType == LocationListType.recommended,
+      initialMaxResults: _maxResults,
     );
     if (!mounted || result == null) return;
     if (result.launchSweetTreat) {
@@ -504,6 +531,7 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _selectedVibeTagIds = result.vibeTagIds;
       _selectedCuisineTagIds = result.cuisineTagIds;
+      _maxResults = result.maxResults;
     });
     await _locationListManager.applyFilters(
       vibeTagIds: result.vibeTagIds.toList(),
@@ -737,6 +765,59 @@ class _HomePageState extends State<HomePage> {
                                   mainAxisSize: MainAxisSize.min,
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
+                                    if (viewModel.locations.isNotEmpty &&
+                                        viewModel.homeMode ==
+                                            HomeMode.explore) ...[
+                                      GestureDetector(
+                                        onTap: () =>
+                                            _showDealADeckIntro(viewModel),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 14,
+                                            vertical: 8,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: pinit.PinitColors.accent,
+                                            borderRadius:
+                                                BorderRadius.circular(999),
+                                            border: Border.all(
+                                              color:
+                                                  pinit.PinitColors.aubergine,
+                                              width: 1.5,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color:
+                                                    pinit.PinitColors.aubergine,
+                                                blurRadius: 0,
+                                                offset: const Offset(3, 3),
+                                              ),
+                                            ],
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                Icons.gavel_rounded,
+                                                size: 13,
+                                                color: pinit.PinitColors.cream,
+                                              ),
+                                              const SizedBox(width: 6),
+                                              Text(
+                                                'Deal a deck',
+                                                style: GoogleFonts.dmSans(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: pinit.PinitColors.cream,
+                                                  letterSpacing: 0.4,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                    ],
                                     Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
@@ -839,7 +920,7 @@ class _HomePageState extends State<HomePage> {
                                                   ),
                                                   const SizedBox(width: 6),
                                                   Text(
-                                                    '   See All    ',
+                                                    '    See All    ',
                                                     style: GoogleFonts.dmSans(
                                                       fontSize: 12,
                                                       fontWeight:
@@ -1211,7 +1292,7 @@ class _TopPanel extends StatelessWidget {
                   onMagicSearchTap: () {
                     // Magic search uses the inline "zap" search pill; keep the
                     // full header-search surface closed.
-                    viewModel.closeHeaderSearch();
+                    viewModel.closeHeaderSearch(clearQuery: false);
 
                     final wasMagicSearchActive = viewModel.isMagicSearchActive;
                     viewModel.toggleMagicSearch();
@@ -1290,7 +1371,7 @@ class _TopPanel extends StatelessWidget {
                 onMagicSearchTap: () {
                   // Magic search uses the inline "zap" search pill; keep the
                   // full header-search surface closed.
-                  viewModel.closeHeaderSearch();
+                  viewModel.closeHeaderSearch(clearQuery: false);
 
                   final wasMagicSearchActive = viewModel.isMagicSearchActive;
                   viewModel.toggleMagicSearch();
