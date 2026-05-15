@@ -252,6 +252,27 @@ void main() {
     expect(find.text('ava'), findsOneWidget);
   });
 
+  testWidgets('focusing search hides the header and quick stats before typing', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _BubblesHarness(
+        searchPeople: (_) async => const [],
+      ),
+    );
+
+    expect(find.byKey(const Key('bubbles_compact_header')), findsOneWidget);
+    expect(find.text('1 circles'), findsOneWidget);
+
+    await tester.showKeyboard(
+      find.byKey(const Key('bubbles_universal_search_field')),
+    );
+    await tester.pump();
+
+    expect(find.byKey(const Key('bubbles_compact_header')), findsNothing);
+    expect(find.text('1 circles'), findsNothing);
+  });
+
   testWidgets('tapping a bubble row opens the preview callback',
       (tester) async {
     await tester.pumpWidget(

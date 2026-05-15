@@ -350,8 +350,7 @@ class _BubblesPageState extends State<BubblesPage>
                       decoration: InputDecoration(
                         hintText: 'Bubble name',
                         labelText: 'Name',
-                        hintStyle:
-                            GoogleFonts.dmSans(color: PinitColors.mute),
+                        hintStyle: GoogleFonts.dmSans(color: PinitColors.mute),
                         labelStyle: GoogleFonts.dmSans(
                             color: PinitColors.aubergineSoft),
                         floatingLabelStyle: GoogleFonts.dmSans(
@@ -546,8 +545,7 @@ class _BubblesPageState extends State<BubblesPage>
                           child: OutlinedButton(
                             onPressed: () => Navigator.of(context).pop(),
                             style: OutlinedButton.styleFrom(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 16),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(999),
                               ),
@@ -573,8 +571,10 @@ class _BubblesPageState extends State<BubblesPage>
                               final supabaseProvider =
                                   Provider.of<SupabaseService>(context,
                                       listen: false);
-                              final currentUser =
-                                  SupabaseClientManager().client.auth.currentUser;
+                              final currentUser = SupabaseClientManager()
+                                  .client
+                                  .auth
+                                  .currentUser;
 
                               if (currentUser == null) return;
 
@@ -615,8 +615,7 @@ class _BubblesPageState extends State<BubblesPage>
                             style: ElevatedButton.styleFrom(
                               backgroundColor: PinitColors.aubergine,
                               foregroundColor: PinitColors.cream,
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 16),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(999),
                               ),
@@ -919,6 +918,11 @@ class _BubblesPageState extends State<BubblesPage>
       builder: (context) => ExpandedChatView(
         bubble: bubble,
         onClose: () => Navigator.of(context).pop(),
+        onOpenChat: () => _openBubbleMessagingPage(bubble),
+        onOpenPinsChat: () => _openBubbleMessagingPage(
+          bubble,
+          initialView: BubbleMessageView.pins,
+        ),
       ),
     );
   }
@@ -935,9 +939,20 @@ class _BubblesPageState extends State<BubblesPage>
       registerTap: true,
       interactionKey: 'bubble_opened',
     );
-    Navigator.of(context).push(
+    _openBubbleMessagingPage(bubble);
+  }
+
+  Future<void> _openBubbleMessagingPage(
+    Bubble bubble, {
+    BubbleMessageView initialView = BubbleMessageView.messages,
+  }) async {
+    _bubblesProvider.markBubbleReadLocally(bubble.id);
+    await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => BubbleMessagingPage(bubble: bubble),
+        builder: (context) => BubbleMessagingPage(
+          bubble: bubble.copyWith(unreadCount: 0),
+          initialView: initialView,
+        ),
       ),
     );
   }

@@ -38,6 +38,11 @@ class ExpandedChatView extends StatefulWidget {
 
 class _ExpandedChatViewState extends State<ExpandedChatView>
     with TickerProviderStateMixin {
+  static const Color _unreadAccent = PinitColors.aubergineSoft;
+  static const Color _unreadAccentPressed = PinitColors.aubergine;
+  static const Color _unreadSurface = Color(0xFFF3EDF6);
+  static const Color _unreadShadow = Color(0xFF8C6D91);
+
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
   late Animation<double> _fadeAnimation;
@@ -81,8 +86,13 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
 
   Future<void> _loadMessageCount() async {
     try {
-      final count = await SupabaseService().messaging.getUnreadCount(widget.bubble.id);
-      if (mounted) setState(() { _messageCount = count; _isLoadingMessageCount = false; });
+      final count =
+          await SupabaseService().messaging.getUnreadCount(widget.bubble.id);
+      if (mounted)
+        setState(() {
+          _messageCount = count;
+          _isLoadingMessageCount = false;
+        });
     } catch (e) {
       if (mounted) setState(() => _isLoadingMessageCount = false);
     }
@@ -90,8 +100,13 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
 
   Future<void> _loadBubbleActivity() async {
     try {
-      final activities = await SupabaseService().bubbles.getBubbleActivity(widget.bubble.id);
-      if (mounted) setState(() { _activities = activities; _isLoadingActivities = false; });
+      final activities =
+          await SupabaseService().bubbles.getBubbleActivity(widget.bubble.id);
+      if (mounted)
+        setState(() {
+          _activities = activities;
+          _isLoadingActivities = false;
+        });
     } catch (e) {
       if (mounted) setState(() => _isLoadingActivities = false);
     }
@@ -99,7 +114,8 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
 
   Future<void> _reloadBubbleData() async {
     try {
-      final updated = await SupabaseService().bubbles.getBubbleById(widget.bubble.id);
+      final updated =
+          await SupabaseService().bubbles.getBubbleById(widget.bubble.id);
       if (updated != null && mounted) setState(() => currentBubble = updated);
     } catch (_) {}
   }
@@ -125,7 +141,8 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeIn),
     );
-    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero).animate(
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic),
     );
     _animationController.forward();
@@ -144,6 +161,10 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
   Future<void> _navigateToGroupChat({
     BubbleMessageView initialView = BubbleMessageView.messages,
   }) async {
+    if (_messageCount > 0 && mounted) {
+      setState(() => _messageCount = 0);
+    }
+
     final override = initialView == BubbleMessageView.pins
         ? widget.onOpenPinsChat
         : widget.onOpenChat;
@@ -194,8 +215,8 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
 
     try {
       final user = await SupabaseService().users.getUserProfileById(
-        normalizedUserId,
-      );
+            normalizedUserId,
+          );
       if (user == null) return;
 
       final navigator = Navigator.of(context);
@@ -232,7 +253,8 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
                     position: _slideAnimation,
                     child: Container(
                       width: screenSize.width * 0.92,
-                      constraints: BoxConstraints(maxHeight: screenSize.height * 0.82),
+                      constraints:
+                          BoxConstraints(maxHeight: screenSize.height * 0.82),
                       decoration: const BoxDecoration(
                         color: PinitColors.cream,
                         border: Border.fromBorderSide(
@@ -255,9 +277,11 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
                             _buildHeader(),
                             Flexible(
                               child: SingleChildScrollView(
-                                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                                padding:
+                                    const EdgeInsets.fromLTRB(16, 0, 16, 16),
                                 child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
                                   children: [
                                     const SizedBox(height: 16),
                                     _buildTopPins(),
@@ -296,13 +320,16 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
       padding: const EdgeInsets.fromLTRB(16, 16, 12, 14),
       decoration: const BoxDecoration(
         color: PinitColors.creamSunk,
-        border: Border(bottom: BorderSide(color: PinitColors.creamDeep, width: 1)),
+        border:
+            Border(bottom: BorderSide(color: PinitColors.creamDeep, width: 1)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           // Avatar stack
-          _buildAvatarStack(currentBubble.memberAvatars, currentBubble.memberNames, size: 36),
+          _buildAvatarStack(
+              currentBubble.memberAvatars, currentBubble.memberNames,
+              size: 36),
           const SizedBox(width: 12),
           // Name + meta
           Expanded(
@@ -369,16 +396,18 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
         key: const Key('expanded_bubble_top_pins'),
         onTap: () => _navigateToGroupChat(initialView: BubbleMessageView.pins),
         child: _SectionCard(
-        child: Row(
-          children: [
-            const Icon(Icons.location_on_outlined, color: PinitColors.mute, size: 20),
-            const SizedBox(width: 10),
-            Text(
-              'No pins yet — add some places!',
-              style: GoogleFonts.dmSans(fontSize: 13, color: PinitColors.mute),
-            ),
-          ],
-        ),
+          child: Row(
+            children: [
+              const Icon(Icons.location_on_outlined,
+                  color: PinitColors.mute, size: 20),
+              const SizedBox(width: 10),
+              Text(
+                'No pins yet — add some places!',
+                style:
+                    GoogleFonts.dmSans(fontSize: 13, color: PinitColors.mute),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -387,50 +416,53 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
       key: const Key('expanded_bubble_top_pins'),
       onTap: () => _navigateToGroupChat(initialView: BubbleMessageView.pins),
       child: _SectionCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _SectionLabel(label: 'TOP PINS', icon: Icons.location_on_outlined),
-          const SizedBox(height: 10),
-          Row(
-            children: top3.asMap().entries.map((e) {
-              final rank = e.key;
-              final loc = e.value;
-              final medals = ['🥇', '🥈', '🥉'];
-              return Expanded(
-                child: Padding(
-                  padding: EdgeInsets.only(right: rank < top3.length - 1 ? 8 : 0),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: PinitColors.creamSunk,
-                      border: Border.all(color: PinitColors.creamDeep),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(medals[rank], style: const TextStyle(fontSize: 18)),
-                        const SizedBox(height: 4),
-                        Text(
-                          loc.name,
-                          style: GoogleFonts.dmSans(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: PinitColors.aubergine,
-                            height: 1.2,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _SectionLabel(label: 'TOP PINS', icon: Icons.location_on_outlined),
+            const SizedBox(height: 10),
+            Row(
+              children: top3.asMap().entries.map((e) {
+                final rank = e.key;
+                final loc = e.value;
+                final medals = ['🥇', '🥈', '🥉'];
+                return Expanded(
+                  child: Padding(
+                    padding:
+                        EdgeInsets.only(right: rank < top3.length - 1 ? 8 : 0),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: PinitColors.creamSunk,
+                        border: Border.all(color: PinitColors.creamDeep),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(medals[rank],
+                              style: const TextStyle(fontSize: 18)),
+                          const SizedBox(height: 4),
+                          Text(
+                            loc.name,
+                            style: GoogleFonts.dmSans(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: PinitColors.aubergine,
+                              height: 1.2,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              );
-            }).toList(),
-          ),
-        ],
-      ),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -438,19 +470,37 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
   // ── Chat card ────────────────────────────────────────────────────────────────
 
   Widget _buildChatCard() {
+    final isUnread = !_isLoadingMessageCount && _messageCount > 0;
+
     return GestureDetector(
+      key: const Key('expanded_bubble_group_chat'),
       onTap: () => _navigateToGroupChat(),
       child: _SectionCard(
+        backgroundColor: isUnread ? _unreadSurface : PinitColors.cream,
+        borderColor: isUnread ? _unreadAccent : PinitColors.aubergine,
+        shadowColor: isUnread ? _unreadShadow : PinitColors.aubergine,
         child: Row(
           children: [
             Container(
               width: 42,
               height: 42,
-              decoration: const BoxDecoration(
-                color: PinitColors.aubergine,
+              decoration: BoxDecoration(
+                color: isUnread ? _unreadAccent : PinitColors.aubergine,
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: isUnread
+                    ? const [
+                        BoxShadow(
+                          color: Color(0x296B3866),
+                          blurRadius: 12,
+                          offset: Offset(0, 4),
+                        ),
+                      ]
+                    : null,
               ),
-              child: const Icon(
-                Icons.chat_bubble_outline_rounded,
+              child: Icon(
+                isUnread
+                    ? Icons.chat_bubble_rounded
+                    : Icons.chat_bubble_outline_rounded,
                 color: PinitColors.cream,
                 size: 20,
               ),
@@ -471,33 +521,49 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
                   const SizedBox(height: 2),
                   _isLoadingMessageCount
                       ? Text('Loading…',
-                          style: GoogleFonts.dmSans(fontSize: 12, color: PinitColors.mute))
-                      : _messageCount > 0
+                          style: GoogleFonts.dmSans(
+                              fontSize: 12, color: PinitColors.mute))
+                      : isUnread
                           ? Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
-                                color: PinitColors.aubergine.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(4),
+                                color: _unreadAccent,
+                                borderRadius: BorderRadius.circular(999),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Color(0x1F6B3866),
+                                    blurRadius: 12,
+                                    offset: Offset(0, 4),
+                                  ),
+                                ],
                               ),
                               child: Text(
-                                '$_messageCount unread',
+                                '$_messageCount new',
                                 style: GoogleFonts.dmSans(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w700,
-                                  color: PinitColors.aubergine,
+                                  color: Colors.white,
                                 ),
                               ),
                             )
                           : Text(
                               'No unread messages',
-                              style: GoogleFonts.dmSans(fontSize: 12, color: PinitColors.mute),
+                              style: GoogleFonts.dmSans(
+                                  fontSize: 12, color: PinitColors.mute),
                             ),
                 ],
               ),
             ),
-            _buildAvatarStack(currentBubble.memberAvatars, currentBubble.memberNames, size: 28),
+            _buildAvatarStack(
+                currentBubble.memberAvatars, currentBubble.memberNames,
+                size: 28),
             const SizedBox(width: 4),
-            const Icon(Icons.chevron_right_rounded, color: PinitColors.mute, size: 20),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: isUnread ? _unreadAccentPressed : PinitColors.mute,
+              size: 20,
+            ),
           ],
         ),
       ),
@@ -511,66 +577,68 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
       key: const Key('expanded_bubble_recent_activity'),
       onTap: _isLoadingActivities ? null : _showActivityNotifications,
       child: _SectionCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _SectionLabel(label: 'RECENT ACTIVITY', icon: Icons.bolt_rounded),
-          const SizedBox(height: 10),
-          if (_isLoadingActivities)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Center(
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: PinitColors.aubergine,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _SectionLabel(label: 'RECENT ACTIVITY', icon: Icons.bolt_rounded),
+            const SizedBox(height: 10),
+            if (_isLoadingActivities)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Center(
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: PinitColors.aubergine,
+                  ),
                 ),
-              ),
-            )
-          else if (_activities.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text(
-                'No recent activity',
-                style: GoogleFonts.dmSans(fontSize: 13, color: PinitColors.mute),
-              ),
-            )
-          else
-            Column(
-              children: [
-                ..._activities.take(2).map((a) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _ActivityRow(activity: a, timeAgo: _getTimeAgo(a.createdAt)),
-                )),
-                if (_activities.length > 2)
-                  GestureDetector(
-                    onTap: _showActivityNotifications,
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.notifications_none_rounded,
-                            size: 14,
-                            color: PinitColors.aubergineSoft,
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            'View all activity',
-                            style: GoogleFonts.dmSans(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
+              )
+            else if (_activities.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  'No recent activity',
+                  style:
+                      GoogleFonts.dmSans(fontSize: 13, color: PinitColors.mute),
+                ),
+              )
+            else
+              Column(
+                children: [
+                  ..._activities.take(2).map((a) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _ActivityRow(
+                            activity: a, timeAgo: _getTimeAgo(a.createdAt)),
+                      )),
+                  if (_activities.length > 2)
+                    GestureDetector(
+                      onTap: _showActivityNotifications,
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.notifications_none_rounded,
+                              size: 14,
                               color: PinitColors.aubergineSoft,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 5),
+                            Text(
+                              'View all activity',
+                              style: GoogleFonts.dmSans(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: PinitColors.aubergineSoft,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-              ],
-            ),
-        ],
-      ),
+                ],
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -587,7 +655,9 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
             child: _StatCard(
               value: '${currentBubble.memberCount}',
               label: 'MEMBERS',
-              icon: _showMembersList ? Icons.people_rounded : Icons.people_outline_rounded,
+              icon: _showMembersList
+                  ? Icons.people_rounded
+                  : Icons.people_outline_rounded,
               active: _showMembersList,
             ),
           ),
@@ -596,7 +666,8 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
         Expanded(
           child: GestureDetector(
             key: const Key('expanded_bubble_pins_stat'),
-            onTap: () => _navigateToGroupChat(initialView: BubbleMessageView.pins),
+            onTap: () =>
+                _navigateToGroupChat(initialView: BubbleMessageView.pins),
             child: _StatCard(
               value: '${currentBubble.groupLocations.length}',
               label: 'PINS',
@@ -643,10 +714,12 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
                     : '';
                 final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
                 return GestureDetector(
-                  key: Key('expanded_bubble_member_${userId.isNotEmpty ? userId : i}'),
+                  key: Key(
+                      'expanded_bubble_member_${userId.isNotEmpty ? userId : i}'),
                   onTap: userId.isEmpty ? null : () => _openUserProfile(userId),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
                       color: PinitColors.creamSunk,
                       border: Border.all(color: PinitColors.creamDeep),
@@ -664,14 +737,21 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
                           ),
                           child: ClipOval(
                             child: url.isNotEmpty
-                                ? Image.network(url, fit: BoxFit.cover,
+                                ? Image.network(url,
+                                    fit: BoxFit.cover,
                                     errorBuilder: (_, __, ___) => Center(
-                                      child: Text(initial,
-                                        style: GoogleFonts.dmSans(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.white)),
-                                    ))
+                                          child: Text(initial,
+                                              style: GoogleFonts.dmSans(
+                                                  fontSize: 9,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: Colors.white)),
+                                        ))
                                 : Center(
                                     child: Text(initial,
-                                      style: GoogleFonts.dmSans(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.white)),
+                                        style: GoogleFonts.dmSans(
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.w800,
+                                            color: Colors.white)),
                                   ),
                           ),
                         ),
@@ -693,16 +773,19 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
               GestureDetector(
                 onTap: _showAddMembersDialog,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
                     color: PinitColors.aubergine.withValues(alpha: 0.07),
-                    border: Border.all(color: PinitColors.aubergine.withValues(alpha: 0.3)),
+                    border: Border.all(
+                        color: PinitColors.aubergine.withValues(alpha: 0.3)),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.person_add_outlined, size: 14, color: PinitColors.aubergine),
+                      const Icon(Icons.person_add_outlined,
+                          size: 14, color: PinitColors.aubergine),
                       const SizedBox(width: 6),
                       Text(
                         'Add',
@@ -725,7 +808,8 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
 
-  Widget _buildAvatarStack(List<String> avatars, List<String> names, {required double size}) {
+  Widget _buildAvatarStack(List<String> avatars, List<String> names,
+      {required double size}) {
     final items = avatars.take(3).toList();
     if (items.isEmpty) return const SizedBox.shrink();
     const overlap = 0.38;
@@ -752,8 +836,10 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
               ),
               child: ClipOval(
                 child: url.isNotEmpty
-                    ? Image.network(url, fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _InitialCenter(initial: initial, size: size))
+                    ? Image.network(url,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) =>
+                            _InitialCenter(initial: initial, size: size))
                     : _InitialCenter(initial: initial, size: size),
               ),
             ),
@@ -778,24 +864,33 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
 
 class _SectionCard extends StatelessWidget {
   final Widget child;
-  const _SectionCard({required this.child});
+  final Color backgroundColor;
+  final Color borderColor;
+  final Color shadowColor;
+
+  const _SectionCard({
+    required this.child,
+    this.backgroundColor = PinitColors.cream,
+    this.borderColor = PinitColors.aubergine,
+    this.shadowColor = PinitColors.aubergine,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
-      decoration: const BoxDecoration(
-        color: PinitColors.cream,
+      decoration: BoxDecoration(
+        color: backgroundColor,
         border: Border.fromBorderSide(
-          BorderSide(color: PinitColors.aubergine, width: 1.5),
+          BorderSide(color: borderColor, width: 1.5),
         ),
-        borderRadius: BorderRadius.all(Radius.circular(10)),
+        borderRadius: const BorderRadius.all(Radius.circular(10)),
         boxShadow: [
           BoxShadow(
-            color: PinitColors.aubergine,
+            color: shadowColor,
             blurRadius: 0,
-            offset: Offset(4, 4),
+            offset: const Offset(4, 4),
           ),
         ],
       ),
@@ -834,7 +929,11 @@ class _StatCard extends StatelessWidget {
   final String label;
   final IconData icon;
   final bool active;
-  const _StatCard({required this.value, required this.label, required this.icon, required this.active});
+  const _StatCard(
+      {required this.value,
+      required this.label,
+      required this.icon,
+      required this.active});
 
   @override
   Widget build(BuildContext context) {
@@ -847,12 +946,16 @@ class _StatCard extends StatelessWidget {
         ),
         borderRadius: const BorderRadius.all(Radius.circular(10)),
         boxShadow: const [
-          BoxShadow(color: PinitColors.aubergine, blurRadius: 0, offset: Offset(3, 3)),
+          BoxShadow(
+              color: PinitColors.aubergine,
+              blurRadius: 0,
+              offset: Offset(3, 3)),
         ],
       ),
       child: Row(
         children: [
-          Icon(icon, size: 16,
+          Icon(icon,
+              size: 16,
               color: active ? PinitColors.cream : PinitColors.aubergineSoft),
           const SizedBox(width: 8),
           Column(
@@ -873,7 +976,9 @@ class _StatCard extends StatelessWidget {
                   fontSize: 9,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 1.1,
-                  color: active ? PinitColors.cream.withValues(alpha: 0.7) : PinitColors.mute,
+                  color: active
+                      ? PinitColors.cream.withValues(alpha: 0.7)
+                      : PinitColors.mute,
                 ),
               ),
             ],
@@ -901,7 +1006,10 @@ class _ScoreBadge extends StatelessWidget {
       child: Text(
         '$score%',
         style: GoogleFonts.dmSans(
-          fontSize: 11, fontWeight: FontWeight.w800, color: color, letterSpacing: 0.2,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: color,
+          letterSpacing: 0.2,
         ),
       ),
     );
@@ -968,7 +1076,8 @@ class _ActivityNotificationsSheet extends StatelessWidget {
             ],
           ),
           child: ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(22.5)),
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(22.5)),
             child: CustomScrollView(
               controller: scrollController,
               slivers: [
@@ -1040,7 +1149,8 @@ class _ActivityNotificationsSheet extends StatelessWidget {
                               decoration: BoxDecoration(
                                 color: PinitColors.creamSunk,
                                 borderRadius: BorderRadius.circular(999),
-                                border: Border.all(color: PinitColors.creamDeep),
+                                border:
+                                    Border.all(color: PinitColors.creamDeep),
                               ),
                               child: Text(
                                 '${activities.length}',
@@ -1173,12 +1283,14 @@ class _ActivityNotificationTile extends StatelessWidget {
                           children: [
                             TextSpan(
                               text: displayName,
-                              style: const TextStyle(fontWeight: FontWeight.w800),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w800),
                             ),
                             TextSpan(text: ' ${tone.message} '),
                             TextSpan(
                               text: placeName,
-                              style: const TextStyle(fontWeight: FontWeight.w800),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w800),
                             ),
                           ],
                         ),
@@ -1204,7 +1316,8 @@ class _ActivityNotificationTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: tone.color.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(999),
@@ -1290,7 +1403,8 @@ class _ActivityRow extends StatelessWidget {
             Container(width: 3, color: accentColor),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
                 child: Row(
                   children: [
                     Expanded(
@@ -1332,7 +1446,8 @@ class _ActivityRow extends StatelessWidget {
                     if (timeAgo.isNotEmpty)
                       Text(
                         timeAgo,
-                        style: GoogleFonts.dmSans(fontSize: 11, color: PinitColors.mute),
+                        style: GoogleFonts.dmSans(
+                            fontSize: 11, color: PinitColors.mute),
                       ),
                   ],
                 ),

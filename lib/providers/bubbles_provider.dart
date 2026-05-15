@@ -338,6 +338,17 @@ class BubblesProvider with ChangeNotifier {
     }
   }
 
+  void markBubbleReadLocally(String bubbleId) {
+    final index = _bubbles.indexWhere((bubble) => bubble.id == bubbleId);
+    if (index == -1) return;
+
+    final bubble = _bubbles[index];
+    if (bubble.unreadCount == 0) return;
+
+    _bubbles[index] = bubble.copyWith(unreadCount: 0);
+    notifyListeners();
+  }
+
   /// Removes a bubble from the user's list.
   ///
   /// If the user is the creator, this will attempt to delete the bubble.

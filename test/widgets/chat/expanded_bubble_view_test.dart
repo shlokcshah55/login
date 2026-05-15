@@ -58,6 +58,40 @@ void main() {
     expect(openedPins, isTrue);
   });
 
+  testWidgets('unread group chat card is live and resets after opening chat', (
+    tester,
+  ) async {
+    var openedChat = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ExpandedChatView(
+          bubble: _bubble(),
+          onClose: () {},
+          initialUnreadCount: 2,
+          initialActivities: const [],
+          onOpenChat: () async {
+            openedChat = true;
+          },
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('expanded_bubble_group_chat')), findsOneWidget);
+    expect(find.text('2 new'), findsOneWidget);
+    expect(find.byIcon(Icons.chat_bubble_rounded), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('expanded_bubble_group_chat')));
+    await tester.pumpAndSettle();
+
+    expect(openedChat, isTrue);
+    expect(find.text('2 new'), findsNothing);
+    expect(find.text('No unread messages'), findsOneWidget);
+    expect(find.byIcon(Icons.chat_bubble_outline_rounded), findsOneWidget);
+  });
+
   testWidgets('tapping the pins stat opens the pins chat tab', (tester) async {
     var openedPins = false;
 
@@ -83,7 +117,8 @@ void main() {
     expect(openedPins, isTrue);
   });
 
-  testWidgets('tapping a member avatar opens that user profile', (tester) async {
+  testWidgets('tapping a member avatar opens that user profile',
+      (tester) async {
     String? openedUserId;
 
     await tester.pumpWidget(

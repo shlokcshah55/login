@@ -33,6 +33,28 @@ void main() {
 
     expect(provider.bubbles.single.unreadCount, 3);
   });
+
+  test('opening a bubble chat clears its unread state locally', () async {
+    final bubbleHelper = _MockBubbleHelper();
+    final provider = BubblesProvider(
+      userId: 'user-1',
+      bubbleHelper: bubbleHelper,
+    );
+
+    when(() => bubbleHelper.getUserBubbles('user-1')).thenAnswer(
+      (_) async => [
+        _bubble(unreadCount: 3),
+      ],
+    );
+
+    await provider.loadBubbles();
+
+    expect(provider.bubbles.single.unreadCount, 3);
+
+    await (provider as dynamic).markBubbleReadLocally('bubble-1');
+
+    expect(provider.bubbles.single.unreadCount, 0);
+  });
 }
 
 class _MockBubbleHelper extends Mock implements BubbleHelper {}

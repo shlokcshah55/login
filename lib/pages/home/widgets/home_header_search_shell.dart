@@ -224,7 +224,7 @@ class _CollapsedSearchEntry extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'SEARCH FOR A SPECIFC RESTAURANT',
+                  'SEARCH FOR A SPECIFIC RESTAURANT',
                   style: GoogleFonts.dmSans(
                     fontSize: 11,
                     color: pinit.PinitColors.aubergineSoft,

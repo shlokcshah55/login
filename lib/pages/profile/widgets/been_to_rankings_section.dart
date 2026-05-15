@@ -19,6 +19,8 @@ class BeenToRankingsSection extends StatefulWidget {
   final bool showGateKeepToggle;
   final bool allowExpand;
   final int maxPlaces;
+  final int collapsedPlacesCount;
+  final List<BeenToRankedPlaceSeed>? seededPlaces;
 
   const BeenToRankingsSection({
     super.key,
@@ -26,6 +28,8 @@ class BeenToRankingsSection extends StatefulWidget {
     this.showGateKeepToggle = true,
     this.allowExpand = true,
     this.maxPlaces = 15,
+    this.collapsedPlacesCount = 3,
+    this.seededPlaces,
   });
 
   @override
@@ -33,10 +37,8 @@ class BeenToRankingsSection extends StatefulWidget {
 }
 
 class _BeenToRankingsSectionState extends State<BeenToRankingsSection> {
-  static const int _pageSize = 5;
-
   Future<List<_RankedPlace>>? _future;
-  int _visibleCount = _pageSize;
+  late int _visibleCount;
   bool _gateKeep = false;
   bool _isUpdatingGateKeep = false;
   bool _hasLoadedGateKeepState = false;
@@ -48,16 +50,41 @@ class _BeenToRankingsSectionState extends State<BeenToRankingsSection> {
   @override
   void initState() {
     super.initState();
+    _visibleCount = widget.collapsedPlacesCount;
     if (widget.showGateKeepToggle) {
       unawaited(_loadGateKeepState());
     }
-    _future = _fetchTopRatedPlaces();
+    _future = widget.seededPlaces == null
+        ? _fetchTopRatedPlaces()
+        : Future<List<_RankedPlace>>.value(
+            widget.seededPlaces!
+                .map(
+                  (seed) => _RankedPlace(
+                    rank: seed.rank,
+                    location: seed.location,
+                    userRating: seed.userRating,
+                  ),
+                )
+                .toList(growable: false),
+          );
     _rankingsSub = BeenToRankingsEvents.instance.changes.listen((userId) {
       if (!mounted) return;
       if (userId != widget.userId) return;
       setState(() {
-        _visibleCount = _pageSize;
-        _future = _fetchTopRatedPlaces();
+        _visibleCount = widget.collapsedPlacesCount;
+        _future = widget.seededPlaces == null
+            ? _fetchTopRatedPlaces()
+            : Future<List<_RankedPlace>>.value(
+                widget.seededPlaces!
+                    .map(
+                      (seed) => _RankedPlace(
+                        rank: seed.rank,
+                        location: seed.location,
+                        userRating: seed.userRating,
+                      ),
+                    )
+                    .toList(growable: false),
+              );
       });
     });
   }
@@ -71,9 +98,23 @@ class _BeenToRankingsSectionState extends State<BeenToRankingsSection> {
   @override
   void didUpdateWidget(covariant BeenToRankingsSection oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.userId != widget.userId) {
-      _visibleCount = _pageSize;
-      _future = _fetchTopRatedPlaces();
+    if (oldWidget.userId != widget.userId ||
+        oldWidget.seededPlaces != widget.seededPlaces ||
+        oldWidget.collapsedPlacesCount != widget.collapsedPlacesCount) {
+      _visibleCount = widget.collapsedPlacesCount;
+      _future = widget.seededPlaces == null
+          ? _fetchTopRatedPlaces()
+          : Future<List<_RankedPlace>>.value(
+              widget.seededPlaces!
+                  .map(
+                    (seed) => _RankedPlace(
+                      rank: seed.rank,
+                      location: seed.location,
+                      userRating: seed.userRating,
+                    ),
+                  )
+                  .toList(growable: false),
+            );
     }
 
     if (widget.showGateKeepToggle && oldWidget.userId != widget.userId) {
@@ -244,7 +285,7 @@ class _BeenToRankingsSectionState extends State<BeenToRankingsSection> {
         final total = places.length.clamp(0, widget.maxPlaces);
         final visible = widget.allowExpand
             ? _visibleCount.clamp(0, total)
-            : _pageSize.clamp(0, total);
+            : widget.collapsedPlacesCount.clamp(0, total);
 
         return Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
@@ -291,11 +332,19 @@ class _BeenToRankingsSectionState extends State<BeenToRankingsSection> {
                     ),
                     const SizedBox(height: 10),
                   ],
-                  if (widget.allowExpand && visible < total)
+                  if (widget.allowExpand &&
+                      total > widget.collapsedPlacesCount)
                     _ShareMoreButton(
+                      label: visible < total ? 'See more' : 'Show less',
                       onPressed: () {
                         HapticFeedback.selectionClick();
-                        setState(() => _visibleCount += _pageSize);
+                        setState(() {
+                          if (visible < total) {
+                            _visibleCount += widget.collapsedPlacesCount;
+                          } else {
+                            _visibleCount = widget.collapsedPlacesCount;
+                          }
+                        });
                       },
                     ),
                 ],
@@ -346,6 +395,19 @@ class _ReviewRow {
 
 class _RankedPlace {
   const _RankedPlace({
+    required this.rank,
+    required this.location,
+    required this.userRating,
+  });
+
+  final int rank;
+  final LocationModel location;
+  final double userRating;
+}
+
+@immutable
+class BeenToRankedPlaceSeed {
+  const BeenToRankedPlaceSeed({
     required this.rank,
     required this.location,
     required this.userRating,
@@ -428,9 +490,11 @@ class _GateKeepToggle extends StatelessWidget {
 }
 
 class _ShareMoreButton extends StatelessWidget {
+  final String label;
   final VoidCallback onPressed;
 
   const _ShareMoreButton({
+    required this.label,
     required this.onPressed,
   });
 
@@ -449,7 +513,7 @@ class _ShareMoreButton extends StatelessWidget {
           ),
         ),
         child: Text(
-          'Share more',
+          label,
           style: GoogleFonts.dmSans(
             fontSize: 14,
             fontWeight: FontWeight.w800,

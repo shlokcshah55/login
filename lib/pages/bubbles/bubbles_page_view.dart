@@ -59,7 +59,8 @@ class _BubblesPageViewState extends State<BubblesPageView> {
   String? _peopleErrorText;
   int _searchRequestId = 0;
 
-  bool get _showingSearch => _searchController.text.trim().isNotEmpty;
+  bool get _showingSearch =>
+      _searchFocusNode.hasFocus || _searchController.text.trim().isNotEmpty;
 
   List<BubblesSearchSection> get _searchSections => buildBubblesSearchSections(
         query: _searchController.text,
@@ -70,8 +71,15 @@ class _BubblesPageViewState extends State<BubblesPageView> {
       );
 
   @override
+  void initState() {
+    super.initState();
+    _searchFocusNode.addListener(_handleSearchFocusChanged);
+  }
+
+  @override
   void dispose() {
     _searchDebounceTimer?.cancel();
+    _searchFocusNode.removeListener(_handleSearchFocusChanged);
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
@@ -99,7 +107,7 @@ class _BubblesPageViewState extends State<BubblesPageView> {
           bottom: false,
           child: Column(
             children: [
-              _buildHeader(theme),
+              if (!_showingSearch) _buildHeader(theme),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
                 child: _buildSearchField(theme, pinitColors),
@@ -756,6 +764,11 @@ class _BubblesPageViewState extends State<BubblesPageView> {
         _peopleErrorText = 'Couldn\'t load people right now';
       });
     }
+  }
+
+  void _handleSearchFocusChanged() {
+    if (!mounted) return;
+    setState(() {});
   }
 
   void _clearSearch() {
