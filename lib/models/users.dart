@@ -26,6 +26,7 @@ class UserModel {
 
   /// Whether the user has already generated AI collections at least once.
   final bool generatedCollections;
+  final String? referralCode;
 
   UserModel({
     this.supabaseId,
@@ -43,6 +44,7 @@ class UserModel {
     this.vibeTagAffinity,
     this.dietaryRequirementTagAffinity,
     this.generatedCollections = false,
+    this.referralCode,
   });
 
   // ─────────────── Match-scoring helpers ───────────────
@@ -69,9 +71,12 @@ class UserModel {
   /// Cosine similarity between the user’s dietary requirement affinity
   /// and a location’s dietary requirement vector.
   double dietaryMatchScore(List<int>? locationDietaryVector) {
-    if (dietaryRequirementTagAffinity == null || locationDietaryVector == null) return 0.0;
-    if (dietaryRequirementTagAffinity!.isEmpty || locationDietaryVector.isEmpty) return 0.0;
-    final len = math.min(dietaryRequirementTagAffinity!.length, locationDietaryVector.length);
+    if (dietaryRequirementTagAffinity == null || locationDietaryVector == null)
+      return 0.0;
+    if (dietaryRequirementTagAffinity!.isEmpty || locationDietaryVector.isEmpty)
+      return 0.0;
+    final len = math.min(
+        dietaryRequirementTagAffinity!.length, locationDietaryVector.length);
     double dot = 0, magA = 0, magB = 0;
     for (var i = 0; i < len; i++) {
       final a = dietaryRequirementTagAffinity![i].toDouble();
@@ -107,7 +112,8 @@ class UserModel {
   /// Whether this user has any affinity vectors populated.
   bool get hasAffinityData =>
       (vibeTagAffinity != null && vibeTagAffinity!.isNotEmpty) ||
-      (dietaryRequirementTagAffinity != null && dietaryRequirementTagAffinity!.isNotEmpty);
+      (dietaryRequirementTagAffinity != null &&
+          dietaryRequirementTagAffinity!.isNotEmpty);
 
   /// Create a UserModel from a JSON map
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -117,7 +123,8 @@ class UserModel {
       email: json[SupabaseConstants.columnEmail] ?? '',
       profileImageUrl: json[SupabaseConstants.columnProfileImageUrl],
       createdAt: json[SupabaseConstants.columnCreatedAt] != null
-          ? DateTime.tryParse(json[SupabaseConstants.columnCreatedAt].toString())
+          ? DateTime.tryParse(
+              json[SupabaseConstants.columnCreatedAt].toString())
           : null,
       lastLogin: json['last_login'] != null
           ? DateTime.tryParse(json['last_login'].toString())
@@ -125,23 +132,27 @@ class UserModel {
       bio: json[SupabaseConstants.columnBio] ?? '',
       followersCount: json['followers_count'] ?? 0,
       followingCount: json['following_count'] ?? 0,
-      spiceTolerance: (json[SupabaseConstants.columnSpiceTolerance] as num?)?.toInt(),
+      spiceTolerance:
+          (json[SupabaseConstants.columnSpiceTolerance] as num?)?.toInt(),
       wizardCompleted: json[SupabaseConstants.columnWizardCompleted] ?? false,
       username: json[SupabaseConstants.columnUsername] ?? '',
       vibeTagAffinity: json[SupabaseConstants.columnVibeTagAffinity] != null
           ? <double>[
-              for (final e in (json[SupabaseConstants.columnVibeTagAffinity] as List))
+              for (final e
+                  in (json[SupabaseConstants.columnVibeTagAffinity] as List))
                 (e as num).toDouble(),
             ]
           : null,
       dietaryRequirementTagAffinity:
           json[SupabaseConstants.columnDietaryRequirementTagAffinity] != null
               ? List<int>.from(
-                  (json[SupabaseConstants.columnDietaryRequirementTagAffinity] as List)
+                  (json[SupabaseConstants.columnDietaryRequirementTagAffinity]
+                          as List)
                       .map((e) => (e as num).toInt()))
               : null,
       generatedCollections:
           json[SupabaseConstants.columnGeneratedCollections] != null,
+      referralCode: json[SupabaseConstants.columnReferralCode] as String?,
     );
   }
 
@@ -151,16 +162,23 @@ class UserModel {
       SupabaseConstants.columnEmail: email,
     };
 
-    if (supabaseId != null) data[SupabaseConstants.columnSupabaseId] = supabaseId;
+    if (supabaseId != null)
+      data[SupabaseConstants.columnSupabaseId] = supabaseId;
     if (name != null) data[SupabaseConstants.columnName] = name;
-    if (profileImageUrl != null) data[SupabaseConstants.columnProfileImageUrl] = profileImageUrl;
+    if (profileImageUrl != null)
+      data[SupabaseConstants.columnProfileImageUrl] = profileImageUrl;
     if (bio != null) data[SupabaseConstants.columnBio] = bio;
     if (username != null) data[SupabaseConstants.columnUsername] = username;
-    if (spiceTolerance != null) data[SupabaseConstants.columnSpiceTolerance] = spiceTolerance;
-    if (vibeTagAffinity != null) data[SupabaseConstants.columnVibeTagAffinity] = vibeTagAffinity;
+    if (spiceTolerance != null)
+      data[SupabaseConstants.columnSpiceTolerance] = spiceTolerance;
+    if (vibeTagAffinity != null)
+      data[SupabaseConstants.columnVibeTagAffinity] = vibeTagAffinity;
     if (dietaryRequirementTagAffinity != null) {
-      data[SupabaseConstants.columnDietaryRequirementTagAffinity] = dietaryRequirementTagAffinity;
+      data[SupabaseConstants.columnDietaryRequirementTagAffinity] =
+          dietaryRequirementTagAffinity;
     }
+    if (referralCode != null)
+      data[SupabaseConstants.columnReferralCode] = referralCode;
 
     return data;
   }
@@ -182,6 +200,7 @@ class UserModel {
     List<double>? vibeTagAffinity,
     List<int>? dietaryRequirementTagAffinity,
     bool? generatedCollections,
+    String? referralCode,
   }) {
     return UserModel(
       supabaseId: supabaseId ?? this.supabaseId,
@@ -200,6 +219,7 @@ class UserModel {
       dietaryRequirementTagAffinity:
           dietaryRequirementTagAffinity ?? this.dietaryRequirementTagAffinity,
       generatedCollections: generatedCollections ?? this.generatedCollections,
+      referralCode: referralCode ?? this.referralCode,
     );
   }
 }

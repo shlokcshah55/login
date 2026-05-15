@@ -72,6 +72,9 @@ class _UserListPageState extends State<UserListPage> {
                         ),
                       );
                     }
+                    if (snapshot.hasError) {
+                      return _buildErrorState();
+                    }
                     final users = snapshot.data ?? const <UserModel>[];
                     if (users.isEmpty) {
                       return _buildEmptyState();
@@ -193,6 +196,81 @@ class _UserListPageState extends State<UserListPage> {
                 fontSize: 14,
                 color: PinitColors.aubergineSoft,
                 fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: PinitColors.creamSunk,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Icon(
+                Icons.cloud_off_rounded,
+                size: 30,
+                color: PinitColors.aubergineSoft,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Couldn’t refresh this list',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.dmSans(
+                fontSize: 15,
+                color: PinitColors.aubergine,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Please try again in a moment.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.dmSans(
+                fontSize: 14,
+                color: PinitColors.aubergineSoft,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(999),
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  setState(() {
+                    _future = _load();
+                  });
+                },
+                child: Ink(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: PinitColors.aubergine,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    'Retry',
+                    style: GoogleFonts.dmSans(
+                      color: PinitColors.cream,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
               ),
             ),
           ],

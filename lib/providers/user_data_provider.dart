@@ -1,6 +1,7 @@
 import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:login/models/users.dart';
+import 'package:login/supabase/constants.dart';
 import 'package:login/supabase/service.dart';
 
 class UserDataProvider with ChangeNotifier {
@@ -56,6 +57,7 @@ class UserDataProvider with ChangeNotifier {
           'uid': cachedProfile.supabaseId,
           'profile_image_url': cachedProfile.profileImageUrl,
           'bio': cachedProfile.bio,
+          SupabaseConstants.columnReferralCode: cachedProfile.referralCode,
         };
 
         _isLoading = false;
@@ -65,10 +67,12 @@ class UserDataProvider with ChangeNotifier {
 
       // Try to fetch from Supabase
       if (_supabaseProvider.users.isAuthenticated) {
-        print("UserDataProvider: Fetching profile for userId: $userId, currentUser: ${_supabaseProvider.users.currentUser?.id}");
+        print(
+            "UserDataProvider: Fetching profile for userId: $userId, currentUser: ${_supabaseProvider.users.currentUser?.id}");
         final UserModel? userModel =
             await _supabaseProvider.users.getUserProfile();
-        print("UserDataProvider: getUserProfile returned: ${userModel != null ? 'UserModel(${userModel.email})' : 'null'}");
+        print(
+            "UserDataProvider: getUserProfile returned: ${userModel != null ? 'UserModel(${userModel.email})' : 'null'}");
         if (userModel != null) {
           _supabaseUserData = userModel;
           print("UserDataProvider: Fetched Supabase data for user");
@@ -80,6 +84,7 @@ class UserDataProvider with ChangeNotifier {
             'uid': userModel.supabaseId,
             'profile_image_url': userModel.profileImageUrl,
             'bio': userModel.bio,
+            SupabaseConstants.columnReferralCode: userModel.referralCode,
           };
 
           // Success with Supabase, exit early
@@ -193,6 +198,20 @@ class UserDataProvider with ChangeNotifier {
       notifyListeners();
     }
     return ok;
+  }
+
+  Future<bool> applyReferralCode(String code) async {
+    final current = _supabaseUserData;
+    final trimmedCode = code.trim();
+    if (current == null || trimmedCode.isEmpty) return false;
+
+    final ok = await _supabaseProvider.users.applyReferralCode(trimmedCode);
+    if (!ok) return false;
+
+    _supabaseUserData = current.copyWith(referralCode: trimmedCode);
+    _userData?[SupabaseConstants.columnReferralCode] = trimmedCode;
+    notifyListeners();
+    return true;
   }
 
   /// Updates the local cached wizard completion flag immediately after the

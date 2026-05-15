@@ -36,6 +36,7 @@ class SupabaseConstants {
   static const String columnLegalConsentAcceptedAt =
       'legal_consent_accepted_at';
   static const String columnGeneratedCollections = 'generated_collections';
+  static const String columnReferralCode = 'referral_code';
   static const String columnUsername = 'username';
   static const String columnSpiceTolerance = 'spice_tolerance';
   static const String columnFcmToken = 'fcm_token';

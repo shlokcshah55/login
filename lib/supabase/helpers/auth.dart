@@ -823,7 +823,7 @@ class AuthHelper {
       if (kDebugMode) {
         print('Error fetching followers: $e');
       }
-      return [];
+      rethrow;
     }
   }
 
@@ -843,7 +843,7 @@ class AuthHelper {
       if (kDebugMode) {
         print('Error fetching following list: $e');
       }
-      return [];
+      rethrow;
     }
   }
 
@@ -1205,6 +1205,24 @@ class AuthHelper {
     } catch (e) {
       if (kDebugMode) {
         print('Error updating vibe tag affinity: $e');
+      }
+      return false;
+    }
+  }
+
+  Future<bool> applyReferralCode(String code) async {
+    final user = currentUser;
+    final trimmedCode = code.trim();
+    if (user == null || trimmedCode.isEmpty) return false;
+
+    try {
+      await _client.from(SupabaseConstants.tableUsers).update({
+        SupabaseConstants.columnReferralCode: trimmedCode,
+      }).eq(SupabaseConstants.columnSupabaseId, user.id);
+      return true;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error applying referral code: $e');
       }
       return false;
     }

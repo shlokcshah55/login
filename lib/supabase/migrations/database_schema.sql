@@ -293,6 +293,7 @@ CREATE TABLE public.users (
   dietary_requirement_tag_affinity ARRAY,
   generated_collections timestamp with time zone,
   legal_consent_accepted_at timestamp with time zone,
+  referral_code text,
   CONSTRAINT users_pkey PRIMARY KEY (supabase_id)
 );
 CREATE TABLE public.v_action_exists (

@@ -76,7 +76,9 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
         _collectionsHelper.getUserPublicCollections(widget.user.supabaseId!),
         supabaseService.users.getUserProfileById(widget.user.supabaseId!),
         supabaseService.users.getIncomingFollowRequests(),
-        supabaseService.users.getFollowers(),
+        supabaseService.users
+            .getFollowers()
+            .catchError((_) => const <UserModel>[]),
       ]);
 
       final incoming = (results[3] as List<UserModel>);
@@ -1243,7 +1245,8 @@ class _PublicCollectionCard extends StatelessWidget {
         ),
       ),
     );
-    final locations = await helper.getLocationsForCollection(collection.collectionId);
+    final locations =
+        await helper.getLocationsForCollection(collection.collectionId);
     if (!context.mounted) return;
     Navigator.of(context).pop(); // loading dialog
     await Navigator.of(context).push(

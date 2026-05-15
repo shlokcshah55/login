@@ -47,8 +47,9 @@ class _ProfilePageState extends State<ProfilePage>
   late StreamSubscription<BaseNotification> _notificationSubscription;
   double _scrollOffset = 0.0;
   int _selectedTab = 0;
-  int _followersCount = 0;
-  int _followingCount = 0;
+  int? _followersCount;
+  int? _followingCount;
+  bool _isLoadingFollowCounts = false;
   final List<String> _tabs = ['Hot', 'Eat-Lists', 'People'];
   final _eatListsAnchorKey = GlobalKey();
 
@@ -74,6 +75,8 @@ class _ProfilePageState extends State<ProfilePage>
   }
 
   Future<void> _loadFollowCounts() async {
+    if (_isLoadingFollowCounts) return;
+    _isLoadingFollowCounts = true;
     try {
       final service = Provider.of<SupabaseService>(context, listen: false);
       final results = await Future.wait([
@@ -87,6 +90,8 @@ class _ProfilePageState extends State<ProfilePage>
       });
     } catch (_) {
       // Best-effort refresh; leave prior counts in place on error.
+    } finally {
+      _isLoadingFollowCounts = false;
     }
   }
 
@@ -153,11 +158,6 @@ class _ProfilePageState extends State<ProfilePage>
 
     final savedPins = locationListManager.savedLocations.keys.toList();
     final collapsedHeader = _scrollOffset > 120;
-    print(
-        'User wizardCompleted: ${user.wizardCompleted}, supabaseId: ${user.supabaseId}');
-    print((user.wizardCompleted &&
-        user.supabaseId != null &&
-        user.supabaseId!.isNotEmpty));
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
@@ -183,8 +183,8 @@ class _ProfilePageState extends State<ProfilePage>
                         onNotificationsTap: () => _showNotifications(context),
                         onSettingsTap: () => _showSettingsSheet(context, user),
                         unreadCount: FCMService().unreadCount,
-                        followersCount: _followersCount,
-                        followingCount: _followingCount,
+                        followersCount: _followersCount ?? user.followersCount,
+                        followingCount: _followingCount ?? user.followingCount,
                         pinsCount: savedPins.length,
                         onFollowersTap: () => _openFollowers(context),
                         onFollowingTap: () => _openFollowing(context),

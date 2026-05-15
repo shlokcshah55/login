@@ -42,7 +42,7 @@ class NotificationsSheet extends StatelessWidget {
                 const Text(
                   'Notifications',
                   style: TextStyle(
-                    fontSize: 20,
+                    fontSize: 18,
                     fontWeight: FontWeight.w100,
                     color: PinitColors.textPrimary,
                     letterSpacing: -0.5,
