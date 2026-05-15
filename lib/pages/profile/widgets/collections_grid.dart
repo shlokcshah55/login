@@ -8,8 +8,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:login/models/locations.dart';
+import 'package:login/pages/home/carousel_list_page.dart';
 import 'package:login/providers/location_list_provider.dart';
-import 'package:login/providers/map_state_provider.dart';
 import 'package:login/providers/navigation_provider.dart';
 import 'package:login/supabase/helpers/collections.dart';
 import 'package:login/supabase/supabase_client.dart';
@@ -232,8 +232,8 @@ class _CollectionsGridState extends State<CollectionsGrid>
       if (!mounted) return;
 
       setState(() {
-        final idx =
-            _curatedItems.indexWhere((c) => c.collectionId == item.collectionId);
+        final idx = _curatedItems
+            .indexWhere((c) => c.collectionId == item.collectionId);
         if (idx == -1) return;
         final nextSaved = !item.isSaved;
         final nextCount = nextSaved
@@ -873,8 +873,7 @@ class _CollectionsGridState extends State<CollectionsGrid>
         ],
 
         // ── Pinit Curated ──
-        if (!_isLoading && _curatedItems.isNotEmpty)
-          _buildCuratedSection(),
+        if (!_isLoading && _curatedItems.isNotEmpty) _buildCuratedSection(),
       ],
     );
   }
@@ -908,6 +907,7 @@ class _CollectionCardState extends State<_CollectionCard> {
 
   bool _showDelete = false;
   bool _isDeleting = false;
+  bool _isOpeningList = false;
 
   bool get _canDelete =>
       widget.onDeleted != null &&
@@ -972,17 +972,53 @@ class _CollectionCardState extends State<_CollectionCard> {
     }
   }
 
-  void _openDetailSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => CollectionDetailSheet(
-        collection: widget.collection,
-        onEdit: widget.onEdit,
-        onDeleted: widget.onDeleted,
-      ),
-    );
+  Future<void> _openFullListView() async {
+    if (_isOpeningList) return;
+    setState(() => _isOpeningList = true);
+    try {
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: PinitColors.aubergine,
+          ),
+        ),
+      );
+
+      final locations =
+          await _helper.getLocationsForCollection(widget.collection.id);
+      if (!mounted) return;
+      Navigator.of(context).pop(); // loading dialog
+
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => CarouselListPage(
+            locations: locations,
+            title: widget.collection.name,
+            listType: LocationListType.search,
+            homeViewModel: null,
+            collectionId: widget.collection.id,
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      // Close loading dialog if it's still open.
+      try {
+        Navigator.of(context, rootNavigator: true).pop();
+      } catch (_) {}
+      unawaited(
+        AppFeedback.showError(
+          context,
+          title: 'Couldn’t open eat-list',
+          message: 'Please try again in a moment.',
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isOpeningList = false);
+    }
   }
 
   @override
@@ -995,7 +1031,7 @@ class _CollectionCardState extends State<_CollectionCard> {
           setState(() => _showDelete = false);
           return;
         }
-        _openDetailSheet();
+        unawaited(_openFullListView());
       },
       onLongPress: _canDelete ? _revealDelete : null,
       child: Container(
@@ -1437,22 +1473,9 @@ class CollectionDetailSheetState extends State<CollectionDetailSheet> {
 
     setState(() => _showingOnMap = true);
     try {
-      final locationListManager = context.read<LocationListManager>();
-      final mapStateProvider = context.read<MapStateProvider>();
       final navigationProvider = context.read<NavigationProvider>();
-
-      final shown = await locationListManager.showCollectionLocations(
-        widget.collection.id,
-        () async => validLocations,
-      );
-      final toFocus = shown.isNotEmpty ? shown : validLocations;
-      mapStateProvider.setSelectedMarkerId(
-        toFocus.first.locationId.toString(),
-      );
-      await mapStateProvider.focusOnLocations(toFocus);
-
       if (!mounted) return;
-      navigationProvider.navigateToTab(0);
+      navigationProvider.navigateToCollectionMapOnly(widget.collection.id);
       Navigator.of(context).pop();
     } finally {
       if (mounted) {
@@ -1515,7 +1538,8 @@ class CollectionDetailSheetState extends State<CollectionDetailSheet> {
   @override
   Widget build(BuildContext context) {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
-    final placeCount = _isLoading ? widget.collection.placeCount : _locations.length;
+    final placeCount =
+        _isLoading ? widget.collection.placeCount : _locations.length;
 
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
@@ -1576,6 +1600,41 @@ class CollectionDetailSheetState extends State<CollectionDetailSheet> {
                           ],
                         ),
                       ),
+                      const SizedBox(width: 10),
+                      GestureDetector(
+                        onTap: _showingOnMap ? null : _showInMap,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: PinitColors.creamSunk,
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color:
+                                  PinitColors.aubergine.withValues(alpha: 0.2),
+                            ),
+                          ),
+                          child: _showingOnMap
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: PinitColors.aubergine,
+                                  ),
+                                )
+                              : Text(
+                                  'Show in map',
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: PinitColors.aubergine,
+                                  ),
+                                ),
+                        ),
+                      ),
                       if (widget.onEdit != null)
                         GestureDetector(
                           onTap: () {
@@ -1634,60 +1693,6 @@ class CollectionDetailSheetState extends State<CollectionDetailSheet> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: _showInMap,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              color: PinitColors.aubergine,
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(
-                                color: PinitColors.aubergine,
-                                width: 1.5,
-                              ),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: PinitColors.aubergine,
-                                  blurRadius: 0,
-                                  offset: Offset(3, 3),
-                                ),
-                              ],
-                            ),
-                            child: Center(
-                              child: _showingOnMap
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2.2,
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                          PinitColors.cream,
-                                        ),
-                                      ),
-                                    )
-                                  : Text(
-                                      'SHOW IN MAP',
-                                      style: GoogleFonts.dmSans(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w800,
-                                        color: PinitColors.cream,
-                                        letterSpacing: 1.2,
-                                      ),
-                                    ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
                   Divider(
                       color: PinitColors.textMuted.withValues(alpha: 0.12),
                       height: 1),
@@ -1724,19 +1729,158 @@ class CollectionDetailSheetState extends State<CollectionDetailSheet> {
                               padding: EdgeInsets.fromLTRB(
                                   20, 16, 20, 20 + bottomPadding),
                               itemCount: _locations.length,
-                              itemBuilder: (_, i) =>
-                                  _LocationRow(
-                                    location: _locations[i],
-                                    canRemove: widget.collection.canEdit,
-                                    removing: _removingLocationIds
-                                        .contains(_locations[i].locationId),
-                                    onRemove: () => _removeLocation(_locations[i]),
-                                  ),
+                              itemBuilder: (_, i) => _LocationRow(
+                                location: _locations[i],
+                                canRemove: widget.collection.canEdit,
+                                removing: _removingLocationIds
+                                    .contains(_locations[i].locationId),
+                                onRemove: () => _removeLocation(_locations[i]),
+                              ),
                             ),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Collection detail page (full-screen "see-all" style)
+// ─────────────────────────────────────────────────────────────
+
+/// Full-screen version of the collection detail view.
+///
+/// Used for viewing other users' public eat-lists to avoid the semi-modal,
+/// draggable bottom sheet presentation.
+class CollectionDetailPage extends StatefulWidget {
+  final CollectionModel collection;
+
+  const CollectionDetailPage({
+    super.key,
+    required this.collection,
+  });
+
+  @override
+  State<CollectionDetailPage> createState() => _CollectionDetailPageState();
+}
+
+class _CollectionDetailPageState extends State<CollectionDetailPage> {
+  final CollectionsHelper _helper = CollectionsHelper();
+  List<LocationModel> _locations = const [];
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final locs =
+          await _helper.getLocationsForCollection(widget.collection.id);
+      if (!mounted) return;
+      setState(() {
+        _locations = locs;
+        _isLoading = false;
+        _error = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final placeCount =
+        _isLoading ? widget.collection.placeCount : _locations.length;
+
+    return Scaffold(
+      backgroundColor: PinitColors.background,
+      appBar: AppBar(
+        backgroundColor: PinitColors.background,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        titleSpacing: 16,
+        title: Row(
+          children: [
+            if (widget.collection.emoji != null) ...[
+              Text(
+                widget.collection.emoji!,
+                style: const TextStyle(fontSize: 22),
+              ),
+              const SizedBox(width: 10),
+            ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.collection.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: PinitColors.aubergine,
+                      letterSpacing: -0.3,
+                      height: 1.2,
+                    ),
+                  ),
+                  Text(
+                    '$placeCount place${placeCount == 1 ? "" : "s"}',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 13,
+                      color: PinitColors.aubergineSoft,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      _error!,
+                      style: const TextStyle(color: PinitColors.textSecondary),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                )
+              : _locations.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'No places in this eat-list yet.',
+                        style: TextStyle(color: PinitColors.textSecondary),
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: EdgeInsets.fromLTRB(
+                        20,
+                        16,
+                        20,
+                        20 + MediaQuery.of(context).padding.bottom,
+                      ),
+                      itemCount: _locations.length,
+                      itemBuilder: (_, i) => _LocationRow(
+                        location: _locations[i],
+                        canRemove: false,
+                        removing: false,
+                        onRemove: null,
+                      ),
+                    ),
     );
   }
 }

@@ -797,6 +797,34 @@ class HomeViewModel extends ChangeNotifier {
     return true;
   }
 
+  Future<List<LocationModel>> showCollectionOnMapById(
+    String collectionId, {
+    bool focusCamera = false,
+  }) async {
+    _activeCollectionId = collectionId;
+
+    final shown = await locationListManager.showCollectionLocations(
+      collectionId,
+      () => _collectionsHelper.getLocationsForCollection(collectionId),
+    );
+
+    if (shown.isEmpty) {
+      _activeCollectionId = null;
+      notifyListeners();
+      return const [];
+    }
+
+    // Don't auto-select a marker here — callers that intend to open an overlay
+    // list-view shouldn't flash the bottom carousel "mini view" first.
+    mapStateProvider.setSelectedMarkerId(null);
+    if (focusCamera) {
+      await mapStateProvider.focusOnLocations(shown);
+    }
+    bottomNavVisibilityProvider.showTemporarily();
+    notifyListeners();
+    return shown;
+  }
+
   // ── Just Decide (Gavel) overlay ───────────────────────────────
 
   void toggleJustDecideOverlay(bool visible) {
@@ -1018,6 +1046,7 @@ class HomeViewModel extends ChangeNotifier {
     final didSearch = await locationListManager.searchThisArea(
       center: center,
       radiusKm: radiusKm,
+      maxResults: locationListManager.filterMaxResults,
     );
 
     if (didSearch) {

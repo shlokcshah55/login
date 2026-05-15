@@ -5,8 +5,6 @@ import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
-import 'package:login/providers/location_list_provider.dart';
-import 'package:login/providers/map_state_provider.dart';
 import 'package:login/providers/navigation_provider.dart';
 import 'package:login/supabase/helpers/collections.dart';
 import 'package:login/widgets/feedback/app_feedback.dart';
@@ -79,17 +77,6 @@ class _CuratedEatListDetailPageState extends State<CuratedEatListDetailPage> {
 
   Future<void> _showOnMap() async {
     if (_isShowingOnMap || _isLoading) return;
-    if (_locations.isEmpty) {
-      unawaited(
-        AppFeedback.showError(
-          context,
-          title: 'Nothing to map',
-          message: 'No mappable places in this eat-list yet.',
-        ),
-      );
-      return;
-    }
-
     final valid = _locations.where((l) => l.position != null).toList();
     if (valid.isEmpty) {
       unawaited(
@@ -104,20 +91,11 @@ class _CuratedEatListDetailPageState extends State<CuratedEatListDetailPage> {
 
     setState(() => _isShowingOnMap = true);
     try {
-      final locationListManager = context.read<LocationListManager>();
-      final mapStateProvider = context.read<MapStateProvider>();
       final navigationProvider = context.read<NavigationProvider>();
 
-      final shown = await locationListManager.showCollectionLocations(
-        widget.collection.collectionId,
-        () async => valid,
-      );
-      final toFocus = shown.isNotEmpty ? shown : valid;
-      mapStateProvider.setSelectedMarkerId(toFocus.first.locationId.toString());
-      await mapStateProvider.focusOnLocations(toFocus);
-
       if (!mounted) return;
-      navigationProvider.navigateToTab(0);
+      navigationProvider
+          .navigateToCollectionMapOnly(widget.collection.collectionId);
       Navigator.of(context).pop();
     } finally {
       if (mounted) setState(() => _isShowingOnMap = false);
@@ -281,8 +259,8 @@ class _CuratedEatListDetailPageState extends State<CuratedEatListDetailPage> {
             child: _isLoading
                 ? const Center(
                     child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                          PinitColors.aubergine),
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(PinitColors.aubergine),
                     ),
                   )
                 : _error != null
@@ -339,7 +317,8 @@ class _LocationTile extends StatelessWidget {
         showGeneralDialog(
           context: context,
           barrierDismissible: true,
-          barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+          barrierLabel:
+              MaterialLocalizations.of(context).modalBarrierDismissLabel,
           barrierColor: Colors.transparent,
           transitionDuration: const Duration(milliseconds: 300),
           pageBuilder: (ctx, anim, _) => ExpandedLocationCard(
@@ -379,14 +358,15 @@ class _LocationTile extends StatelessWidget {
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     color: PinitColors.creamSunk,
-                    image: (location.imageUrl ?? location.photoReference) != null
-                        ? DecorationImage(
-                            image: NetworkImage(
-                              location.imageUrl ?? location.photoReference!,
-                            ),
-                            fit: BoxFit.cover,
-                          )
-                        : null,
+                    image:
+                        (location.imageUrl ?? location.photoReference) != null
+                            ? DecorationImage(
+                                image: NetworkImage(
+                                  location.imageUrl ?? location.photoReference!,
+                                ),
+                                fit: BoxFit.cover,
+                              )
+                            : null,
                   ),
                   child: (location.imageUrl ?? location.photoReference) == null
                       ? Center(
@@ -468,10 +448,11 @@ class _LocationTile extends StatelessWidget {
   }
 
   String _subtitle(LocationModel location) {
-    if (location.generatedSummary?.isNotEmpty == true) return location.generatedSummary!;
-    if (location.editorialSummary?.isNotEmpty == true) return location.editorialSummary!;
+    if (location.generatedSummary?.isNotEmpty == true)
+      return location.generatedSummary!;
+    if (location.editorialSummary?.isNotEmpty == true)
+      return location.editorialSummary!;
     if (location.vicinity?.isNotEmpty == true) return location.vicinity!;
     return ' ';
   }
 }
-

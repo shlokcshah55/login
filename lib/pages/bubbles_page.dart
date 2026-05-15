@@ -275,231 +275,399 @@ class _BubblesPageState extends State<BubblesPage>
 
   void _showCreateBubbleDialog() {
     final TextEditingController nameController = TextEditingController();
-    final TextEditingController descController = TextEditingController();
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        return Container(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
-          ),
-          decoration: const BoxDecoration(
-            color: PinitColors.cream,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Handle bar
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: PinitColors.creamDeep,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Create New Bubble',
-                  style: TextStyle(
-                    fontFamily: 'Rova',
-                    fontSize: 22,
-                    fontWeight: FontWeight.w100,
-                    color: PinitColors.aubergine,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Create a shared space for your group',
-                  style:
-                      GoogleFonts.dmSans(fontSize: 14, color: PinitColors.mute),
-                ),
-                const SizedBox(height: 24),
-                // Name field
-                TextField(
-                  controller: nameController,
-                  style: GoogleFonts.dmSans(color: PinitColors.aubergine),
-                  decoration: InputDecoration(
-                    hintText: 'Bubble name',
-                    labelText: 'Name',
-                    hintStyle: GoogleFonts.dmSans(
-                      color: PinitColors.mute,
-                    ),
-                    labelStyle: GoogleFonts.dmSans(
-                      color: PinitColors.aubergineSoft,
-                    ),
-                    floatingLabelStyle: GoogleFonts.dmSans(
-                      color: PinitColors.aubergine,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    prefixIcon: const Icon(Icons.bubble_chart_rounded,
-                        color: PinitColors.aubergineSoft),
-                    filled: true,
-                    fillColor: PinitColors.creamSunk,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      borderSide: const BorderSide(
-                          color: PinitColors.creamDeep, width: 1),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      borderSide: const BorderSide(
-                          color: PinitColors.creamDeep, width: 1),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      borderSide: const BorderSide(
-                          color: PinitColors.aubergine, width: 1.5),
-                    ),
-                  ),
-                  autofocus: true,
-                ),
-                const SizedBox(height: 16),
-                // Description field
-                TextField(
-                  controller: descController,
-                  maxLines: 2,
-                  style: GoogleFonts.dmSans(color: PinitColors.aubergine),
-                  decoration: InputDecoration(
-                    hintText: 'What\'s this bubble about?',
-                    labelText: 'Description (optional)',
-                    hintStyle: GoogleFonts.dmSans(
-                      color: PinitColors.mute,
-                    ),
-                    labelStyle: GoogleFonts.dmSans(
-                      color: PinitColors.aubergineSoft,
-                    ),
-                    floatingLabelStyle: GoogleFonts.dmSans(
-                      color: PinitColors.aubergine,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    prefixIcon: const Padding(
-                      padding: EdgeInsets.only(bottom: 24),
-                      child: Icon(Icons.description_outlined,
-                          color: PinitColors.aubergineSoft),
-                    ),
-                    filled: true,
-                    fillColor: PinitColors.creamSunk,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      borderSide: const BorderSide(
-                          color: PinitColors.creamDeep, width: 1),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      borderSide: const BorderSide(
-                          color: PinitColors.creamDeep, width: 1),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      borderSide: const BorderSide(
-                          color: PinitColors.aubergine, width: 1.5),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                // Buttons
-                Row(
+        List<UserModel> friends = [];
+        Set<String> selectedIds = {};
+        bool loadingFriends = true;
+
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            // Load friends once
+            if (loadingFriends && friends.isEmpty) {
+              Provider.of<SupabaseService>(context, listen: false)
+                  .users
+                  .getFriends()
+                  .then((result) {
+                setSheetState(() {
+                  friends = result;
+                  loadingFriends = false;
+                });
+              });
+            }
+
+            return Container(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+              ),
+              decoration: const BoxDecoration(
+                color: PinitColors.cream,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          side: const BorderSide(color: PinitColors.creamDeep),
-                        ),
-                        child: Text(
-                          'Cancel',
-                          style: GoogleFonts.dmSans(
-                            color: PinitColors.mute,
-                            fontWeight: FontWeight.w500,
-                          ),
+                    // Handle bar
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: PinitColors.creamDeep,
+                          borderRadius: BorderRadius.circular(2),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      flex: 2,
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          if (nameController.text.trim().isEmpty) return;
-
-                          final supabaseProvider = Provider.of<SupabaseService>(
-                              context,
-                              listen: false);
-                          final currentUser =
-                              SupabaseClientManager().client.auth.currentUser;
-
-                          if (currentUser == null) return;
-
-                          final bubbleId =
-                              await supabaseProvider.bubbles.createBubble(
-                            name: nameController.text.trim(),
-                            createdBy: currentUser.id,
-                          );
-
-                          Navigator.of(context).pop();
-
-                          if (bubbleId != null) {
-                            AppFeedback.showSuccess(
-                              context,
-                              message: 'Bubble created',
-                              duration: const Duration(seconds: 2),
-                            );
-                          } else {
-                            unawaited(
-                              AppFeedback.showError(
-                                context,
-                                title: 'Couldn’t create bubble',
-                                message: 'Please try again in a moment.',
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Create New Bubble',
+                      style: TextStyle(
+                        fontFamily: 'Rova',
+                        fontSize: 22,
+                        fontWeight: FontWeight.w100,
+                        color: PinitColors.aubergine,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Create a shared space for your group',
+                      style: GoogleFonts.dmSans(
+                          fontSize: 14, color: PinitColors.mute),
+                    ),
+                    const SizedBox(height: 24),
+                    // Name field
+                    TextField(
+                      controller: nameController,
+                      style: GoogleFonts.dmSans(color: PinitColors.aubergine),
+                      decoration: InputDecoration(
+                        hintText: 'Bubble name',
+                        labelText: 'Name',
+                        hintStyle:
+                            GoogleFonts.dmSans(color: PinitColors.mute),
+                        labelStyle: GoogleFonts.dmSans(
+                            color: PinitColors.aubergineSoft),
+                        floatingLabelStyle: GoogleFonts.dmSans(
+                          color: PinitColors.aubergine,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        prefixIcon: const Icon(Icons.bubble_chart_rounded,
+                            color: PinitColors.aubergineSoft),
+                        filled: true,
+                        fillColor: PinitColors.creamSunk,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          borderSide: const BorderSide(
+                              color: PinitColors.creamDeep, width: 1),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          borderSide: const BorderSide(
+                              color: PinitColors.creamDeep, width: 1),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          borderSide: const BorderSide(
+                              color: PinitColors.aubergine, width: 1.5),
+                        ),
+                      ),
+                      autofocus: true,
+                    ),
+                    const SizedBox(height: 20),
+                    // Quick add friends section
+                    Row(
+                      children: [
+                        const Icon(Icons.people_outline_rounded,
+                            size: 16, color: PinitColors.aubergineSoft),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Quick add friends',
+                          style: GoogleFonts.dmSans(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: PinitColors.aubergineSoft,
+                          ),
+                        ),
+                        if (selectedIds.isNotEmpty) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: PinitColors.aubergine,
+                              borderRadius: BorderRadius.circular(99),
+                            ),
+                            child: Text(
+                              '${selectedIds.length}',
+                              style: GoogleFonts.dmSans(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: PinitColors.cream,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    if (loadingFriends)
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                  PinitColors.aubergineSoft),
+                            ),
+                          ),
+                        ),
+                      )
+                    else if (friends.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          'No friends to add yet',
+                          style: GoogleFonts.dmSans(
+                              fontSize: 13, color: PinitColors.mute),
+                        ),
+                      )
+                    else
+                      SizedBox(
+                        height: 80,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: friends.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: 12),
+                          itemBuilder: (context, index) {
+                            final friend = friends[index];
+                            final id = friend.supabaseId ?? '';
+                            final selected = selectedIds.contains(id);
+                            return GestureDetector(
+                              onTap: () {
+                                setSheetState(() {
+                                  if (selected) {
+                                    selectedIds.remove(id);
+                                  } else {
+                                    selectedIds.add(id);
+                                  }
+                                });
+                              },
+                              child: Column(
+                                children: [
+                                  Stack(
+                                    children: [
+                                      Container(
+                                        width: 48,
+                                        height: 48,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: selected
+                                                ? PinitColors.aubergine
+                                                : Colors.transparent,
+                                            width: 2.5,
+                                          ),
+                                        ),
+                                        child: ClipOval(
+                                          child: friend.profileImageUrl != null
+                                              ? Image.network(
+                                                  friend.profileImageUrl!,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (_, __, ___) =>
+                                                      _friendFallbackAvatar(
+                                                          friend),
+                                                )
+                                              : _friendFallbackAvatar(friend),
+                                        ),
+                                      ),
+                                      if (selected)
+                                        Positioned(
+                                          right: 0,
+                                          bottom: 0,
+                                          child: Container(
+                                            width: 18,
+                                            height: 18,
+                                            decoration: const BoxDecoration(
+                                              color: PinitColors.aubergine,
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: const Icon(
+                                              Icons.check_rounded,
+                                              size: 12,
+                                              color: PinitColors.cream,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  SizedBox(
+                                    width: 52,
+                                    child: Text(
+                                      friend.username?.isNotEmpty == true
+                                          ? friend.username!
+                                          : (friend.name ?? ''),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.dmSans(
+                                        fontSize: 11,
+                                        color: selected
+                                            ? PinitColors.aubergine
+                                            : PinitColors.mute,
+                                        fontWeight: selected
+                                            ? FontWeight.w600
+                                            : FontWeight.w400,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             );
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: PinitColors.aubergine,
-                          foregroundColor: PinitColors.cream,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.add_rounded,
-                                size: 18, color: PinitColors.cream),
-                            const SizedBox(width: 8),
-                            Text('Create Bubble',
-                                style: GoogleFonts.dmSans(
-                                    fontWeight: FontWeight.w600,
-                                    color: PinitColors.cream)),
-                          ],
+                          },
                         ),
                       ),
+                    const SizedBox(height: 24),
+                    // Buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            style: OutlinedButton.styleFrom(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              side: const BorderSide(
+                                  color: PinitColors.creamDeep),
+                            ),
+                            child: Text(
+                              'Cancel',
+                              style: GoogleFonts.dmSans(
+                                color: PinitColors.mute,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              if (nameController.text.trim().isEmpty) return;
+
+                              final supabaseProvider =
+                                  Provider.of<SupabaseService>(context,
+                                      listen: false);
+                              final currentUser =
+                                  SupabaseClientManager().client.auth.currentUser;
+
+                              if (currentUser == null) return;
+
+                              final bubbleId =
+                                  await supabaseProvider.bubbles.createBubble(
+                                name: nameController.text.trim(),
+                                createdBy: currentUser.id,
+                              );
+
+                              if (bubbleId != null && selectedIds.isNotEmpty) {
+                                await Future.wait(selectedIds.map((uid) =>
+                                    supabaseProvider.bubbles.addMemberToBubble(
+                                      bubbleId: bubbleId,
+                                      userId: uid,
+                                    )));
+                              }
+
+                              Navigator.of(context).pop();
+
+                              if (bubbleId != null) {
+                                AppFeedback.showSuccess(
+                                  context,
+                                  message: selectedIds.isNotEmpty
+                                      ? 'Bubble created with ${selectedIds.length} friend${selectedIds.length == 1 ? '' : 's'}'
+                                      : 'Bubble created',
+                                  duration: const Duration(seconds: 2),
+                                );
+                              } else {
+                                unawaited(
+                                  AppFeedback.showError(
+                                    context,
+                                    title: "Couldn't create bubble",
+                                    message: 'Please try again in a moment.',
+                                  ),
+                                );
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: PinitColors.aubergine,
+                              foregroundColor: PinitColors.cream,
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              elevation: 0,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.add_rounded,
+                                    size: 18, color: PinitColors.cream),
+                                const SizedBox(width: 8),
+                                Text('Create Bubble',
+                                    style: GoogleFonts.dmSans(
+                                        fontWeight: FontWeight.w600,
+                                        color: PinitColors.cream)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 8),
                   ],
                 ),
-                const SizedBox(height: 8),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
+    );
+  }
+
+  Widget _friendFallbackAvatar(UserModel friend) {
+    final initials = (friend.name?.isNotEmpty == true
+            ? friend.name![0]
+            : friend.username?.isNotEmpty == true
+                ? friend.username![0]
+                : '?')
+        .toUpperCase();
+    return Container(
+      color: PinitColors.creamSunk,
+      child: Center(
+        child: Text(
+          initials,
+          style: GoogleFonts.dmSans(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: PinitColors.aubergineSoft,
+          ),
+        ),
+      ),
     );
   }
 
@@ -874,7 +1042,7 @@ class _BubblesPageState extends State<BubblesPage>
     if (!ok && mounted) {
       await AppFeedback.showError(
         context,
-        title: 'Couldn’t delete bubble',
+        title: "Couldn't delete bubble",
         message: 'Please try again.',
       );
     }
@@ -965,7 +1133,7 @@ class _BubblesPageState extends State<BubblesPage>
     if (!ok && mounted) {
       await AppFeedback.showError(
         context,
-        title: 'Couldn’t rename bubble',
+        title: "Couldn't rename bubble",
         message: 'Please try again.',
       );
     }

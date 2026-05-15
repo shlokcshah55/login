@@ -5,12 +5,10 @@ import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/pages/home/home_view_model.dart';
-import 'package:login/pages/home/quick_picks/quick_picks_distance_page.dart';
 import 'package:login/pages/home/search/header_search_location_hydrator.dart';
 import 'package:login/pages/home/search/header_search_readiness.dart';
 import 'package:login/pages/home/search/header_search_types.dart';
 import 'package:login/pages/home/widgets/home_carousel.dart';
-import 'package:login/pages/home/widgets/feature_intro_overlay.dart';
 import 'package:login/pages/home/widgets/home_filter_sheet.dart';
 import 'package:login/pages/home/widgets/home_header_search_shell.dart';
 import 'package:login/pages/home/widgets/home_map_layer.dart';
@@ -40,8 +38,12 @@ import 'package:login/widgets/home/no_magic_search_results_popover.dart';
 import 'package:login/widgets/home/no_recommendations_popover.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:login/widgets/feedback/app_feedback.dart';
+import 'package:login/pages/home/quick_picks/quick_picks_distance_page.dart';
+import 'package:login/pages/home/widgets/feature_intro_overlay.dart';
 import 'package:login/widgets/swipe_card_stack.dart';
 import 'package:login/widgets/wizard_completion_popover.dart';
+import 'package:login/supabase/helpers/collections.dart';
+import 'package:login/pages/profile/widgets/collections_grid.dart';
 import 'package:provider/provider.dart';
 
 class HomePage extends StatefulWidget {
@@ -65,6 +67,7 @@ class _HomePageState extends State<HomePage> {
   late final BubbleModeProvider _bubbleModeProvider;
   late final SupabaseService _supabaseService;
   late final UserDataProvider _userDataProvider;
+  NavigationProvider? _navigationProvider;
   final WizardCompletionPopoverService _wizardCompletionPopoverService =
       WizardCompletionPopoverService();
   final ProfileCompletionCardPreferencesService
@@ -72,6 +75,7 @@ class _HomePageState extends State<HomePage> {
       ProfileCompletionCardPreferencesService();
   Set<String> _selectedVibeTagIds = <String>{};
   Set<String> _selectedCuisineTagIds = <String>{};
+  int _maxResults = 30;
   bool _wizardPopoverScheduled = false;
   bool _wizardPopoverShown = false;
   bool _isWizardPopoverVisible = false;
@@ -86,6 +90,7 @@ class _HomePageState extends State<HomePage> {
   int _carouselPageIndex = 0;
   bool _profileChecklistCollapsed = false;
   String? _profileChecklistCollapsedUserId;
+  String? _autoOpenedCollectionDetailId;
 
   @override
   void initState() {
@@ -109,6 +114,8 @@ class _HomePageState extends State<HomePage> {
 
     _locationListManager.addListener(_checkForErrors);
     _bubbleModeProvider.addListener(_handleBubbleModeRequest);
+    _navigationProvider = context.read<NavigationProvider>();
+    _navigationProvider!.addListener(_handlePendingFocusLocation);
     unawaited(_loadNotesImportFlag());
     unawaited(_syncProfileChecklistCollapsed());
   }
@@ -151,9 +158,25 @@ class _HomePageState extends State<HomePage> {
       _locationListManager.currentListType == LocationListType.recommended;
 
   void _handlePendingFocusLocation() {
+    if (!widget.isActive) return;
     final navProvider = context.read<NavigationProvider>();
     final location = navProvider.pendingFocusLocation;
     final shouldOpenSearch = navProvider.pendingOpenHomeSearch;
+    final pendingCollectionId = navProvider.pendingShowCollectionId;
+    final shouldOpenCollectionList = navProvider.pendingOpenCollectionList;
+
+    if (pendingCollectionId != null && pendingCollectionId.isNotEmpty) {
+      navProvider.clearPendingShowCollectionId();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (shouldOpenCollectionList) {
+          unawaited(_autoOpenCollectionListView(pendingCollectionId));
+          return;
+        }
+        unawaited(_showCollectionOnMapOnly(pendingCollectionId));
+      });
+      return;
+    }
     if (location != null) {
       navProvider.clearPendingFocusLocation();
       _locationListManager.focusSingleLocation(location);
@@ -166,6 +189,102 @@ class _HomePageState extends State<HomePage> {
         if (!mounted) return;
         unawaited(_viewModel.openHeaderSearch());
       });
+    }
+  }
+
+  Future<void> _autoOpenCollectionListView(String collectionId) async {
+    final shown = await _viewModel.showCollectionOnMapById(
+      collectionId,
+      focusCamera: true,
+    );
+    if (!mounted) return;
+    if (shown.isEmpty) {
+      unawaited(
+        AppFeedback.showError(
+          context,
+          title: 'Nothing to map',
+          message: 'No mappable places in this eat-list yet.',
+        ),
+      );
+      return;
+    }
+
+    await _openCollectionListView(
+      collectionId: collectionId,
+      locations: shown,
+    );
+  }
+
+  Future<void> _showCollectionOnMapOnly(String collectionId) async {
+    final shown = await _viewModel.showCollectionOnMapById(
+      collectionId,
+      focusCamera: true,
+    );
+    if (!mounted) return;
+    if (shown.isNotEmpty) return;
+    unawaited(
+      AppFeedback.showError(
+        context,
+        title: 'Nothing to map',
+        message: 'No mappable places in this eat-list yet.',
+      ),
+    );
+  }
+
+  Future<void> _openCollectionListView({
+    required String collectionId,
+    required List<LocationModel> locations,
+  }) async {
+    if (!mounted) return;
+    if (_autoOpenedCollectionDetailId == collectionId) return;
+    _autoOpenedCollectionDetailId = collectionId;
+
+    // Ensure we can resolve a name/metadata for the collection.
+    await _viewModel.loadCollections();
+    CollectionItem? item;
+    for (final c in _viewModel.collections) {
+      if (c.collectionId == collectionId) {
+        item = c;
+        break;
+      }
+    }
+
+    if (item == null) {
+      await _viewModel.loadCollections(force: true);
+      for (final c in _viewModel.collections) {
+        if (c.collectionId == collectionId) {
+          item = c;
+          break;
+        }
+      }
+    }
+
+    if (!mounted) return;
+    if (item == null) {
+      _autoOpenedCollectionDetailId = null;
+      unawaited(AppFeedback.showError(
+        context,
+        title: 'Couldn’t open eat-list',
+        message: 'Please try again in a moment.',
+      ));
+      return;
+    }
+    final resolvedCollection = item;
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CarouselListPage(
+          locations: locations,
+          title: resolvedCollection.name,
+          listType: LocationListType.search,
+          homeViewModel: null,
+        ),
+      ),
+    );
+
+    if (mounted) {
+      // Allow re-opening after the sheet is dismissed.
+      _autoOpenedCollectionDetailId = null;
     }
   }
 
@@ -371,14 +490,38 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  Future<void> _showDealADeckIntro(HomeViewModel viewModel) {
+    return FeatureIntroOverlay.show(
+      context,
+      eyebrow: 'DEAL A DECK',
+      title: 'Stop Umming and Ahhing.',
+      description:
+          'We will deal you a deck of 10 options so you can stop spiralling, pick one fast, and head out.',
+      primaryLabel: 'DEAL A DECK',
+      illustrationPath: 'lib/assets/illustrations/Beep Beep - Campervan 2.svg',
+      icon: Icons.gavel_rounded,
+      iconBackgroundColor: pinit.PinitColors.accent,
+      primaryColor: pinit.PinitColors.accent,
+      onPrimaryTap: () {
+        unawaited(
+          QuickPicksDistancePage.show(
+            context,
+            viewModel: viewModel,
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _openHomeFilters() async {
     final result = await HomeFilterSheet.show(
       context,
       initialVibeTagIds: _selectedVibeTagIds,
       initialCuisineTagIds: _selectedCuisineTagIds,
       initialAvailabilityFilter: _locationListManager.availabilityFilter,
-      showMaxResults: _locationListManager.currentListType ==
-          LocationListType.recommended,
+      showMaxResults:
+          _locationListManager.currentListType == LocationListType.recommended,
+      initialMaxResults: _maxResults,
     );
     if (!mounted || result == null) return;
     if (result.launchSweetTreat) {
@@ -388,6 +531,7 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _selectedVibeTagIds = result.vibeTagIds;
       _selectedCuisineTagIds = result.cuisineTagIds;
+      _maxResults = result.maxResults;
     });
     await _locationListManager.applyFilters(
       vibeTagIds: result.vibeTagIds.toList(),
@@ -403,6 +547,7 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     _locationListManager.removeListener(_checkForErrors);
     _bubbleModeProvider.removeListener(_handleBubbleModeRequest);
+    _navigationProvider?.removeListener(_handlePendingFocusLocation);
     _viewModel.dispose();
     super.dispose();
   }
@@ -620,6 +765,59 @@ class _HomePageState extends State<HomePage> {
                                   mainAxisSize: MainAxisSize.min,
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
+                                    if (viewModel.locations.isNotEmpty &&
+                                        viewModel.homeMode ==
+                                            HomeMode.explore) ...[
+                                      GestureDetector(
+                                        onTap: () =>
+                                            _showDealADeckIntro(viewModel),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 14,
+                                            vertical: 8,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: pinit.PinitColors.accent,
+                                            borderRadius:
+                                                BorderRadius.circular(999),
+                                            border: Border.all(
+                                              color:
+                                                  pinit.PinitColors.aubergine,
+                                              width: 1.5,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color:
+                                                    pinit.PinitColors.aubergine,
+                                                blurRadius: 0,
+                                                offset: const Offset(3, 3),
+                                              ),
+                                            ],
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                Icons.gavel_rounded,
+                                                size: 13,
+                                                color: pinit.PinitColors.cream,
+                                              ),
+                                              const SizedBox(width: 6),
+                                              Text(
+                                                'Deal a deck',
+                                                style: GoogleFonts.dmSans(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: pinit.PinitColors.cream,
+                                                  letterSpacing: 0.4,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                    ],
                                     Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
@@ -639,36 +837,54 @@ class _HomePageState extends State<HomePage> {
                                         ],
                                         if (viewModel.locations.isNotEmpty)
                                           GestureDetector(
-                                            onTap: () =>
-                                                Navigator.of(context).push(
-                                              MaterialPageRoute(
-                                                builder: (_) =>
-                                                    CarouselListPage(
-                                                  locations:
-                                                      viewModel.locations,
-                                                  title: switch (
-                                                      viewModel.homeMode) {
-                                                    HomeMode.you =>
-                                                      'Your Saves',
-                                                    HomeMode.explore =>
-                                                      'Top Picks',
-                                                    HomeMode.bubble =>
-                                                      'Bubble Picks',
-                                                  },
-                                                  listType: switch (
-                                                      viewModel.homeMode) {
-                                                    HomeMode.you =>
-                                                      LocationListType.saved,
-                                                    HomeMode.explore =>
-                                                      LocationListType
-                                                          .recommended,
-                                                    HomeMode.bubble =>
-                                                      LocationListType.bubble,
-                                                  },
-                                                  homeViewModel: viewModel.homeMode == HomeMode.explore ? viewModel : null,
+                                            onTap: () {
+                                              final collectionId =
+                                                  viewModel.activeCollectionId;
+                                              if (collectionId != null &&
+                                                  collectionId.isNotEmpty) {
+                                                unawaited(
+                                                  _openCollectionListView(
+                                                    collectionId: collectionId,
+                                                    locations:
+                                                        viewModel.locations,
+                                                  ),
+                                                );
+                                                return;
+                                              }
+                                              Navigator.of(context).push(
+                                                MaterialPageRoute(
+                                                  builder: (_) =>
+                                                      CarouselListPage(
+                                                    locations:
+                                                        viewModel.locations,
+                                                    title: switch (
+                                                        viewModel.homeMode) {
+                                                      HomeMode.you =>
+                                                        'Your Saves',
+                                                      HomeMode.explore =>
+                                                        'Top Picks',
+                                                      HomeMode.bubble =>
+                                                        'Bubble Picks',
+                                                    },
+                                                    listType: switch (
+                                                        viewModel.homeMode) {
+                                                      HomeMode.you =>
+                                                        LocationListType.saved,
+                                                      HomeMode.explore =>
+                                                        LocationListType
+                                                            .recommended,
+                                                      HomeMode.bubble =>
+                                                        LocationListType.bubble,
+                                                    },
+                                                    homeViewModel:
+                                                        viewModel.homeMode ==
+                                                                HomeMode.explore
+                                                            ? viewModel
+                                                            : null,
+                                                  ),
                                                 ),
-                                              ),
-                                            ),
+                                              );
+                                            },
                                             child: Container(
                                               padding:
                                                   const EdgeInsets.symmetric(
@@ -704,7 +920,7 @@ class _HomePageState extends State<HomePage> {
                                                   ),
                                                   const SizedBox(width: 6),
                                                   Text(
-                                                    '   See All    ',
+                                                    '    See All    ',
                                                     style: GoogleFonts.dmSans(
                                                       fontSize: 12,
                                                       fontWeight:
@@ -1076,7 +1292,7 @@ class _TopPanel extends StatelessWidget {
                   onMagicSearchTap: () {
                     // Magic search uses the inline "zap" search pill; keep the
                     // full header-search surface closed.
-                    viewModel.closeHeaderSearch();
+                    viewModel.closeHeaderSearch(clearQuery: false);
 
                     final wasMagicSearchActive = viewModel.isMagicSearchActive;
                     viewModel.toggleMagicSearch();
@@ -1155,7 +1371,7 @@ class _TopPanel extends StatelessWidget {
                 onMagicSearchTap: () {
                   // Magic search uses the inline "zap" search pill; keep the
                   // full header-search surface closed.
-                  viewModel.closeHeaderSearch();
+                  viewModel.closeHeaderSearch(clearQuery: false);
 
                   final wasMagicSearchActive = viewModel.isMagicSearchActive;
                   viewModel.toggleMagicSearch();
@@ -1261,21 +1477,16 @@ class _TopPanel extends StatelessWidget {
                             onCollectionsVisibilityChanged:
                                 viewModel.setEatListsOpen,
                             onCollectionSelected: (collection) {
-                              unawaited(() async {
-                                final shown =
-                                    await viewModel.showCollectionOnMap(
-                                  collection,
-                                );
-                                if (!context.mounted || shown) return;
-                                unawaited(
-                                  AppFeedback.showError(
-                                    context,
-                                    title: 'Nothing in there',
-                                    message:
-                                        'No places found in ${collection.name}.',
+                              showModalBottomSheet(
+                                context: context,
+                                isScrollControlled: true,
+                                backgroundColor: Colors.transparent,
+                                builder: (_) => CollectionDetailSheet(
+                                  collection: CollectionModel.fromItem(
+                                    collection,
                                   ),
-                                );
-                              }());
+                                ),
+                              );
                             },
                           ),
               ),

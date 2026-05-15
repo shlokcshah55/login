@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:login/pages/profile/widgets/been_to_rankings_section.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/users.dart';
@@ -13,6 +14,7 @@ import 'package:login/providers/location_list_provider.dart';
 import 'package:login/pages/auth_handler.dart';
 import 'package:login/services/fcm_service.dart';
 import 'package:login/models/notifications/base_notification.dart';
+import 'package:login/widgets/launch_splash_body.dart';
 import 'widgets/profile_header.dart';
 import 'widgets/hidden_gems_section.dart';
 import 'widgets/collections_grid.dart';
@@ -133,6 +135,14 @@ class _ProfilePageState extends State<ProfilePage>
     final locationListManager = Provider.of<LocationListManager>(context);
     final UserModel? user = userDataProvider.supabaseUserData;
 
+    // Don't build the profile UI until saved places are loaded, otherwise
+    // parts of the page that depend on savedPins can render with a 0 count
+    // and never visually "recover" depending on widget state lifecycles.
+    if (locationListManager.isLoadingSaved ||
+        !locationListManager.hasLoadedSavedLocations) {
+      return const Scaffold(body: LaunchSplashBody(immersiveSystemUi: false));
+    }
+
     if (userDataProvider.isLoading && user == null) {
       return _buildLoadingState();
     }
@@ -143,6 +153,11 @@ class _ProfilePageState extends State<ProfilePage>
 
     final savedPins = locationListManager.savedLocations.keys.toList();
     final collapsedHeader = _scrollOffset > 120;
+    print(
+        'User wizardCompleted: ${user.wizardCompleted}, supabaseId: ${user.supabaseId}');
+    print((user.wizardCompleted &&
+        user.supabaseId != null &&
+        user.supabaseId!.isNotEmpty));
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
@@ -187,6 +202,12 @@ class _ProfilePageState extends State<ProfilePage>
                         onRequestScrollToEatLists: _scrollToEatLists,
                       ),
                     ),
+                    if (user.wizardCompleted &&
+                        user.supabaseId != null &&
+                        user.supabaseId!.isNotEmpty)
+                      SliverToBoxAdapter(
+                        child: BeenToRankingsSection(userId: user.supabaseId!),
+                      ),
                     SliverAppBar(
                       pinned: true,
                       elevation: 4,

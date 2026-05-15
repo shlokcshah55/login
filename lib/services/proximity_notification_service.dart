@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:geolocator/geolocator.dart';
 import 'package:login/models/locations.dart';
@@ -17,8 +18,10 @@ class ProximityNotificationService {
 
   static const double walkingDistanceMeters = 1000;
   static const int maxNotificationsPerHour = 2;
+  static const Duration perLocationCooldown = Duration(days: 4);
   static const String _insideKeyPrefix = 'proximity_inside_v1';
   static const String _historyKeyPrefix = 'proximity_history_v1';
+  static const String _cooldownKeyPrefix = 'proximity_cooldown_v1';
 
   final LocationService _locationService = LocationService();
   final PushNotificationService _pushNotificationService =
@@ -29,6 +32,7 @@ class ProximityNotificationService {
   final Map<int, _SavedLocationGeofence> _geofences = {};
   Set<int> _insideLocationIds = <int>{};
   List<DateTime> _notificationHistory = <DateTime>[];
+  Map<int, DateTime> _locationCooldowns = {};
 
   bool _listenerAttached = false;
   bool _isProcessingLocation = false;
@@ -43,6 +47,7 @@ class ProximityNotificationService {
     if (userChanged) {
       _insideLocationIds = await _loadInsideLocationIds(userId);
       _notificationHistory = await _loadNotificationHistory(userId);
+      _locationCooldowns = await _loadLocationCooldowns(userId);
     }
 
     _attachLocationListener();
@@ -104,6 +109,7 @@ class ProximityNotificationService {
     _geofences.clear();
     _insideLocationIds = <int>{};
     _notificationHistory = <DateTime>[];
+    _locationCooldowns = {};
     _pendingPosition = null;
     _isProcessingLocation = false;
   }
@@ -185,9 +191,16 @@ class ProximityNotificationService {
     );
 
     var notificationHistoryChanged = false;
+    var cooldownsChanged = false;
     for (final entry in enteredGeofences) {
       if (_notificationHistory.length >= maxNotificationsPerHour) {
         break;
+      }
+
+      final lastSent = _locationCooldowns[entry.geofence.locationId];
+      if (lastSent != null &&
+          now.difference(lastSent) < perLocationCooldown) {
+        continue;
       }
 
       final sent =
@@ -204,6 +217,8 @@ class ProximityNotificationService {
 
       _notificationHistory.add(DateTime.now());
       notificationHistoryChanged = true;
+      _locationCooldowns[entry.geofence.locationId] = DateTime.now();
+      cooldownsChanged = true;
       _trimNotificationHistory(DateTime.now());
     }
 
@@ -217,6 +232,10 @@ class ProximityNotificationService {
 
     if (notificationHistoryChanged) {
       await _persistNotificationHistory();
+    }
+
+    if (cooldownsChanged) {
+      await _persistLocationCooldowns();
     }
   }
 
@@ -293,9 +312,45 @@ class ProximityNotificationService {
     await _prefs?.setStringList(_historyKey(userId), values);
   }
 
+  Future<Map<int, DateTime>> _loadLocationCooldowns(String userId) async {
+    final raw = _prefs?.getString(_cooldownKey(userId));
+    if (raw == null) return {};
+    try {
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      final now = DateTime.now();
+      final result = <int, DateTime>{};
+      for (final entry in decoded.entries) {
+        final id = int.tryParse(entry.key);
+        final timestamp = DateTime.tryParse(entry.value as String);
+        if (id == null || timestamp == null) continue;
+        if (now.difference(timestamp) < perLocationCooldown) {
+          result[id] = timestamp;
+        }
+      }
+      return result;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<void> _persistLocationCooldowns() async {
+    final userId = _userId;
+    if (userId == null) return;
+
+    final now = DateTime.now();
+    final toStore = {
+      for (final entry in _locationCooldowns.entries)
+        if (now.difference(entry.value) < perLocationCooldown)
+          entry.key.toString(): entry.value.toIso8601String(),
+    };
+    await _prefs?.setString(_cooldownKey(userId), jsonEncode(toStore));
+  }
+
   String _insideKey(String userId) => '$_insideKeyPrefix:$userId';
 
   String _historyKey(String userId) => '$_historyKeyPrefix:$userId';
+
+  String _cooldownKey(String userId) => '$_cooldownKeyPrefix:$userId';
 }
 
 class _SavedLocationGeofence {
