@@ -3,20 +3,29 @@ import 'package:provider/provider.dart';
 
 import '../models/bubble.dart';
 import '../models/message.dart';
+import '../pages/profile/other_user_profile_page.dart';
 import '../pages/profile/widgets/pinit_colors.dart';
 import '../providers/messaging_provider.dart';
 import '../supabase/service.dart';
 import '../themes/app_typography.dart';
+import '../utils/route_open_guard.dart';
 import '../widgets/home/expanded_location_card.dart';
 import '../widgets/chat/message_input.dart';
 import '../widgets/chat/message_list.dart';
+import '../supabase/helpers/notifications.dart';
 
 class BubbleMessagingPage extends StatefulWidget {
   final Bubble bubble;
+  final MessagingProvider? provider;
+  final BubbleMessageView initialView;
+  final Future<void> Function(String userId)? onOpenUserProfile;
 
   const BubbleMessagingPage({
     Key? key,
     required this.bubble,
+    this.provider,
+    this.initialView = BubbleMessageView.messages,
+    this.onOpenUserProfile,
   }) : super(key: key);
 
   @override
@@ -33,10 +42,14 @@ class _BubbleMessagingPageState extends State<BubbleMessagingPage> {
   @override
   void initState() {
     super.initState();
-    _provider = MessagingProvider(
-      bubbleId: widget.bubble.id,
-      messagingHelper: SupabaseService().messaging,
-    );
+    _activeView = widget.initialView;
+    _provider =
+        widget.provider ??
+        MessagingProvider(
+          bubbleId: widget.bubble.id,
+          messagingHelper: SupabaseService().messaging,
+          notificationsHelper: NotificationsHelper(),
+        );
     _provider.initialize();
   }
 
@@ -136,8 +149,6 @@ class _BubbleMessagingPageState extends State<BubbleMessagingPage> {
                                                     message.locationId != null,
                                               )
                                               .length,
-                                          messageCount:
-                                              provider.messages.length,
                                           activeView: _activeView,
                                           onViewChanged: (view) {
                                             if (_activeView == view) return;
@@ -147,34 +158,46 @@ class _BubbleMessagingPageState extends State<BubbleMessagingPage> {
                                           },
                                         ),
                                         Expanded(
-                                          child: MessageList(
-                                            messages: visibleMessages,
-                                            scrollController: _scrollController,
-                                            isLoadingMore:
-                                                provider.isLoadingMore,
-                                            hasMore: provider.hasMore,
-                                            currentUserId:
-                                                provider.currentUserId,
-                                            onLoadMore: () =>
-                                                provider.loadMoreMessages(),
-                                            emptyTitle: _activeView ==
-                                                    BubbleMessageView.pins
-                                                ? 'No shared places yet'
-                                                : 'No messages yet',
-                                            emptySubtitle: _activeView ==
-                                                    BubbleMessageView.pins
-                                                ? 'When someone sends a place into this bubble, it will land here as a tappable pin.'
-                                                : 'Break the silence and drop the first plan, pin, or opinion.',
-                                            onLocationTap: _handleLocationTap,
-                                            onMessageDoubleTap:
-                                                widget.bubble.memberCount == 2
-                                                    ? (message) {
-                                                        provider
-                                                            .toggleMessageLiked(
-                                                          message,
-                                                        );
-                                                      }
-                                                    : null,
+                                          child: Listener(
+                                            behavior: HitTestBehavior.translucent,
+                                            onPointerMove: (_) =>
+                                                _dismissKeyboard(),
+                                            child: MessageList(
+                                              messages: visibleMessages,
+                                              scrollController:
+                                                  _scrollController,
+                                              isLoadingMore:
+                                                  provider.isLoadingMore,
+                                              hasMore: provider.hasMore,
+                                              currentUserId:
+                                                  provider.currentUserId,
+                                              onLoadMore: () =>
+                                                  provider.loadMoreMessages(),
+                                              emptyTitle: _activeView ==
+                                                      BubbleMessageView.pins
+                                                  ? 'No shared places yet'
+                                                  : 'No messages yet',
+                                              emptySubtitle: _activeView ==
+                                                      BubbleMessageView.pins
+                                                  ? 'When someone sends a place into this bubble, it will land here as a tappable pin.'
+                                                  : 'Break the silence and drop the first plan, pin, or opinion.',
+                                              onLocationTap:
+                                                  _handleLocationTap,
+                                              onMessageAvatarTap:
+                                                  _handleOpenUserProfile,
+                                              onScrollStart:
+                                                  _dismissKeyboard,
+                                              onMessageDoubleTap: widget
+                                                          .bubble.memberCount ==
+                                                      2
+                                                  ? (message) {
+                                                      provider
+                                                          .toggleMessageLiked(
+                                                        message,
+                                                      );
+                                                    }
+                                                  : null,
+                                            ),
                                           ),
                                         ),
                                       ],
@@ -237,6 +260,36 @@ class _BubbleMessagingPageState extends State<BubbleMessagingPage> {
       transitionBuilder: (ctx, anim, _, child) =>
           FadeTransition(opacity: anim, child: child),
     );
+  }
+
+  void _dismissKeyboard() {
+    if (!_focusNode.hasFocus) return;
+    _focusNode.unfocus();
+  }
+
+  Future<void> _handleOpenUserProfile(MessageModel message) async {
+    final userId = message.senderId.trim();
+    if (userId.isEmpty) return;
+
+    if (widget.onOpenUserProfile != null) {
+      await widget.onOpenUserProfile!(userId);
+      return;
+    }
+
+    try {
+      final user = await SupabaseService().users.getUserProfileById(userId);
+      if (!mounted || user == null) return;
+
+      final userKey = user.supabaseId ?? user.email;
+      await RouteOpenGuard.run<void>(
+        'other-user-profile:$userKey',
+        () => Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) => OtherUserProfilePage(user: user),
+          ),
+        ),
+      );
+    } catch (_) {}
   }
 }
 
@@ -356,13 +409,11 @@ class _MessagingHeader extends StatelessWidget {
 class _ConversationMeta extends StatelessWidget {
   const _ConversationMeta({
     required this.pinCount,
-    required this.messageCount,
     required this.activeView,
     required this.onViewChanged,
   });
 
   final int pinCount;
-  final int messageCount;
   final BubbleMessageView activeView;
   final ValueChanged<BubbleMessageView> onViewChanged;
 
@@ -379,7 +430,7 @@ class _ConversationMeta extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           _MetaPill(
-            label: '$messageCount messages',
+            label: 'Messages',
             filled: activeView == BubbleMessageView.messages,
             onTap: () => onViewChanged(BubbleMessageView.messages),
           ),

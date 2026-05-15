@@ -32,6 +32,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 RECOMMENDATIONS_API_URL = "https://pinit-recommendations-api-jkqbw4i75a-nw.a.run.app/locations/add"
+RECOMMENDATIONS_API_URL = os.getenv("RECOMMENDATIONS_API_URL", RECOMMENDATIONS_API_URL)
 GOOGLE_PLACES_URL = "https://places.googleapis.com/v1/places:searchText"
 
 

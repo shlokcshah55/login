@@ -16,6 +16,8 @@ class MessageList extends StatelessWidget {
   final String emptySubtitle;
   final ValueChanged<MessageModel>? onLocationTap;
   final ValueChanged<MessageModel>? onMessageDoubleTap;
+  final ValueChanged<MessageModel>? onMessageAvatarTap;
+  final VoidCallback? onScrollStart;
 
   const MessageList({
     Key? key,
@@ -30,6 +32,8 @@ class MessageList extends StatelessWidget {
         'Break the silence and drop the first plan, pin, or opinion.',
     this.onLocationTap,
     this.onMessageDoubleTap,
+    this.onMessageAvatarTap,
+    this.onScrollStart,
   }) : super(key: key);
 
   @override
@@ -40,6 +44,16 @@ class MessageList extends StatelessWidget {
 
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
+        if (notification is ScrollStartNotification &&
+            notification.dragDetails != null) {
+          onScrollStart?.call();
+        }
+
+        if (notification is ScrollUpdateNotification &&
+            notification.dragDetails != null) {
+          onScrollStart?.call();
+        }
+
         if (notification is ScrollEndNotification) {
           if (scrollController.position.pixels >=
                   scrollController.position.maxScrollExtent - 200 &&
@@ -52,6 +66,7 @@ class MessageList extends StatelessWidget {
       },
       child: ListView.builder(
         controller: scrollController,
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         reverse: true,
         padding: const EdgeInsets.fromLTRB(0, 24, 0, 20),
         itemCount: messages.length + (isLoadingMore ? 2 : 1),
@@ -78,6 +93,7 @@ class MessageList extends StatelessWidget {
             isFromCurrentUser: isFromCurrentUser,
             showSenderInfo: showSenderInfo && !isFromCurrentUser,
             onLocationTap: onLocationTap,
+            onAvatarTap: onMessageAvatarTap,
             onDoubleTap: isFromCurrentUser ? null : onMessageDoubleTap,
           );
         },

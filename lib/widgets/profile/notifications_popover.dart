@@ -667,6 +667,11 @@ class _NotificationCard extends StatelessWidget {
           label: 'IMPORT COMPLETE',
           accentColor: Color(0xFF34A853),
         );
+      case NotificationType.blast:
+        return const _NotificationMeta(
+          label: 'ANNOUNCEMENT',
+          accentColor: PinitColors.primary,
+        );
     }
   }
 }

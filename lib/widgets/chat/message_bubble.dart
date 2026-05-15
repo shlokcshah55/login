@@ -10,6 +10,7 @@ class MessageBubble extends StatelessWidget {
   final bool showSenderInfo;
   final ValueChanged<MessageModel>? onLocationTap;
   final ValueChanged<MessageModel>? onDoubleTap;
+  final ValueChanged<MessageModel>? onAvatarTap;
 
   const MessageBubble({
     Key? key,
@@ -18,6 +19,7 @@ class MessageBubble extends StatelessWidget {
     this.showSenderInfo = true,
     this.onLocationTap,
     this.onDoubleTap,
+    this.onAvatarTap,
   }) : super(key: key);
 
   @override
@@ -34,9 +36,15 @@ class MessageBubble extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isFromCurrentUser) ...[
-            Opacity(
-              opacity: showSenderInfo ? 1 : 0,
-              child: _Avatar(message: message),
+            IgnorePointer(
+              ignoring: !showSenderInfo,
+              child: Opacity(
+                opacity: showSenderInfo ? 1 : 0,
+                child: _Avatar(
+                  message: message,
+                  onTap: onAvatarTap == null ? null : () => onAvatarTap!(message),
+                ),
+              ),
             ),
             const SizedBox(width: 10),
           ],
@@ -203,41 +211,49 @@ class MessageBubble extends StatelessWidget {
 }
 
 class _Avatar extends StatelessWidget {
-  const _Avatar({required this.message});
+  const _Avatar({
+    required this.message,
+    this.onTap,
+  });
 
   final MessageModel message;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 32,
-      height: 32,
-      decoration: BoxDecoration(
-        color: PinitColors.cream,
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: PinitColors.creamDeep,
-          width: 1.5,
+    return GestureDetector(
+      key: Key('message_avatar_${message.id}'),
+      onTap: onTap,
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: PinitColors.cream,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: PinitColors.creamDeep,
+            width: 1.5,
+          ),
         ),
-      ),
-      child: CircleAvatar(
-        radius: 14,
-        backgroundColor: PinitColors.creamDeep,
-        backgroundImage: message.senderAvatarUrl.isNotEmpty
-            ? NetworkImage(message.senderAvatarUrl)
-            : null,
-        child: message.senderAvatarUrl.isEmpty
-            ? Text(
-                message.senderName.isNotEmpty
-                    ? message.senderName[0].toUpperCase()
-                    : '?',
-                style: AppTypography.sans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: PinitColors.aubergine,
-                ),
-              )
-            : null,
+        child: CircleAvatar(
+          radius: 14,
+          backgroundColor: PinitColors.creamDeep,
+          backgroundImage: message.senderAvatarUrl.isNotEmpty
+              ? NetworkImage(message.senderAvatarUrl)
+              : null,
+          child: message.senderAvatarUrl.isEmpty
+              ? Text(
+                  message.senderName.isNotEmpty
+                      ? message.senderName[0].toUpperCase()
+                      : '?',
+                  style: AppTypography.sans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: PinitColors.aubergine,
+                  ),
+                )
+              : null,
+        ),
       ),
     );
   }

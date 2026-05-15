@@ -96,6 +96,7 @@ class _BubblesPageViewState extends State<BubblesPageView> {
           ),
         ),
         child: SafeArea(
+          bottom: false,
           child: Column(
             children: [
               _buildHeader(theme),

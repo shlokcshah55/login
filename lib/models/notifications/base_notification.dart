@@ -9,6 +9,7 @@ import 'package:login/models/notifications/proximity_location_notification.dart'
 import 'package:login/models/notifications/user_added_to_bubble_notification.dart';
 import 'package:login/models/notifications/notes_import_complete_notification.dart';
 import 'package:login/models/notifications/processing_error_notification.dart';
+import 'package:login/models/notifications/blast_notification.dart';
 
 abstract class BaseNotification {
   final String id;
@@ -88,6 +89,8 @@ abstract class BaseNotification {
           return UserAddedToBubbleNotification.fromFCMData(data);
         case 'notes_import_complete':
           return NotesImportCompleteNotification.fromFCMData(data);
+        case 'blast':
+          return BlastNotification.fromFCMData(data);
         default:
           print('Unknown notification type: $type');
           return null;
@@ -141,6 +144,8 @@ abstract class BaseNotification {
           return UserAddedToBubbleNotification.fromFCMData(data);
         case 'notes_import_complete':
           return NotesImportCompleteNotification.fromFCMData(data);
+        case 'blast':
+          return BlastNotification.fromFCMData(data);
         default:
           print('Unknown notification type: $type');
           return null;

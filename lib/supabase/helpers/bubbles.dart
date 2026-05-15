@@ -4,13 +4,21 @@ import 'package:login/models/locations.dart';
 import 'package:login/models/actions.dart';
 import 'package:login/supabase/supabase_client.dart';
 import 'package:login/supabase/helpers/location.dart';
+import 'package:login/supabase/helpers/messaging.dart';
 import 'package:login/supabase/constants.dart';
 import 'package:login/services/push_notification_service.dart';
 
 /// Repository for bubble-related operations
 class BubbleHelper {
+  BubbleHelper({
+    LocationHelper? locationService,
+    MessagingHelper? messagingHelper,
+  })  : _locationService = locationService ?? LocationHelper(),
+        _messagingHelper = messagingHelper ?? MessagingHelper();
+
   final _client = SupabaseClientManager().client;
-  final _locationService = LocationHelper();
+  final LocationHelper _locationService;
+  final MessagingHelper _messagingHelper;
 
   /// Get all bubbles for the current user
   Future<List<Bubble>> getUserBubbles(String userId) async {
@@ -47,12 +55,14 @@ class BubbleHelper {
           _getBubbleLocations(bubbleId),
           _getCompatibilityScore(bubbleId),
           _getLatestMessagePreview(bubbleId),
+          _messagingHelper.getUnreadCount(bubbleId),
         ]);
 
         final members = results[0] as List<Map<String, dynamic>>;
         final locations = results[1] as List<LocationModel>;
         final score = results[2] as int?;
         final latestMessage = results[3] as _BubbleMessagePreview?;
+        final unreadCount = results[4] as int;
         final lastActivityAt = latestMessage?.createdAt ?? bubbleCreatedAt;
 
         bubbles.add(Bubble(
@@ -71,7 +81,7 @@ class BubbleHelper {
               ? (members.first[SupabaseConstants.columnProfileImageUrl] ?? '')
               : '',
           isOnline: true,
-          unreadCount: 0,
+          unreadCount: unreadCount,
           groupLocations: locations,
           description: 'Created ${_getTimeAgo(bubbleCreatedAt)}',
           memberIds: members
@@ -259,12 +269,14 @@ class BubbleHelper {
         _getBubbleLocations(bubbleId),
         _getCompatibilityScore(bubbleId),
         _getLatestMessagePreview(bubbleId),
+        _messagingHelper.getUnreadCount(bubbleId),
       ]);
 
       final members = results[0] as List<Map<String, dynamic>>;
       final locations = results[1] as List<LocationModel>;
       final score = results[2] as int?;
       final latestMessage = results[3] as _BubbleMessagePreview?;
+      final unreadCount = results[4] as int;
       final lastActivityAt = latestMessage?.createdAt ?? bubbleCreatedAt;
 
       return Bubble(
@@ -283,7 +295,7 @@ class BubbleHelper {
             ? (members.first[SupabaseConstants.columnProfileImageUrl] ?? '')
             : '',
         isOnline: true,
-        unreadCount: 0,
+        unreadCount: unreadCount,
         groupLocations: locations,
         description: 'Created ${_getTimeAgo(bubbleCreatedAt)}',
         memberIds: members

@@ -71,6 +71,20 @@ void main() {
     );
   });
 
+  testWidgets('bubble page does not reserve bottom safe-area inset', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _BubblesHarness(
+        searchPeople: (_) async => const [],
+      ),
+    );
+
+    final safeArea = tester.widget<SafeArea>(find.byType(SafeArea).first);
+    expect(safeArea.top, isTrue);
+    expect(safeArea.bottom, isFalse);
+  });
+
   testWidgets('empty bubbles state shows recommended people to follow', (
     tester,
   ) async {

@@ -35,6 +35,12 @@ class ChatGroupTile extends StatefulWidget {
 }
 
 class _ChatGroupTileState extends State<ChatGroupTile> {
+  static const Color _unreadAccent = PinitColors.aubergineSoft;
+  static const Color _unreadAccentPressed = PinitColors.aubergine;
+  static const Color _unreadSurface = Color(0xFFF3EDF6);
+  static const Color _unreadStrip = Color(0xFFE9DDF0);
+  static const Color _unreadShadow = Color(0xFF8C6D91);
+
   bool _showDelete = false;
   bool _isDeleting = false;
   bool _isRenaming = false;
@@ -114,23 +120,29 @@ class _ChatGroupTileState extends State<ChatGroupTile> {
   @override
   Widget build(BuildContext context) {
     final bubble = widget.bubble;
+    final isUnread = bubble.unreadCount > 0;
 
     return GestureDetector(
       onLongPress: (widget.onDelete != null || widget.onRename != null)
           ? _toggleDelete
           : null,
-      child: Container(
-        decoration: const BoxDecoration(
-          color: PinitColors.cream,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        decoration: BoxDecoration(
+          color: isUnread ? _unreadSurface : PinitColors.cream,
           border: Border.fromBorderSide(
-            BorderSide(color: PinitColors.aubergine, width: 1.5),
+            BorderSide(
+              color: isUnread ? _unreadAccent : PinitColors.aubergine,
+              width: 1.5,
+            ),
           ),
-          borderRadius: BorderRadius.all(Radius.circular(10)),
+          borderRadius: const BorderRadius.all(Radius.circular(10)),
           boxShadow: [
             BoxShadow(
-              color: PinitColors.aubergine,
+              color: isUnread ? _unreadShadow : PinitColors.aubergine,
               blurRadius: 0,
-              offset: Offset(4, 4),
+              offset: const Offset(4, 4),
             ),
           ],
         ),
@@ -148,18 +160,23 @@ class _ChatGroupTileState extends State<ChatGroupTile> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     if (bubble.lastMessageTime.isNotEmpty)
-                      Container(
-                        color: PinitColors.creamSunk,
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        curve: Curves.easeOutCubic,
+                        color: isUnread ? _unreadStrip : PinitColors.creamSunk,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 14,
                           vertical: 7,
                         ),
                         child: Row(
                           children: [
-                            const Icon(
-                              Icons.access_time_rounded,
+                            Icon(
+                              isUnread
+                                  ? Icons.mark_chat_unread_rounded
+                                  : Icons.access_time_rounded,
                               size: 11,
-                              color: PinitColors.mute,
+                              color:
+                                  isUnread ? _unreadAccent : PinitColors.mute,
                             ),
                             const SizedBox(width: 5),
                             if (bubble.lastMessage.isNotEmpty &&
@@ -170,8 +187,12 @@ class _ChatGroupTileState extends State<ChatGroupTile> {
                                   bubble.lastMessage,
                                   style: GoogleFonts.dmSans(
                                     fontSize: 11,
-                                    color: PinitColors.mute,
-                                    fontWeight: FontWeight.w500,
+                                    color: isUnread
+                                        ? PinitColors.aubergine
+                                        : PinitColors.mute,
+                                    fontWeight: isUnread
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -184,8 +205,12 @@ class _ChatGroupTileState extends State<ChatGroupTile> {
                               bubble.lastMessageTime,
                               style: GoogleFonts.dmSans(
                                 fontSize: 11,
-                                color: PinitColors.mute,
-                                fontWeight: FontWeight.w600,
+                                color: isUnread
+                                    ? _unreadAccentPressed
+                                    : PinitColors.mute,
+                                fontWeight: isUnread
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
                               ),
                             ),
                           ],
@@ -224,6 +249,10 @@ class _ChatGroupTileState extends State<ChatGroupTile> {
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
+                                    if (isUnread) ...[
+                                      const SizedBox(width: 8),
+                                      _UnreadBadge(count: bubble.unreadCount),
+                                    ],
                                     if (bubble.compatibilityScore != null) ...[
                                       const SizedBox(width: 8),
                                       _ScoreBadge(
@@ -237,8 +266,12 @@ class _ChatGroupTileState extends State<ChatGroupTile> {
                                   _membersSubtitle(),
                                   style: GoogleFonts.dmSans(
                                     fontSize: 12,
-                                    color: PinitColors.mute,
-                                    fontWeight: FontWeight.w500,
+                                    color: isUnread
+                                        ? PinitColors.aubergineSoft
+                                        : PinitColors.mute,
+                                    fontWeight: isUnread
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -247,7 +280,10 @@ class _ChatGroupTileState extends State<ChatGroupTile> {
                             ),
                           ),
                           const SizedBox(width: 10),
-                          _ChatButton(onTap: _handleOpenChatTap),
+                          _ChatButton(
+                            isUnread: isUnread,
+                            onTap: _handleOpenChatTap,
+                          ),
                         ],
                       ),
                     ),
@@ -277,6 +313,41 @@ class _ChatGroupTileState extends State<ChatGroupTile> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _UnreadBadge extends StatelessWidget {
+  final int count;
+
+  const _UnreadBadge({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: _ChatGroupTileState._unreadAccent,
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1F6B3866),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Text(
+        '$count new',
+        style: GoogleFonts.dmSans(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: Colors.white,
+          letterSpacing: 0.1,
         ),
       ),
     );
@@ -396,8 +467,9 @@ class _ScoreBadge extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ChatButton extends StatefulWidget {
+  final bool isUnread;
   final VoidCallback onTap;
-  const _ChatButton({required this.onTap});
+  const _ChatButton({required this.isUnread, required this.onTap});
 
   @override
   State<_ChatButton> createState() => _ChatButtonState();
@@ -420,14 +492,34 @@ class _ChatButtonState extends State<_ChatButton> {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: _pressed ? PinitColors.creamDeep : PinitColors.creamSunk,
+          color: widget.isUnread
+              ? (_pressed
+                  ? _ChatGroupTileState._unreadAccentPressed
+                  : _ChatGroupTileState._unreadAccent)
+              : (_pressed ? PinitColors.creamDeep : PinitColors.creamSunk),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: PinitColors.creamDeep, width: 1),
+          border: Border.all(
+            color: widget.isUnread
+                ? _ChatGroupTileState._unreadAccentPressed
+                : PinitColors.creamDeep,
+            width: 1,
+          ),
+          boxShadow: widget.isUnread
+              ? const [
+                  BoxShadow(
+                    color: Color(0x296B3866),
+                    blurRadius: 12,
+                    offset: Offset(0, 4),
+                  ),
+                ]
+              : null,
         ),
-        child: const Icon(
-          Icons.chat_bubble_outline_rounded,
+        child: Icon(
+          widget.isUnread
+              ? Icons.chat_bubble_rounded
+              : Icons.chat_bubble_outline_rounded,
           size: 18,
-          color: PinitColors.aubergine,
+          color: widget.isUnread ? Colors.white : PinitColors.aubergine,
         ),
       ),
     );

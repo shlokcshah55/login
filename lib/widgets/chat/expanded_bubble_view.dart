@@ -3,19 +3,33 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/bubble.dart';
 import 'package:login/models/actions.dart';
 import 'package:login/pages/bubble_messaging_page.dart';
+import 'package:login/pages/profile/other_user_profile_page.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/supabase/service.dart';
+import 'package:login/utils/route_open_guard.dart';
 import 'package:login/widgets/chat/add_members_dialog.dart';
 import 'dart:math' as math;
 
 class ExpandedChatView extends StatefulWidget {
   final Bubble bubble;
   final VoidCallback onClose;
+  final int? initialUnreadCount;
+  final List<UserLocationActionModel>? initialActivities;
+  final Future<void> Function()? onOpenChat;
+  final Future<void> Function()? onOpenPinsChat;
+  final VoidCallback? onShowActivity;
+  final Future<void> Function(String userId)? onOpenUserProfile;
 
   const ExpandedChatView({
     Key? key,
     required this.bubble,
     required this.onClose,
+    this.initialUnreadCount,
+    this.initialActivities,
+    this.onOpenChat,
+    this.onOpenPinsChat,
+    this.onShowActivity,
+    this.onOpenUserProfile,
   }) : super(key: key);
 
   @override
@@ -50,9 +64,19 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
   void initState() {
     super.initState();
     currentBubble = widget.bubble;
+    _messageCount = widget.initialUnreadCount ?? 0;
+    _isLoadingMessageCount = widget.initialUnreadCount == null;
+    _activities = List<UserLocationActionModel>.from(
+      widget.initialActivities ?? const <UserLocationActionModel>[],
+    );
+    _isLoadingActivities = widget.initialActivities == null;
     _initializeAnimations();
-    _loadMessageCount();
-    _loadBubbleActivity();
+    if (widget.initialUnreadCount == null) {
+      _loadMessageCount();
+    }
+    if (widget.initialActivities == null) {
+      _loadBubbleActivity();
+    }
   }
 
   Future<void> _loadMessageCount() async {
@@ -117,14 +141,34 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
     _animationController.reverse().then((_) => widget.onClose());
   }
 
-  void _navigateToGroupChat() {
+  Future<void> _navigateToGroupChat({
+    BubbleMessageView initialView = BubbleMessageView.messages,
+  }) async {
+    final override = initialView == BubbleMessageView.pins
+        ? widget.onOpenPinsChat
+        : widget.onOpenChat;
+    if (override != null) {
+      await override();
+      return;
+    }
+
     Navigator.of(context).pop();
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => BubbleMessagingPage(bubble: widget.bubble)),
+      MaterialPageRoute(
+        builder: (_) => BubbleMessagingPage(
+          bubble: currentBubble,
+          initialView: initialView,
+        ),
+      ),
     );
   }
 
   void _showActivityNotifications() {
+    if (widget.onShowActivity != null) {
+      widget.onShowActivity!();
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -137,6 +181,35 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
         timeAgoFor: _getTimeAgo,
       ),
     );
+  }
+
+  Future<void> _openUserProfile(String userId) async {
+    final normalizedUserId = userId.trim();
+    if (normalizedUserId.isEmpty) return;
+
+    if (widget.onOpenUserProfile != null) {
+      await widget.onOpenUserProfile!(normalizedUserId);
+      return;
+    }
+
+    try {
+      final user = await SupabaseService().users.getUserProfileById(
+        normalizedUserId,
+      );
+      if (user == null) return;
+
+      final navigator = Navigator.of(context);
+      navigator.pop();
+      final userKey = user.supabaseId ?? user.email;
+      await RouteOpenGuard.run<void>(
+        'other-user-profile:$userKey',
+        () => navigator.push<void>(
+          MaterialPageRoute(
+            builder: (_) => OtherUserProfilePage(user: user),
+          ),
+        ),
+      );
+    } catch (_) {}
   }
 
   @override
@@ -292,7 +365,10 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
     final top3 = locations.take(3).toList();
 
     if (top3.isEmpty) {
-      return _SectionCard(
+      return GestureDetector(
+        key: const Key('expanded_bubble_top_pins'),
+        onTap: () => _navigateToGroupChat(initialView: BubbleMessageView.pins),
+        child: _SectionCard(
         child: Row(
           children: [
             const Icon(Icons.location_on_outlined, color: PinitColors.mute, size: 20),
@@ -303,10 +379,14 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
             ),
           ],
         ),
+        ),
       );
     }
 
-    return _SectionCard(
+    return GestureDetector(
+      key: const Key('expanded_bubble_top_pins'),
+      onTap: () => _navigateToGroupChat(initialView: BubbleMessageView.pins),
+      child: _SectionCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -351,6 +431,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
           ),
         ],
       ),
+      ),
     );
   }
 
@@ -358,7 +439,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
 
   Widget _buildChatCard() {
     return GestureDetector(
-      onTap: _navigateToGroupChat,
+      onTap: () => _navigateToGroupChat(),
       child: _SectionCard(
         child: Row(
           children: [
@@ -426,7 +507,10 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
   // ── Recent activity ──────────────────────────────────────────────────────────
 
   Widget _buildRecentActivity() {
-    return _SectionCard(
+    return GestureDetector(
+      key: const Key('expanded_bubble_recent_activity'),
+      onTap: _isLoadingActivities ? null : _showActivityNotifications,
+      child: _SectionCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -487,6 +571,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
             ),
         ],
       ),
+      ),
     );
   }
 
@@ -497,6 +582,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
       children: [
         Expanded(
           child: GestureDetector(
+            key: const Key('expanded_bubble_members_stat'),
             onTap: () => setState(() => _showMembersList = !_showMembersList),
             child: _StatCard(
               value: '${currentBubble.memberCount}',
@@ -508,11 +594,15 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: _StatCard(
-            value: '${currentBubble.groupLocations.length}',
-            label: 'PINS',
-            icon: Icons.location_on_outlined,
-            active: false,
+          child: GestureDetector(
+            key: const Key('expanded_bubble_pins_stat'),
+            onTap: () => _navigateToGroupChat(initialView: BubbleMessageView.pins),
+            child: _StatCard(
+              value: '${currentBubble.groupLocations.length}',
+              label: 'PINS',
+              icon: Icons.location_on_outlined,
+              active: false,
+            ),
           ),
         ),
         if (currentBubble.compatibilityScore != null) ...[
@@ -548,47 +638,54 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
                 final name = i < currentBubble.memberNames.length
                     ? currentBubble.memberNames[i]
                     : 'Member ${i + 1}';
+                final userId = i < currentBubble.memberIds.length
+                    ? currentBubble.memberIds[i]
+                    : '';
                 final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
-                return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: PinitColors.creamSunk,
-                    border: Border.all(color: PinitColors.creamDeep),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 22,
-                        height: 22,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: _avatarColors[i % _avatarColors.length],
-                        ),
-                        child: ClipOval(
-                          child: url.isNotEmpty
-                              ? Image.network(url, fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => Center(
+                return GestureDetector(
+                  key: Key('expanded_bubble_member_${userId.isNotEmpty ? userId : i}'),
+                  onTap: userId.isEmpty ? null : () => _openUserProfile(userId),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: PinitColors.creamSunk,
+                      border: Border.all(color: PinitColors.creamDeep),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 22,
+                          height: 22,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _avatarColors[i % _avatarColors.length],
+                          ),
+                          child: ClipOval(
+                            child: url.isNotEmpty
+                                ? Image.network(url, fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Center(
+                                      child: Text(initial,
+                                        style: GoogleFonts.dmSans(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.white)),
+                                    ))
+                                : Center(
                                     child: Text(initial,
                                       style: GoogleFonts.dmSans(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.white)),
-                                  ))
-                              : Center(
-                                  child: Text(initial,
-                                    style: GoogleFonts.dmSans(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.white)),
-                                ),
+                                  ),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 7),
-                      Text(
-                        name,
-                        style: GoogleFonts.dmSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: PinitColors.aubergine,
+                        const SizedBox(width: 7),
+                        Text(
+                          name,
+                          style: GoogleFonts.dmSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: PinitColors.aubergine,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 );
               }),

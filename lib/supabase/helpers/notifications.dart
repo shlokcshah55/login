@@ -104,6 +104,59 @@ class NotificationsHelper {
     }
   }
 
+  /// Mark unread new-message notifications as read once the bubble itself has
+  /// been opened and its messages are considered seen.
+  Future<int> markBubbleMessageNotificationsAsRead(String bubbleId) async {
+    try {
+      final userId = SupabaseClientManager().currentUser?.id;
+
+      if (userId == null) {
+        print(
+          '📲 No user logged in, cannot clear bubble message notifications',
+        );
+        return 0;
+      }
+
+      final response = await _client
+          .from(SupabaseConstants.tableNotifications)
+          .select('''
+            ${SupabaseConstants.columnNotificationId},
+            ${SupabaseConstants.columnMetadata}
+          ''')
+          .eq(SupabaseConstants.columnUserId, userId)
+          .eq(SupabaseConstants.columnType, 'new_message')
+          .eq(SupabaseConstants.columnIsRead, false);
+
+      final matchingIds = (response as List)
+          .whereType<Map<String, dynamic>>()
+          .where((row) {
+            final metadata = row[SupabaseConstants.columnMetadata];
+            if (metadata is! Map<String, dynamic>) return false;
+            return metadata['bubbleId']?.toString() == bubbleId;
+          })
+          .map((row) => row[SupabaseConstants.columnNotificationId]?.toString())
+          .whereType<String>()
+          .toList();
+
+      if (matchingIds.isEmpty) {
+        return 0;
+      }
+
+      await _client
+          .from(SupabaseConstants.tableNotifications)
+          .update({SupabaseConstants.columnIsRead: true})
+          .inFilter(SupabaseConstants.columnNotificationId, matchingIds);
+
+      print(
+        '📲 Marked ${matchingIds.length} bubble message notifications as read',
+      );
+      return matchingIds.length;
+    } catch (e) {
+      print('📲 Error clearing bubble message notifications: $e');
+      rethrow;
+    }
+  }
+
   /// Mark all notifications as read for the current user
   Future<void> markAllAsRead() async {
     try {

@@ -55,7 +55,8 @@ class BubblesProvider with ChangeNotifier {
 
     try {
       final bubbles = await _bubbleHelper.getUserBubbles(userId);
-      _bubbles = List<Bubble>.from(bubbles)..sort(_compareByLastActivity);
+      _bubbles = bubbles.map(_mergeBubbleWithExistingUnread).toList()
+        ..sort(_compareByLastActivity);
 
       if (kDebugMode) {
         print('BubblesProvider: Loaded ${bubbles.length} bubbles');
@@ -158,7 +159,7 @@ class BubblesProvider with ChangeNotifier {
       // Fetch the new bubble and add it to the list
       final bubble = await _bubbleHelper.getBubbleById(bubbleId);
       if (bubble != null) {
-        _bubbles.insert(0, bubble);
+        _bubbles.insert(0, _mergeBubbleWithExistingUnread(bubble));
         _sortBubblesByActivity();
         notifyListeners();
       }
@@ -207,7 +208,7 @@ class BubblesProvider with ChangeNotifier {
         // Reload the bubble to get fresh data
         final updatedBubble = await _bubbleHelper.getBubbleById(bubbleId);
         if (updatedBubble != null) {
-          _bubbles[index] = updatedBubble;
+          _bubbles[index] = _mergeBubbleWithExistingUnread(updatedBubble);
           _sortBubblesByActivity();
           notifyListeners();
         }
@@ -238,7 +239,7 @@ class BubblesProvider with ChangeNotifier {
         // Reload the bubble to get fresh locations
         final updatedBubble = await _bubbleHelper.getBubbleById(bubbleId);
         if (updatedBubble != null) {
-          _bubbles[index] = updatedBubble;
+          _bubbles[index] = _mergeBubbleWithExistingUnread(updatedBubble);
           _sortBubblesByActivity();
           notifyListeners();
         }
@@ -325,7 +326,7 @@ class BubblesProvider with ChangeNotifier {
       if (updatedBubble != null) {
         final index = _bubbles.indexWhere((b) => b.id == bubbleId);
         if (index != -1) {
-          _bubbles[index] = updatedBubble;
+          _bubbles[index] = _mergeBubbleWithExistingUnread(updatedBubble);
           _sortBubblesByActivity();
           notifyListeners();
         }
@@ -430,6 +431,21 @@ class BubblesProvider with ChangeNotifier {
 
   void _sortBubblesByActivity() {
     _bubbles.sort(_compareByLastActivity);
+  }
+
+  Bubble _mergeBubbleWithExistingUnread(Bubble incoming) {
+    final existingIndex =
+        _bubbles.indexWhere((bubble) => bubble.id == incoming.id);
+    if (existingIndex == -1) {
+      return incoming;
+    }
+
+    final existing = _bubbles[existingIndex];
+    if (incoming.unreadCount > 0 || existing.unreadCount == 0) {
+      return incoming;
+    }
+
+    return incoming.copyWith(unreadCount: existing.unreadCount);
   }
 
   int _compareByLastActivity(Bubble a, Bubble b) {

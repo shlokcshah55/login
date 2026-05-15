@@ -115,6 +115,7 @@ class _BubblesPageState extends State<BubblesPage>
           return Scaffold(
             backgroundColor: PinitColors.cream,
             body: SafeArea(
+              bottom: false,
               child: Column(
                 children: [
                   if (!showingSearch) _buildModernHeader(theme),

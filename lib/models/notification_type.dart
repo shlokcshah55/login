@@ -8,4 +8,5 @@ enum NotificationType {
   newMessage,
   userAddedToBubble,
   notesImportComplete,
+  blast,
 }

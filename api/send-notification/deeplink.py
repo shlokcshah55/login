@@ -27,6 +27,7 @@ KNOWN_TYPES: frozenset[str] = frozenset(
         "new_message",
         "user_added_to_bubble",
         "notes_import_complete",
+        "blast",
     }
 )
 

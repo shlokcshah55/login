@@ -22,6 +22,7 @@ import 'package:login/widgets/home/expanded_card/add_to_bubble_sheet.dart';
 import 'package:login/widgets/home/expanded_card/add_to_collection_sheet.dart';
 import 'package:login/widgets/home/expanded_card/helpers/match_result.dart';
 import 'package:login/widgets/home/expanded_card/helpers/similar_place.dart';
+import 'package:login/widgets/home/expanded_card/helpers/social_video_source.dart';
 import 'package:login/widgets/home/expanded_card/sections/details_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/hero_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/persistent_action_dock.dart';
@@ -174,12 +175,9 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     _fetchFriendIds();
     _findSimilarPlaces();
     _seedSocialVideoPost();
-    _fetchVideoInsight();
+    _bootstrapSocialVideoContext();
     _fetchSocialVideoPosts();
     _enrichLocationIfNeeded();
-    if (widget.resolveSharedVideoUrlOnOpen) {
-      _resolveSharedVideoUrl();
-    }
   }
 
   @override
@@ -579,13 +577,25 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   //  TikTok video insights
   // ─────────────────────────────────────────────────────────────
 
-  /// Lazily fetch video insight data when the card opens for a
-  /// TikTok/Instagram-saved location.
-  Future<void> _fetchVideoInsight() async {
-    final sourceUrl = widget.location.savedFrom;
-    if (sourceUrl == null || sourceUrl.trim().isEmpty) return;
+  /// Lazily bootstraps video insight data when the card opens. Saved
+  /// locations usually carry a user-specific `savedFrom` URL, while
+  /// notifications and featured surfaces often only carry the public
+  /// social-video summary fields. The card now handles both cases.
+  Future<void> _bootstrapSocialVideoContext() async {
+    final sourceUrl = preferredExpandedCardSocialVideoUrl(widget.location);
+    if (sourceUrl != null) {
+      await _fetchVideoInsightFor(sourceUrl);
+    }
 
-    await _fetchVideoInsightFor(sourceUrl.trim());
+    if (_videoInsight != null) return;
+    if (!shouldResolveExpandedCardSocialVideoUrl(
+      widget.location,
+      forceResolveOnOpen: widget.resolveSharedVideoUrlOnOpen,
+    )) {
+      return;
+    }
+
+    await _resolveSharedVideoUrl();
   }
 
   Future<void> _fetchVideoInsightFor(String sourceUrl) async {
@@ -603,8 +613,8 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   }
 
   Future<void> _resolveSharedVideoUrl() async {
-    final existing = widget.location.savedFrom;
-    if (existing != null && existing.trim().isNotEmpty) return;
+    final existing = _resolvedSharedVideoUrl?.trim();
+    if (existing != null && existing.isNotEmpty) return;
 
     final resolved = await _locationHelper.getLatestSharedVideoUrl(
       locationId: widget.location.locationId,

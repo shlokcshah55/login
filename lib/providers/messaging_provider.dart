@@ -3,10 +3,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/message.dart';
 import '../supabase/helpers/messaging.dart';
+import '../supabase/helpers/notifications.dart';
 import '../supabase/supabase_client.dart';
 
 class MessagingProvider with ChangeNotifier {
   final MessagingHelper _messagingHelper;
+  final NotificationsHelper? _notificationsHelper;
   final String bubbleId;
 
   List<MessageModel> _messages = [];
@@ -20,7 +22,9 @@ class MessagingProvider with ChangeNotifier {
   MessagingProvider({
     required this.bubbleId,
     required MessagingHelper messagingHelper,
-  }) : _messagingHelper = messagingHelper;
+    NotificationsHelper? notificationsHelper,
+  }) : _messagingHelper = messagingHelper,
+       _notificationsHelper = notificationsHelper;
 
   // Getters
   List<MessageModel> get messages => _messages;
@@ -256,6 +260,17 @@ class MessagingProvider with ChangeNotifier {
     } catch (e) {
       if (kDebugMode) {
         print('MessagingProvider: Error marking as read: $e');
+      }
+    }
+
+    try {
+      final notificationsHelper = _notificationsHelper ?? NotificationsHelper();
+      await notificationsHelper.markBubbleMessageNotificationsAsRead(bubbleId);
+    } catch (e) {
+      if (kDebugMode) {
+        print(
+          'MessagingProvider: Error clearing bubble message notifications: $e',
+        );
       }
     }
   }
