@@ -21,6 +21,7 @@ import 'widgets/collections_grid.dart';
 import 'widgets/recent_activity_section.dart';
 import 'widgets/pinit_colors.dart';
 import 'widgets/profile_completion_checklist_card.dart';
+import 'referrals_rewards_page.dart';
 import 'edit_profile_page.dart';
 import 'preferences_page.dart';
 import 'other_user_profile_page.dart';
@@ -181,6 +182,7 @@ class _ProfilePageState extends State<ProfilePage>
                         user: user,
                         scrollOffset: _scrollOffset,
                         onNotificationsTap: () => _showNotifications(context),
+                        onRewardsTap: () => _openRewards(context),
                         onSettingsTap: () => _showSettingsSheet(context, user),
                         unreadCount: FCMService().unreadCount,
                         followersCount: _followersCount ?? user.followersCount,
@@ -361,6 +363,8 @@ class _ProfilePageState extends State<ProfilePage>
           ),
           _buildNotificationButton(),
           const SizedBox(width: 8),
+          _buildRewardsButton(),
+          const SizedBox(width: 8),
           _buildSettingsButton(user),
         ],
       ),
@@ -474,6 +478,14 @@ class _ProfilePageState extends State<ProfilePage>
     return _buildHeaderActionButton(
       icon: Icons.more_horiz_rounded,
       onTap: () => _showSettingsSheet(context, user),
+      onDark: true,
+    );
+  }
+
+  Widget _buildRewardsButton() {
+    return _buildHeaderActionButton(
+      icon: Icons.card_giftcard_rounded,
+      onTap: () => _openRewards(context),
       onDark: true,
     );
   }
@@ -692,6 +704,14 @@ class _ProfilePageState extends State<ProfilePage>
     );
   }
 
+  Future<void> _openRewards(BuildContext context) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const ReferralsRewardsPage(),
+      ),
+    );
+  }
+
   void _showSettingsSheet(BuildContext context, UserModel user) {
     HapticFeedback.mediumImpact();
     showModalBottomSheet(
@@ -732,7 +752,7 @@ class _ProfilePageState extends State<ProfilePage>
         },
         onShareProfile: () {
           Navigator.pop(sheetContext);
-          _shareProfile(context);
+          _shareProfile(context, user.referralCode);
         },
         onSignOut: () {
           Navigator.pop(sheetContext);
@@ -742,11 +762,13 @@ class _ProfilePageState extends State<ProfilePage>
     );
   }
 
-  void _shareProfile(BuildContext context) {
-    const appStoreUrl =
-        'https://apps.apple.com/app/pinit'; // replace with real URL
+  void _shareProfile(BuildContext context, String? referralCode) {
+    const appStoreUrl = 'https://apps.apple.com/gb/app/pinit/id6762100292';
+    final referralLine = referralCode != null && referralCode.isNotEmpty
+        ? ' Make sure to use my referral code so we both get rewards: $referralCode'
+        : '';
     Share.share(
-      "I've got Pinit and I want to be your friend! 🍽️ Join me on the app: $appStoreUrl",
+      "I've got Pinit and I want to be your friend! 🍽️ Join me on the app: $appStoreUrl$referralLine",
       subject: 'Join me on Pinit!',
     );
   }

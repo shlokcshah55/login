@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/signup_wizard_state.dart';
 import '../../providers/user_data_provider.dart';
+import '../../services/referral_code_prompt_service.dart';
 import '../../services/what_we_do_wizard_service.dart';
 import '../../supabase/service.dart';
 import '../../supabase/constants.dart';
@@ -122,6 +123,7 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
       }
 
       await WhatWeDoWizardService().markPending();
+      await ReferralCodePromptService().markPending();
 
       // Step 4: Navigate to main app
       if (mounted) {

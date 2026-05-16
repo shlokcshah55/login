@@ -277,47 +277,52 @@ class _AccountStepState extends State<AccountStep>
     errorNotifier.value = null;
 
     try {
-      print('🚀 [CREATE_ACCOUNT] Starting account creation...');
       final supabaseProvider =
           Provider.of<SupabaseService>(context, listen: false);
       final wizardState =
           Provider.of<SignupWizardState>(context, listen: false);
+      final existingUserId = wizardState.userId;
+      String userID = existingUserId ?? '';
 
-      // Create the Supabase account and continue directly into the app.
-      print(
-          '📝 [CREATE_ACCOUNT] Calling signUp with email: ${emailController.text}');
-      String userID = await supabaseProvider.signUp(
-        emailController.text,
-        passwordController.text,
-        name: nameController.text,
-        username: usernameController.text,
-      );
+      if (existingUserId == null) {
+        print('🚀 [CREATE_ACCOUNT] Starting account creation...');
+        print(
+            '📝 [CREATE_ACCOUNT] Calling signUp with email: ${emailController.text}');
+        userID = await supabaseProvider.signUp(
+          emailController.text,
+          passwordController.text,
+          name: nameController.text,
+          username: usernameController.text,
+        );
 
-      print('✅ [CREATE_ACCOUNT] Account created successfully. UserID: $userID');
+        print(
+            '✅ [CREATE_ACCOUNT] Account created successfully. UserID: $userID');
 
-      if (userID.isEmpty) {
-        throw Exception('Failed to create account');
+        if (userID.isEmpty) {
+          throw Exception('Failed to create account');
+        }
+
+        wizardState.setUserId(userID);
+        wizardState.setAccountInfo(nameController.text, emailController.text);
+
+        print('🏷️ [CREATE_ACCOUNT] Initializing vibe tags for user: $userID');
+        await supabaseProvider.tags.initializeVibeTagsForUser(userID);
+
+        print('⏳ [CREATE_ACCOUNT] Waiting for authenticated session...');
+        int retryCount = 0;
+        while (supabaseProvider.users.currentUser == null && retryCount < 10) {
+          await Future.delayed(const Duration(milliseconds: 200));
+          retryCount++;
+        }
+
+        print('✅ [CREATE_ACCOUNT] Session ready (retries: $retryCount)');
+        await supabaseProvider.users.acceptLegalConsent(userID);
       }
 
-      wizardState.setUserId(userID);
-      wizardState.setAccountInfo(nameController.text, emailController.text);
-
-      print('🏷️ [CREATE_ACCOUNT] Initializing vibe tags for user: $userID');
-      await supabaseProvider.tags.initializeVibeTagsForUser(userID);
-
-      print('⏳ [CREATE_ACCOUNT] Waiting for authenticated session...');
-      int retryCount = 0;
-      while (supabaseProvider.users.currentUser == null && retryCount < 10) {
-        await Future.delayed(const Duration(milliseconds: 200));
-        retryCount++;
-      }
-
-      print('✅ [CREATE_ACCOUNT] Session ready (retries: $retryCount)');
-      await supabaseProvider.users.acceptLegalConsent(userID);
       await _addProfilePic();
     } catch (e) {
       print('❌ [CREATE_ACCOUNT] Error: ${e.toString()}');
-      errorNotifier.value = 'Sign up failed: ${e.toString()}';
+      errorNotifier.value ??= 'Sign up failed: ${e.toString()}';
     } finally {
       if (mounted) {
         setState(() => isLoading = false);
@@ -450,6 +455,8 @@ class _AccountStepState extends State<AccountStep>
     TextInputType keyboardType = TextInputType.text,
     FocusNode? focusNode,
     double? height,
+    ValueChanged<String>? onChanged,
+    TextInputAction textInputAction = TextInputAction.next,
   }) {
     return Container(
       height: height,
@@ -474,7 +481,8 @@ class _AccountStepState extends State<AccountStep>
         keyboardType: keyboardType,
         focusNode: focusNode,
         autofocus: false,
-        textInputAction: TextInputAction.next,
+        textInputAction: textInputAction,
+        onChanged: onChanged,
         style: GoogleFonts.dmSans(fontSize: 15, color: PinitColors.aubergine),
         decoration: InputDecoration(
           hintText: hintText,
@@ -1084,7 +1092,7 @@ class _AccountStepState extends State<AccountStep>
                             _isPasswordVisible
                                 ? Icons.visibility_outlined
                                 : Icons.visibility_off_outlined,
-                            color: Colors.white70,
+                            color: PinitColors.aubergine,
                           ),
                           onPressed: () {
                             setState(() {
@@ -1213,100 +1221,109 @@ class _AccountStepState extends State<AccountStep>
 
   // Sub-Step 5: Profile Picture (Final step)
   Widget _buildProfilePictureSubStep() {
-    return _buildAnimatedSubStep(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-          // Use the reusable ProfilePhotoSelector widget
-          Expanded(
-            child: Center(
-              child: ProfilePhotoSelector(
-                currentImage: _selectedProfileImage,
-                onPhotoSelected: (File file) {
-                  setState(() {
-                    _selectedProfileImage = file;
-                  });
-                },
-                onPhotoRemoved: () {
-                  setState(() {
-                    _selectedProfileImage = null;
-                  });
-                },
-                animationController: _transitionController,
-                borderColor: PinitColors.aubergine.withValues(alpha: 0.3),
-              ),
-            ),
-          ),
+    return Consumer<SignupWizardState>(
+      builder: (context, wizardState, _) {
+        final hasCreatedAccount = wizardState.userId != null;
 
-          const SizedBox(height: 12),
-
-          // Bottom: Buttons section
-          SlideTransition(
-            position: AnimationBuilders.createBottomSlideAnimation(
-                _transitionController),
-            child: FadeTransition(
-              opacity:
-                  AnimationBuilders.createFadeAnimation(_transitionController),
-              child: Column(
-                children: [
-                  LegalConsentSection(
-                    value: _legalConsentChecked,
-                    onChanged: (value) {
+        return _buildAnimatedSubStep(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: [
+              // Use the reusable ProfilePhotoSelector widget
+              Expanded(
+                child: Center(
+                  child: ProfilePhotoSelector(
+                    currentImage: _selectedProfileImage,
+                    onPhotoSelected: (File file) {
                       setState(() {
-                        _legalConsentChecked = value;
+                        _selectedProfileImage = file;
                       });
-                      if (value && errorNotifier.value != null) {
-                        errorNotifier.value = null;
-                      }
                     },
-                    textColor: PinitColors.aubergine,
-                    linkColor: PinitColors.aubergine,
-                    checkboxActiveColor: PinitColors.aubergine,
-                    checkboxCheckColor: PinitColors.cream,
-                    checkboxSideColor: PinitColors.aubergineSoft,
+                    onPhotoRemoved: () {
+                      setState(() {
+                        _selectedProfileImage = null;
+                      });
+                    },
+                    animationController: _transitionController,
+                    borderColor: PinitColors.aubergine.withValues(alpha: 0.3),
                   ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: ElevatedButton(
-                      onPressed: isLoading ? null : _createAccountAndAdvance,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: PinitColors.aubergine,
-                        foregroundColor: Colors.white,
-                        elevation: 4,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              const SizedBox(height: 12),
+              // Bottom: Buttons section
+              SlideTransition(
+                position: AnimationBuilders.createBottomSlideAnimation(
+                    _transitionController),
+                child: FadeTransition(
+                  opacity: AnimationBuilders.createFadeAnimation(
+                      _transitionController),
+                  child: Column(
+                    children: [
+                      LegalConsentSection(
+                        value: _legalConsentChecked,
+                        onChanged: (value) {
+                          setState(() {
+                            _legalConsentChecked = value;
+                          });
+                          if (value && errorNotifier.value != null) {
+                            errorNotifier.value = null;
+                          }
+                        },
+                        textColor: PinitColors.aubergine,
+                        linkColor: PinitColors.aubergine,
+                        checkboxActiveColor: PinitColors.aubergine,
+                        checkboxCheckColor: PinitColors.cream,
+                        checkboxSideColor: PinitColors.aubergineSoft,
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: ElevatedButton(
+                          onPressed:
+                              isLoading ? null : _createAccountAndAdvance,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: PinitColors.aubergine,
+                            foregroundColor: Colors.white,
+                            elevation: 4,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          child: isLoading
+                              ? const LoadingWidget(width: 24, height: 24)
+                              : Text(
+                                  hasCreatedAccount
+                                      ? 'Continue'
+                                      : _selectedProfileImage != null
+                                          ? 'Create Account'
+                                          : 'Skip & Create Account',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w100,
+                                  ),
+                                ),
                         ),
                       ),
-                      child: isLoading
-                          ? const LoadingWidget(width: 24, height: 24)
-                          : Text(
-                              _selectedProfileImage != null
-                                  ? 'Create Account'
-                                  : 'Skip & Create Account',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w100,
-                              ),
-                            ),
-                    ),
+                      const SizedBox(height: 12),
+                      Text(
+                        hasCreatedAccount
+                            ? "Your account is ready. We'll finish setup once this step passes."
+                            : 'You\'re all set! Let\'s personalize your experience',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey.shade500,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'You\'re all set! Let\'s personalize your experience',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade500,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

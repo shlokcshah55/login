@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:login/services/analytics_service.dart';
 import 'package:login/services/fcm_service.dart';
-import 'package:login/services/referral_prompt_service.dart';
 import 'package:login/pages/bubbles_page.dart';
 import 'package:login/pages/home_page.dart';
 import 'package:login/pages/profile/profile_page.dart';
-import 'package:login/providers/user_data_provider.dart';
-import 'package:login/widgets/referral_code_dialog.dart';
+import 'package:login/services/referral_code_prompt_service.dart';
+import 'package:login/supabase/service.dart';
 import 'package:login/widgets/navigation/bottom_nav_bar.dart';
+import 'package:login/widgets/referral/referral_code_prompt_sheet.dart';
 import 'package:login/providers/navigation_provider.dart';
 import 'package:login/providers/nav_bar/visibility_provider.dart';
 import 'package:provider/provider.dart';
@@ -23,7 +23,8 @@ class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
   NavigationProvider? _navigationProvider;
   final AnalyticsService _analyticsService = AnalyticsService();
-  final ReferralPromptService _referralPromptService = ReferralPromptService();
+  final ReferralCodePromptService _referralCodePromptService =
+      ReferralCodePromptService();
   bool _referralPromptScheduled = false;
   bool _referralPromptVisible = false;
 
@@ -42,6 +43,7 @@ class _MainScreenState extends State<MainScreen> {
       context.read<BottomNavVisibilityProvider>().showTemporarily();
       FCMService().consumePendingInitialMessage();
       _analyticsService.trackScreen(_tabNames[_currentIndex] ?? 'home');
+      _scheduleReferralPrompt();
     });
   }
 
@@ -68,6 +70,64 @@ class _MainScreenState extends State<MainScreen> {
     _setCurrentIndex(index, trigger: 'tap');
   }
 
+  void _scheduleReferralPrompt() {
+    if (_referralPromptScheduled) return;
+    _referralPromptScheduled = true;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _showReferralPromptIfNeeded();
+    });
+  }
+
+  Future<void> _showReferralPromptIfNeeded() async {
+    if (_referralPromptVisible) return;
+
+    final shouldShow = await _referralCodePromptService.shouldShowNow();
+    if (!shouldShow || !mounted) return;
+
+    try {
+      final hasEnteredReferralCode = await context
+          .read<SupabaseService>()
+          .rewards
+          .hasEnteredReferralCode();
+      if (!mounted) return;
+
+      if (hasEnteredReferralCode) {
+        await _referralCodePromptService.markCompleted();
+        return;
+      }
+    } catch (_) {
+      return;
+    }
+
+    _referralPromptVisible = true;
+    await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (_) {
+        return ReferralCodePromptSheet(
+          onApply: (code) {
+            return context.read<SupabaseService>().rewards.applyReferralCode(
+                  code.trim(),
+                  acceptIfWizardComplete: true,
+                );
+          },
+        );
+      },
+    );
+
+    await _referralCodePromptService.markCompleted();
+    if (mounted) {
+      setState(() => _referralPromptVisible = false);
+    }
+  }
+
   void _setCurrentIndex(int nextIndex, {required String trigger}) {
     if (nextIndex == _currentIndex) return;
 
@@ -87,67 +147,8 @@ class _MainScreenState extends State<MainScreen> {
     _analyticsService.trackScreen(nextName);
   }
 
-  void _scheduleReferralPromptIfNeeded(UserDataProvider userDataProvider) {
-    if (_referralPromptScheduled || _referralPromptVisible) return;
-
-    final user = userDataProvider.supabaseUserData;
-    final userId = user?.supabaseId;
-    final referralCode = user?.referralCode?.trim();
-    if (userId == null || userId.isEmpty) return;
-    if (referralCode != null && referralCode.isNotEmpty) return;
-
-    _referralPromptScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _showReferralPromptIfNeeded(userId);
-    });
-  }
-
-  Future<void> _showReferralPromptIfNeeded(String userId) async {
-    _referralPromptScheduled = false;
-    if (!mounted || _referralPromptVisible) return;
-
-    final userDataProvider = context.read<UserDataProvider>();
-    final user = userDataProvider.supabaseUserData;
-    final currentUserId = user?.supabaseId;
-    final referralCode = user?.referralCode?.trim();
-    if (currentUserId != userId) return;
-    if (referralCode != null && referralCode.isNotEmpty) return;
-
-    final shouldShow = await _referralPromptService.shouldShowForUser(userId);
-    if (!mounted || !shouldShow) return;
-
-    _referralPromptVisible = true;
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        return ReferralCodeDialog(
-          onApply: (code) async {
-            final ok =
-                await context.read<UserDataProvider>().applyReferralCode(code);
-            if (ok) {
-              await _referralPromptService.markHandledForUser(userId);
-            }
-            return ok;
-          },
-          onDismiss: () => _referralPromptService.markHandledForUser(userId),
-        );
-      },
-    );
-
-    if (mounted) {
-      setState(() => _referralPromptVisible = false);
-    } else {
-      _referralPromptVisible = false;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final userDataProvider = context.watch<UserDataProvider>();
-    _scheduleReferralPromptIfNeeded(userDataProvider);
-
     final pages = [
       HomePage(isActive: _currentIndex == 0),
       const BubblesPage(),

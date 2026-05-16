@@ -8,6 +8,7 @@ import '../../supabase/service.dart';
 import '../../supabase/supabase_client.dart';
 import '../../supabase/constants.dart';
 import '../../providers/user_data_provider.dart';
+import '../../services/referral_code_prompt_service.dart';
 import '../../services/what_we_do_wizard_service.dart';
 import '../../widgets/feedback/app_feedback.dart';
 import '../auth_handler.dart';
@@ -117,6 +118,7 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
       }
 
       await WhatWeDoWizardService().markPending();
+      await ReferralCodePromptService().markPending();
 
       // Step 4: Navigate back to main app
       if (mounted) {
