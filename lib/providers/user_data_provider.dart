@@ -205,13 +205,23 @@ class UserDataProvider with ChangeNotifier {
     final trimmedCode = code.trim();
     if (current == null || trimmedCode.isEmpty) return false;
 
-    final ok = await _supabaseProvider.users.applyReferralCode(trimmedCode);
-    if (!ok) return false;
+    try {
+      await _supabaseProvider.rewards.applyReferralCode(trimmedCode);
 
-    _supabaseUserData = current.copyWith(referralCode: trimmedCode);
-    _userData?[SupabaseConstants.columnReferralCode] = trimmedCode;
-    notifyListeners();
-    return true;
+      // Preserve temporary compatibility for the legacy modal flow until the
+      // next task removes callers that still read referral_code locally.
+      await _supabaseProvider.users.applyReferralCode(trimmedCode);
+
+      _supabaseUserData = current.copyWith(referralCode: trimmedCode);
+      _userData?[SupabaseConstants.columnReferralCode] = trimmedCode;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      log('UserDataProvider: Error applying referral code: $e');
+      _error = 'Failed to apply referral code.';
+      notifyListeners();
+      return false;
+    }
   }
 
   /// Updates the local cached wizard completion flag immediately after the

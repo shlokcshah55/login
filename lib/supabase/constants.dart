@@ -26,6 +26,18 @@ class SupabaseConstants {
   static const String tableLocationReviews = 'location_reviews';
   static const String tableVideoInsights = 'video_insights';
 
+  // Schema names
+  static const String schemaRewards = 'rewards';
+
+  // RPC names
+  static const String rpcApplyReferralCode = 'apply_referral_code';
+  static const String rpcGetMyReferralDashboard = 'get_my_referral_dashboard';
+  static const String rpcRedeemVoucher = 'redeem_voucher';
+
+  // RPC params
+  static const String paramReferralCode = 'p_code';
+  static const String paramVoucherId = 'p_voucher_id';
+
   // Column names - users
   static const String columnSupabaseId = 'supabase_id';
   static const String name = 'name';
