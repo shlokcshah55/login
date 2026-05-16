@@ -10,11 +10,28 @@ class RewardsHelper {
 
   final SupabaseClient _client;
 
-  Future<void> applyReferralCode(String code) async {
+  Future<void> applyReferralCode(
+    String code, {
+    bool acceptIfWizardComplete = false,
+  }) async {
     await _client.schema(SupabaseConstants.schemaRewards).rpc(
       SupabaseConstants.rpcApplyReferralCode,
       params: {
         SupabaseConstants.paramReferralCode: code.trim(),
+      },
+    );
+
+    if (!acceptIfWizardComplete) return;
+
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) {
+      throw StateError('Cannot accept referral without a signed-in user.');
+    }
+
+    await _client.schema(SupabaseConstants.schemaRewards).rpc(
+      SupabaseConstants.rpcAcceptPendingReferralForUser,
+      params: {
+        SupabaseConstants.paramUserId: userId,
       },
     );
   }
@@ -25,6 +42,22 @@ class RewardsHelper {
         );
     return ReferralDashboard.fromJson(
         Map<String, dynamic>.from(response as Map));
+  }
+
+  Future<bool> hasEnteredReferralCode() async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) {
+      throw StateError('Cannot check referral state without a signed-in user.');
+    }
+
+    final response = await _client
+        .schema(SupabaseConstants.schemaRewards)
+        .from(SupabaseConstants.tableRewardReferrals)
+        .select('id')
+        .eq('invitee_user_id', userId)
+        .limit(1);
+
+    return response.isNotEmpty;
   }
 
   Future<RewardVoucher> redeemVoucher(String voucherId) async {

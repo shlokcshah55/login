@@ -30,6 +30,22 @@ BEGIN
     RAISE EXCEPTION 'Voucher is not available for redemption';
   END IF;
 
+  PERFORM 1
+  FROM rewards.vouchers locked
+  WHERE locked.user_id = v_user_id
+    AND locked.campaign_key = v_voucher.campaign_key
+  FOR UPDATE;
+
+  IF (
+    SELECT count(*)
+    FROM rewards.vouchers redeemed
+    WHERE redeemed.user_id = v_user_id
+      AND redeemed.campaign_key = v_voucher.campaign_key
+      AND redeemed.status = 'redeemed'
+  ) > 0 THEN
+    RAISE EXCEPTION 'Voucher redemption limit reached for this campaign';
+  END IF;
+
   UPDATE rewards.vouchers
   SET
     status = 'redeemed',
@@ -37,6 +53,21 @@ BEGIN
   WHERE id = p_voucher_id
   RETURNING *
   INTO v_voucher;
+
+  IF (
+    SELECT count(*)
+    FROM rewards.vouchers redeemed
+    WHERE redeemed.user_id = v_user_id
+      AND redeemed.campaign_key = v_voucher.campaign_key
+      AND redeemed.status = 'redeemed'
+  ) > 0 THEN
+    UPDATE rewards.vouchers
+    SET status = 'voided'
+    WHERE user_id = v_user_id
+      AND campaign_key = v_voucher.campaign_key
+      AND status = 'available'
+      AND id <> v_voucher.id;
+  END IF;
 
   RETURN v_voucher;
 END;

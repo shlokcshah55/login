@@ -18,6 +18,7 @@ void main() {
       initialDashboard: ReferralDashboard(
         referralCode: 'PIN-FRIEND',
         acceptedReferralCount: 2,
+        hasEnteredReferralCode: true,
         availableVouchers: [
           _voucher(
             id: 'voucher-1',
@@ -36,6 +37,7 @@ void main() {
       redeemedDashboard: ReferralDashboard(
         referralCode: 'PIN-FRIEND',
         acceptedReferralCount: 2,
+        hasEnteredReferralCode: true,
         availableVouchers: const [],
         usedVouchers: [
           _voucher(
@@ -60,7 +62,7 @@ void main() {
 
     await tester.pump();
 
-    expect(find.text('Referrals & rewards'), findsOneWidget);
+    expect(find.text('Referrals and rewards'), findsOneWidget);
     expect(find.text('PIN-FRIEND'), findsOneWidget);
     expect(find.text('Successful referrals'), findsOneWidget);
     expect(find.text('2'), findsOneWidget);
@@ -76,21 +78,13 @@ void main() {
     expect(find.text('Used vouchers'), findsOneWidget);
 
     await tester.tap(find.text('Use voucher'));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(provider.redeemedVoucherIds, ['voucher-1']);
 
-    await tester.pump();
-
     expect(find.text('Use voucher'), findsNothing);
 
-    await tester.scrollUntilVisible(
-      find.text('No available vouchers right now.'),
-      -300,
-      scrollable: find.byType(Scrollable).first,
-    );
-
-    expect(find.text('No available vouchers right now.'), findsOneWidget);
+    expect(find.text('No available vouchers right now.'), findsNothing);
 
     await tester.scrollUntilVisible(
       find.text('Used vouchers'),
@@ -113,6 +107,7 @@ void main() {
       initialDashboard: const ReferralDashboard(
         referralCode: 'PIN-EMPTY',
         acceptedReferralCount: 0,
+        hasEnteredReferralCode: false,
         availableVouchers: [],
         usedVouchers: [],
       ),
@@ -127,9 +122,100 @@ void main() {
     await tester.pump();
 
     expect(find.text('PIN-EMPTY'), findsOneWidget);
-    expect(find.text('No available vouchers right now.'), findsOneWidget);
+    expect(find.text('Add a referral code'), findsOneWidget);
+    expect(find.text('Available vouchers'), findsNothing);
+    expect(find.text('No available vouchers right now.'), findsNothing);
+
+    await tester.scrollUntilVisible(
+      find.text('Used vouchers'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    expect(find.text('Redeemed vouchers will show up here after you use them.'),
+        findsNothing);
+
+    await tester.tap(find.text('Used vouchers'));
+    await tester.pumpAndSettle();
+
     expect(find.text('Redeemed vouchers will show up here after you use them.'),
         findsOneWidget);
+  });
+
+  testWidgets('hides referral code entry once one has already been used', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1170, 2532);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final provider = _FakeReferralRewardsProvider(
+      initialDashboard: const ReferralDashboard(
+        referralCode: 'PIN-USED',
+        acceptedReferralCount: 0,
+        hasEnteredReferralCode: true,
+        availableVouchers: [],
+        usedVouchers: [],
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ReferralsRewardsPage(provider: provider),
+      ),
+    );
+
+    await tester.pump();
+
+    expect(find.text('PIN-USED'), findsOneWidget);
+    expect(find.text('Add a referral code'), findsNothing);
+  });
+
+  testWidgets('applies referral code from entry card and hides it', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1170, 2532);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final provider = _FakeReferralRewardsProvider(
+      initialDashboard: const ReferralDashboard(
+        referralCode: 'PIN-READY',
+        acceptedReferralCount: 0,
+        hasEnteredReferralCode: false,
+        availableVouchers: [],
+        usedVouchers: [],
+      ),
+      appliedDashboard: const ReferralDashboard(
+        referralCode: 'PIN-READY',
+        acceptedReferralCount: 0,
+        hasEnteredReferralCode: true,
+        availableVouchers: [],
+        usedVouchers: [],
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ReferralsRewardsPage(provider: provider),
+      ),
+    );
+
+    await tester.pump();
+
+    expect(find.text('Add a referral code'), findsOneWidget);
+
+    await tester.tap(find.text('Add a referral code'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'friend123');
+    await tester.tap(find.text('Apply Code'));
+    await tester.pumpAndSettle();
+
+    expect(provider.appliedReferralCodes, ['FRIEND123']);
+    expect(find.text('Add a referral code'), findsNothing);
   });
 }
 
@@ -137,15 +223,19 @@ class _FakeReferralRewardsProvider extends ReferralRewardsProvider {
   _FakeReferralRewardsProvider({
     required ReferralDashboard initialDashboard,
     ReferralDashboard? redeemedDashboard,
+    ReferralDashboard? appliedDashboard,
   })  : _dashboardValue = initialDashboard,
         _redeemedDashboard = redeemedDashboard ?? initialDashboard,
+        _appliedDashboard = appliedDashboard ?? initialDashboard,
         _isLoadingValue = true;
 
   ReferralDashboard _dashboardValue;
   final ReferralDashboard _redeemedDashboard;
+  final ReferralDashboard _appliedDashboard;
   bool _isLoadingValue;
   String? _errorValue;
   final List<String> redeemedVoucherIds = <String>[];
+  final List<String> appliedReferralCodes = <String>[];
 
   @override
   ReferralDashboard? get dashboard => _dashboardValue;
@@ -166,6 +256,16 @@ class _FakeReferralRewardsProvider extends ReferralRewardsProvider {
   Future<bool> redeemVoucher(String voucherId) async {
     redeemedVoucherIds.add(voucherId);
     _dashboardValue = _redeemedDashboard;
+    _isLoadingValue = false;
+    _errorValue = null;
+    notifyListeners();
+    return true;
+  }
+
+  @override
+  Future<bool> applyReferralCode(String code) async {
+    appliedReferralCodes.add(code);
+    _dashboardValue = _appliedDashboard;
     _isLoadingValue = false;
     _errorValue = null;
     notifyListeners();

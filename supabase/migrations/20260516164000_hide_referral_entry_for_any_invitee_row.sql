@@ -60,13 +60,6 @@ BEGIN
         FROM rewards.vouchers v
         WHERE v.user_id = v_user_id
           AND v.status = 'available'
-          AND (
-            SELECT count(*)
-            FROM rewards.vouchers redeemed
-            WHERE redeemed.user_id = v.user_id
-              AND redeemed.campaign_key = v.campaign_key
-              AND redeemed.status = 'redeemed'
-          ) = 0
       ),
       '[]'::jsonb
     ),

@@ -84,16 +84,7 @@ BEGIN
         WHERE existing.user_id = v_referral.invitee_user_id
           AND existing.campaign_key = v_campaign_key
           AND existing.source_type = 'invitee_reward'
-          AND existing.status IN ('available', 'redeemed')
-        GROUP BY existing.user_id, existing.campaign_key, existing.source_type
-        HAVING count(*) >= coalesce(
-          (
-            SELECT r.max_applications_per_user_per_campaign
-            FROM rewards.voucher_source_type_rules r
-            WHERE r.source_type = 'invitee_reward'
-          ),
-          2147483647
-        )
+          AND existing.status = 'available'
       )
       ON CONFLICT (user_id, campaign_key, source_type)
       WHERE status = 'available'
@@ -140,16 +131,7 @@ BEGIN
         WHERE existing.user_id = v_referral.inviter_user_id
           AND existing.campaign_key = v_campaign_key
           AND existing.source_type = 'inviter_reward'
-          AND existing.status IN ('available', 'redeemed')
-        GROUP BY existing.user_id, existing.campaign_key, existing.source_type
-        HAVING count(*) >= coalesce(
-          (
-            SELECT r.max_applications_per_user_per_campaign
-            FROM rewards.voucher_source_type_rules r
-            WHERE r.source_type = 'inviter_reward'
-          ),
-          2147483647
-        )
+          AND existing.status = 'available'
       )
       ON CONFLICT (user_id, campaign_key, source_type)
       WHERE status = 'available'

@@ -41,14 +41,12 @@ class _AccountStepState extends State<AccountStep>
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController confirmPasswordController =
       TextEditingController();
-  final TextEditingController referralCodeController = TextEditingController();
 
   // Focus nodes for fields (keep keyboard open and control focus)
   late FocusNode nameFocusNode;
   late FocusNode emailFocusNode;
   late FocusNode passwordFocusNode;
   late FocusNode usernameFocusNode;
-  late FocusNode referralCodeFocusNode;
 
   // Profile picture state
   File? _selectedProfileImage;
@@ -71,7 +69,6 @@ class _AccountStepState extends State<AccountStep>
     emailFocusNode = FocusNode();
     passwordFocusNode = FocusNode();
     usernameFocusNode = FocusNode();
-    referralCodeFocusNode = FocusNode();
 
     // Notify parent of initial sub-step and focus first field after mount
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -99,13 +96,11 @@ class _AccountStepState extends State<AccountStep>
     emailController.dispose();
     passwordController.dispose();
     confirmPasswordController.dispose();
-    referralCodeController.dispose();
     errorNotifier.dispose();
     nameFocusNode.dispose();
     emailFocusNode.dispose();
     passwordFocusNode.dispose();
     usernameFocusNode.dispose();
-    referralCodeFocusNode.dispose();
     usernameController.dispose();
     super.dispose();
   }
@@ -324,10 +319,6 @@ class _AccountStepState extends State<AccountStep>
         await supabaseProvider.users.acceptLegalConsent(userID);
       }
 
-      await _applyReferralCodeIfNeeded(
-        supabaseProvider: supabaseProvider,
-        wizardState: wizardState,
-      );
       await _addProfilePic();
     } catch (e) {
       print('❌ [CREATE_ACCOUNT] Error: ${e.toString()}');
@@ -337,36 +328,6 @@ class _AccountStepState extends State<AccountStep>
         setState(() => isLoading = false);
       }
     }
-  }
-
-  Future<void> _applyReferralCodeIfNeeded({
-    required SupabaseService supabaseProvider,
-    required SignupWizardState wizardState,
-  }) async {
-    final referralCode = referralCodeController.text.trim();
-    wizardState.setReferralCode(referralCode);
-    if (referralCode.isEmpty) return;
-
-    try {
-      await supabaseProvider.rewards.applyReferralCode(referralCode);
-      wizardState.setReferralCodeError(null);
-    } catch (e) {
-      final message = _buildReferralErrorMessage(e);
-      wizardState.setReferralCodeError(message);
-      errorNotifier.value = message;
-      throw Exception(message);
-    }
-  }
-
-  String _buildReferralErrorMessage(Object error) {
-    final text = error.toString().toLowerCase();
-    if (text.contains('invalid referral code')) {
-      return "That referral code wasn't recognized. Check it and try again.";
-    }
-    if (text.contains('own referral code') || text.contains('self')) {
-      return "You can't use your own referral code.";
-    }
-    return "We couldn't apply that referral code. You can edit it and try again.";
   }
 
   // Helper method to get a random default icon from assets
@@ -1131,7 +1092,7 @@ class _AccountStepState extends State<AccountStep>
                             _isPasswordVisible
                                 ? Icons.visibility_outlined
                                 : Icons.visibility_off_outlined,
-                            color: Colors.white70,
+                            color: PinitColors.aubergine,
                           ),
                           onPressed: () {
                             setState(() {
@@ -1289,8 +1250,6 @@ class _AccountStepState extends State<AccountStep>
                 ),
               ),
               const SizedBox(height: 12),
-              _buildReferralSection(wizardState),
-              const SizedBox(height: 12),
               // Bottom: Buttons section
               SlideTransition(
                 position: AnimationBuilders.createBottomSlideAnimation(
@@ -1365,123 +1324,6 @@ class _AccountStepState extends State<AccountStep>
           ),
         );
       },
-    );
-  }
-
-  Widget _buildReferralSection(SignupWizardState wizardState) {
-    if (referralCodeController.text != wizardState.referralCode) {
-      referralCodeController.value = referralCodeController.value.copyWith(
-        text: wizardState.referralCode,
-        selection:
-            TextSelection.collapsed(offset: wizardState.referralCode.length),
-        composing: TextRange.empty,
-      );
-    }
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: PinitColors.creamSunk,
-        borderRadius: BorderRadius.circular(20),
-        border: Border(
-          right: BorderSide(
-            color: PinitColors.aubergine,
-            width: 3,
-          ),
-          bottom: BorderSide(
-            color: PinitColors.aubergine,
-            width: 3,
-          ),
-        ),
-        boxShadow: PinitColors.cardShadow,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: PinitColors.cream,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.card_giftcard_outlined,
-                  color: PinitColors.aubergine,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Have a referral code?',
-                  style: GoogleFonts.dmSans(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: PinitColors.aubergine,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Optional. Add it now to unlock signup rewards after you finish onboarding.',
-            style: GoogleFonts.dmSans(
-              fontSize: 13,
-              height: 1.4,
-              color: PinitColors.aubergineSoft,
-            ),
-          ),
-          const SizedBox(height: 12),
-          _buildTextField(
-            controller: referralCodeController,
-            hintText: 'Referral Code',
-            icon: Icons.local_offer_outlined,
-            focusNode: referralCodeFocusNode,
-            textInputAction: TextInputAction.done,
-            onChanged: (value) {
-              final normalized = value.trim().toUpperCase();
-              if (value != normalized) {
-                referralCodeController.value =
-                    referralCodeController.value.copyWith(
-                  text: normalized,
-                  selection: TextSelection.collapsed(offset: normalized.length),
-                  composing: TextRange.empty,
-                );
-              }
-              wizardState.setReferralCode(normalized);
-              if (wizardState.referralCodeError != null ||
-                  (errorNotifier.value?.toLowerCase().contains('referral') ??
-                      false)) {
-                errorNotifier.value = null;
-              }
-            },
-          ),
-          if (wizardState.referralCodeError != null) ...[
-            const SizedBox(height: 10),
-            Text(
-              wizardState.referralCodeError!,
-              style: GoogleFonts.dmSans(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Colors.red.shade700,
-              ),
-            ),
-          ] else ...[
-            const SizedBox(height: 8),
-            Text(
-              'Not case-sensitive.',
-              style: GoogleFonts.dmSans(
-                fontSize: 12,
-                color: PinitColors.aubergineSoft,
-              ),
-            ),
-          ],
-        ],
-      ),
     );
   }
 }

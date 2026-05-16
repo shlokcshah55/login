@@ -65,7 +65,7 @@ BEGIN
         terms_text,
         metadata
       )
-      SELECT
+      VALUES (
         v_referral.invitee_user_id,
         v_referral.id,
         'invitee_reward',
@@ -77,22 +77,6 @@ BEGIN
         jsonb_build_object(
           'reward_role', 'invitee',
           'acceptance_trigger', v_referral.acceptance_trigger
-        )
-      WHERE NOT EXISTS (
-        SELECT 1
-        FROM rewards.vouchers existing
-        WHERE existing.user_id = v_referral.invitee_user_id
-          AND existing.campaign_key = v_campaign_key
-          AND existing.source_type = 'invitee_reward'
-          AND existing.status IN ('available', 'redeemed')
-        GROUP BY existing.user_id, existing.campaign_key, existing.source_type
-        HAVING count(*) >= coalesce(
-          (
-            SELECT r.max_applications_per_user_per_campaign
-            FROM rewards.voucher_source_type_rules r
-            WHERE r.source_type = 'invitee_reward'
-          ),
-          2147483647
         )
       )
       ON CONFLICT (user_id, campaign_key, source_type)
@@ -121,7 +105,7 @@ BEGIN
         terms_text,
         metadata
       )
-      SELECT
+      VALUES (
         v_referral.inviter_user_id,
         v_referral.id,
         'inviter_reward',
@@ -133,22 +117,6 @@ BEGIN
         jsonb_build_object(
           'reward_role', 'inviter',
           'acceptance_trigger', v_referral.acceptance_trigger
-        )
-      WHERE NOT EXISTS (
-        SELECT 1
-        FROM rewards.vouchers existing
-        WHERE existing.user_id = v_referral.inviter_user_id
-          AND existing.campaign_key = v_campaign_key
-          AND existing.source_type = 'inviter_reward'
-          AND existing.status IN ('available', 'redeemed')
-        GROUP BY existing.user_id, existing.campaign_key, existing.source_type
-        HAVING count(*) >= coalesce(
-          (
-            SELECT r.max_applications_per_user_per_campaign
-            FROM rewards.voucher_source_type_rules r
-            WHERE r.source_type = 'inviter_reward'
-          ),
-          2147483647
         )
       )
       ON CONFLICT (user_id, campaign_key, source_type)

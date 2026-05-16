@@ -4,7 +4,10 @@ import 'package:login/services/fcm_service.dart';
 import 'package:login/pages/bubbles_page.dart';
 import 'package:login/pages/home_page.dart';
 import 'package:login/pages/profile/profile_page.dart';
+import 'package:login/services/referral_code_prompt_service.dart';
+import 'package:login/supabase/service.dart';
 import 'package:login/widgets/navigation/bottom_nav_bar.dart';
+import 'package:login/widgets/referral/referral_code_prompt_sheet.dart';
 import 'package:login/providers/navigation_provider.dart';
 import 'package:login/providers/nav_bar/visibility_provider.dart';
 import 'package:provider/provider.dart';
@@ -20,6 +23,10 @@ class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
   NavigationProvider? _navigationProvider;
   final AnalyticsService _analyticsService = AnalyticsService();
+  final ReferralCodePromptService _referralCodePromptService =
+      ReferralCodePromptService();
+  bool _referralPromptScheduled = false;
+  bool _referralPromptVisible = false;
 
   static const Map<int, String> _tabNames = <int, String>{
     0: 'home',
@@ -36,6 +43,7 @@ class _MainScreenState extends State<MainScreen> {
       context.read<BottomNavVisibilityProvider>().showTemporarily();
       FCMService().consumePendingInitialMessage();
       _analyticsService.trackScreen(_tabNames[_currentIndex] ?? 'home');
+      _scheduleReferralPrompt();
     });
   }
 
@@ -60,6 +68,64 @@ class _MainScreenState extends State<MainScreen> {
 
   void _onIndexChanged(int index) {
     _setCurrentIndex(index, trigger: 'tap');
+  }
+
+  void _scheduleReferralPrompt() {
+    if (_referralPromptScheduled) return;
+    _referralPromptScheduled = true;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _showReferralPromptIfNeeded();
+    });
+  }
+
+  Future<void> _showReferralPromptIfNeeded() async {
+    if (_referralPromptVisible) return;
+
+    final shouldShow = await _referralCodePromptService.shouldShowNow();
+    if (!shouldShow || !mounted) return;
+
+    try {
+      final hasEnteredReferralCode = await context
+          .read<SupabaseService>()
+          .rewards
+          .hasEnteredReferralCode();
+      if (!mounted) return;
+
+      if (hasEnteredReferralCode) {
+        await _referralCodePromptService.markCompleted();
+        return;
+      }
+    } catch (_) {
+      return;
+    }
+
+    _referralPromptVisible = true;
+    await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (_) {
+        return ReferralCodePromptSheet(
+          onApply: (code) {
+            return context.read<SupabaseService>().rewards.applyReferralCode(
+                  code.trim(),
+                  acceptIfWizardComplete: true,
+                );
+          },
+        );
+      },
+    );
+
+    await _referralCodePromptService.markCompleted();
+    if (mounted) {
+      setState(() => _referralPromptVisible = false);
+    }
   }
 
   void _setCurrentIndex(int nextIndex, {required String trigger}) {

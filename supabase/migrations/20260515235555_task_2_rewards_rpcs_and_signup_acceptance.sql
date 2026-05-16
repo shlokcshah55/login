@@ -164,8 +164,8 @@ BEGIN
         'acceptance_trigger', v_referral.acceptance_trigger
       )
     )
-    ON CONFLICT (source_referral_id, user_id, source_type)
-    WHERE source_referral_id IS NOT NULL
+    ON CONFLICT (user_id, campaign_key, source_type)
+    WHERE status = 'available'
     DO NOTHING;
 
     INSERT INTO rewards.vouchers (
@@ -191,8 +191,8 @@ BEGIN
         'acceptance_trigger', v_referral.acceptance_trigger
       )
     )
-    ON CONFLICT (source_referral_id, user_id, source_type)
-    WHERE source_referral_id IS NOT NULL
+    ON CONFLICT (user_id, campaign_key, source_type)
+    WHERE status = 'available'
     DO NOTHING;
   END IF;
 
@@ -232,6 +232,12 @@ BEGIN
       FROM rewards.referrals r
       WHERE r.inviter_user_id = v_user_id
         AND r.status = 'accepted'
+    ),
+    'has_entered_referral_code',
+    EXISTS (
+      SELECT 1
+      FROM rewards.referrals r
+      WHERE r.invitee_user_id = v_user_id
     ),
     'available_vouchers',
     coalesce(

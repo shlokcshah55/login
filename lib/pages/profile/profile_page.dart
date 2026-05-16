@@ -752,7 +752,7 @@ class _ProfilePageState extends State<ProfilePage>
         },
         onShareProfile: () {
           Navigator.pop(sheetContext);
-          _shareProfile(context);
+          _shareProfile(context, user.referralCode);
         },
         onSignOut: () {
           Navigator.pop(sheetContext);
@@ -762,11 +762,13 @@ class _ProfilePageState extends State<ProfilePage>
     );
   }
 
-  void _shareProfile(BuildContext context) {
-    const appStoreUrl =
-        'https://apps.apple.com/app/pinit'; // replace with real URL
+  void _shareProfile(BuildContext context, String? referralCode) {
+    const appStoreUrl = 'https://apps.apple.com/gb/app/pinit/id6762100292';
+    final referralLine = referralCode != null && referralCode.isNotEmpty
+        ? ' Make sure to use my referral code so we both get rewards: $referralCode'
+        : '';
     Share.share(
-      "I've got Pinit and I want to be your friend! 🍽️ Join me on the app: $appStoreUrl",
+      "I've got Pinit and I want to be your friend! 🍽️ Join me on the app: $appStoreUrl$referralLine",
       subject: 'Join me on Pinit!',
     );
   }

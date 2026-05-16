@@ -48,4 +48,25 @@ class ReferralRewardsProvider with ChangeNotifier {
       notifyListeners();
     }
   }
+
+  Future<bool> applyReferralCode(String code) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      await _service.rewards.applyReferralCode(
+        code,
+        acceptIfWizardComplete: true,
+      );
+      _dashboard = await _service.rewards.getDashboard();
+      return true;
+    } catch (e) {
+      _error = 'Failed to apply referral code: $e';
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
 }

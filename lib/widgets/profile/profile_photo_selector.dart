@@ -196,7 +196,7 @@ class _ProfilePhotoSelectorState extends State<ProfilePhotoSelector> {
                   : null,
               border: Border.all(
                 color: widget.borderColor ??
-                    const Color(0xFF6A1B9A).withOpacity(0.3),
+                    const Color(0xFF6A1B9A).withValues(alpha: 0.3),
                 width: 3,
               ),
             ),

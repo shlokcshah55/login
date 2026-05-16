@@ -6,6 +6,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/reward_voucher.dart';
 import 'package:login/providers/referral_rewards_provider.dart';
 import 'package:login/widgets/feedback/app_feedback.dart';
+import 'package:login/widgets/referral/referral_code_entry_card.dart';
+import 'package:login/widgets/referral/referral_code_prompt_sheet.dart';
 import 'package:provider/provider.dart';
 
 import 'widgets/pinit_colors.dart';
@@ -28,6 +30,8 @@ class _ReferralsRewardsPageState extends State<ReferralsRewardsPage> {
   late final ReferralRewardsProvider _provider;
   late final bool _ownsProvider;
   String? _redeemingVoucherId;
+  bool _isReferralSheetVisible = false;
+  bool _showUsedVouchers = false;
 
   @override
   void initState() {
@@ -52,6 +56,10 @@ class _ReferralsRewardsPageState extends State<ReferralsRewardsPage> {
       child: Consumer<ReferralRewardsProvider>(
         builder: (context, provider, _) {
           final dashboard = provider.dashboard;
+          final availableVouchers =
+              dashboard?.availableVouchers ?? const <RewardVoucher>[];
+          final usedVouchers =
+              dashboard?.usedVouchers ?? const <RewardVoucher>[];
 
           return AnnotatedRegion<SystemUiOverlayStyle>(
             value: SystemUiOverlayStyle.dark,
@@ -93,31 +101,44 @@ class _ReferralsRewardsPageState extends State<ReferralsRewardsPage> {
                                       acceptedReferralCount:
                                           dashboard?.acceptedReferralCount ?? 0,
                                     ),
-                                    const SizedBox(height: 18),
-                                    _VoucherSection(
-                                      title: 'Available vouchers',
-                                      subtitle:
-                                          'Use each one-time reward to mark it as consumed.',
-                                      vouchers: dashboard?.availableVouchers ??
-                                          const [],
-                                      emptyMessage:
-                                          'No available vouchers right now.',
-                                      builder: (voucher) => VoucherCard(
-                                        voucher: voucher,
-                                        isRedeeming:
-                                            _redeemingVoucherId == voucher.id,
-                                        onRedeem: () => _handleRedeem(voucher),
+                                    if (dashboard != null &&
+                                        !dashboard.hasEnteredReferralCode) ...[
+                                      const SizedBox(height: 18),
+                                      ReferralCodeEntryCard(
+                                        onTap: _showReferralCodeSheet,
                                       ),
-                                    ),
+                                    ],
+                                    if (availableVouchers.isNotEmpty) ...[
+                                      const SizedBox(height: 18),
+                                      _VoucherSection(
+                                        title: 'Available vouchers',
+                                        vouchers: availableVouchers,
+                                        emptyMessage: '',
+                                        builder: (voucher) => VoucherCard(
+                                          voucher: voucher,
+                                          isRedeeming:
+                                              _redeemingVoucherId == voucher.id,
+                                          onRedeem: () =>
+                                              _handleRedeem(voucher),
+                                        ),
+                                      ),
+                                    ],
                                     const SizedBox(height: 18),
-                                    _VoucherSection(
+                                    _UsedVoucherSection(
                                       title: 'Used vouchers',
                                       subtitle:
                                           'Redeemed vouchers will stay here as your reward history.',
-                                      vouchers:
-                                          dashboard?.usedVouchers ?? const [],
+                                      vouchers: usedVouchers,
                                       emptyMessage:
                                           'Redeemed vouchers will show up here after you use them.',
+                                      isExpanded: _showUsedVouchers,
+                                      onToggle: () {
+                                        HapticFeedback.selectionClick();
+                                        setState(
+                                          () => _showUsedVouchers =
+                                              !_showUsedVouchers,
+                                        );
+                                      },
                                       builder: (voucher) => VoucherCard(
                                         voucher: voucher,
                                       ),
@@ -155,6 +176,142 @@ class _ReferralsRewardsPageState extends State<ReferralsRewardsPage> {
         ),
       );
     }
+  }
+
+  Future<void> _showReferralCodeSheet() async {
+    if (_isReferralSheetVisible) return;
+
+    HapticFeedback.selectionClick();
+    setState(() => _isReferralSheetVisible = true);
+
+    final applied = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (_) {
+        return ReferralCodePromptSheet(
+          skipForNow: false,
+          onApply: (code) async {
+            final success = await _provider.applyReferralCode(code);
+            if (!success) {
+              throw _provider.error ?? 'Failed to apply referral code.';
+            }
+          },
+        );
+      },
+    );
+
+    if (!mounted) return;
+    setState(() => _isReferralSheetVisible = false);
+
+    if (applied == true) {
+      HapticFeedback.mediumImpact();
+    }
+  }
+}
+
+class _UsedVoucherSection extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final List<RewardVoucher> vouchers;
+  final String emptyMessage;
+  final bool isExpanded;
+  final VoidCallback onToggle;
+  final Widget Function(RewardVoucher voucher) builder;
+
+  const _UsedVoucherSection({
+    required this.title,
+    required this.subtitle,
+    required this.vouchers,
+    required this.emptyMessage,
+    required this.isExpanded,
+    required this.onToggle,
+    required this.builder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Color.lerp(PinitColors.creamSunk, Colors.grey, 0.12)!,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: onToggle,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: GoogleFonts.dmSans(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                          color: PinitColors.aubergineSoft,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ),
+                    AnimatedRotation(
+                      turns: isExpanded ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOutCubic,
+                      child: const Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: PinitColors.mute,
+                        size: 30,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            subtitle,
+            style: GoogleFonts.dmSans(
+              fontSize: 13,
+              height: 1.45,
+              color: PinitColors.mute,
+            ),
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: isExpanded
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: vouchers.isEmpty
+                        ? _SectionEmptyState(message: emptyMessage)
+                        : Column(
+                            children: [
+                              for (var i = 0; i < vouchers.length; i++) ...[
+                                builder(vouchers[i]),
+                                if (i != vouchers.length - 1)
+                                  const SizedBox(height: 12),
+                              ],
+                            ],
+                          ),
+                  )
+                : const SizedBox(width: double.infinity),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -194,7 +351,7 @@ class _RewardsAppBar extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              'Referrals & rewards',
+              'Referrals and rewards',
               style: const TextStyle(
                 fontFamily: 'Rova',
                 fontSize: 22,
@@ -212,14 +369,12 @@ class _RewardsAppBar extends StatelessWidget {
 
 class _VoucherSection extends StatelessWidget {
   final String title;
-  final String subtitle;
   final List<RewardVoucher> vouchers;
   final String emptyMessage;
   final Widget Function(RewardVoucher voucher) builder;
 
   const _VoucherSection({
     required this.title,
-    required this.subtitle,
     required this.vouchers,
     required this.emptyMessage,
     required this.builder,
@@ -230,30 +385,24 @@ class _VoucherSection extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: PinitColors.creamSunk,
+        color: PinitColors.creamDeep,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: PinitColors.creamDeep, width: 1.4),
+        border: const Border(
+          right: BorderSide(color: PinitColors.aubergine, width: 3),
+          bottom: BorderSide(color: PinitColors.aubergine, width: 3),
+        ),
+        boxShadow: PinitColors.cardShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: const TextStyle(
-              fontFamily: 'Rova',
-              fontSize: 24,
-              fontWeight: FontWeight.w100,
-              color: PinitColors.aubergine,
-              letterSpacing: 1.1,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            subtitle,
             style: GoogleFonts.dmSans(
-              fontSize: 13,
-              height: 1.45,
-              color: PinitColors.aubergineSoft,
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: PinitColors.aubergine,
+              letterSpacing: 0.2,
             ),
           ),
           const SizedBox(height: 16),
@@ -289,7 +438,10 @@ class _SectionEmptyState extends StatelessWidget {
       decoration: BoxDecoration(
         color: PinitColors.cream,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: PinitColors.creamDeep, width: 1.2),
+        border: const Border(
+          right: BorderSide(color: PinitColors.aubergine, width: 2),
+          bottom: BorderSide(color: PinitColors.aubergine, width: 2),
+        ),
       ),
       child: Text(
         message,
@@ -318,9 +470,9 @@ class _InlineError extends StatelessWidget {
       decoration: BoxDecoration(
         color: PinitColors.accent.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: PinitColors.accent.withValues(alpha: 0.2),
-          width: 1.2,
+        border: const Border(
+          right: BorderSide(color: PinitColors.aubergine, width: 2),
+          bottom: BorderSide(color: PinitColors.aubergine, width: 2),
         ),
       ),
       child: Text(

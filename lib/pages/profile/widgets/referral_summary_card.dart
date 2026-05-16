@@ -19,34 +19,27 @@ class ReferralSummaryCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: PinitColors.cream,
+        color: PinitColors.creamDeep,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: PinitColors.creamDeep, width: 1.5),
-        boxShadow: PinitColors.elevatedShadow,
+        border: const Border(
+          right: BorderSide(color: PinitColors.aubergine, width: 4),
+          bottom: BorderSide(color: PinitColors.aubergine, width: 4),
+        ),
+        boxShadow: PinitColors.cardShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'REFERRALS',
-            style: GoogleFonts.dmSans(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: PinitColors.aubergineSoft,
-              letterSpacing: 1.2,
-            ),
-          ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Referrals that turn into rewards',
-            style: TextStyle(
-              fontFamily: 'Rova',
-              fontSize: 28,
-              fontWeight: FontWeight.w100,
-              color: PinitColors.aubergine,
-              letterSpacing: 1.4,
-              height: 1.05,
+            style: GoogleFonts.dmSans(
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                color: PinitColors.aubergine,
+                letterSpacing: 0.2,
             ),
+    
           ),
           const SizedBox(height: 10),
           Text(
@@ -114,7 +107,10 @@ class _InfoPill extends StatelessWidget {
       decoration: BoxDecoration(
         color: PinitColors.creamSunk,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: PinitColors.creamDeep, width: 1.2),
+        border: const Border(
+          right: BorderSide(color: PinitColors.aubergine, width: 2),
+          bottom: BorderSide(color: PinitColors.aubergine, width: 2),
+        ),
       ),
       child: Row(
         children: [
@@ -135,13 +131,12 @@ class _InfoPill extends StatelessWidget {
                   value,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontFamily: 'Rova',
-                    fontSize: 20,
-                    fontWeight: FontWeight.w100,
-                    color: PinitColors.aubergine,
-                    letterSpacing: 1.0,
-                  ),
+                  style: GoogleFonts.dmSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: PinitColors.aubergineSoft,
+                          letterSpacing: 0.2,
+                        ),
                 ),
               ],
             ),
