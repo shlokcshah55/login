@@ -201,20 +201,11 @@ class UserDataProvider with ChangeNotifier {
   }
 
   Future<bool> applyReferralCode(String code) async {
-    final current = _supabaseUserData;
     final trimmedCode = code.trim();
-    if (current == null || trimmedCode.isEmpty) return false;
+    if (_supabaseUserData == null || trimmedCode.isEmpty) return false;
 
     try {
       await _supabaseProvider.rewards.applyReferralCode(trimmedCode);
-
-      // Preserve temporary compatibility for the legacy modal flow until the
-      // next task removes callers that still read referral_code locally.
-      await _supabaseProvider.users.applyReferralCode(trimmedCode);
-
-      _supabaseUserData = current.copyWith(referralCode: trimmedCode);
-      _userData?[SupabaseConstants.columnReferralCode] = trimmedCode;
-      notifyListeners();
       return true;
     } catch (e) {
       log('UserDataProvider: Error applying referral code: $e');
