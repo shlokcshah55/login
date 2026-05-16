@@ -9,6 +9,7 @@ class ProfileHeader extends StatelessWidget {
   final UserModel user;
   final double scrollOffset;
   final VoidCallback onNotificationsTap;
+  final VoidCallback onRewardsTap;
   final VoidCallback onSettingsTap;
   final int unreadCount;
   final int followersCount;
@@ -22,6 +23,7 @@ class ProfileHeader extends StatelessWidget {
     required this.user,
     required this.scrollOffset,
     required this.onNotificationsTap,
+    required this.onRewardsTap,
     required this.onSettingsTap,
     required this.unreadCount,
     required this.followersCount,
@@ -59,12 +61,12 @@ class ProfileHeader extends StatelessWidget {
                           Text(
                             user.name ?? 'No Name',
                             style: const TextStyle(
-                                fontFamily: 'Rova',
-                                fontSize: 28,
-                                fontWeight: FontWeight.w100,
-                                color: PinitColors.cream,
-                                letterSpacing: 1.7,
-                                height: 1.05,
+                              fontFamily: 'Rova',
+                              fontSize: 28,
+                              fontWeight: FontWeight.w100,
+                              color: PinitColors.cream,
+                              letterSpacing: 1.7,
+                              height: 1.05,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -101,6 +103,11 @@ class ProfileHeader extends StatelessWidget {
                           icon: Icons.notifications_outlined,
                           onTap: onNotificationsTap,
                           badgeCount: unreadCount,
+                        ),
+                        const SizedBox(height: 8),
+                        _ActionButton(
+                          icon: Icons.card_giftcard_rounded,
+                          onTap: onRewardsTap,
                         ),
                         const SizedBox(height: 8),
                         _ActionButton(
@@ -147,7 +154,8 @@ class _ActionButton extends StatelessWidget {
           decoration: BoxDecoration(
             color: PinitColors.cream.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: PinitColors.cream.withValues(alpha: 0.2), width: 1.5),
+            border: Border.all(
+                color: PinitColors.cream.withValues(alpha: 0.2), width: 1.5),
           ),
           child: Stack(
             children: [

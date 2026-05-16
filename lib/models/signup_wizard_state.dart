@@ -7,6 +7,8 @@ class SignupWizardState extends ChangeNotifier {
   String _name = '';
   String _email = '';
   String? _profilePictureUrl;
+  String _referralCode = '';
+  String? _referralCodeError;
 
   // Step 2: Dietary Preferences
   List<String> _selectedDietaryTagIds = [];
@@ -16,7 +18,8 @@ class SignupWizardState extends ChangeNotifier {
   List<String> _selectedVibeTagIds = [];
 
   // Step 4: Restaurant Swipes (deprecated — kept for the dormant swipe step)
-  Map<int, bool> _restaurantDecisions = {}; // locationId -> saved (true) or passed (false)
+  Map<int, bool> _restaurantDecisions =
+      {}; // locationId -> saved (true) or passed (false)
 
   // Step 4 (new): Top Places quick-add grid
   final Set<int> _addedLocationIds = <int>{};
@@ -27,10 +30,14 @@ class SignupWizardState extends ChangeNotifier {
   String get name => _name;
   String get email => _email;
   String? get profilePictureUrl => _profilePictureUrl;
-  List<String> get selectedDietaryTagIds => List.unmodifiable(_selectedDietaryTagIds);
+  String get referralCode => _referralCode;
+  String? get referralCodeError => _referralCodeError;
+  List<String> get selectedDietaryTagIds =>
+      List.unmodifiable(_selectedDietaryTagIds);
   int get spiceTolerance => _spiceTolerance;
   List<String> get selectedVibeTagIds => List.unmodifiable(_selectedVibeTagIds);
-  Map<int, bool> get restaurantDecisions => Map.unmodifiable(_restaurantDecisions);
+  Map<int, bool> get restaurantDecisions =>
+      Map.unmodifiable(_restaurantDecisions);
   Set<int> get addedLocationIds => Set.unmodifiable(_addedLocationIds);
   Set<int> get beenToLocationIds => Set.unmodifiable(_beenToLocationIds);
 
@@ -56,6 +63,29 @@ class SignupWizardState extends ChangeNotifier {
 
   void setProfilePicture(String? url) {
     _profilePictureUrl = url;
+    notifyListeners();
+  }
+
+  void setReferralCode(String value) {
+    final normalized = value.trim().toUpperCase();
+    if (_referralCode == normalized && _referralCodeError == null) return;
+
+    _referralCode = normalized;
+    _referralCodeError = null;
+    notifyListeners();
+  }
+
+  void clearReferralCode() {
+    if (_referralCode.isEmpty && _referralCodeError == null) return;
+
+    _referralCode = '';
+    _referralCodeError = null;
+    notifyListeners();
+  }
+
+  void setReferralCodeError(String? value) {
+    if (_referralCodeError == value) return;
+    _referralCodeError = value;
     notifyListeners();
   }
 
@@ -157,6 +187,8 @@ class SignupWizardState extends ChangeNotifier {
     _name = '';
     _email = '';
     _profilePictureUrl = null;
+    _referralCode = '';
+    _referralCodeError = null;
     _selectedDietaryTagIds.clear();
     _spiceTolerance = 3;
     _selectedVibeTagIds.clear();

@@ -41,12 +41,14 @@ class _AccountStepState extends State<AccountStep>
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController confirmPasswordController =
       TextEditingController();
+  final TextEditingController referralCodeController = TextEditingController();
 
   // Focus nodes for fields (keep keyboard open and control focus)
   late FocusNode nameFocusNode;
   late FocusNode emailFocusNode;
   late FocusNode passwordFocusNode;
   late FocusNode usernameFocusNode;
+  late FocusNode referralCodeFocusNode;
 
   // Profile picture state
   File? _selectedProfileImage;
@@ -69,6 +71,7 @@ class _AccountStepState extends State<AccountStep>
     emailFocusNode = FocusNode();
     passwordFocusNode = FocusNode();
     usernameFocusNode = FocusNode();
+    referralCodeFocusNode = FocusNode();
 
     // Notify parent of initial sub-step and focus first field after mount
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -96,11 +99,13 @@ class _AccountStepState extends State<AccountStep>
     emailController.dispose();
     passwordController.dispose();
     confirmPasswordController.dispose();
+    referralCodeController.dispose();
     errorNotifier.dispose();
     nameFocusNode.dispose();
     emailFocusNode.dispose();
     passwordFocusNode.dispose();
     usernameFocusNode.dispose();
+    referralCodeFocusNode.dispose();
     usernameController.dispose();
     super.dispose();
   }
@@ -277,52 +282,91 @@ class _AccountStepState extends State<AccountStep>
     errorNotifier.value = null;
 
     try {
-      print('🚀 [CREATE_ACCOUNT] Starting account creation...');
       final supabaseProvider =
           Provider.of<SupabaseService>(context, listen: false);
       final wizardState =
           Provider.of<SignupWizardState>(context, listen: false);
+      final existingUserId = wizardState.userId;
+      String userID = existingUserId ?? '';
 
-      // Create the Supabase account and continue directly into the app.
-      print(
-          '📝 [CREATE_ACCOUNT] Calling signUp with email: ${emailController.text}');
-      String userID = await supabaseProvider.signUp(
-        emailController.text,
-        passwordController.text,
-        name: nameController.text,
-        username: usernameController.text,
+      if (existingUserId == null) {
+        print('🚀 [CREATE_ACCOUNT] Starting account creation...');
+        print(
+            '📝 [CREATE_ACCOUNT] Calling signUp with email: ${emailController.text}');
+        userID = await supabaseProvider.signUp(
+          emailController.text,
+          passwordController.text,
+          name: nameController.text,
+          username: usernameController.text,
+        );
+
+        print(
+            '✅ [CREATE_ACCOUNT] Account created successfully. UserID: $userID');
+
+        if (userID.isEmpty) {
+          throw Exception('Failed to create account');
+        }
+
+        wizardState.setUserId(userID);
+        wizardState.setAccountInfo(nameController.text, emailController.text);
+
+        print('🏷️ [CREATE_ACCOUNT] Initializing vibe tags for user: $userID');
+        await supabaseProvider.tags.initializeVibeTagsForUser(userID);
+
+        print('⏳ [CREATE_ACCOUNT] Waiting for authenticated session...');
+        int retryCount = 0;
+        while (supabaseProvider.users.currentUser == null && retryCount < 10) {
+          await Future.delayed(const Duration(milliseconds: 200));
+          retryCount++;
+        }
+
+        print('✅ [CREATE_ACCOUNT] Session ready (retries: $retryCount)');
+        await supabaseProvider.users.acceptLegalConsent(userID);
+      }
+
+      await _applyReferralCodeIfNeeded(
+        supabaseProvider: supabaseProvider,
+        wizardState: wizardState,
       );
-
-      print('✅ [CREATE_ACCOUNT] Account created successfully. UserID: $userID');
-
-      if (userID.isEmpty) {
-        throw Exception('Failed to create account');
-      }
-
-      wizardState.setUserId(userID);
-      wizardState.setAccountInfo(nameController.text, emailController.text);
-
-      print('🏷️ [CREATE_ACCOUNT] Initializing vibe tags for user: $userID');
-      await supabaseProvider.tags.initializeVibeTagsForUser(userID);
-
-      print('⏳ [CREATE_ACCOUNT] Waiting for authenticated session...');
-      int retryCount = 0;
-      while (supabaseProvider.users.currentUser == null && retryCount < 10) {
-        await Future.delayed(const Duration(milliseconds: 200));
-        retryCount++;
-      }
-
-      print('✅ [CREATE_ACCOUNT] Session ready (retries: $retryCount)');
-      await supabaseProvider.users.acceptLegalConsent(userID);
       await _addProfilePic();
     } catch (e) {
       print('❌ [CREATE_ACCOUNT] Error: ${e.toString()}');
-      errorNotifier.value = 'Sign up failed: ${e.toString()}';
+      errorNotifier.value ??= 'Sign up failed: ${e.toString()}';
     } finally {
       if (mounted) {
         setState(() => isLoading = false);
       }
     }
+  }
+
+  Future<void> _applyReferralCodeIfNeeded({
+    required SupabaseService supabaseProvider,
+    required SignupWizardState wizardState,
+  }) async {
+    final referralCode = referralCodeController.text.trim();
+    wizardState.setReferralCode(referralCode);
+    if (referralCode.isEmpty) return;
+
+    try {
+      await supabaseProvider.rewards.applyReferralCode(referralCode);
+      wizardState.setReferralCodeError(null);
+    } catch (e) {
+      final message = _buildReferralErrorMessage(e);
+      wizardState.setReferralCodeError(message);
+      errorNotifier.value = message;
+      throw Exception(message);
+    }
+  }
+
+  String _buildReferralErrorMessage(Object error) {
+    final text = error.toString().toLowerCase();
+    if (text.contains('invalid referral code')) {
+      return "That referral code wasn't recognized. Check it and try again.";
+    }
+    if (text.contains('own referral code') || text.contains('self')) {
+      return "You can't use your own referral code.";
+    }
+    return "We couldn't apply that referral code. You can edit it and try again.";
   }
 
   // Helper method to get a random default icon from assets
@@ -450,6 +494,8 @@ class _AccountStepState extends State<AccountStep>
     TextInputType keyboardType = TextInputType.text,
     FocusNode? focusNode,
     double? height,
+    ValueChanged<String>? onChanged,
+    TextInputAction textInputAction = TextInputAction.next,
   }) {
     return Container(
       height: height,
@@ -474,7 +520,8 @@ class _AccountStepState extends State<AccountStep>
         keyboardType: keyboardType,
         focusNode: focusNode,
         autofocus: false,
-        textInputAction: TextInputAction.next,
+        textInputAction: textInputAction,
+        onChanged: onChanged,
         style: GoogleFonts.dmSans(fontSize: 15, color: PinitColors.aubergine),
         decoration: InputDecoration(
           hintText: hintText,
@@ -1213,98 +1260,226 @@ class _AccountStepState extends State<AccountStep>
 
   // Sub-Step 5: Profile Picture (Final step)
   Widget _buildProfilePictureSubStep() {
-    return _buildAnimatedSubStep(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-          // Use the reusable ProfilePhotoSelector widget
-          Expanded(
-            child: Center(
-              child: ProfilePhotoSelector(
-                currentImage: _selectedProfileImage,
-                onPhotoSelected: (File file) {
-                  setState(() {
-                    _selectedProfileImage = file;
-                  });
-                },
-                onPhotoRemoved: () {
-                  setState(() {
-                    _selectedProfileImage = null;
-                  });
-                },
-                animationController: _transitionController,
-                borderColor: PinitColors.aubergine.withValues(alpha: 0.3),
-              ),
-            ),
-          ),
+    return Consumer<SignupWizardState>(
+      builder: (context, wizardState, _) {
+        final hasCreatedAccount = wizardState.userId != null;
 
-          const SizedBox(height: 12),
-
-          // Bottom: Buttons section
-          SlideTransition(
-            position: AnimationBuilders.createBottomSlideAnimation(
-                _transitionController),
-            child: FadeTransition(
-              opacity:
-                  AnimationBuilders.createFadeAnimation(_transitionController),
-              child: Column(
-                children: [
-                  LegalConsentSection(
-                    value: _legalConsentChecked,
-                    onChanged: (value) {
+        return _buildAnimatedSubStep(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: [
+              // Use the reusable ProfilePhotoSelector widget
+              Expanded(
+                child: Center(
+                  child: ProfilePhotoSelector(
+                    currentImage: _selectedProfileImage,
+                    onPhotoSelected: (File file) {
                       setState(() {
-                        _legalConsentChecked = value;
+                        _selectedProfileImage = file;
                       });
-                      if (value && errorNotifier.value != null) {
-                        errorNotifier.value = null;
-                      }
                     },
-                    textColor: PinitColors.aubergine,
-                    linkColor: PinitColors.aubergine,
-                    checkboxActiveColor: PinitColors.aubergine,
-                    checkboxCheckColor: PinitColors.cream,
-                    checkboxSideColor: PinitColors.aubergineSoft,
+                    onPhotoRemoved: () {
+                      setState(() {
+                        _selectedProfileImage = null;
+                      });
+                    },
+                    animationController: _transitionController,
+                    borderColor: PinitColors.aubergine.withValues(alpha: 0.3),
                   ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: ElevatedButton(
-                      onPressed: isLoading ? null : _createAccountAndAdvance,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: PinitColors.aubergine,
-                        foregroundColor: Colors.white,
-                        elevation: 4,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              const SizedBox(height: 12),
+              _buildReferralSection(wizardState),
+              const SizedBox(height: 12),
+              // Bottom: Buttons section
+              SlideTransition(
+                position: AnimationBuilders.createBottomSlideAnimation(
+                    _transitionController),
+                child: FadeTransition(
+                  opacity: AnimationBuilders.createFadeAnimation(
+                      _transitionController),
+                  child: Column(
+                    children: [
+                      LegalConsentSection(
+                        value: _legalConsentChecked,
+                        onChanged: (value) {
+                          setState(() {
+                            _legalConsentChecked = value;
+                          });
+                          if (value && errorNotifier.value != null) {
+                            errorNotifier.value = null;
+                          }
+                        },
+                        textColor: PinitColors.aubergine,
+                        linkColor: PinitColors.aubergine,
+                        checkboxActiveColor: PinitColors.aubergine,
+                        checkboxCheckColor: PinitColors.cream,
+                        checkboxSideColor: PinitColors.aubergineSoft,
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: ElevatedButton(
+                          onPressed:
+                              isLoading ? null : _createAccountAndAdvance,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: PinitColors.aubergine,
+                            foregroundColor: Colors.white,
+                            elevation: 4,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          child: isLoading
+                              ? const LoadingWidget(width: 24, height: 24)
+                              : Text(
+                                  hasCreatedAccount
+                                      ? 'Continue'
+                                      : _selectedProfileImage != null
+                                          ? 'Create Account'
+                                          : 'Skip & Create Account',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w100,
+                                  ),
+                                ),
                         ),
                       ),
-                      child: isLoading
-                          ? const LoadingWidget(width: 24, height: 24)
-                          : Text(
-                              _selectedProfileImage != null
-                                  ? 'Create Account'
-                                  : 'Skip & Create Account',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w100,
-                              ),
-                            ),
-                    ),
+                      const SizedBox(height: 12),
+                      Text(
+                        hasCreatedAccount
+                            ? "Your account is ready. We'll finish setup once this step passes."
+                            : 'You\'re all set! Let\'s personalize your experience',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey.shade500,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'You\'re all set! Let\'s personalize your experience',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade500,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
+                ),
               ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildReferralSection(SignupWizardState wizardState) {
+    if (referralCodeController.text != wizardState.referralCode) {
+      referralCodeController.value = referralCodeController.value.copyWith(
+        text: wizardState.referralCode,
+        selection:
+            TextSelection.collapsed(offset: wizardState.referralCode.length),
+        composing: TextRange.empty,
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: PinitColors.creamSunk,
+        borderRadius: BorderRadius.circular(20),
+        border: Border(
+          right: BorderSide(
+            color: PinitColors.aubergine,
+            width: 3,
+          ),
+          bottom: BorderSide(
+            color: PinitColors.aubergine,
+            width: 3,
+          ),
+        ),
+        boxShadow: PinitColors.cardShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: PinitColors.cream,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.card_giftcard_outlined,
+                  color: PinitColors.aubergine,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Have a referral code?',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: PinitColors.aubergine,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Optional. Add it now to unlock signup rewards after you finish onboarding.',
+            style: GoogleFonts.dmSans(
+              fontSize: 13,
+              height: 1.4,
+              color: PinitColors.aubergineSoft,
             ),
           ),
+          const SizedBox(height: 12),
+          _buildTextField(
+            controller: referralCodeController,
+            hintText: 'Referral Code',
+            icon: Icons.local_offer_outlined,
+            focusNode: referralCodeFocusNode,
+            textInputAction: TextInputAction.done,
+            onChanged: (value) {
+              final normalized = value.trim().toUpperCase();
+              if (value != normalized) {
+                referralCodeController.value =
+                    referralCodeController.value.copyWith(
+                  text: normalized,
+                  selection: TextSelection.collapsed(offset: normalized.length),
+                  composing: TextRange.empty,
+                );
+              }
+              wizardState.setReferralCode(normalized);
+              if (wizardState.referralCodeError != null ||
+                  (errorNotifier.value?.toLowerCase().contains('referral') ??
+                      false)) {
+                errorNotifier.value = null;
+              }
+            },
+          ),
+          if (wizardState.referralCodeError != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              wizardState.referralCodeError!,
+              style: GoogleFonts.dmSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Colors.red.shade700,
+              ),
+            ),
+          ] else ...[
+            const SizedBox(height: 8),
+            Text(
+              'Not case-sensitive.',
+              style: GoogleFonts.dmSans(
+                fontSize: 12,
+                color: PinitColors.aubergineSoft,
+              ),
+            ),
+          ],
         ],
       ),
     );

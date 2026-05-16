@@ -12,7 +12,6 @@ import 'package:login/supabase/helpers/notes_import.dart';
 import 'package:login/supabase/helpers/location_reviews.dart';
 import 'package:login/supabase/helpers/rewards.dart';
 import 'package:login/supabase/helpers/tags.dart';
-import 'package:login/services/referral_prompt_service.dart';
 import 'package:login/services/fcm_service.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -206,7 +205,6 @@ class SupabaseService extends ChangeNotifier {
     try {
       UserModel user = await _authService.signUp(
           email: email, password: password, name: name, username: username);
-      await _markReferralPromptPending(user.supabaseId);
       _setError(null);
       notifyListeners();
       return user.supabaseId ?? '';
@@ -398,7 +396,6 @@ class SupabaseService extends ChangeNotifier {
               // For new OAuth users, initialize vibe tags and assign a default profile picture
               if (isNewUser && _authService.currentUser != null) {
                 final userId = _authService.currentUser!.id;
-                await _markReferralPromptPending(userId);
                 await _tagsService.initializeVibeTagsForUser(userId);
                 await _uploadDefaultProfilePicture(userId);
                 if (kDebugMode) {
@@ -491,16 +488,6 @@ class SupabaseService extends ChangeNotifier {
         signOut();
       },
     );
-  }
-
-  Future<void> _markReferralPromptPending(String? userId) async {
-    try {
-      await ReferralPromptService().markPendingForUser(userId);
-    } catch (e) {
-      if (kDebugMode) {
-        print('SupabaseService: Error marking referral prompt pending: $e');
-      }
-    }
   }
 
   /// Upload a random default food icon as the profile picture for a new user

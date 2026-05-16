@@ -1210,24 +1210,6 @@ class AuthHelper {
     }
   }
 
-  Future<bool> applyReferralCode(String code) async {
-    final user = currentUser;
-    final trimmedCode = code.trim();
-    if (user == null || trimmedCode.isEmpty) return false;
-
-    try {
-      await _client.from(SupabaseConstants.tableUsers).update({
-        SupabaseConstants.columnReferralCode: trimmedCode,
-      }).eq(SupabaseConstants.columnSupabaseId, user.id);
-      return true;
-    } catch (e) {
-      if (kDebugMode) {
-        print('Error applying referral code: $e');
-      }
-      return false;
-    }
-  }
-
   Future<String> uploadImage(File file, String filePath, String userId) async {
     try {
       final user = _client.auth.currentUser;
