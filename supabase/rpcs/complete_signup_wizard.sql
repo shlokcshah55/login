@@ -9,9 +9,20 @@ CREATE OR REPLACE FUNCTION public.complete_signup_wizard(
  SET search_path TO 'public'
 AS $function$
 DECLARE
+  v_auth_user_id      uuid := auth.uid();
+  v_request_role      text := coalesce(current_setting('request.jwt.claim.role', true), '');
   v_dietary_affinity real[] := ARRAY[0, 0, 0, 0, 0, 0]::real[];
   v_tag_names        text[];
 BEGIN
+  IF p_user_id IS NULL THEN
+    RAISE EXCEPTION 'p_user_id is required';
+  END IF;
+
+  IF v_request_role <> 'service_role'
+     AND v_auth_user_id IS DISTINCT FROM p_user_id THEN
+    RAISE EXCEPTION 'Authenticated user does not match p_user_id';
+  END IF;
+
   IF p_dietary_tag_ids IS NOT NULL AND array_length(p_dietary_tag_ids, 1) > 0 THEN
     SELECT array_agg(
              replace(lower(btrim(t.text)), ' ', '-')
@@ -44,6 +55,12 @@ BEGIN
       ELSE dietary_requirement_tag_affinity
     END
   WHERE supabase_id = p_user_id;
+
+  PERFORM rewards.accept_pending_referral_for_user(p_user_id);
 END;
 $function$
 ;
+
+REVOKE ALL ON FUNCTION public.complete_signup_wizard(uuid, integer, uuid[]) FROM public;
+REVOKE ALL ON FUNCTION public.complete_signup_wizard(uuid, integer, uuid[]) FROM anon;
+GRANT EXECUTE ON FUNCTION public.complete_signup_wizard(uuid, integer, uuid[]) TO authenticated, service_role;
