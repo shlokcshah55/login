@@ -84,9 +84,11 @@ GRANT EXECUTE ON FUNCTION public.get_user_been_to_count(uuid)
 
 -- ─────────────────────────────────────────────────────────────
 -- 3. RPC: get_user_been_to_reviews
---    Returns reviews joined with location name + image_url
+--    Returns reviews joined with location name + photo reference
 --    for use in the swipe ranker. Ordered by rating DESC.
 -- ─────────────────────────────────────────────────────────────
+drop function if exists public.get_user_been_to_reviews(uuid);
+
 CREATE OR REPLACE FUNCTION public.get_user_been_to_reviews(
   p_user_id uuid
 )
@@ -108,7 +110,7 @@ AS $$
     lr.id            AS review_id,
     lr.location_id,
     l.name           AS location_name,
-    l.image_url,
+    l.photo_reference AS image_url,
     lr.rating,
     lr.content,
     lr.private,
