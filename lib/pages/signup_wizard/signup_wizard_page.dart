@@ -125,10 +125,11 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
 
       // Step 4: Navigate to main app
       if (mounted) {
-        Navigator.of(this.context).pushReplacement(
+        Navigator.of(this.context).pushAndRemoveUntil(
           MaterialPageRoute(
             builder: (context) => const AuthHandler(),
           ),
+          (route) => false,
         );
       }
     } catch (e) {

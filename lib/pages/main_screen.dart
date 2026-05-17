@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:login/services/analytics_service.dart';
 import 'package:login/services/fcm_service.dart';
@@ -5,8 +7,14 @@ import 'package:login/services/referral_prompt_service.dart';
 import 'package:login/pages/bubbles_page.dart';
 import 'package:login/pages/home_page.dart';
 import 'package:login/pages/profile/profile_page.dart';
+<<<<<<< Updated upstream
 import 'package:login/providers/user_data_provider.dart';
 import 'package:login/widgets/referral_code_dialog.dart';
+=======
+import 'package:login/services/referral_code_prompt_service.dart';
+import 'package:login/services/what_we_do_wizard_service.dart';
+import 'package:login/supabase/service.dart';
+>>>>>>> Stashed changes
 import 'package:login/widgets/navigation/bottom_nav_bar.dart';
 import 'package:login/providers/navigation_provider.dart';
 import 'package:login/providers/nav_bar/visibility_provider.dart';
@@ -23,9 +31,20 @@ class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
   NavigationProvider? _navigationProvider;
   final AnalyticsService _analyticsService = AnalyticsService();
+<<<<<<< Updated upstream
   final ReferralPromptService _referralPromptService = ReferralPromptService();
+=======
+  final ReferralCodePromptService _referralCodePromptService =
+      ReferralCodePromptService();
+  final WhatWeDoWizardService _whatWeDoWizardService = WhatWeDoWizardService();
+>>>>>>> Stashed changes
   bool _referralPromptScheduled = false;
   bool _referralPromptVisible = false;
+  bool _referralPromptChecking = false;
+  bool _referralPromptShownThisSession = false;
+  Timer? _referralPromptRetryTimer;
+
+  static const Duration _referralPromptRetryDelay = Duration(milliseconds: 800);
 
   static const Map<int, String> _tabNames = <int, String>{
     0: 'home',
@@ -47,6 +66,7 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   void dispose() {
+    _referralPromptRetryTimer?.cancel();
     _navigationProvider?.removeListener(_handleNavigationRequest);
     super.dispose();
   }
@@ -68,6 +88,100 @@ class _MainScreenState extends State<MainScreen> {
     _setCurrentIndex(index, trigger: 'tap');
   }
 
+<<<<<<< Updated upstream
+=======
+  void _scheduleReferralPrompt({Duration delay = Duration.zero}) {
+    if (_referralPromptScheduled ||
+        _referralPromptVisible ||
+        _referralPromptChecking ||
+        _referralPromptShownThisSession) {
+      return;
+    }
+    _referralPromptScheduled = true;
+
+    _referralPromptRetryTimer?.cancel();
+    _referralPromptRetryTimer = Timer(delay, () {
+      if (!mounted) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        unawaited(_showReferralPromptIfNeeded());
+      });
+    });
+  }
+
+  Future<void> _showReferralPromptIfNeeded() async {
+    if (_referralPromptVisible ||
+        _referralPromptChecking ||
+        _referralPromptShownThisSession) {
+      _referralPromptScheduled = false;
+      return;
+    }
+    _referralPromptScheduled = false;
+    _referralPromptChecking = true;
+
+    final hasFinishedWhatWeDoWizard = await _whatWeDoWizardService.hasSeen();
+    if (!hasFinishedWhatWeDoWizard) {
+      _referralPromptChecking = false;
+      _scheduleReferralPrompt(delay: _referralPromptRetryDelay);
+      return;
+    }
+
+    final shouldShow = await _referralCodePromptService.shouldShowNow();
+    if (!shouldShow || !mounted) {
+      _referralPromptChecking = false;
+      return;
+    }
+
+    try {
+      final hasEnteredReferralCode = await context
+          .read<SupabaseService>()
+          .rewards
+          .hasEnteredReferralCode();
+      if (!mounted) {
+        _referralPromptChecking = false;
+        return;
+      }
+
+      if (hasEnteredReferralCode) {
+        await _referralCodePromptService.markCompleted();
+        _referralPromptChecking = false;
+        return;
+      }
+    } catch (_) {
+      _referralPromptChecking = false;
+      return;
+    }
+
+    _referralPromptShownThisSession = true;
+    await _referralCodePromptService.markCompleted();
+    _referralPromptChecking = false;
+    _referralPromptVisible = true;
+    await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (_) {
+        return ReferralCodePromptSheet(
+          onApply: (code) {
+            return context.read<SupabaseService>().rewards.applyReferralCode(
+                  code.trim(),
+                  acceptIfWizardComplete: true,
+                );
+          },
+        );
+      },
+    );
+
+    if (mounted) {
+      setState(() => _referralPromptVisible = false);
+    }
+  }
+
+>>>>>>> Stashed changes
   void _setCurrentIndex(int nextIndex, {required String trigger}) {
     if (nextIndex == _currentIndex) return;
 
@@ -150,7 +264,7 @@ class _MainScreenState extends State<MainScreen> {
 
     final pages = [
       HomePage(isActive: _currentIndex == 0),
-      const BubblesPage(),
+      BubblesPage(isActive: _currentIndex == 1),
       ProfilePage(isActive: _currentIndex == 2),
     ];
 

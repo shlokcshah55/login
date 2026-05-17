@@ -30,6 +30,7 @@ import 'package:login/providers/bubble_mode_provider.dart';
 import 'package:login/providers/navigation_provider.dart';
 import 'package:login/services/notes_import_submitted_service.dart';
 import 'package:login/services/profile_completion_card_preferences_service.dart';
+import 'package:login/services/what_we_do_wizard_service.dart';
 import 'package:login/services/wizard_completion_popover_service.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/supabase/supabase_client.dart';
@@ -40,6 +41,7 @@ import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:login/widgets/feedback/app_feedback.dart';
 import 'package:login/pages/home/quick_picks/quick_picks_distance_page.dart';
 import 'package:login/pages/home/widgets/feature_intro_overlay.dart';
+import 'package:login/widgets/onboarding/spotlight_wizard_overlay.dart';
 import 'package:login/widgets/swipe_card_stack.dart';
 import 'package:login/widgets/wizard_completion_popover.dart';
 import 'package:login/supabase/helpers/collections.dart';
@@ -68,6 +70,7 @@ class _HomePageState extends State<HomePage> {
   late final SupabaseService _supabaseService;
   late final UserDataProvider _userDataProvider;
   NavigationProvider? _navigationProvider;
+  final WhatWeDoWizardService _whatWeDoWizardService = WhatWeDoWizardService();
   final WizardCompletionPopoverService _wizardCompletionPopoverService =
       WizardCompletionPopoverService();
   final ProfileCompletionCardPreferencesService
@@ -79,6 +82,9 @@ class _HomePageState extends State<HomePage> {
   bool _wizardPopoverScheduled = false;
   bool _wizardPopoverShown = false;
   bool _isWizardPopoverVisible = false;
+  bool _whatWeDoWizardScheduled = false;
+  bool _isWhatWeDoWizardVisible = false;
+  bool _whatWeDoWizardEligibilityChecked = false;
   bool _wizardPopoverEligibilityChecked = false;
   String? _lastHandledError;
   bool _isNoRecommendationsPopoverVisible = false;
@@ -91,6 +97,10 @@ class _HomePageState extends State<HomePage> {
   bool _profileChecklistCollapsed = false;
   String? _profileChecklistCollapsedUserId;
   String? _autoOpenedCollectionDetailId;
+  final GlobalKey _searchSpotlightKey = GlobalKey();
+  final GlobalKey _magicSearchSpotlightKey = GlobalKey();
+  final GlobalKey _modeRowSpotlightKey = GlobalKey();
+  final GlobalKey _dealADeckSpotlightKey = GlobalKey();
 
   @override
   void initState() {
@@ -425,6 +435,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _scheduleWizardPopoverIfNeeded(UserDataProvider userDataProvider) {
+    if (_isWhatWeDoWizardVisible || _whatWeDoWizardScheduled) return;
     if (_wizardPopoverShown || _wizardPopoverScheduled || !widget.isActive) {
       return;
     }
@@ -441,6 +452,116 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return;
       unawaited(_showWizardPopoverIfNeeded());
     });
+  }
+
+  void _scheduleWhatWeDoWizardIfNeeded(HomeViewModel viewModel) {
+    if (_isWhatWeDoWizardVisible ||
+        _whatWeDoWizardScheduled ||
+        _whatWeDoWizardEligibilityChecked ||
+        !widget.isActive) {
+      return;
+    }
+    if (viewModel.isHeaderSearchActive ||
+        viewModel.isMagicSearchFieldFocused ||
+        viewModel.isEatListsOpen ||
+        viewModel.showJustDecideSwipeMode ||
+        _isWizardPopoverVisible ||
+        _isNoRecommendationsPopoverVisible ||
+        _isMagicSearchNoResultsPopoverVisible ||
+        _isSavedEmptyPopoverVisible) {
+      return;
+    }
+
+    _whatWeDoWizardScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_showWhatWeDoWizardIfNeeded());
+    });
+  }
+
+  Future<void> _showWhatWeDoWizardIfNeeded() async {
+    if (_isWhatWeDoWizardVisible || !widget.isActive) {
+      _whatWeDoWizardScheduled = false;
+      return;
+    }
+    final shouldShow = await _whatWeDoWizardService.shouldShowNow();
+    _whatWeDoWizardEligibilityChecked = true;
+    if (!shouldShow || !mounted) {
+      _whatWeDoWizardScheduled = false;
+      return;
+    }
+
+    setState(() {
+      _isWhatWeDoWizardVisible = true;
+      _whatWeDoWizardScheduled = false;
+    });
+  }
+
+  Future<void> _finishWhatWeDoWizard() async {
+    await _whatWeDoWizardService.markCompleted();
+    if (!mounted) return;
+    setState(() {
+      _isWhatWeDoWizardVisible = false;
+    });
+  }
+
+  List<SpotlightWizardStep> _buildWhatWeDoWizardSteps(
+    HomeViewModel viewModel,
+  ) {
+    return [
+      const SpotlightWizardStep(
+        targetKey: null,
+        title: 'Welcome to',
+        titleLogoAssetPath: 'lib/assets/purplePinit.png',
+        illustrationAssetPath:
+            'lib/assets/illustrations/Beep Beep - Food Van.svg',
+        eyebrow: 'STEP 0',
+        description:
+            '\nHey! Thank you for using Pinit.\n\nPinit does a lot more than you think, so let us give you a quick tour of the main features to help you get the most out of it.',
+      ),
+      SpotlightWizardStep(
+        targetKey: _searchSpotlightKey,
+        title: 'Start with a place.',
+        description:
+            'Search for a restaurant you already know, then open it straight from the map.',
+        placement: SpotlightBubblePlacement.below,
+        highlightShape: SpotlightHighlightShape.pill,
+        badgeIcon: FeatherIcons.search,
+      ),
+      SpotlightWizardStep(
+        targetKey: _magicSearchSpotlightKey,
+        title: 'Or describe the mood.',
+        description:
+            'Toggle for magic search and search for specific dishes, vibes or places you want to eat at! ',
+        placement: SpotlightBubblePlacement.below,
+        highlightShape: SpotlightHighlightShape.circle,
+        shadowColor: pinit.PinitColors.accent,
+        badgeIcon: FeatherIcons.zap,
+        badgeColor: pinit.PinitColors.accent,
+      ),
+      SpotlightWizardStep(
+        targetKey: _modeRowSpotlightKey,
+        title: 'Switch your lens.',
+        description:
+            'Jump between your saved spots, recommended picks, and your shortlisted eat-lists without leaving the map.',
+        placement: SpotlightBubblePlacement.below,
+        showHighlightShadow: false,
+        badgeIcon: FeatherIcons.layers,
+      ),
+      if (viewModel.locations.isNotEmpty &&
+          viewModel.homeMode == HomeMode.explore)
+        SpotlightWizardStep(
+          targetKey: _dealADeckSpotlightKey,
+          title: 'Let Pinit decide.',
+          description:
+              'Really struggling and just want somewhere quick? Tell us how far you want to walk and deal a deck gives you a short swipeable set when the map has too many good options!',
+          placement: SpotlightBubblePlacement.above,
+          highlightShape: SpotlightHighlightShape.pill,
+          shadowColor: pinit.PinitColors.aubergine,
+          badgeIcon: Icons.gavel_rounded,
+          badgeColor: pinit.PinitColors.accent,
+        ),
+    ];
   }
 
   void _dismissFirstCarouselSwipeHint() {
@@ -561,6 +682,7 @@ class _HomePageState extends State<HomePage> {
       child: Consumer<HomeViewModel>(
         builder: (context, viewModel, _) {
           final userDataProvider = context.watch<UserDataProvider>();
+          _scheduleWhatWeDoWizardIfNeeded(viewModel);
           _scheduleWizardPopoverIfNeeded(userDataProvider);
           _scheduleSavedEmptyPopoverIfNeeded();
           final userId = SupabaseClientManager().currentUser?.id;
@@ -598,6 +720,9 @@ class _HomePageState extends State<HomePage> {
                         topPadding: topPadding,
                         viewModel: viewModel,
                         isExpandedForSearch: true,
+                        searchSpotlightKey: null,
+                        magicSearchSpotlightKey: null,
+                        modeRowSpotlightKey: null,
                       ),
                     )
                   else
@@ -609,6 +734,9 @@ class _HomePageState extends State<HomePage> {
                         topPadding: topPadding,
                         viewModel: viewModel,
                         isExpandedForSearch: false,
+                        searchSpotlightKey: _searchSpotlightKey,
+                        magicSearchSpotlightKey: _magicSearchSpotlightKey,
+                        modeRowSpotlightKey: _modeRowSpotlightKey,
                       ),
                     ),
 
@@ -768,51 +896,56 @@ class _HomePageState extends State<HomePage> {
                                     if (viewModel.locations.isNotEmpty &&
                                         viewModel.homeMode ==
                                             HomeMode.explore) ...[
-                                      GestureDetector(
-                                        onTap: () =>
-                                            _showDealADeckIntro(viewModel),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 14,
-                                            vertical: 8,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: pinit.PinitColors.accent,
-                                            borderRadius:
-                                                BorderRadius.circular(999),
-                                            border: Border.all(
-                                              color:
-                                                  pinit.PinitColors.aubergine,
-                                              width: 1.5,
+                                      RepaintBoundary(
+                                        key: _dealADeckSpotlightKey,
+                                        child: GestureDetector(
+                                          onTap: () =>
+                                              _showDealADeckIntro(viewModel),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 14,
+                                              vertical: 8,
                                             ),
-                                            boxShadow: [
-                                              BoxShadow(
+                                            decoration: BoxDecoration(
+                                              color: pinit.PinitColors.accent,
+                                              borderRadius:
+                                                  BorderRadius.circular(999),
+                                              border: Border.all(
                                                 color:
                                                     pinit.PinitColors.aubergine,
-                                                blurRadius: 0,
-                                                offset: const Offset(3, 3),
+                                                width: 1.5,
                                               ),
-                                            ],
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(
-                                                Icons.gavel_rounded,
-                                                size: 13,
-                                                color: pinit.PinitColors.cream,
-                                              ),
-                                              const SizedBox(width: 6),
-                                              Text(
-                                                'Deal a deck',
-                                                style: GoogleFonts.dmSans(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: pinit.PinitColors.cream,
-                                                  letterSpacing: 0.4,
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: pinit
+                                                      .PinitColors.aubergine,
+                                                  blurRadius: 0,
+                                                  offset: const Offset(3, 3),
                                                 ),
-                                              ),
-                                            ],
+                                              ],
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(
+                                                  Icons.gavel_rounded,
+                                                  size: 13,
+                                                  color:
+                                                      pinit.PinitColors.cream,
+                                                ),
+                                                const SizedBox(width: 6),
+                                                Text(
+                                                  'Deal a deck',
+                                                  style: GoogleFonts.dmSans(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w700,
+                                                    color:
+                                                        pinit.PinitColors.cream,
+                                                    letterSpacing: 0.4,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -1089,6 +1222,13 @@ class _HomePageState extends State<HomePage> {
                         ),
                       );
                     }),
+
+                  if (_isWhatWeDoWizardVisible)
+                    SpotlightWizardOverlay(
+                      steps: _buildWhatWeDoWizardSteps(viewModel),
+                      onCompleted: () => unawaited(_finishWhatWeDoWizard()),
+                      onSkipped: () => unawaited(_finishWhatWeDoWizard()),
+                    ),
                 ],
               ),
             ),
@@ -1170,11 +1310,17 @@ class _TopPanel extends StatelessWidget {
   final double topPadding;
   final HomeViewModel viewModel;
   final bool isExpandedForSearch;
+  final Key? searchSpotlightKey;
+  final Key? magicSearchSpotlightKey;
+  final Key? modeRowSpotlightKey;
 
   const _TopPanel({
     required this.topPadding,
     required this.viewModel,
     required this.isExpandedForSearch,
+    required this.searchSpotlightKey,
+    required this.magicSearchSpotlightKey,
+    required this.modeRowSpotlightKey,
   });
 
   Future<void> _openExpandedSearchLocation(
@@ -1269,20 +1415,11 @@ class _TopPanel extends StatelessWidget {
               isExpandedForSearch ? MainAxisSize.max : MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Logo — purplePinit, sized like a poster element ──
-            Padding(
-              padding: const EdgeInsets.only(left: 1),
-              child: Image.asset(
-                'lib/assets/purplePinit.png',
-                height: 36,
-                fit: BoxFit.contain,
-                alignment: Alignment.centerLeft,
-              ),
-            ),
-            const SizedBox(height: 10),
             if (isExpandedForSearch)
               Expanded(
                 child: HomeHeaderSearchShell(
+                  searchEntrySpotlightKey: null,
+                  magicSearchSpotlightKey: null,
                   state: viewModel.headerSearchState,
                   controller: viewModel.headerSearchController,
                   focusNode: viewModel.headerSearchFocusNode,
@@ -1362,6 +1499,9 @@ class _TopPanel extends StatelessWidget {
               )
             else
               HomeHeaderSearchShell(
+                searchEntrySpotlightKey:
+                    viewModel.isMagicSearchActive ? null : searchSpotlightKey,
+                magicSearchSpotlightKey: magicSearchSpotlightKey,
                 state: viewModel.headerSearchState,
                 controller: viewModel.headerSearchController,
                 focusNode: viewModel.headerSearchFocusNode,
@@ -1464,6 +1604,7 @@ class _TopPanel extends StatelessWidget {
                             onDismiss: viewModel.dismissMagicSearchSuggestions,
                           )
                         : HomeChipRow(
+                            rowSpotlightKey: modeRowSpotlightKey,
                             currentMode: viewModel.homeMode,
                             onModeChanged: viewModel.setHomeMode,
                             activeBubbleName: viewModel.activeBubbleName,

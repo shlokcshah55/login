@@ -45,6 +45,7 @@ class HomeChipRow extends StatefulWidget {
     this.onCollectionsVisibilityChanged,
     this.activeCollectionId,
     this.activeBubbleName,
+    this.rowSpotlightKey,
   });
 
   final HomeMode currentMode;
@@ -56,6 +57,7 @@ class HomeChipRow extends StatefulWidget {
   final ValueChanged<bool>? onCollectionsVisibilityChanged;
   final String? activeCollectionId;
   final String? activeBubbleName;
+  final Key? rowSpotlightKey;
 
   @override
   State<HomeChipRow> createState() => _HomeChipRowState();
@@ -137,18 +139,21 @@ class _HomeChipRowState extends State<HomeChipRow> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 4),
-          child: Row(
-            mainAxisAlignment: chips.length == 1
-                ? MainAxisAlignment.center
-                : MainAxisAlignment.start,
-            children: [
-              for (var i = 0; i < chips.length; i++) ...[
-                if (chips.length > 1) Expanded(child: chips[i]) else chips[i],
-                if (i < chips.length - 1) const SizedBox(width: 6),
+        RepaintBoundary(
+          key: widget.rowSpotlightKey,
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(
+              mainAxisAlignment: chips.length == 1
+                  ? MainAxisAlignment.center
+                  : MainAxisAlignment.start,
+              children: [
+                for (var i = 0; i < chips.length; i++) ...[
+                  if (chips.length > 1) Expanded(child: chips[i]) else chips[i],
+                  if (i < chips.length - 1) const SizedBox(width: 6),
+                ],
               ],
-            ],
+            ),
           ),
         ),
         AnimatedSwitcher(

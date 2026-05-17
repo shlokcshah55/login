@@ -14,7 +14,9 @@ import 'package:login/providers/location_list_provider.dart';
 import 'package:login/pages/auth_handler.dart';
 import 'package:login/services/fcm_service.dart';
 import 'package:login/models/notifications/base_notification.dart';
+import 'package:login/services/spotlight_wizard_seen_service.dart';
 import 'package:login/widgets/launch_splash_body.dart';
+import 'package:login/widgets/onboarding/spotlight_wizard_overlay.dart';
 import 'widgets/profile_header.dart';
 import 'widgets/hidden_gems_section.dart';
 import 'widgets/collections_grid.dart';
@@ -52,6 +54,15 @@ class _ProfilePageState extends State<ProfilePage>
   bool _isLoadingFollowCounts = false;
   final List<String> _tabs = ['Hot', 'Eat-Lists', 'People'];
   final _eatListsAnchorKey = GlobalKey();
+  final _hotTabSpotlightKey = GlobalKey();
+  final _eatListGenerateSpotlightKey = GlobalKey();
+  final _eatListExploreSpotlightKey = GlobalKey();
+  final _notificationsSpotlightKey = GlobalKey();
+  final SpotlightWizardSeenService _spotlightWizardService =
+      SpotlightWizardSeenService('profile');
+  bool _spotlightWizardScheduled = false;
+  bool _isSpotlightWizardVisible = false;
+  bool _spotlightWizardEligibilityChecked = false;
 
   @override
   void initState() {
@@ -106,6 +117,117 @@ class _ProfilePageState extends State<ProfilePage>
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(covariant ProfilePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.isActive && widget.isActive) {
+      _scheduleSpotlightWizardIfNeeded();
+    }
+  }
+
+  void _scheduleSpotlightWizardIfNeeded() {
+    if (!widget.isActive ||
+        _spotlightWizardScheduled ||
+        _isSpotlightWizardVisible ||
+        _spotlightWizardEligibilityChecked) {
+      return;
+    }
+
+    _spotlightWizardScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_showSpotlightWizardIfNeeded());
+    });
+  }
+
+  Future<void> _showSpotlightWizardIfNeeded() async {
+    final shouldShow = await _spotlightWizardService.shouldShowNow();
+    _spotlightWizardEligibilityChecked = true;
+    if (!shouldShow || !mounted || !widget.isActive) {
+      _spotlightWizardScheduled = false;
+      return;
+    }
+
+    setState(() {
+      _isSpotlightWizardVisible = true;
+      _spotlightWizardScheduled = false;
+    });
+  }
+
+  Future<void> _finishSpotlightWizard() async {
+    await _spotlightWizardService.markCompleted();
+    if (!mounted) return;
+    setState(() => _isSpotlightWizardVisible = false);
+  }
+
+  Future<void> _selectTabAndReveal(int tab, GlobalKey targetKey) async {
+    if (!mounted) return;
+    if (_selectedTab != tab) {
+      setState(() => _selectedTab = tab);
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+    if (!mounted) return;
+    final ctx = targetKey.currentContext;
+    if (ctx == null) return;
+    await Scrollable.ensureVisible(
+      ctx,
+      duration: const Duration(milliseconds: 360),
+      curve: Curves.easeOutCubic,
+      alignment: 0.18,
+    );
+  }
+
+  Future<void> _revealNotifications() async {
+    if (!mounted) return;
+    if (_selectedTab != 0) {
+      setState(() => _selectedTab = 0);
+    }
+    await _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 360),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  List<SpotlightWizardStep> _buildSpotlightWizardSteps() {
+    return [
+      SpotlightWizardStep(
+        targetKey: _hotTabSpotlightKey,
+        title: 'See what is hot.',
+        description:
+            'The Hot tab shows the places getting the most social saves and attention around your profile.',
+        placement: SpotlightBubblePlacement.below,
+        highlightShape: SpotlightHighlightShape.pill,
+        showHighlightShadow: false,
+        badgeIcon: Icons.local_fire_department_rounded,
+        badgeColor: PinitColors.accent,
+        beforeShow: () => _selectTabAndReveal(0, _hotTabSpotlightKey),
+      ),
+      SpotlightWizardStep(
+        targetKey: _eatListGenerateSpotlightKey,
+        title: 'Generate eat-lists.',
+        description:
+            'Use "Generate" to turn your saved places into automatic eat-lists you can browse and share.',
+        placement: SpotlightBubblePlacement.below,
+        highlightShape: SpotlightHighlightShape.pill,
+        badgeIcon: Icons.bolt_rounded,
+        badgeColor: PinitColors.accent,
+        bubbleHeightEstimate: 550,
+        beforeShow: () => _selectTabAndReveal(1, _eatListGenerateSpotlightKey),
+      ),
+      SpotlightWizardStep(
+        targetKey: _notificationsSpotlightKey,
+        title: 'Check notifications.',
+        description:
+            'Friend requests, processed videos, imports, and shared activity land here.',
+        placement: SpotlightBubblePlacement.below,
+        highlightShape: SpotlightHighlightShape.circle,
+        badgeIcon: Icons.notifications_outlined,
+        beforeShow: _revealNotifications,
+      ),
+    ];
+  }
+
   Future<void> _handleSignOut(BuildContext context) async {
     try {
       final supabaseProvider =
@@ -158,6 +280,7 @@ class _ProfilePageState extends State<ProfilePage>
 
     final savedPins = locationListManager.savedLocations.keys.toList();
     final collapsedHeader = _scrollOffset > 120;
+    _scheduleSpotlightWizardIfNeeded();
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
@@ -188,6 +311,7 @@ class _ProfilePageState extends State<ProfilePage>
                         pinsCount: savedPins.length,
                         onFollowersTap: () => _openFollowers(context),
                         onFollowingTap: () => _openFollowing(context),
+                        notificationsSpotlightKey: _notificationsSpotlightKey,
                       ),
                     ),
                     const SliverToBoxAdapter(
@@ -244,6 +368,12 @@ class _ProfilePageState extends State<ProfilePage>
                 right: 0,
                 child: _buildCollapsedHeader(user),
               ),
+            if (_isSpotlightWizardVisible)
+              SpotlightWizardOverlay(
+                steps: _buildSpotlightWizardSteps(),
+                onCompleted: () => unawaited(_finishSpotlightWizard()),
+                onSkipped: () => unawaited(_finishSpotlightWizard()),
+              ),
           ],
         ),
       ),
@@ -268,6 +398,8 @@ class _ProfilePageState extends State<ProfilePage>
       case 1:
         return CollectionsGrid(
           generatedCollections: user.generatedCollections,
+          generateSpotlightKey: _eatListGenerateSpotlightKey,
+          exploreSpotlightKey: _eatListExploreSpotlightKey,
         );
       case 2:
         return _buildDiscoverSection();
@@ -379,65 +511,68 @@ class _ProfilePageState extends State<ProfilePage>
 
           return Padding(
             padding: EdgeInsets.only(right: isLast ? 0 : 10),
-            child: GestureDetector(
-              onTap: () {
-                if (_selectedTab == entry.key) return;
-                HapticFeedback.selectionClick();
-                setState(() => _selectedTab = entry.key);
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 280),
-                curve: Curves.easeOutCubic,
-                height: 40,
-                padding: EdgeInsets.symmetric(
-                  horizontal: isSelected ? 16 : 11,
-                ),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? PinitColors.aubergine
-                      : PinitColors.creamSunk,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(
+            child: RepaintBoundary(
+              key: entry.key == 0 ? _hotTabSpotlightKey : null,
+              child: GestureDetector(
+                onTap: () {
+                  if (_selectedTab == entry.key) return;
+                  HapticFeedback.selectionClick();
+                  setState(() => _selectedTab = entry.key);
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 280),
+                  curve: Curves.easeOutCubic,
+                  height: 40,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isSelected ? 16 : 11,
+                  ),
+                  decoration: BoxDecoration(
                     color: isSelected
                         ? PinitColors.aubergine
-                        : PinitColors.creamDeep,
-                    width: 1.5,
-                  ),
-                  boxShadow: isSelected ? PinitColors.subtleShadow : null,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      icon,
-                      size: 17,
+                        : PinitColors.creamSunk,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
                       color: isSelected
-                          ? PinitColors.cream
-                          : PinitColors.aubergineSoft,
+                          ? PinitColors.aubergine
+                          : PinitColors.creamDeep,
+                      width: 1.5,
                     ),
-                    ClipRect(
-                      child: AnimatedSize(
-                        duration: const Duration(milliseconds: 280),
-                        curve: Curves.easeOutCubic,
-                        alignment: Alignment.centerLeft,
-                        child: isSelected
-                            ? Padding(
-                                padding: const EdgeInsets.only(left: 8),
-                                child: Text(
-                                  entry.value,
-                                  style: const TextStyle(
-                                    fontFamily: 'Rova',
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w100,
-                                    color: PinitColors.cream,
-                                    letterSpacing: 0.6,
-                                  ),
-                                ),
-                              )
-                            : const SizedBox.shrink(),
+                    boxShadow: isSelected ? PinitColors.subtleShadow : null,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        icon,
+                        size: 17,
+                        color: isSelected
+                            ? PinitColors.cream
+                            : PinitColors.aubergineSoft,
                       ),
-                    ),
-                  ],
+                      ClipRect(
+                        child: AnimatedSize(
+                          duration: const Duration(milliseconds: 280),
+                          curve: Curves.easeOutCubic,
+                          alignment: Alignment.centerLeft,
+                          child: isSelected
+                              ? Padding(
+                                  padding: const EdgeInsets.only(left: 8),
+                                  child: Text(
+                                    entry.value,
+                                    style: const TextStyle(
+                                      fontFamily: 'Rova',
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w100,
+                                      color: PinitColors.cream,
+                                      letterSpacing: 0.6,
+                                    ),
+                                  ),
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -734,6 +869,10 @@ class _ProfilePageState extends State<ProfilePage>
           Navigator.pop(sheetContext);
           _shareProfile(context);
         },
+        onRewards: () {
+          Navigator.pop(sheetContext);
+          unawaited(_openRewards(context));
+        },
         onSignOut: () {
           Navigator.pop(sheetContext);
           _handleSignOut(context);
@@ -761,6 +900,7 @@ class _ProfileSettingsSheet extends StatelessWidget {
   final VoidCallback onEditProfile;
   final VoidCallback onPreferences;
   final VoidCallback onShareProfile;
+  final VoidCallback onRewards;
   final VoidCallback onSignOut;
 
   const _ProfileSettingsSheet({
@@ -768,6 +908,7 @@ class _ProfileSettingsSheet extends StatelessWidget {
     required this.onEditProfile,
     required this.onPreferences,
     required this.onShareProfile,
+    required this.onRewards,
     required this.onSignOut,
   });
 
@@ -834,11 +975,29 @@ class _ProfileSettingsSheet extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  _ProfileSettingsRow(
-                    icon: Icons.ios_share_rounded,
-                    title: 'Share Profile',
-                    subtitle: 'Send your public profile in one tap',
-                    onTap: onShareProfile,
+                  IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: _ProfileSettingsCard(
+                            icon: Icons.ios_share_rounded,
+                            title: 'Share Profile',
+                            subtitle: 'Send your profile',
+                            onTap: onShareProfile,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _ProfileSettingsCard(
+                            icon: Icons.card_giftcard_rounded,
+                            title: 'Referrals',
+                            subtitle: 'Vouchers and rewards',
+                            onTap: onRewards,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 14),

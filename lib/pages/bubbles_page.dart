@@ -17,13 +17,20 @@ import 'package:login/providers/bubble_mode_provider.dart';
 import 'package:login/providers/navigation_provider.dart';
 import 'package:login/pages/bubble_messaging_page.dart';
 import 'package:login/pages/profile/other_user_profile_page.dart';
+import 'package:login/services/spotlight_wizard_seen_service.dart';
 import 'package:login/utils/route_open_guard.dart';
 import 'package:login/widgets/chat/bubble_discover_view.dart';
 import 'package:login/widgets/feedback/app_feedback.dart';
+import 'package:login/widgets/onboarding/spotlight_wizard_overlay.dart';
 import 'package:login/widgets/profile/user_card.dart';
 
 class BubblesPage extends StatefulWidget {
-  const BubblesPage({Key? key}) : super(key: key);
+  final bool isActive;
+
+  const BubblesPage({
+    Key? key,
+    this.isActive = true,
+  }) : super(key: key);
 
   @override
   _BubblesPageState createState() => _BubblesPageState();
@@ -45,6 +52,13 @@ class _BubblesPageState extends State<BubblesPage>
   bool _isLoadingSuggestedUsers = false;
   Timer? _debounceTimer;
   final AnalyticsService _analyticsService = AnalyticsService();
+  final SpotlightWizardSeenService _spotlightWizardService =
+      SpotlightWizardSeenService('bubbles');
+  final GlobalKey _findFriendsSpotlightKey = GlobalKey();
+  final GlobalKey _createBubbleSpotlightKey = GlobalKey();
+  bool _spotlightWizardScheduled = false;
+  bool _isSpotlightWizardVisible = false;
+  bool _spotlightWizardEligibilityChecked = false;
 
   @override
   void initState() {
@@ -103,6 +117,74 @@ class _BubblesPageState extends State<BubblesPage>
   }
 
   @override
+  void didUpdateWidget(covariant BubblesPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.isActive && widget.isActive) {
+      _scheduleSpotlightWizardIfNeeded();
+    }
+  }
+
+  void _scheduleSpotlightWizardIfNeeded() {
+    if (!widget.isActive ||
+        _spotlightWizardScheduled ||
+        _isSpotlightWizardVisible ||
+        _spotlightWizardEligibilityChecked ||
+        _searchFocusNode.hasFocus ||
+        _searchController.text.isNotEmpty) {
+      return;
+    }
+
+    _spotlightWizardScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_showSpotlightWizardIfNeeded());
+    });
+  }
+
+  Future<void> _showSpotlightWizardIfNeeded() async {
+    final shouldShow = await _spotlightWizardService.shouldShowNow();
+    _spotlightWizardEligibilityChecked = true;
+    if (!shouldShow || !mounted || !widget.isActive) {
+      _spotlightWizardScheduled = false;
+      return;
+    }
+    setState(() {
+      _isSpotlightWizardVisible = true;
+      _spotlightWizardScheduled = false;
+    });
+  }
+
+  Future<void> _finishSpotlightWizard() async {
+    await _spotlightWizardService.markCompleted();
+    if (!mounted) return;
+    setState(() => _isSpotlightWizardVisible = false);
+  }
+
+  List<SpotlightWizardStep> _buildSpotlightWizardSteps() {
+    return [
+      SpotlightWizardStep(
+        targetKey: _findFriendsSpotlightKey,
+        title: 'Find your mates.',
+        description:
+            'Search for your friends and follow them to start sharing places together.',
+        placement: SpotlightBubblePlacement.below,
+        highlightShape: SpotlightHighlightShape.pill,
+        badgeIcon: FeatherIcons.search,
+      ),
+      SpotlightWizardStep(
+        targetKey: _createBubbleSpotlightKey,
+        title: 'Create a bubble.',
+        description:
+            'Make a shared space with your friends where you can chat, share pins and get recommendations that apply to all of you by activating the bubble!',
+        placement: SpotlightBubblePlacement.below,
+        highlightShape: SpotlightHighlightShape.circle,
+        showHighlightShadow: false,
+        badgeIcon: Icons.bubble_chart_rounded,
+      ),
+    ];
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final bool showingSearch =
@@ -112,23 +194,35 @@ class _BubblesPageState extends State<BubblesPage>
       value: _bubblesProvider,
       child: Consumer<BubblesProvider>(
         builder: (context, bubblesProvider, child) {
+          _scheduleSpotlightWizardIfNeeded();
           return Scaffold(
             backgroundColor: PinitColors.cream,
-            body: SafeArea(
-              bottom: false,
-              child: Column(
-                children: [
-                  if (!showingSearch) _buildModernHeader(theme),
-                  _buildSearchField(theme),
-                  Expanded(
-                    child: showingSearch
-                        ? _buildSearchResults(theme, bubblesProvider.bubbles)
-                        : bubblesProvider.isLoading
-                            ? _buildLoadingState(theme)
-                            : _buildBubblesList(theme, bubblesProvider),
+            body: Stack(
+              children: [
+                SafeArea(
+                  bottom: false,
+                  child: Column(
+                    children: [
+                      if (!showingSearch) _buildModernHeader(theme),
+                      _buildSearchField(theme),
+                      Expanded(
+                        child: showingSearch
+                            ? _buildSearchResults(
+                                theme, bubblesProvider.bubbles)
+                            : bubblesProvider.isLoading
+                                ? _buildLoadingState(theme)
+                                : _buildBubblesList(theme, bubblesProvider),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                if (_isSpotlightWizardVisible)
+                  SpotlightWizardOverlay(
+                    steps: _buildSpotlightWizardSteps(),
+                    onCompleted: () => unawaited(_finishSpotlightWizard()),
+                    onSkipped: () => unawaited(_finishSpotlightWizard()),
+                  ),
+              ],
             ),
           );
         },
@@ -210,21 +304,29 @@ class _BubblesPageState extends State<BubblesPage>
           // Create bubble button
           Material(
             color: Colors.transparent,
-            child: InkWell(
-              onTap: _showCreateBubbleDialog,
-              borderRadius: BorderRadius.circular(999),
-              child: Ink(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: PinitColors.aubergine.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: PinitColors.creamDeep, width: 1.5),
-                ),
-                child: const Icon(
-                  Icons.add_rounded,
-                  color: PinitColors.aubergine,
-                  size: 22,
+            child: RepaintBoundary(
+              key: _createBubbleSpotlightKey,
+              child: InkWell(
+                onTap: _showCreateBubbleDialog,
+                borderRadius: BorderRadius.circular(999),
+                child: Ink(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: _isSpotlightWizardVisible
+                        ? PinitColors.aubergine
+                        : PinitColors.cream,
+                    borderRadius: BorderRadius.circular(999),
+                    border:
+                        Border.all(color: PinitColors.creamDeep, width: 1.5),
+                  ),
+                  child: Icon(
+                    Icons.add_rounded,
+                    color: _isSpotlightWizardVisible
+                        ? Colors.white
+                        : PinitColors.aubergine,
+                    size: 22,
+                  ),
                 ),
               ),
             ),
@@ -1178,64 +1280,67 @@ class _BubblesPageState extends State<BubblesPage>
             ),
           ],
           Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: PinitColors.cream,
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: PinitColors.aubergine, width: 1.5),
-                boxShadow: const [
-                  BoxShadow(
-                    color: PinitColors.aubergine,
-                    blurRadius: 0,
-                    offset: Offset(3, 3),
-                  ),
-                ],
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              child: Row(
-                children: [
-                  const Icon(FeatherIcons.search,
-                      size: 16, color: PinitColors.aubergine),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      focusNode: _searchFocusNode,
-                      style: GoogleFonts.dmSans(
-                        fontSize: 13,
-                        color: PinitColors.aubergine,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.5,
-                      ),
-                      decoration: InputDecoration(
-                        isCollapsed: true,
-                        contentPadding:
-                            const EdgeInsets.symmetric(vertical: 16),
-                        border: InputBorder.none,
-                        hintText: 'SEARCH USERS',
-                        hintStyle: GoogleFonts.dmSans(
-                          fontSize: 11,
-                          color: PinitColors.aubergineSoft,
+            child: RepaintBoundary(
+              key: _findFriendsSpotlightKey,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: PinitColors.cream,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: PinitColors.aubergine, width: 1.5),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: PinitColors.aubergine,
+                      blurRadius: 0,
+                      offset: Offset(3, 3),
+                    ),
+                  ],
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                child: Row(
+                  children: [
+                    const Icon(FeatherIcons.search,
+                        size: 16, color: PinitColors.aubergine),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        focusNode: _searchFocusNode,
+                        style: GoogleFonts.dmSans(
+                          fontSize: 13,
+                          color: PinitColors.aubergine,
                           fontWeight: FontWeight.w700,
-                          letterSpacing: 1.0,
-                          height: 1.0,
+                          letterSpacing: 0.5,
+                        ),
+                        decoration: InputDecoration(
+                          isCollapsed: true,
+                          contentPadding:
+                              const EdgeInsets.symmetric(vertical: 16),
+                          border: InputBorder.none,
+                          hintText: 'SEARCH USERS',
+                          hintStyle: GoogleFonts.dmSans(
+                            fontSize: 11,
+                            color: PinitColors.aubergineSoft,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.0,
+                            height: 1.0,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  if (_searchController.text.isNotEmpty)
-                    GestureDetector(
-                      onTap: () {
-                        _searchController.clear();
-                        _searchFocusNode.unfocus();
-                      },
-                      child: const Padding(
-                        padding: EdgeInsets.only(left: 8),
-                        child: Icon(Icons.close_rounded,
-                            size: 16, color: PinitColors.aubergineSoft),
+                    if (_searchController.text.isNotEmpty)
+                      GestureDetector(
+                        onTap: () {
+                          _searchController.clear();
+                          _searchFocusNode.unfocus();
+                        },
+                        child: const Padding(
+                          padding: EdgeInsets.only(left: 8),
+                          child: Icon(Icons.close_rounded,
+                              size: 16, color: PinitColors.aubergineSoft),
+                        ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

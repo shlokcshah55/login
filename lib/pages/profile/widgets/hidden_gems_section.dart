@@ -127,10 +127,12 @@ class HiddenGemsSection extends StatelessWidget {
 
 class HottestSharedPlacesSection extends StatelessWidget {
   final List<LocationModel> locations;
+  final Key? spotlightKey;
 
   const HottestSharedPlacesSection({
     super.key,
     required this.locations,
+    this.spotlightKey,
   });
 
   @override
@@ -140,31 +142,34 @@ class HottestSharedPlacesSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Hottest shared places',
-                style: TextStyle(
-                  fontFamily: 'Rova',
-                  fontSize: 28,
-                  fontWeight: FontWeight.w100,
-                  color: PinitColors.aubergine,
-                  letterSpacing: 1.0,
-                  height: 1.05,
+        RepaintBoundary(
+          key: spotlightKey,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Hottest shared places',
+                  style: TextStyle(
+                    fontFamily: 'Rova',
+                    fontSize: 28,
+                    fontWeight: FontWeight.w100,
+                    color: PinitColors.aubergine,
+                    letterSpacing: 1.0,
+                    height: 1.05,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Top places people have pinned from social media',
-                style: GoogleFonts.dmSans(
-                  fontSize: 13,
-                  color: PinitColors.aubergineSoft,
+                const SizedBox(height: 4),
+                Text(
+                  'Top places people have pinned from social media',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 13,
+                    color: PinitColors.aubergineSoft,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         Padding(

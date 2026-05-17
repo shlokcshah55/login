@@ -31,6 +31,8 @@ class HomeHeaderSearchShell extends StatelessWidget {
   final Widget? footer;
   final bool isMagicSearchActive;
   final VoidCallback? onSearchSubmitted;
+  final Key? searchEntrySpotlightKey;
+  final Key? magicSearchSpotlightKey;
 
   const HomeHeaderSearchShell({
     super.key,
@@ -48,6 +50,8 @@ class HomeHeaderSearchShell extends StatelessWidget {
     this.footer,
     this.isMagicSearchActive = false,
     this.onSearchSubmitted,
+    this.searchEntrySpotlightKey,
+    this.magicSearchSpotlightKey,
   });
 
   @override
@@ -60,6 +64,7 @@ class HomeHeaderSearchShell extends StatelessWidget {
             children: [
               Expanded(
                 child: _CollapsedSearchEntry(
+                  spotlightKey: searchEntrySpotlightKey,
                   controller: controller,
                   focusNode: focusNode,
                   onTap: onEntryTap,
@@ -70,6 +75,7 @@ class HomeHeaderSearchShell extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               _MagicSearchButton(
+                spotlightKey: magicSearchSpotlightKey,
                 onTap: onMagicSearchTap,
                 isMagicSearchActive: isMagicSearchActive,
               ),
@@ -102,6 +108,7 @@ class HomeHeaderSearchShell extends StatelessWidget {
 
 class _CollapsedSearchEntry extends StatelessWidget {
   const _CollapsedSearchEntry({
+    required this.spotlightKey,
     required this.controller,
     required this.focusNode,
     required this.onTap,
@@ -110,6 +117,7 @@ class _CollapsedSearchEntry extends StatelessWidget {
     required this.onSubmitted,
   });
 
+  final Key? spotlightKey;
   final TextEditingController controller;
   final FocusNode focusNode;
   final VoidCallback onTap;
@@ -194,63 +202,75 @@ class _CollapsedSearchEntry extends StatelessWidget {
       behavior: HitTestBehavior.translucent,
       onPointerDown: (_) =>
           context.read<BottomNavVisibilityProvider>().setLocked(true),
-      child: GestureDetector(
-        key: const Key('home_header_search_entry'),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-          decoration: BoxDecoration(
-            color: pinit.PinitColors.cream,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: pinit.PinitColors.aubergine,
-              width: 1.5,
+      child: RepaintBoundary(
+        key: spotlightKey,
+        child: GestureDetector(
+          key: const Key('home_header_search_entry'),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            decoration: BoxDecoration(
+              color: pinit.PinitColors.cream,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: pinit.PinitColors.aubergine,
+                width: 1.5,
+              ),
+              boxShadow: const [
+                BoxShadow(
+                  color: pinit.PinitColors.aubergine,
+                  blurRadius: 0,
+                  offset: Offset(3, 3),
+                ),
+              ],
             ),
-            boxShadow: const [
-              BoxShadow(
-                color: pinit.PinitColors.aubergine,
-                blurRadius: 0,
-                offset: Offset(3, 3),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              const Icon(
-                FeatherIcons.search,
-                color: pinit.PinitColors.aubergine,
-                size: 16,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'SEARCH FOR A SPECIFIC RESTAURANT',
-                  style: GoogleFonts.dmSans(
-                    fontSize: 11,
-                    color: pinit.PinitColors.aubergineSoft,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.0,
-                    height: 1.0,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+            child: Row(
+              children: [
+                const Icon(
+                  FeatherIcons.search,
+                  color: pinit.PinitColors.aubergine,
+                  size: 16,
                 ),
-              ),
-              const SizedBox(width: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                decoration: BoxDecoration(
-                  color: pinit.PinitColors.creamSunk,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(
-                    color: pinit.PinitColors.creamDeep,
-                    width: 1,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'SEARCH FOR A PLACE',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 11,
+                      color: pinit.PinitColors.aubergineSoft,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.0,
+                      height: 1.0,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 10),
+                const _SearchEntryBrandMark(),
+              ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _SearchEntryBrandMark extends StatelessWidget {
+  const _SearchEntryBrandMark();
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: 'Pinit',
+      image: true,
+      child: Image.asset(
+        'lib/assets/purplePinit.png',
+        width: 42,
+        height: 20,
+        fit: BoxFit.contain,
+        alignment: Alignment.centerRight,
       ),
     );
   }
@@ -356,6 +376,7 @@ class _InlineActiveSearchViewState extends State<_InlineActiveSearchView>
                 ),
                 const SizedBox(width: 10),
                 _MagicSearchButton(
+                  spotlightKey: null,
                   onTap: widget.onMagicSearchTap,
                   isMagicSearchActive: widget.isMagicSearchActive,
                 ),
@@ -495,10 +516,12 @@ class _InlineActiveSearchEntry extends StatelessWidget {
 
 class _MagicSearchButton extends StatelessWidget {
   const _MagicSearchButton({
+    required this.spotlightKey,
     required this.onTap,
     required this.isMagicSearchActive,
   });
 
+  final Key? spotlightKey;
   final VoidCallback onTap;
   final bool isMagicSearchActive;
 
@@ -508,43 +531,46 @@ class _MagicSearchButton extends StatelessWidget {
       behavior: HitTestBehavior.translucent,
       onPointerDown: (_) =>
           context.read<BottomNavVisibilityProvider>().setLocked(true),
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 54,
-          height: 54,
-          decoration: BoxDecoration(
-            color: isMagicSearchActive
-                ? pinit.PinitColors.accent
-                : pinit.PinitColors.cream,
-            shape: BoxShape.circle,
-            border: Border.all(
+      child: RepaintBoundary(
+        key: spotlightKey,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
               color: isMagicSearchActive
-                  ? pinit.PinitColors.aubergine
-                  : pinit.PinitColors.accent,
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
+                  ? pinit.PinitColors.accent
+                  : pinit.PinitColors.cream,
+              shape: BoxShape.circle,
+              border: Border.all(
                 color: isMagicSearchActive
                     ? pinit.PinitColors.aubergine
                     : pinit.PinitColors.accent,
-                blurRadius: 0,
-                offset: Offset(3, 3),
+                width: 1.5,
               ),
-            ],
-          ),
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 160),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeOutCubic,
-            child: Icon(
-              isMagicSearchActive ? CupertinoIcons.xmark : FeatherIcons.zap,
-              key: ValueKey<bool>(isMagicSearchActive),
-              color: isMagicSearchActive
-                  ? pinit.PinitColors.cream
-                  : pinit.PinitColors.accent,
-              size: isMagicSearchActive ? 20 : 22,
+              boxShadow: [
+                BoxShadow(
+                  color: isMagicSearchActive
+                      ? pinit.PinitColors.aubergine
+                      : pinit.PinitColors.accent,
+                  blurRadius: 0,
+                  offset: Offset(3, 3),
+                ),
+              ],
+            ),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 160),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeOutCubic,
+              child: Icon(
+                isMagicSearchActive ? CupertinoIcons.xmark : FeatherIcons.zap,
+                key: ValueKey<bool>(isMagicSearchActive),
+                color: isMagicSearchActive
+                    ? pinit.PinitColors.cream
+                    : pinit.PinitColors.accent,
+                size: isMagicSearchActive ? 20 : 22,
+              ),
             ),
           ),
         ),

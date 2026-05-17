@@ -16,6 +16,7 @@ class ProfileHeader extends StatelessWidget {
   final int pinsCount;
   final VoidCallback? onFollowersTap;
   final VoidCallback? onFollowingTap;
+  final Key? notificationsSpotlightKey;
 
   const ProfileHeader({
     Key? key,
@@ -29,6 +30,7 @@ class ProfileHeader extends StatelessWidget {
     required this.pinsCount,
     this.onFollowersTap,
     this.onFollowingTap,
+    this.notificationsSpotlightKey,
   }) : super(key: key);
 
   @override
@@ -97,10 +99,20 @@ class ProfileHeader extends StatelessWidget {
                     const SizedBox(width: 10),
                     Column(
                       children: [
+<<<<<<< Updated upstream
                         _ActionButton(
                           icon: Icons.notifications_outlined,
                           onTap: onNotificationsTap,
                           badgeCount: unreadCount,
+=======
+                        RepaintBoundary(
+                          key: notificationsSpotlightKey,
+                          child: _ActionButton(
+                            icon: Icons.notifications_outlined,
+                            onTap: onNotificationsTap,
+                            badgeCount: unreadCount,
+                          ),
+>>>>>>> Stashed changes
                         ),
                         const SizedBox(height: 8),
                         _ActionButton(

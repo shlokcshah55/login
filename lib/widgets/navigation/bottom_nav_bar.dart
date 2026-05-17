@@ -137,13 +137,50 @@ class _BottomNavBarState extends State<BottomNavBar>
   }
 
   Widget _buildStandardNav(ThemeData theme) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        _buildNavItem(FeatherIcons.home, 0, 'Home', theme),
-        _buildNavItem(FontAwesomeIcons.comments, 1, 'Bubbles', theme),
-        _buildNavItem(FeatherIcons.user, 2, 'Profile', theme),
-      ],
+    return Consumer<BottomNavVisibilityProvider>(
+      builder: (context, visibilityProvider, _) {
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _buildPinToggle(visibilityProvider),
+            Expanded(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildNavItem(FeatherIcons.home, 0, 'Home', theme),
+                  _buildNavItem(FontAwesomeIcons.comments, 1, 'Bubbles', theme),
+                  _buildNavItem(FeatherIcons.user, 2, 'Profile', theme),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildPinToggle(BottomNavVisibilityProvider visibilityProvider) {
+    return GestureDetector(
+      onTap: () => visibilityProvider.togglePinned(),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: visibilityProvider.isPinned
+              ? Colors.white.withValues(alpha: 0.18)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(
+          visibilityProvider.isPinned
+              ? Icons.push_pin
+              : Icons.push_pin_outlined,
+          color: visibilityProvider.isPinned ? Colors.white : Colors.white54,
+          size: 16,
+        ),
+      ),
     );
   }
 

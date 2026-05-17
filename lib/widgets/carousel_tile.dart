@@ -50,7 +50,7 @@ class CarouselTile extends StatelessWidget {
             border: Border.all(color: Colors.transparent), // Invisible border
           ),
           margin: const EdgeInsets.symmetric(
-              vertical: 8, horizontal: 12), // Adds spacing
+              vertical: 7.2, horizontal: 10.8), // Adds spacing
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -58,7 +58,7 @@ class CarouselTile extends StatelessWidget {
               item.imageUrl != null
                   ? SizedBox(
                       width: double.infinity,
-                      height: 200,
+                      height: 180,
                       child: CachedNetworkImage(
                         imageUrl: item.imageUrl!,
                         fit: BoxFit.cover,
@@ -73,7 +73,7 @@ class CarouselTile extends StatelessWidget {
                       ),
                     )
                   : Container(
-                      height: 200,
+                      height: 180,
                       width: double.infinity,
                       color: preference == LocationPreference.saved
                           ? Colors.green
@@ -82,7 +82,7 @@ class CarouselTile extends StatelessWidget {
                         child: Text(
                           item.name[0],
                           style: const TextStyle(
-                            fontSize: 48,
+                            fontSize: 43.2,
                             color: Colors.white,
                           ),
                         ),
@@ -90,21 +90,21 @@ class CarouselTile extends StatelessWidget {
                     ),
               // Text information below the image
               Padding(
-                padding: const EdgeInsets.all(12.0),
+                padding: const EdgeInsets.all(10.8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       item.name,
                       style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.bold),
+                          fontSize: 16.2, fontWeight: FontWeight.bold),
                     ),
                     if (item.vicinity != null)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
                           item.vicinity!,
-                          style: const TextStyle(fontSize: 14),
+                          style: const TextStyle(fontSize: 12.6),
                         ),
                       ),
                     const SizedBox(height: 8),
@@ -114,10 +114,10 @@ class CarouselTile extends StatelessWidget {
                           Row(
                             children: [
                               const Icon(FeatherIcons.star,
-                                  size: 16, color: Colors.amber),
+                                  size: 14.4, color: Colors.amber),
                               Text(
                                 item.rating.toString(),
-                                style: const TextStyle(fontSize: 14),
+                                style: const TextStyle(fontSize: 12.6),
                               ),
                             ],
                           ),
@@ -126,7 +126,7 @@ class CarouselTile extends StatelessWidget {
                             padding: const EdgeInsets.only(left: 8.0),
                             child: Text(
                               '\$' * item.priceLevel!,
-                              style: const TextStyle(fontSize: 14),
+                              style: const TextStyle(fontSize: 12.6),
                             ),
                           ),
                       ],

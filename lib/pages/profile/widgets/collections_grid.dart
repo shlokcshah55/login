@@ -113,10 +113,14 @@ class CollectionModel {
 
 class CollectionsGrid extends StatefulWidget {
   final bool generatedCollections;
+  final Key? generateSpotlightKey;
+  final Key? exploreSpotlightKey;
 
   const CollectionsGrid({
     Key? key,
     this.generatedCollections = false,
+    this.generateSpotlightKey,
+    this.exploreSpotlightKey,
   }) : super(key: key);
 
   @override
@@ -567,6 +571,7 @@ class _CollectionsGridState extends State<CollectionsGrid>
     List<CollectionModel> collections, {
     bool forceShowOwner = false,
     bool showQuickAdd = false,
+    Key? firstItemSpotlightKey,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -585,23 +590,26 @@ class _CollectionsGridState extends State<CollectionsGrid>
           final collection = collections[index];
           final showOwner = forceShowOwner ||
               (!collection.canEdit && collection.ownerName != null);
-          return _CollectionCard(
-            collection: collection,
-            showOwner: showOwner,
-            showQuickAdd: showQuickAdd,
-            quickAddInProgress: _quickAddingCollectionId == collection.id,
-            onQuickAdd: showQuickAdd
-                ? () {
-                    if (collection.isSaved) {
-                      unawaited(_quickUnsaveCollection(collection));
-                    } else {
-                      unawaited(_quickAddCollection(collection));
+          return RepaintBoundary(
+            key: index == 0 ? firstItemSpotlightKey : null,
+            child: _CollectionCard(
+              collection: collection,
+              showOwner: showOwner,
+              showQuickAdd: showQuickAdd,
+              quickAddInProgress: _quickAddingCollectionId == collection.id,
+              onQuickAdd: showQuickAdd
+                  ? () {
+                      if (collection.isSaved) {
+                        unawaited(_quickUnsaveCollection(collection));
+                      } else {
+                        unawaited(_quickAddCollection(collection));
+                      }
                     }
-                  }
-                : null,
-            onEdit:
-                collection.canEdit ? () => _openEditSheet(collection) : null,
-            onDeleted: collection.canEdit ? _loadCollections : null,
+                  : null,
+              onEdit:
+                  collection.canEdit ? () => _openEditSheet(collection) : null,
+              onDeleted: collection.canEdit ? _loadCollections : null,
+            ),
           );
         },
       ),
@@ -639,89 +647,92 @@ class _CollectionsGridState extends State<CollectionsGrid>
                   Row(
                     children: [
                       // Generate button
-                      GestureDetector(
-                        onTap: _isGenerating ? null : _onGenerateButtonTap,
-                        child: AnimatedBuilder(
-                          animation: _fillAnimation,
-                          builder: (context, child) {
-                            final label = _isGenerating
-                                ? (_hasGenerated
-                                    ? 'Updating...'
-                                    : 'Generating...')
-                                : (_hasGenerated ? 'Update' : 'Generate');
+                      RepaintBoundary(
+                        key: widget.generateSpotlightKey,
+                        child: GestureDetector(
+                          onTap: _isGenerating ? null : _onGenerateButtonTap,
+                          child: AnimatedBuilder(
+                            animation: _fillAnimation,
+                            builder: (context, child) {
+                              final label = _isGenerating
+                                  ? (_hasGenerated
+                                      ? 'Updating...'
+                                      : 'Generating...')
+                                  : (_hasGenerated ? 'Update' : 'Generate');
 
-                            Widget buildLabel(
-                              Color iconColor,
-                              Color textColor,
-                            ) =>
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                    vertical: 8,
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        FeatherIcons.zap,
-                                        size: 13,
-                                        color: iconColor,
-                                      ),
-                                      const SizedBox(width: 5),
-                                      Text(
-                                        label,
-                                        style: GoogleFonts.dmSans(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
-                                          color: textColor,
+                              Widget buildLabel(
+                                Color iconColor,
+                                Color textColor,
+                              ) =>
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 8,
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          FeatherIcons.zap,
+                                          size: 13,
+                                          color: iconColor,
                                         ),
+                                        const SizedBox(width: 5),
+                                        Text(
+                                          label,
+                                          style: GoogleFonts.dmSans(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: textColor,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+
+                              return ClipRRect(
+                                borderRadius: BorderRadius.circular(999),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: PinitColors.creamSunk,
+                                    borderRadius: BorderRadius.circular(999),
+                                    border: Border.all(
+                                      color: _isGenerating
+                                          ? PinitColors.aubergine
+                                          : PinitColors.creamDeep,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  child: Stack(
+                                    children: [
+                                      buildLabel(
+                                        PinitColors.aubergine,
+                                        PinitColors.aubergine,
                                       ),
+                                      if (_isGenerating)
+                                        ClipRect(
+                                          clipper: _FillClipper(
+                                              _fillAnimation.value),
+                                          child: Stack(
+                                            children: [
+                                              Positioned.fill(
+                                                child: Container(
+                                                  color: PinitColors.aubergine,
+                                                ),
+                                              ),
+                                              buildLabel(
+                                                PinitColors.cream,
+                                                PinitColors.cream,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
                                     ],
                                   ),
-                                );
-
-                            return ClipRRect(
-                              borderRadius: BorderRadius.circular(999),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: PinitColors.creamSunk,
-                                  borderRadius: BorderRadius.circular(999),
-                                  border: Border.all(
-                                    color: _isGenerating
-                                        ? PinitColors.aubergine
-                                        : PinitColors.creamDeep,
-                                    width: 1.5,
-                                  ),
                                 ),
-                                child: Stack(
-                                  children: [
-                                    buildLabel(
-                                      PinitColors.aubergine,
-                                      PinitColors.aubergine,
-                                    ),
-                                    if (_isGenerating)
-                                      ClipRect(
-                                        clipper:
-                                            _FillClipper(_fillAnimation.value),
-                                        child: Stack(
-                                          children: [
-                                            Positioned.fill(
-                                              child: Container(
-                                                color: PinitColors.aubergine,
-                                              ),
-                                            ),
-                                            buildLabel(
-                                              PinitColors.cream,
-                                              PinitColors.cream,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
+                              );
+                            },
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -869,6 +880,7 @@ class _CollectionsGridState extends State<CollectionsGrid>
             _friendCollections,
             forceShowOwner: true,
             showQuickAdd: true,
+            firstItemSpotlightKey: widget.exploreSpotlightKey,
           ),
         ],
 

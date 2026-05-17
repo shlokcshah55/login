@@ -4,12 +4,25 @@ import 'dart:async';
 class BottomNavVisibilityProvider with ChangeNotifier {
   bool _isVisible = true;
   bool _isLocked = false;
+  bool _isPinned = true;
   Timer? _hideTimer;
   final Duration _hideDelay =
       const Duration(milliseconds: 2000); // 2 seconds delay before hiding
 
   bool get isVisible => _isVisible;
   bool get isLocked => _isLocked;
+  bool get isPinned => _isPinned;
+
+  /// Toggles pinned state. When pinned, the nav bar stays always visible
+  /// and ignores scroll-based hide/show calls.
+  void togglePinned() {
+    _isPinned = !_isPinned;
+    if (_isPinned) {
+      _cancelHideTimer();
+      _isVisible = true;
+    }
+    notifyListeners();
+  }
 
   /// Locks the nav bar hidden state until unlocked.
   void setLocked(bool locked) {
@@ -25,6 +38,7 @@ class BottomNavVisibilityProvider with ChangeNotifier {
 
   /// Hides the bottom navigation bar immediately
   void hide() {
+    if (_isPinned) return;
     if (_isVisible) {
       _isVisible = false;
       _cancelHideTimer();
@@ -45,6 +59,7 @@ class BottomNavVisibilityProvider with ChangeNotifier {
   /// Shows the bottom navigation bar temporarily, then hides it after a delay
   void showTemporarily() {
     if (_isLocked) return;
+    if (_isPinned) return;
     _isVisible = true;
     _startHideTimer();
     notifyListeners();

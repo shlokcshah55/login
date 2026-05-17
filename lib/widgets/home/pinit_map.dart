@@ -509,11 +509,11 @@ class _PinitMapState extends State<PinitMap> {
         ),
 
         // "Search this area" button - show for proximal recommendation modes.
-        // Positioned below the header panel (logo + search shell + chip row)
-        // so it never sits behind the You / Explore / Decide chips.
+        // Positioned below the compact header search shell + chip row so it
+        // never sits behind the top controls.
         if (supportsSearchThisArea)
           Positioned(
-            top: MediaQuery.of(context).padding.top + 160,
+            top: MediaQuery.of(context).padding.top + 110,
             left: 0,
             right: 0,
             child: IgnorePointer(
