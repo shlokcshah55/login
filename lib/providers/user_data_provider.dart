@@ -1,6 +1,7 @@
 import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:login/models/users.dart';
+import 'package:login/providers/referral_rewards_provider.dart';
 import 'package:login/supabase/constants.dart';
 import 'package:login/supabase/service.dart';
 
@@ -201,17 +202,18 @@ class UserDataProvider with ChangeNotifier {
   }
 
   Future<bool> applyReferralCode(String code) async {
-    final current = _supabaseUserData;
     final trimmedCode = code.trim();
-    if (current == null || trimmedCode.isEmpty) return false;
+    if (_supabaseUserData == null || trimmedCode.isEmpty) return false;
 
-    final ok = await _supabaseProvider.users.applyReferralCode(trimmedCode);
-    if (!ok) return false;
-
-    _supabaseUserData = current.copyWith(referralCode: trimmedCode);
-    _userData?[SupabaseConstants.columnReferralCode] = trimmedCode;
-    notifyListeners();
-    return true;
+    try {
+      await _supabaseProvider.rewards.applyReferralCode(trimmedCode);
+      return true;
+    } catch (e) {
+      log('UserDataProvider: Error applying referral code: $e');
+      _error = invalidReferralCodeMessage;
+      notifyListeners();
+      return false;
+    }
   }
 
   /// Updates the local cached wizard completion flag immediately after the

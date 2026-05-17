@@ -12,6 +12,7 @@
 // follow-up refactor is flagged with a TODO in the first skipped test group.
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/foundation.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:login/providers/user_data_provider.dart';
 

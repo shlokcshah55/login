@@ -70,6 +70,7 @@ UserModel buildUser({
 Bubble buildBubble({
   String id = 'bubble-1',
   String name = 'Friday Foodies',
+  String createdBy = 'owner-1',
   String description = 'Weekend eats',
   String lastMessage = 'See you there!',
   String lastMessageTime = '2025-04-20T18:00:00Z',
@@ -80,6 +81,7 @@ Bubble buildBubble({
   return Bubble(
     id: id,
     name: name,
+    createdBy: createdBy,
     description: description,
     lastMessage: lastMessage,
     lastMessageTime: lastMessageTime,

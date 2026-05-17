@@ -10,6 +10,7 @@ import 'package:login/supabase/helpers/collections.dart';
 import 'package:login/supabase/helpers/location.dart';
 import 'package:login/supabase/helpers/notes_import.dart';
 import 'package:login/supabase/helpers/location_reviews.dart';
+import 'package:login/supabase/helpers/rewards.dart';
 import 'package:login/supabase/helpers/tags.dart';
 import 'package:login/services/referral_prompt_service.dart';
 import 'package:login/services/fcm_service.dart';
@@ -33,6 +34,7 @@ class SupabaseService extends ChangeNotifier {
   late final MessagingHelper _messagingService;
   late final CollectionsHelper _collectionsService;
   late final NotesImportHelper _notesImportService;
+  late final RewardsHelper _rewardsService;
 
   bool _isLoading = false;
   bool _isInitializing = true;
@@ -68,6 +70,7 @@ class SupabaseService extends ChangeNotifier {
   MessagingHelper get messaging => _messagingService;
   CollectionsHelper get collections => _collectionsService;
   NotesImportHelper get notesImport => _notesImportService;
+  RewardsHelper get rewards => _rewardsService;
 
   // Status getters
   bool get isLoading => _isLoading || _isInitializing;
@@ -105,6 +108,7 @@ class SupabaseService extends ChangeNotifier {
       _messagingService = MessagingHelper();
       _collectionsService = CollectionsHelper();
       _notesImportService = NotesImportHelper();
+      _rewardsService = RewardsHelper();
 
       // Initialize completer before setting up listener
       _authStateCompleter = Completer<void>();

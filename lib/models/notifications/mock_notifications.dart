@@ -15,6 +15,7 @@ class MockNotifications {
         isRead: false,
         locationName: 'Sunset Beach Cafe',
         locationId: 'loc_123',
+        platform: 'TikTok',
       ),
 
       // Follow Request Notification (unread)
@@ -68,6 +69,7 @@ class MockNotifications {
         isRead: true,
         locationName: 'The Rooftop Bar',
         locationId: 'loc_789',
+        platform: 'TikTok',
       ),
 
       // Follow Request Notification (read)

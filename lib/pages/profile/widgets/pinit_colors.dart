@@ -6,26 +6,26 @@ class PinitColors {
   PinitColors._();
 
   // ── Core palette ─────────────────────────────────────────────
-  static const Color cream          = Color(0xFFFBF6F3);
-  static const Color creamSunk      = Color(0xFFF4EDE6);
-  static const Color creamDeep      = Color(0xFFECE2D8);
-  static const Color aubergine      = Color(0xFF41133D);
-  static const Color aubergineSoft  = Color(0xFF6B3866);
-  static const Color mute           = Color(0xFF8A7A72);
-  static const Color accent         = Color(0xFFEC3D2C);
-  static const Color teal           = Color(0xFF1FA89A);
+  static const Color cream = Color(0xFFFBF6F3);
+  static const Color creamSunk = Color(0xFFF4EDE6);
+  static const Color creamDeep = Color(0xFFECE2D8);
+  static const Color aubergine = Color(0xFF41133D);
+  static const Color aubergineSoft = Color(0xFF6B3866);
+  static const Color mute = Color(0xFF8A7A72);
+  static const Color accent = Color(0xFFEC3D2C);
+  static const Color teal = Color(0xFF1FA89A);
 
   // ── Backwards-compat aliases ─────────────────────────────────
-  static const Color background     = cream;
-  static const Color surfaceLight   = creamSunk;
-  static const Color surfaceCard    = cream;
-  static const Color textPrimary    = aubergine;
-  static const Color textSecondary  = aubergineSoft;
-  static const Color textMuted      = mute;
-  static const Color primary        = aubergine;
-  static const Color accentSoft     = creamSunk;
-  static const Color error          = accent;
-  static const Color black         = Color.fromARGB(255, 0, 0, 0);
+  static const Color background = cream;
+  static const Color surfaceLight = creamSunk;
+  static const Color surfaceCard = cream;
+  static const Color textPrimary = aubergine;
+  static const Color textSecondary = aubergineSoft;
+  static const Color textMuted = mute;
+  static const Color primary = aubergine;
+  static const Color accentSoft = creamSunk;
+  static const Color error = accent;
+  static const Color black = Color.fromARGB(255, 0, 0, 0);
 
   // ── Single allowed gradient (hero bg only) ────────────────────
   static const LinearGradient heroGradient = LinearGradient(
@@ -62,7 +62,7 @@ class PinitColors {
     ),
   ];
 
-    // Gradients
+  // Gradients
   static const LinearGradient primaryGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
@@ -109,15 +109,13 @@ class PinitColors {
     ],
   );
 
-
-static const Color success = Color(0xFF34C759);
+  static const Color success = Color(0xFF34C759);
   static const Color warning = Color(0xFFFFB800);
+  static const Color tertiaryOrange = warning;
 
   static Color matchIndicator(int percentage) {
     if (percentage >= 75) return const Color(0xFF34C759);
     if (percentage >= 50) return const Color(0xFFFFB800);
     return const Color(0xFFE85D4C);
   }
-
 }
-

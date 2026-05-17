@@ -25,6 +25,7 @@ import 'widgets/pinit_colors.dart';
 import 'widgets/profile_completion_checklist_card.dart';
 import 'edit_profile_page.dart';
 import 'preferences_page.dart';
+import 'referrals_rewards_page.dart';
 import 'other_user_profile_page.dart';
 import 'user_list_page.dart';
 import '../../widgets/profile/find_friends_section.dart';
@@ -816,6 +817,14 @@ class _ProfilePageState extends State<ProfilePage>
       ),
     );
     _loadFollowCounts();
+  }
+
+  Future<void> _openRewards(BuildContext context) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const ReferralsRewardsPage(),
+      ),
+    );
   }
 
   void _showNotifications(BuildContext context) {

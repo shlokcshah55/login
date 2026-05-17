@@ -61,12 +61,12 @@ class ProfileHeader extends StatelessWidget {
                           Text(
                             user.name ?? 'No Name',
                             style: const TextStyle(
-                                fontFamily: 'Rova',
-                                fontSize: 28,
-                                fontWeight: FontWeight.w100,
-                                color: PinitColors.cream,
-                                letterSpacing: 1.7,
-                                height: 1.05,
+                              fontFamily: 'Rova',
+                              fontSize: 28,
+                              fontWeight: FontWeight.w100,
+                              color: PinitColors.cream,
+                              letterSpacing: 1.7,
+                              height: 1.05,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -99,12 +99,6 @@ class ProfileHeader extends StatelessWidget {
                     const SizedBox(width: 10),
                     Column(
                       children: [
-<<<<<<< Updated upstream
-                        _ActionButton(
-                          icon: Icons.notifications_outlined,
-                          onTap: onNotificationsTap,
-                          badgeCount: unreadCount,
-=======
                         RepaintBoundary(
                           key: notificationsSpotlightKey,
                           child: _ActionButton(
@@ -112,7 +106,6 @@ class ProfileHeader extends StatelessWidget {
                             onTap: onNotificationsTap,
                             badgeCount: unreadCount,
                           ),
->>>>>>> Stashed changes
                         ),
                         const SizedBox(height: 8),
                         _ActionButton(
@@ -159,7 +152,8 @@ class _ActionButton extends StatelessWidget {
           decoration: BoxDecoration(
             color: PinitColors.cream.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: PinitColors.cream.withValues(alpha: 0.2), width: 1.5),
+            border: Border.all(
+                color: PinitColors.cream.withValues(alpha: 0.2), width: 1.5),
           ),
           child: Stack(
             children: [

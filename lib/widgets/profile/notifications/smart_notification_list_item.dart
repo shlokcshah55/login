@@ -9,6 +9,7 @@ import 'package:login/models/notifications/follow_accepted_notification.dart';
 import 'package:login/models/notifications/friend_visited_location_notification.dart';
 import 'package:login/models/notifications/proximity_location_notification.dart';
 import 'package:login/models/notifications/notes_import_complete_notification.dart';
+import 'package:login/models/notifications/blast_notification.dart';
 
 class SmartNotificationListItem extends StatelessWidget {
   final BaseNotification notification;
@@ -368,6 +369,17 @@ class SmartNotificationListItem extends StatelessWidget {
         final importNotif = notification as NotesImportCompleteNotification;
         return Text(
           importNotif.getMessage(),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: Colors.black87,
+            height: 1.3,
+          ),
+        );
+      case NotificationType.blast:
+        final blastNotif = notification as BlastNotification;
+        return Text(
+          blastNotif.getMessage(),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: theme.textTheme.bodyMedium?.copyWith(
