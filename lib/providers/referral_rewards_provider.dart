@@ -52,6 +52,9 @@ class ReferralRewardsProvider with ChangeNotifier {
   }
 
   Future<bool> applyReferralCode(String code) async {
+    debugPrint(
+      '[ReferralRewardsProvider] Applying referral code="$code" length=${code.length}',
+    );
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -61,9 +64,20 @@ class ReferralRewardsProvider with ChangeNotifier {
         code,
         acceptIfWizardComplete: true,
       );
+      debugPrint(
+        '[ReferralRewardsProvider] Referral RPCs succeeded, refreshing dashboard.',
+      );
       _dashboard = await _service.rewards.getDashboard();
+      debugPrint(
+        '[ReferralRewardsProvider] Dashboard refreshed: hasEnteredReferralCode=${_dashboard?.hasEnteredReferralCode}, availableVouchers=${_dashboard?.availableVouchers.length}, usedVouchers=${_dashboard?.usedVouchers.length}',
+      );
       return true;
-    } catch (_) {
+    } catch (e, stackTrace) {
+      debugPrint('[ReferralRewardsProvider] Failed to apply referral code: $e');
+      debugPrintStack(
+        label: '[ReferralRewardsProvider] applyReferralCode stack',
+        stackTrace: stackTrace,
+      );
       _error = invalidReferralCodeMessage;
       return false;
     } finally {

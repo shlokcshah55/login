@@ -32,6 +32,16 @@ BEGIN
     )
     ON CONFLICT (supabase_id) DO NOTHING;
 
+    INSERT INTO public.collections (name, created_by, is_public, is_curated)
+    SELECT default_collection.name, p_supabase_id, true, false
+    FROM (VALUES ('Been To'), ('Shared Finds')) AS default_collection(name)
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM public.collections existing_collection
+        WHERE existing_collection.created_by = p_supabase_id
+          AND existing_collection.name = default_collection.name
+    );
+
     RETURN p_supabase_id;
 END;
 $function$

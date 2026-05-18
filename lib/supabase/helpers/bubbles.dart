@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:login/models/bubble.dart';
+import 'package:login/models/bubble_summary.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/models/actions.dart';
 import 'package:login/supabase/supabase_client.dart';
@@ -19,6 +20,81 @@ class BubbleHelper {
   final _client = SupabaseClientManager().client;
   final LocationHelper _locationService;
   final MessagingHelper _messagingHelper;
+
+  /// Get lightweight bubble records for simple selection UI.
+  ///
+  /// This intentionally avoids loading members, locations, latest messages,
+  /// unread counts, and compatibility scores. Use [getUserBubbles] when the
+  /// full bubbles feed needs those hydrated fields.
+  Future<List<BubbleSummary>> getUserBubbleSummaries(String userId) async {
+    try {
+      final response =
+          await _client.from(SupabaseConstants.tableBubbleMembers).select('''
+            ${SupabaseConstants.columnBubbleId},
+            ${SupabaseConstants.tableBubbles}!inner(
+              ${SupabaseConstants.columnBubbleId},
+              ${SupabaseConstants.columnName},
+              ${SupabaseConstants.columnCreatedBy},
+              ${SupabaseConstants.columnCreatedAt},
+              ${SupabaseConstants.columnIsPrivate}
+            )
+          ''').eq(SupabaseConstants.columnUserId, userId);
+
+      final summaries = (response as List)
+          .map((item) {
+            final bubble =
+                item[SupabaseConstants.tableBubbles] as Map<String, dynamic>?;
+            if (bubble == null) return null;
+
+            final createdAtRaw = bubble[SupabaseConstants.columnCreatedAt];
+            final createdAt =
+                createdAtRaw is String ? DateTime.tryParse(createdAtRaw) : null;
+
+            return BubbleSummary(
+              id: (bubble[SupabaseConstants.columnBubbleId] ??
+                      item[SupabaseConstants.columnBubbleId])
+                  .toString(),
+              name: (bubble[SupabaseConstants.columnName] ?? 'Unnamed Bubble')
+                  .toString(),
+              createdBy:
+                  (bubble[SupabaseConstants.columnCreatedBy] ?? '').toString(),
+              createdAt: createdAt ?? DateTime.fromMillisecondsSinceEpoch(0),
+              isPrivate: bubble[SupabaseConstants.columnIsPrivate] == true,
+            );
+          })
+          .whereType<BubbleSummary>()
+          .toList()
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
+      final hydratedSummaries = await Future.wait(
+        summaries.map((summary) async {
+          final members = await _getBubbleMembers(summary.id);
+          return summary.copyWith(
+            memberCount: members.length,
+            memberAvatars: members
+                .map(
+                  (member) =>
+                      (member[SupabaseConstants.columnProfileImageUrl] ?? '')
+                          .toString(),
+                )
+                .toList(),
+            memberNames: members
+                .map((member) =>
+                    (member[SupabaseConstants.name] ?? '').toString())
+                .where((name) => name.isNotEmpty)
+                .toList(),
+          );
+        }),
+      );
+
+      return hydratedSummaries;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in BubbleRepository.getUserBubbleSummaries: $e');
+      }
+      rethrow;
+    }
+  }
 
   /// Get all bubbles for the current user
   Future<List<Bubble>> getUserBubbles(String userId) async {

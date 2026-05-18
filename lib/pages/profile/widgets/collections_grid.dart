@@ -14,6 +14,7 @@ import 'package:login/providers/navigation_provider.dart';
 import 'package:login/supabase/helpers/collections.dart';
 import 'package:login/supabase/supabase_client.dart';
 import 'package:login/widgets/collections/create_collection_sheet.dart';
+import 'package:login/widgets/did_you_know_wizard_dialog.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:login/widgets/feedback/app_feedback.dart';
 import 'package:provider/provider.dart';
@@ -65,6 +66,9 @@ class CollectionModel {
     this.isSaved = false,
     this.saveCount = 0,
   });
+
+  String get displayName =>
+      name == 'Shared Finds' ? 'Saved from your scroll' : name;
 
   factory CollectionModel.fromItem(CollectionItem item) => CollectionModel(
         id: item.collectionId,
@@ -1008,7 +1012,7 @@ class _CollectionCardState extends State<_CollectionCard> {
         MaterialPageRoute(
           builder: (_) => CarouselListPage(
             locations: locations,
-            title: widget.collection.name,
+            title: widget.collection.displayName,
             listType: LocationListType.search,
             homeViewModel: null,
             collectionId: widget.collection.id,
@@ -1225,7 +1229,7 @@ class _CollectionCardState extends State<_CollectionCard> {
                         const SizedBox(height: 6),
                       ],
                       Text(
-                        widget.collection.name,
+                        widget.collection.displayName,
                         style: GoogleFonts.dmSans(
                           fontSize: widget.showOwner ? 12 : 15,
                           fontWeight: widget.showOwner
@@ -1303,6 +1307,50 @@ class _CollectionCardState extends State<_CollectionCard> {
 
 // Auto-generated collections that the user is not allowed to delete.
 const Set<String> _kUndeletableCollectionNames = {'Been To', 'Shared Finds'};
+const String _kBeenToCollectionName = 'Been To';
+const String _kSharedFindsCollectionName = 'Shared Finds';
+const String _kBeenToEmptyAsset =
+    'lib/assets/illustrations/Beep Beep - Campervan 2.svg';
+const String _kSharedFindsEmptyAsset = 'lib/assets/illustrations/tiktok.png';
+
+_SystemCollectionEmptyContent? _emptyContentForCollection(
+  CollectionModel collection,
+) {
+  switch (collection.name) {
+    case _kBeenToCollectionName:
+      return const _SystemCollectionEmptyContent(
+        assetPath: _kBeenToEmptyAsset,
+        title: 'Start your Been To list',
+        message:
+            'Places you mark as visited will collect here, ready for rankings, notes, and gatekept favourites.',
+      );
+    case _kSharedFindsCollectionName:
+      return const _SystemCollectionEmptyContent(
+        assetPath: _kSharedFindsEmptyAsset,
+        title: 'Save straight from your scroll',
+        message:
+            'Share a TikTok or Reel to Pinit and the place will land here automatically.',
+        showTikTokWizardButton: true,
+      );
+    default:
+      return null;
+  }
+}
+
+@immutable
+class _SystemCollectionEmptyContent {
+  final String assetPath;
+  final String title;
+  final String message;
+  final bool showTikTokWizardButton;
+
+  const _SystemCollectionEmptyContent({
+    required this.assetPath,
+    required this.title,
+    required this.message,
+    this.showTikTokWizardButton = false,
+  });
+}
 
 class _EmptyCollections extends StatelessWidget {
   final VoidCallback onCreateTap;
@@ -1593,7 +1641,7 @@ class CollectionDetailSheetState extends State<CollectionDetailSheet> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              widget.collection.name,
+                              widget.collection.displayName,
                               style: GoogleFonts.dmSans(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
@@ -1729,12 +1777,9 @@ class CollectionDetailSheetState extends State<CollectionDetailSheet> {
                           ),
                         )
                       : _locations.isEmpty
-                          ? const Center(
-                              child: Text(
-                                'No places in this eat-list yet.',
-                                style:
-                                    TextStyle(color: PinitColors.textSecondary),
-                              ),
+                          ? _CollectionEmptyState(
+                              collection: widget.collection,
+                              allowTikTokWizard: widget.collection.canEdit,
                             )
                           : ListView.builder(
                               controller: scrollController,
@@ -1834,7 +1879,7 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    widget.collection.name,
+                    widget.collection.displayName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.dmSans(
@@ -1872,11 +1917,9 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                   ),
                 )
               : _locations.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'No places in this eat-list yet.',
-                        style: TextStyle(color: PinitColors.textSecondary),
-                      ),
+                  ? _CollectionEmptyState(
+                      collection: widget.collection,
+                      allowTikTokWizard: widget.collection.canEdit,
                     )
                   : ListView.builder(
                       padding: EdgeInsets.fromLTRB(
@@ -1893,6 +1936,141 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                         onRemove: null,
                       ),
                     ),
+    );
+  }
+}
+
+class _CollectionEmptyState extends StatelessWidget {
+  final CollectionModel collection;
+  final bool allowTikTokWizard;
+
+  const _CollectionEmptyState({
+    required this.collection,
+    required this.allowTikTokWizard,
+  });
+
+  Future<void> _openTikTokWizard(BuildContext context) async {
+    await WhatWeDoWizardOverlay.push(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final content = _emptyContentForCollection(collection);
+    if (content == null) {
+      return Center(
+        child: Text(
+          'No places in this eat-list yet.',
+          style: GoogleFonts.dmSans(
+            fontSize: 14,
+            color: PinitColors.textSecondary,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+
+    final showWizardButton =
+        content.showTikTokWizardButton && allowTikTokWizard;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxHeight < 360;
+        final imageHeight = compact ? 112.0 : 156.0;
+        final minHeight =
+            constraints.maxHeight > 52 ? constraints.maxHeight - 52 : 0.0;
+        return SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(28, 24, 28, 28),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: minHeight),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _EmptyStateIllustration(
+                  assetPath: content.assetPath,
+                  height: imageHeight,
+                ),
+                SizedBox(height: compact ? 14 : 20),
+                Text(
+                  content.title,
+                  style: GoogleFonts.dmSans(
+                    fontSize: compact ? 18 : 20,
+                    fontWeight: FontWeight.w800,
+                    color: PinitColors.aubergine,
+                    letterSpacing: -0.2,
+                    height: 1.15,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 310),
+                  child: Text(
+                    content.message,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 14,
+                      color: PinitColors.aubergineSoft,
+                      height: 1.35,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                if (showWizardButton) ...[
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _openTikTokWizard(context),
+                      icon: const Icon(Icons.tiktok, size: 18),
+                      label: const Text('Show me how'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: PinitColors.aubergine,
+                        foregroundColor: PinitColors.cream,
+                        elevation: 0,
+                        shadowColor: Colors.transparent,
+                        padding: const EdgeInsets.symmetric(horizontal: 22),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        textStyle: GoogleFonts.dmSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _EmptyStateIllustration extends StatelessWidget {
+  final String assetPath;
+  final double height;
+
+  const _EmptyStateIllustration({
+    required this.assetPath,
+    required this.height,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (assetPath.toLowerCase().endsWith('.svg')) {
+      return SvgPicture.asset(
+        assetPath,
+        height: height,
+        fit: BoxFit.contain,
+      );
+    }
+
+    return Image.asset(
+      assetPath,
+      height: height,
+      fit: BoxFit.contain,
     );
   }
 }

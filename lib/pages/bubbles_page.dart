@@ -169,6 +169,7 @@ class _BubblesPageState extends State<BubblesPage>
             'Search for your friends and follow them to start sharing places together.',
         placement: SpotlightBubblePlacement.below,
         highlightShape: SpotlightHighlightShape.pill,
+        showHighlightShadow: false,
         badgeIcon: FeatherIcons.search,
       ),
       SpotlightWizardStep(

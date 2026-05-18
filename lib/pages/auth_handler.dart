@@ -12,11 +12,11 @@ import 'package:login/widgets/launch_splash_body.dart';
 import 'package:provider/provider.dart';
 
 @visibleForTesting
-bool shouldPresentWizardCompletionAfterAppleSignIn({
-  required bool pendingAppleWizardRouting,
+bool shouldPresentWizardCompletionAfterOAuthSignIn({
+  required bool pendingOAuthWizardRouting,
   required bool wizardCompleted,
 }) {
-  return pendingAppleWizardRouting && !wizardCompleted;
+  return pendingOAuthWizardRouting && !wizardCompleted;
 }
 
 class AuthHandler extends StatefulWidget {
@@ -240,7 +240,7 @@ class _AuthHandlerState extends State<AuthHandler> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
 
-      context.read<SupabaseService>().clearPendingAppleWizardRouting();
+      context.read<SupabaseService>().clearPendingOAuthWizardRouting();
 
       await Navigator.of(context).push(
         MaterialPageRoute(
@@ -347,16 +347,16 @@ class _AuthHandlerState extends State<AuthHandler> {
 
           final userProfile = userDataProvider.supabaseUserData;
           final shouldPresentWizard = userProfile != null &&
-              shouldPresentWizardCompletionAfterAppleSignIn(
-                pendingAppleWizardRouting:
-                    supabaseProvider.pendingAppleWizardRouting,
+              shouldPresentWizardCompletionAfterOAuthSignIn(
+                pendingOAuthWizardRouting:
+                    supabaseProvider.pendingOAuthWizardRouting,
                 wizardCompleted: userProfile.wizardCompleted,
               );
 
           if (!shouldPresentWizard &&
-              supabaseProvider.pendingAppleWizardRouting &&
+              supabaseProvider.pendingOAuthWizardRouting &&
               userProfile?.wizardCompleted == true) {
-            supabaseProvider.clearPendingAppleWizardRouting();
+            supabaseProvider.clearPendingOAuthWizardRouting();
           }
 
           if (shouldPresentWizard) {

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
@@ -30,6 +31,7 @@ import 'package:login/providers/bubble_mode_provider.dart';
 import 'package:login/providers/navigation_provider.dart';
 import 'package:login/services/notes_import_submitted_service.dart';
 import 'package:login/services/profile_completion_card_preferences_service.dart';
+import 'package:login/services/referral_prompt_service.dart';
 import 'package:login/services/what_we_do_wizard_service.dart';
 import 'package:login/services/wizard_completion_popover_service.dart';
 import 'package:login/supabase/service.dart';
@@ -50,10 +52,12 @@ import 'package:provider/provider.dart';
 
 class HomePage extends StatefulWidget {
   final bool isActive;
+  final VoidCallback? onWhatWeDoWizardFinished;
 
   const HomePage({
     Key? key,
     this.isActive = true,
+    this.onWhatWeDoWizardFinished,
   }) : super(key: key);
 
   @override
@@ -71,6 +75,7 @@ class _HomePageState extends State<HomePage> {
   late final UserDataProvider _userDataProvider;
   NavigationProvider? _navigationProvider;
   final WhatWeDoWizardService _whatWeDoWizardService = WhatWeDoWizardService();
+  final ReferralPromptService _referralPromptService = ReferralPromptService();
   final WizardCompletionPopoverService _wizardCompletionPopoverService =
       WizardCompletionPopoverService();
   final ProfileCompletionCardPreferencesService
@@ -85,7 +90,10 @@ class _HomePageState extends State<HomePage> {
   bool _whatWeDoWizardScheduled = false;
   bool _isWhatWeDoWizardVisible = false;
   bool _whatWeDoWizardEligibilityChecked = false;
+  bool _referralPromptEligibilityChecked = false;
+  bool _includeReferralSpotlightStep = false;
   bool _wizardPopoverEligibilityChecked = false;
+  String? _activeReferralPromptUserId;
   String? _lastHandledError;
   bool _isNoRecommendationsPopoverVisible = false;
   bool _isMagicSearchNoResultsPopoverVisible = false;
@@ -454,10 +462,14 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  void _scheduleWhatWeDoWizardIfNeeded(HomeViewModel viewModel) {
+  void _scheduleWhatWeDoWizardIfNeeded(
+    HomeViewModel viewModel,
+    UserDataProvider userDataProvider,
+  ) {
     if (_isWhatWeDoWizardVisible ||
         _whatWeDoWizardScheduled ||
-        _whatWeDoWizardEligibilityChecked ||
+        (_whatWeDoWizardEligibilityChecked &&
+            _referralPromptEligibilityChecked) ||
         !widget.isActive) {
       return;
     }
@@ -475,18 +487,26 @@ class _HomePageState extends State<HomePage> {
     _whatWeDoWizardScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      unawaited(_showWhatWeDoWizardIfNeeded());
+      unawaited(_showWhatWeDoWizardIfNeeded(userDataProvider));
     });
   }
 
-  Future<void> _showWhatWeDoWizardIfNeeded() async {
+  Future<void> _showWhatWeDoWizardIfNeeded(
+    UserDataProvider userDataProvider,
+  ) async {
     if (_isWhatWeDoWizardVisible || !widget.isActive) {
       _whatWeDoWizardScheduled = false;
       return;
     }
-    final shouldShow = await _whatWeDoWizardService.shouldShowNow();
+    final shouldShowTour = !_whatWeDoWizardEligibilityChecked &&
+        await _whatWeDoWizardService.shouldShowNow();
     _whatWeDoWizardEligibilityChecked = true;
-    if (!shouldShow || !mounted) {
+
+    final referralPromptUserId =
+        await _referralPromptUserIdIfNeeded(userDataProvider);
+    final shouldShowReferralStep = referralPromptUserId != null;
+
+    if ((!shouldShowTour && !shouldShowReferralStep) || !mounted) {
       _whatWeDoWizardScheduled = false;
       return;
     }
@@ -494,15 +514,56 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _isWhatWeDoWizardVisible = true;
       _whatWeDoWizardScheduled = false;
+      _includeReferralSpotlightStep = shouldShowReferralStep;
+      _activeReferralPromptUserId = referralPromptUserId;
     });
   }
 
   Future<void> _finishWhatWeDoWizard() async {
     await _whatWeDoWizardService.markCompleted();
+    if (_includeReferralSpotlightStep) {
+      await _markReferralPromptHandled();
+    }
     if (!mounted) return;
     setState(() {
       _isWhatWeDoWizardVisible = false;
+      _includeReferralSpotlightStep = false;
+      _activeReferralPromptUserId = null;
     });
+    widget.onWhatWeDoWizardFinished?.call();
+  }
+
+  Future<String?> _referralPromptUserIdIfNeeded(
+    UserDataProvider userDataProvider,
+  ) async {
+    if (_referralPromptEligibilityChecked) return null;
+
+    final user = userDataProvider.supabaseUserData;
+    final userId = user?.supabaseId;
+    final referralCode = user?.referralCode?.trim();
+    if (user == null || userId == null || userId.isEmpty) {
+      return null;
+    }
+    if (user.wizardCompleted != true ||
+        (referralCode != null && referralCode.isNotEmpty)) {
+      _referralPromptEligibilityChecked = true;
+      return null;
+    }
+
+    final shouldShow = await _referralPromptService.shouldShowForUser(userId);
+    if (!shouldShow) {
+      _referralPromptEligibilityChecked = true;
+      return null;
+    }
+
+    return userId;
+  }
+
+  Future<void> _markReferralPromptHandled() async {
+    final userId = _activeReferralPromptUserId;
+    if (userId == null || userId.isEmpty) return;
+    await _referralPromptService.markHandledForUser(userId);
+    _referralPromptEligibilityChecked = true;
   }
 
   List<SpotlightWizardStep> _buildWhatWeDoWizardSteps(
@@ -560,6 +621,27 @@ class _HomePageState extends State<HomePage> {
           shadowColor: pinit.PinitColors.aubergine,
           badgeIcon: Icons.gavel_rounded,
           badgeColor: pinit.PinitColors.accent,
+        ),
+      if (_includeReferralSpotlightStep)
+        SpotlightWizardStep(
+          targetKey: null,
+          title: 'Referral code?',
+          description:
+              'Enter a code from a friend to unlock your signup reward.',
+          eyebrow: 'FINAL STEP',
+          badgeIcon: Icons.card_giftcard_outlined,
+          bubbleHeightEstimate: 410,
+          bodyBuilder: (context) => _ReferralSpotlightCodeForm(
+            onApply: (code) async {
+              final ok = await context
+                  .read<UserDataProvider>()
+                  .applyReferralCode(code);
+              if (ok) {
+                await _markReferralPromptHandled();
+              }
+              return ok;
+            },
+          ),
         ),
     ];
   }
@@ -682,7 +764,7 @@ class _HomePageState extends State<HomePage> {
       child: Consumer<HomeViewModel>(
         builder: (context, viewModel, _) {
           final userDataProvider = context.watch<UserDataProvider>();
-          _scheduleWhatWeDoWizardIfNeeded(viewModel);
+          _scheduleWhatWeDoWizardIfNeeded(viewModel, userDataProvider);
           _scheduleWizardPopoverIfNeeded(userDataProvider);
           _scheduleSavedEmptyPopoverIfNeeded();
           final userId = SupabaseClientManager().currentUser?.id;
@@ -1235,6 +1317,205 @@ class _HomePageState extends State<HomePage> {
           );
         },
       ),
+    );
+  }
+}
+
+class _ReferralSpotlightCodeForm extends StatefulWidget {
+  const _ReferralSpotlightCodeForm({
+    required this.onApply,
+  });
+
+  final Future<bool> Function(String code) onApply;
+
+  @override
+  State<_ReferralSpotlightCodeForm> createState() =>
+      _ReferralSpotlightCodeFormState();
+}
+
+class _ReferralSpotlightCodeFormState
+    extends State<_ReferralSpotlightCodeForm> {
+  final TextEditingController _controller = TextEditingController();
+  bool _isSubmitting = false;
+  bool _isApplied = false;
+  String? _errorText;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _apply() async {
+    final code = _controller.text.trim().toUpperCase();
+    if (code.isEmpty) {
+      setState(() => _errorText = 'Enter a referral code or tap DONE.');
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+      _errorText = null;
+    });
+
+    final ok = await widget.onApply(code);
+    if (!mounted) return;
+
+    if (ok) {
+      HapticFeedback.mediumImpact();
+      setState(() {
+        _isSubmitting = false;
+        _isApplied = true;
+      });
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = false;
+      _errorText = 'Code not valid';
+    });
+  }
+
+  void _normalizeInput(String value) {
+    final normalized = value.trim().toUpperCase();
+    if (value != normalized) {
+      _controller.value = _controller.value.copyWith(
+        text: normalized,
+        selection: TextSelection.collapsed(offset: normalized.length),
+        composing: TextRange.empty,
+      );
+    }
+    if (_errorText != null) {
+      setState(() => _errorText = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isApplied) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: pinit.PinitColors.cream,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: pinit.PinitColors.aubergine.withValues(alpha: 0.16),
+          ),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.check_circle_rounded,
+              color: pinit.PinitColors.aubergine,
+              size: 22,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Code applied. Your reward is ready in Referrals.',
+                style: GoogleFonts.dmSans(
+                  fontSize: 13,
+                  height: 1.25,
+                  fontWeight: FontWeight.w800,
+                  color: pinit.PinitColors.aubergineSoft,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Got a code from a friend? Add it here to unlock your signup reward.',
+          style: GoogleFonts.dmSans(
+            fontSize: 14,
+            height: 1.35,
+            fontWeight: FontWeight.w700,
+            color: pinit.PinitColors.aubergineSoft,
+          ),
+        ),
+        const SizedBox(height: 14),
+        TextField(
+          controller: _controller,
+          enabled: !_isSubmitting,
+          textInputAction: TextInputAction.done,
+          textCapitalization: TextCapitalization.characters,
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9_-]')),
+            LengthLimitingTextInputFormatter(64),
+          ],
+          onChanged: _normalizeInput,
+          onSubmitted: (_) => _isSubmitting ? null : _apply(),
+          style: GoogleFonts.dmSans(
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+            color: pinit.PinitColors.aubergine,
+            letterSpacing: 0.4,
+          ),
+          decoration: InputDecoration(
+            hintText: 'CODE',
+            hintStyle: GoogleFonts.dmSans(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: pinit.PinitColors.aubergineSoft.withValues(alpha: 0.48),
+              letterSpacing: 0.4,
+            ),
+            prefixIcon: Icon(
+              Icons.confirmation_number_outlined,
+              color: pinit.PinitColors.aubergineSoft.withValues(alpha: 0.7),
+            ),
+            filled: true,
+            fillColor: pinit.PinitColors.cream,
+            errorText: _errorText,
+            errorMaxLines: 2,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 14,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          height: 46,
+          child: ElevatedButton(
+            onPressed: _isSubmitting ? null : _apply,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: pinit.PinitColors.aubergine,
+              foregroundColor: pinit.PinitColors.cream,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            child: _isSubmitting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: pinit.PinitColors.cream,
+                    ),
+                  )
+                : Text(
+                    'Apply code',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+          ),
+        ),
+      ],
     );
   }
 }

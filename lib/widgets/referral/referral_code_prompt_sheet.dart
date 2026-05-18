@@ -32,7 +32,11 @@ class _ReferralCodePromptSheetState extends State<ReferralCodePromptSheet> {
 
   Future<void> _applyCode() async {
     final code = _controller.text.trim().toUpperCase();
+    debugPrint(
+      '[ReferralCodePromptSheet] Apply tapped with code="$code" length=${code.length}',
+    );
     if (code.isEmpty) {
+      debugPrint('[ReferralCodePromptSheet] Empty referral code, aborting.');
       setState(() => _errorText = 'Enter a referral code or skip for now.');
       return;
     }
@@ -43,10 +47,17 @@ class _ReferralCodePromptSheetState extends State<ReferralCodePromptSheet> {
     });
 
     try {
+      debugPrint('[ReferralCodePromptSheet] Calling onApply.');
       await widget.onApply(code);
+      debugPrint('[ReferralCodePromptSheet] onApply succeeded.');
       if (!mounted) return;
       Navigator.of(context).pop(true);
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('[ReferralCodePromptSheet] onApply failed: $e');
+      debugPrintStack(
+        label: '[ReferralCodePromptSheet] onApply stack',
+        stackTrace: stackTrace,
+      );
       if (!mounted) return;
       setState(() {
         _isSubmitting = false;

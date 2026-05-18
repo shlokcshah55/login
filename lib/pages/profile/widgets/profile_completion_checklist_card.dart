@@ -286,7 +286,7 @@ class _ProfileCompletionChecklistCardState
                       const SizedBox(height: 8),
                       _ChecklistRow(
                         done: state.hasSocialSave,
-                        icon: Icons.share_rounded,
+                        icon: Icons.tiktok,
                         title: 'Share a TikTok or Reel',
                         subtitle: 'Pin directly from socials',
                         tileColor: PinitColors.creamDeep,

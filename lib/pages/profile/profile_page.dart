@@ -59,6 +59,7 @@ class _ProfilePageState extends State<ProfilePage>
   final _eatListGenerateSpotlightKey = GlobalKey();
   final _eatListExploreSpotlightKey = GlobalKey();
   final _notificationsSpotlightKey = GlobalKey();
+  final _settingsSpotlightKey = GlobalKey();
   final SpotlightWizardSeenService _spotlightWizardService =
       SpotlightWizardSeenService('profile');
   bool _spotlightWizardScheduled = false;
@@ -190,6 +191,18 @@ class _ProfilePageState extends State<ProfilePage>
     );
   }
 
+  Future<void> _revealSettingsButton() async {
+    if (!mounted) return;
+    if (_selectedTab != 0) {
+      setState(() => _selectedTab = 0);
+    }
+    await _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 360),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
   List<SpotlightWizardStep> _buildSpotlightWizardSteps() {
     return [
       SpotlightWizardStep(
@@ -211,6 +224,7 @@ class _ProfilePageState extends State<ProfilePage>
             'Use "Generate" to turn your saved places into automatic eat-lists you can browse and share.',
         placement: SpotlightBubblePlacement.below,
         highlightShape: SpotlightHighlightShape.pill,
+        showHighlightShadow: false,
         badgeIcon: Icons.bolt_rounded,
         badgeColor: PinitColors.accent,
         bubbleHeightEstimate: 550,
@@ -223,8 +237,21 @@ class _ProfilePageState extends State<ProfilePage>
             'Friend requests, processed videos, imports, and shared activity land here.',
         placement: SpotlightBubblePlacement.below,
         highlightShape: SpotlightHighlightShape.circle,
+        showHighlightShadow: false,
         badgeIcon: Icons.notifications_outlined,
         beforeShow: _revealNotifications,
+      ),
+      SpotlightWizardStep(
+        targetKey: _settingsSpotlightKey,
+        title: 'Find referrals.',
+        description:
+            'Open this menu and tap Referrals to see your code, rewards, and vouchers.',
+        placement: SpotlightBubblePlacement.below,
+        highlightShape: SpotlightHighlightShape.circle,
+        showHighlightShadow: false,
+        badgeIcon: Icons.card_giftcard_rounded,
+        badgeColor: PinitColors.accent,
+        beforeShow: _revealSettingsButton,
       ),
     ];
   }
@@ -313,6 +340,7 @@ class _ProfilePageState extends State<ProfilePage>
                         onFollowersTap: () => _openFollowers(context),
                         onFollowingTap: () => _openFollowing(context),
                         notificationsSpotlightKey: _notificationsSpotlightKey,
+                        settingsSpotlightKey: _settingsSpotlightKey,
                       ),
                     ),
                     const SliverToBoxAdapter(

@@ -365,6 +365,9 @@ class _ChipStateState extends State<_Chip> {
   }
 }
 
+const String _kSharedFindsName = 'Shared Finds';
+const String _kSharedFindsDisplayName = 'Saved from your scroll';
+
 class _CollectionDropdownRow extends StatelessWidget {
   const _CollectionDropdownRow({
     required this.collection,
@@ -378,6 +381,9 @@ class _CollectionDropdownRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isScrollSaved = collection.name == _kSharedFindsName;
+    final displayName =
+        isScrollSaved ? _kSharedFindsDisplayName : collection.name;
     final owner = collection.ownerName;
     final isReadOnly = !collection.canEdit && owner != null && owner.isNotEmpty;
     final subtitle = isReadOnly
@@ -385,12 +391,29 @@ class _CollectionDropdownRow extends StatelessWidget {
         : '${collection.placeCount} place${collection.placeCount == 1 ? '' : 's'}';
     return Container(
       decoration: BoxDecoration(
-        color: isActive ? PinitColors.creamSunk : PinitColors.cream,
+        color: isScrollSaved
+            ? PinitColors.accent
+            : isActive
+                ? PinitColors.creamSunk
+                : PinitColors.cream,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isActive ? PinitColors.aubergine : PinitColors.creamDeep,
+          color: isScrollSaved
+              ? PinitColors.accent
+              : isActive
+                  ? PinitColors.aubergine
+                  : PinitColors.creamDeep,
           width: 1.5,
         ),
+        boxShadow: isScrollSaved
+            ? const [
+                BoxShadow(
+                  color: Color(0x33000000),
+                  blurRadius: 0,
+                  offset: Offset(2, 2),
+                ),
+              ]
+            : null,
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
@@ -401,13 +424,15 @@ class _CollectionDropdownRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    collection.name,
+                    displayName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.dmSans(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
-                      color: PinitColors.aubergine,
+                      color: isScrollSaved
+                          ? PinitColors.cream
+                          : PinitColors.aubergine,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -416,7 +441,9 @@ class _CollectionDropdownRow extends StatelessWidget {
                     style: GoogleFonts.dmSans(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: PinitColors.aubergineSoft,
+                      color: isScrollSaved
+                          ? PinitColors.cream.withValues(alpha: 0.75)
+                          : PinitColors.aubergineSoft,
                     ),
                   ),
                 ],
@@ -434,26 +461,34 @@ class _CollectionDropdownRow extends StatelessWidget {
                     vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: PinitColors.aubergine,
+                    color: isScrollSaved
+                        ? PinitColors.creamSunk
+                        : PinitColors.aubergine,
                     borderRadius: BorderRadius.circular(999),
                     border: Border.all(
-                      color: PinitColors.aubergine,
+                      color: isScrollSaved
+                          ? PinitColors.creamDeep
+                          : PinitColors.aubergine,
                       width: 1.5,
                     ),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: PinitColors.aubergine,
-                        blurRadius: 0,
-                        offset: Offset(2, 2),
-                      ),
-                    ],
+                    boxShadow: isScrollSaved
+                        ? null
+                        : const [
+                            BoxShadow(
+                              color: PinitColors.aubergine,
+                              blurRadius: 0,
+                              offset: Offset(2, 2),
+                            ),
+                          ],
                   ),
                   child: Text(
-                    'SHOW IN MAP',
+                    'SEE ALL',
                     style: GoogleFonts.dmSans(
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
-                      color: PinitColors.cream,
+                      color: isScrollSaved
+                          ? PinitColors.aubergine
+                          : PinitColors.cream,
                       letterSpacing: 1.0,
                     ),
                   ),

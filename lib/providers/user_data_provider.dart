@@ -203,13 +203,28 @@ class UserDataProvider with ChangeNotifier {
 
   Future<bool> applyReferralCode(String code) async {
     final trimmedCode = code.trim();
-    if (_supabaseUserData == null || trimmedCode.isEmpty) return false;
+    log(
+      'UserDataProvider: Applying referral code="$trimmedCode" length=${trimmedCode.length}',
+    );
+    if (_supabaseUserData == null || trimmedCode.isEmpty) {
+      log(
+        'UserDataProvider: Referral apply aborted. hasUser=${_supabaseUserData != null}, isCodeEmpty=${trimmedCode.isEmpty}',
+      );
+      return false;
+    }
 
     try {
-      await _supabaseProvider.rewards.applyReferralCode(trimmedCode);
+      await _supabaseProvider.rewards.applyReferralCode(
+        trimmedCode,
+        acceptIfWizardComplete: true,
+      );
+      log('UserDataProvider: Referral code applied successfully.');
       return true;
-    } catch (e) {
-      log('UserDataProvider: Error applying referral code: $e');
+    } catch (e, stackTrace) {
+      log(
+        'UserDataProvider: Error applying referral code: $e',
+        stackTrace: stackTrace,
+      );
       _error = invalidReferralCodeMessage;
       notifyListeners();
       return false;

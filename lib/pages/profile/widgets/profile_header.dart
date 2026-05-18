@@ -17,6 +17,7 @@ class ProfileHeader extends StatelessWidget {
   final VoidCallback? onFollowersTap;
   final VoidCallback? onFollowingTap;
   final Key? notificationsSpotlightKey;
+  final Key? settingsSpotlightKey;
 
   const ProfileHeader({
     Key? key,
@@ -31,6 +32,7 @@ class ProfileHeader extends StatelessWidget {
     this.onFollowersTap,
     this.onFollowingTap,
     this.notificationsSpotlightKey,
+    this.settingsSpotlightKey,
   }) : super(key: key);
 
   @override
@@ -108,9 +110,12 @@ class ProfileHeader extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        _ActionButton(
-                          icon: Icons.more_horiz,
-                          onTap: onSettingsTap,
+                        RepaintBoundary(
+                          key: settingsSpotlightKey,
+                          child: _ActionButton(
+                            icon: Icons.more_horiz,
+                            onTap: onSettingsTap,
+                          ),
                         ),
                       ],
                     ),

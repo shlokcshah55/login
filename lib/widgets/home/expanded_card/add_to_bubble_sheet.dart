@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:login/models/bubble.dart';
+import 'package:login/models/bubble_summary.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/supabase/service.dart';
@@ -22,7 +22,7 @@ class _AddToBubbleSheetState extends State<AddToBubbleSheet> {
   final TextEditingController _noteController = TextEditingController();
   final Set<String> _selectedBubbleIds = <String>{};
 
-  List<Bubble> _bubbles = [];
+  List<BubbleSummary> _bubbles = [];
   bool _loading = true;
   bool _sending = false;
 
@@ -48,9 +48,8 @@ class _AddToBubbleSheetState extends State<AddToBubbleSheet> {
     }
 
     try {
-      final bubbles = await SupabaseService().bubbles.getUserBubbles(user.id);
-      bubbles
-          .sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      final bubbles =
+          await SupabaseService().bubbles.getUserBubbleSummaries(user.id);
       if (mounted) {
         setState(() {
           _bubbles = bubbles;
@@ -355,7 +354,7 @@ class _BubbleSelectionTile extends StatelessWidget {
     required this.onTap,
   });
 
-  final Bubble bubble;
+  final BubbleSummary bubble;
   final bool selected;
   final VoidCallback onTap;
 
@@ -405,7 +404,7 @@ class _BubbleSelectionTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '${bubble.memberCount} member${bubble.memberCount == 1 ? '' : 's'} · ${bubble.groupLocations.length} pin${bubble.groupLocations.length == 1 ? '' : 's'}',
+                      '${bubble.memberCount} member${bubble.memberCount == 1 ? '' : 's'}',
                       style: AppTypography.sans(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -416,6 +415,12 @@ class _BubbleSelectionTile extends StatelessWidget {
                     ),
                   ],
                 ),
+              ),
+              const SizedBox(width: 12),
+              _BubbleAvatarStack(
+                avatars: bubble.memberAvatars,
+                names: bubble.memberNames,
+                selected: selected,
               ),
               const SizedBox(width: 12),
               AnimatedContainer(
@@ -440,6 +445,94 @@ class _BubbleSelectionTile extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BubbleAvatarStack extends StatelessWidget {
+  const _BubbleAvatarStack({
+    required this.avatars,
+    required this.names,
+    required this.selected,
+  });
+
+  static const List<Color> _fallbackColors = [
+    Color(0xFFB39DDB),
+    Color(0xFF80CBC4),
+    Color(0xFFFFCC80),
+    Color(0xFFF48FB1),
+  ];
+
+  final List<String> avatars;
+  final List<String> names;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final count = avatars.isEmpty && names.isEmpty
+        ? 1
+        : (avatars.length > names.length ? avatars.length : names.length);
+    final visibleCount = count.clamp(1, 3);
+    const size = 28.0;
+    const overlap = 10.0;
+    final width = size + (visibleCount - 1) * (size - overlap);
+
+    return SizedBox(
+      width: width,
+      height: size,
+      child: Stack(
+        children: List.generate(visibleCount, (index) {
+          final avatar = index < avatars.length ? avatars[index] : '';
+          final name = index < names.length ? names[index] : '';
+          final initial = name.isNotEmpty ? name[0].toUpperCase() : null;
+
+          return Positioned(
+            left: index * (size - overlap),
+            child: Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: selected ? PinitColors.aubergine : PinitColors.cream,
+                  width: 1.5,
+                ),
+                color: _fallbackColors[index % _fallbackColors.length],
+              ),
+              child: ClipOval(
+                child: avatar.isNotEmpty
+                    ? Image.network(
+                        avatar,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) =>
+                            _BubbleInitial(initial: initial),
+                      )
+                    : _BubbleInitial(initial: initial),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+}
+
+class _BubbleInitial extends StatelessWidget {
+  const _BubbleInitial({this.initial});
+
+  final String? initial;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        initial ?? '',
+        style: AppTypography.sans(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: Colors.white,
         ),
       ),
     );

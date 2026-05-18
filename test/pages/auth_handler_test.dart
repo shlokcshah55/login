@@ -3,10 +3,10 @@ import 'package:login/pages/auth_handler.dart';
 
 void main() {
   test(
-      'shouldPresentWizardCompletionAfterAppleSignIn returns true for incomplete Apple onboarding',
+      'shouldPresentWizardCompletionAfterOAuthSignIn returns true for incomplete OAuth onboarding',
       () {
-    final shouldPresent = shouldPresentWizardCompletionAfterAppleSignIn(
-      pendingAppleWizardRouting: true,
+    final shouldPresent = shouldPresentWizardCompletionAfterOAuthSignIn(
+      pendingOAuthWizardRouting: true,
       wizardCompleted: false,
     );
 
@@ -14,10 +14,10 @@ void main() {
   });
 
   test(
-      'shouldPresentWizardCompletionAfterAppleSignIn returns false when wizard is already complete',
+      'shouldPresentWizardCompletionAfterOAuthSignIn returns false when wizard is already complete',
       () {
-    final shouldPresent = shouldPresentWizardCompletionAfterAppleSignIn(
-      pendingAppleWizardRouting: true,
+    final shouldPresent = shouldPresentWizardCompletionAfterOAuthSignIn(
+      pendingOAuthWizardRouting: true,
       wizardCompleted: true,
     );
 
@@ -25,10 +25,10 @@ void main() {
   });
 
   test(
-      'shouldPresentWizardCompletionAfterAppleSignIn returns false without a pending Apple route',
+      'shouldPresentWizardCompletionAfterOAuthSignIn returns false without a pending OAuth route',
       () {
-    final shouldPresent = shouldPresentWizardCompletionAfterAppleSignIn(
-      pendingAppleWizardRouting: false,
+    final shouldPresent = shouldPresentWizardCompletionAfterOAuthSignIn(
+      pendingOAuthWizardRouting: false,
       wizardCompleted: false,
     );
 

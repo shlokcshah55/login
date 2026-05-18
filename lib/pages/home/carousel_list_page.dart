@@ -85,7 +85,7 @@ class _CarouselListPageState extends State<CarouselListPage> {
     context
         .read<NavigationProvider>()
         .navigateToCollectionMapOnly(collectionId);
-    Navigator.of(context).pop();
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   @override

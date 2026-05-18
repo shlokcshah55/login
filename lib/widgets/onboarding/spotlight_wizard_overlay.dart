@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
@@ -29,6 +28,7 @@ class SpotlightWizardStep {
     this.beforeShow,
     this.bubbleHeightEstimate,
     this.eyebrow,
+    this.bodyBuilder,
   });
 
   final GlobalKey? targetKey;
@@ -45,6 +45,7 @@ class SpotlightWizardStep {
   final FutureOr<void> Function()? beforeShow;
   final double? bubbleHeightEstimate;
   final String? eyebrow;
+  final WidgetBuilder? bodyBuilder;
 
   bool get hasTarget => targetKey != null;
 }
@@ -68,11 +69,8 @@ class SpotlightWizardOverlay extends StatefulWidget {
 class _SpotlightWizardOverlayState extends State<SpotlightWizardOverlay> {
   final GlobalKey _overlayKey = GlobalKey();
   Rect? _targetRect;
-  ui.Image? _targetImage;
-  int? _targetImageIndex;
   int? _preparedStepIndex;
   int _index = 0;
-  bool _targetCaptureRetryScheduled = false;
 
   SpotlightWizardStep get _step => widget.steps[_index];
 
@@ -114,7 +112,6 @@ class _SpotlightWizardOverlayState extends State<SpotlightWizardOverlay> {
     final targetKey = _step.targetKey;
     if (targetKey == null) {
       setState(() => _targetRect = null);
-      _setTargetImage(null);
       return;
     }
 
@@ -141,7 +138,6 @@ class _SpotlightWizardOverlayState extends State<SpotlightWizardOverlay> {
     if (_targetRect != nextRect) {
       setState(() => _targetRect = nextRect);
     }
-    _captureTargetImage(targetObject);
   }
 
   void _goNext() {
@@ -152,7 +148,6 @@ class _SpotlightWizardOverlayState extends State<SpotlightWizardOverlay> {
     setState(() {
       _index += 1;
       _targetRect = null;
-      _setTargetImage(null);
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_prepareAndResolveCurrentStep());
@@ -164,66 +159,10 @@ class _SpotlightWizardOverlayState extends State<SpotlightWizardOverlay> {
     setState(() {
       _index -= 1;
       _targetRect = null;
-      _setTargetImage(null);
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_prepareAndResolveCurrentStep());
     });
-  }
-
-  Future<void> _captureTargetImage(RenderObject targetObject) async {
-    if (_targetImageIndex == _index && _targetImage != null) return;
-    if (targetObject is! RenderRepaintBoundary) {
-      return;
-    }
-    if (targetObject.debugNeedsPaint) {
-      _scheduleTargetCaptureRetry();
-      return;
-    }
-
-    final pixelRatio = MediaQuery.maybeDevicePixelRatioOf(context) ?? 1.0;
-    final ui.Image image;
-    try {
-      image = await targetObject.toImage(pixelRatio: pixelRatio);
-    } catch (_) {
-      _scheduleTargetCaptureRetry();
-      return;
-    }
-    if (!mounted) {
-      image.dispose();
-      return;
-    }
-    if (_targetImageIndex == _index && _targetImage != null) {
-      image.dispose();
-      return;
-    }
-    setState(() {
-      _setTargetImage(image, imageIndex: _index);
-    });
-  }
-
-  void _scheduleTargetCaptureRetry() {
-    if (_targetCaptureRetryScheduled || !mounted) return;
-    final retryIndex = _index;
-    _targetCaptureRetryScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _targetCaptureRetryScheduled = false;
-      if (!mounted || retryIndex != _index) return;
-      _resolveTargetRect();
-    });
-  }
-
-  void _setTargetImage(ui.Image? image, {int? imageIndex}) {
-    final previous = _targetImage;
-    _targetImage = image;
-    _targetImageIndex = image == null ? null : imageIndex;
-    previous?.dispose();
-  }
-
-  @override
-  void dispose() {
-    _targetImage?.dispose();
-    super.dispose();
   }
 
   @override
@@ -239,7 +178,11 @@ class _SpotlightWizardOverlayState extends State<SpotlightWizardOverlay> {
             final spotlightRect = _targetRect == null
                 ? null
                 : _expandedAndClampedRect(_targetRect!, size);
-            final bubbleOffset = _bubbleOffsetFor(size, spotlightRect);
+            final bubbleOffset = _bubbleOffsetFor(
+              size,
+              spotlightRect,
+              MediaQuery.viewInsetsOf(context).bottom,
+            );
 
             return Material(
               type: MaterialType.transparency,
@@ -249,46 +192,12 @@ class _SpotlightWizardOverlayState extends State<SpotlightWizardOverlay> {
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
                       onTap: () {},
-                      child: const _SpotlightBackdrop(),
+                      child: _SpotlightBackdrop(
+                        spotlightRect: spotlightRect,
+                        highlightShape: _step.highlightShape,
+                      ),
                     ),
                   ),
-                  if (_targetRect != null &&
-                      _targetImage != null &&
-                      _targetImageIndex == _index &&
-                      _step.showHighlightShadow)
-                    AnimatedPositioned(
-                      duration: const Duration(milliseconds: 240),
-                      curve: Curves.easeOutCubic,
-                      left: _targetRect!.left,
-                      top: _targetRect!.top,
-                      width: _targetRect!.width,
-                      height: _targetRect!.height,
-                      child: IgnorePointer(
-                        child: DecoratedBox(
-                          decoration: _highlightShadowDecoration(
-                            _step,
-                            _targetRect!.size,
-                          ),
-                        ),
-                      ),
-                    ),
-                  if (_targetRect != null &&
-                      _targetImage != null &&
-                      _targetImageIndex == _index)
-                    AnimatedPositioned(
-                      duration: const Duration(milliseconds: 240),
-                      curve: Curves.easeOutCubic,
-                      left: _targetRect!.left,
-                      top: _targetRect!.top,
-                      width: _targetRect!.width,
-                      height: _targetRect!.height,
-                      child: IgnorePointer(
-                        child: RawImage(
-                          image: _targetImage,
-                          fit: BoxFit.fill,
-                        ),
-                      ),
-                    ),
                   AnimatedPositioned(
                     duration: const Duration(milliseconds: 240),
                     curve: Curves.easeOutCubic,
@@ -343,39 +252,6 @@ class _SpotlightWizardOverlayState extends State<SpotlightWizardOverlay> {
     return step.eyebrow ?? 'PIN $featureIndex OF $featureTotal';
   }
 
-  BoxDecoration _highlightShadowDecoration(
-    SpotlightWizardStep step,
-    Size targetSize,
-  ) {
-    final shadows = [
-      BoxShadow(
-        color: step.shadowColor,
-        blurRadius: 0,
-        offset: const Offset(3, 3),
-      ),
-      BoxShadow(
-        color: step.shadowColor.withValues(alpha: 0.20),
-        blurRadius: 18,
-        offset: const Offset(0, 8),
-      ),
-    ];
-
-    return switch (step.highlightShape) {
-      SpotlightHighlightShape.circle => BoxDecoration(
-          shape: BoxShape.circle,
-          boxShadow: shadows,
-        ),
-      SpotlightHighlightShape.pill => BoxDecoration(
-          borderRadius: BorderRadius.circular(targetSize.height / 2),
-          boxShadow: shadows,
-        ),
-      SpotlightHighlightShape.rounded => BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: shadows,
-        ),
-    };
-  }
-
   Rect _expandedAndClampedRect(Rect rect, Size size) {
     const padding = 8.0;
     return Rect.fromLTRB(
@@ -386,17 +262,25 @@ class _SpotlightWizardOverlayState extends State<SpotlightWizardOverlay> {
     );
   }
 
-  Offset _bubbleOffsetFor(Size size, Rect? spotlightRect) {
+  Offset _bubbleOffsetFor(
+    Size size,
+    Rect? spotlightRect,
+    double bottomInset,
+  ) {
     const margin = 18.0;
     const bubbleWidth = 326.0;
     final isIntro = !_step.hasTarget;
     final actualEstimatedBubbleHeight =
         _step.bubbleHeightEstimate ?? (isIntro ? 390.0 : 360.0);
+    final availableHeight = math.max(margin * 2, size.height - bottomInset);
 
     if (spotlightRect == null) {
       return Offset(
         math.max(margin, (size.width - bubbleWidth) / 2),
-        math.max(margin, (size.height - actualEstimatedBubbleHeight) / 2),
+        math.max(
+          margin,
+          (availableHeight - actualEstimatedBubbleHeight) / 2,
+        ),
       );
     }
 
@@ -407,7 +291,7 @@ class _SpotlightWizardOverlayState extends State<SpotlightWizardOverlay> {
     final belowY = spotlightRect.bottom + 16;
     final aboveY = spotlightRect.top - actualEstimatedBubbleHeight - 16;
     final hasRoomBelow =
-        belowY + actualEstimatedBubbleHeight <= size.height - margin;
+        belowY + actualEstimatedBubbleHeight <= availableHeight - margin;
     final hasRoomAbove = aboveY >= margin;
 
     final useBelow = switch (_step.placement) {
@@ -417,7 +301,10 @@ class _SpotlightWizardOverlayState extends State<SpotlightWizardOverlay> {
     };
 
     final top = useBelow
-        ? math.min(belowY, size.height - actualEstimatedBubbleHeight - margin)
+        ? math.min(
+            belowY,
+            availableHeight - actualEstimatedBubbleHeight - margin,
+          )
         : math.max(margin, aboveY);
 
     return Offset(left, top.toDouble());
@@ -448,166 +335,180 @@ class _SpotlightBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final width = math.min(326.0, MediaQuery.of(context).size.width - 36);
+    final mediaQuery = MediaQuery.of(context);
+    final width = math.min(326.0, mediaQuery.size.width - 36);
+    final maxHeight = math.max(
+      240.0,
+      mediaQuery.size.height - mediaQuery.viewInsets.bottom - 36,
+    );
     final isLast = index == total - 1;
     final isIntro = !step.hasTarget;
 
     return SizedBox(
       width: width,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: PinitColors.creamSunk,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: PinitColors.aubergine,
-            width: 1.5,
-          ),
-          boxShadow: const [
-            BoxShadow(
-              color: PinitColors.aubergine,
-              blurRadius: 0,
-              offset: Offset(4, 4),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        child: SingleChildScrollView(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: PinitColors.creamSunk,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: PinitColors.aubergine,
+                width: 1.5,
+              ),
+              boxShadow: const [
+                BoxShadow(
+                  color: PinitColors.aubergine,
+                  blurRadius: 0,
+                  offset: Offset(4, 4),
+                ),
+                BoxShadow(
+                  color: Color(0x3341133D),
+                  blurRadius: 24,
+                  offset: Offset(0, 12),
+                ),
+              ],
             ),
-            BoxShadow(
-              color: Color(0x3341133D),
-              blurRadius: 24,
-              offset: Offset(0, 12),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    stepLabel,
-                    style: AppTypography.sans(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      color: PinitColors.aubergineSoft,
-                      letterSpacing: 1.2,
-                      height: 1,
-                    ),
-                  ),
-                  const Spacer(),
-                  GestureDetector(
-                    onTap: onSkip,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 2,
-                      ),
-                      child: Text(
-                        'SKIP',
+                  Row(
+                    children: [
+                      Text(
+                        stepLabel,
                         style: AppTypography.sans(
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
-                          color: PinitColors.mute,
-                          letterSpacing: 1,
+                          color: PinitColors.aubergineSoft,
+                          letterSpacing: 1.2,
+                          height: 1,
                         ),
                       ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: _StepTitle(step: step, isIntro: isIntro)),
-                  if (step.badgeIcon != null) ...[
-                    const SizedBox(width: 14),
-                    _StepBadge(step: step),
-                  ],
-                ],
-              ),
-              if (step.illustrationAssetPath != null) ...[
-                const SizedBox(height: 12),
-                Center(
-                  child: SizedBox(
-                    height: isIntro ? 142 : 110,
-                    child: SvgPicture.asset(
-                      step.illustrationAssetPath!,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 10),
-              Text(
-                step.description,
-                style: GoogleFonts.dmSans(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: PinitColors.aubergineSoft,
-                ),
-              ),
-              const SizedBox(height: 18),
-              Row(
-                children: [
-                  SizedBox(
-                    width: 42,
-                    height: 42,
-                    child: Material(
-                      color: PinitColors.creamSunk,
-                      borderRadius: BorderRadius.circular(999),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(999),
-                        onTap: canGoBack ? onBack : null,
-                        child: Icon(
-                          Icons.arrow_back_rounded,
-                          size: 18,
-                          color: canGoBack
-                              ? PinitColors.aubergine
-                              : PinitColors.mute.withValues(alpha: 0.38),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: PinitColors.aubergine,
-                        borderRadius: BorderRadius.circular(999),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: PinitColors.aubergine,
-                            blurRadius: 0,
-                            offset: Offset(3, 3),
+                      const Spacer(),
+                      GestureDetector(
+                        onTap: onSkip,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 2,
                           ),
-                        ],
+                          child: Text(
+                            'SKIP',
+                            style: AppTypography.sans(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: PinitColors.mute,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ),
                       ),
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: _StepTitle(step: step, isIntro: isIntro)),
+                      if (step.badgeIcon != null) ...[
+                        const SizedBox(width: 14),
+                        _StepBadge(step: step),
+                      ],
+                    ],
+                  ),
+                  if (step.illustrationAssetPath != null) ...[
+                    const SizedBox(height: 12),
+                    Center(
+                      child: SizedBox(
+                        height: isIntro ? 142 : 110,
+                        child: SvgPicture.asset(
+                          step.illustrationAssetPath!,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 10),
+                  if (step.bodyBuilder case final bodyBuilder?)
+                    bodyBuilder(context)
+                  else
+                    Text(
+                      step.description,
+                      style: GoogleFonts.dmSans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: PinitColors.aubergineSoft,
+                      ),
+                    ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: 42,
+                        height: 42,
+                        child: Material(
+                          color: PinitColors.creamSunk,
                           borderRadius: BorderRadius.circular(999),
-                          onTap: onNext,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            child: Center(
-                              child: Text(
-                                isLast ? 'DONE' : 'NEXT',
-                                style: AppTypography.sans(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w900,
-                                  color: PinitColors.cream,
-                                  letterSpacing: 1.4,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(999),
+                            onTap: canGoBack ? onBack : null,
+                            child: Icon(
+                              Icons.arrow_back_rounded,
+                              size: 18,
+                              color: canGoBack
+                                  ? PinitColors.aubergine
+                                  : PinitColors.mute.withValues(alpha: 0.38),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: PinitColors.aubergine,
+                            borderRadius: BorderRadius.circular(999),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: PinitColors.aubergine,
+                                blurRadius: 0,
+                                offset: Offset(3, 3),
+                              ),
+                            ],
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(999),
+                              onTap: onNext,
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14),
+                                child: Center(
+                                  child: Text(
+                                    isLast ? 'DONE' : 'NEXT',
+                                    style: AppTypography.sans(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w900,
+                                      color: PinitColors.cream,
+                                      letterSpacing: 1.4,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
                           ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -706,16 +607,125 @@ class _StepBadge extends StatelessWidget {
 }
 
 class _SpotlightBackdrop extends StatelessWidget {
-  const _SpotlightBackdrop();
+  const _SpotlightBackdrop({
+    required this.spotlightRect,
+    required this.highlightShape,
+  });
+
+  final Rect? spotlightRect;
+  final SpotlightHighlightShape highlightShape;
 
   @override
   Widget build(BuildContext context) {
-    return BackdropFilter(
-      filter: ui.ImageFilter.blur(sigmaX: 7, sigmaY: 7),
-      child: ColoredBox(
-        color: Colors.black.withValues(alpha: 0.8),
-        child: const SizedBox.expand(),
-      ),
+    final rect = spotlightRect;
+    if (rect == null) {
+      return BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 7, sigmaY: 7),
+        child: ColoredBox(
+          color: Colors.black.withValues(alpha: 0.8),
+          child: const SizedBox.expand(),
+        ),
+      );
+    }
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        ClipPath(
+          clipper: _SpotlightOutsideClipper(
+            rect: rect,
+            highlightShape: highlightShape,
+          ),
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 7, sigmaY: 7),
+            child: const SizedBox.expand(),
+          ),
+        ),
+        CustomPaint(
+          painter: _SpotlightScrimPainter(
+            rect: rect,
+            highlightShape: highlightShape,
+          ),
+        ),
+      ],
     );
   }
+}
+
+class _SpotlightOutsideClipper extends CustomClipper<Path> {
+  const _SpotlightOutsideClipper({
+    required this.rect,
+    required this.highlightShape,
+  });
+
+  final Rect rect;
+  final SpotlightHighlightShape highlightShape;
+
+  @override
+  Path getClip(Size size) {
+    return _outsidePathFor(
+      size: size,
+      rect: rect,
+      highlightShape: highlightShape,
+    );
+  }
+
+  @override
+  bool shouldReclip(_SpotlightOutsideClipper oldClipper) {
+    return oldClipper.rect != rect ||
+        oldClipper.highlightShape != highlightShape;
+  }
+}
+
+class _SpotlightScrimPainter extends CustomPainter {
+  const _SpotlightScrimPainter({
+    required this.rect,
+    required this.highlightShape,
+  });
+
+  final Rect rect;
+  final SpotlightHighlightShape highlightShape;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = Colors.black.withValues(alpha: 0.8);
+    canvas.drawPath(
+      _outsidePathFor(
+        size: size,
+        rect: rect,
+        highlightShape: highlightShape,
+      ),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_SpotlightScrimPainter oldDelegate) {
+    return oldDelegate.rect != rect ||
+        oldDelegate.highlightShape != highlightShape;
+  }
+}
+
+Path _outsidePathFor({
+  required Size size,
+  required Rect rect,
+  required SpotlightHighlightShape highlightShape,
+}) {
+  final outerPath = Path()..addRect(Offset.zero & size);
+  final spotlightPath = Path();
+
+  switch (highlightShape) {
+    case SpotlightHighlightShape.circle:
+      spotlightPath.addOval(rect);
+    case SpotlightHighlightShape.pill:
+      spotlightPath.addRRect(
+        RRect.fromRectAndRadius(rect, Radius.circular(rect.height / 2)),
+      );
+    case SpotlightHighlightShape.rounded:
+      spotlightPath.addRRect(
+        RRect.fromRectAndRadius(rect, const Radius.circular(20)),
+      );
+  }
+
+  return Path.combine(PathOperation.difference, outerPath, spotlightPath);
 }

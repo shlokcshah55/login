@@ -32,6 +32,8 @@ class BottomNavVisibilityProvider with ChangeNotifier {
     if (_isLocked) {
       _isVisible = false;
       _cancelHideTimer();
+    } else if (_isPinned) {
+      _isVisible = true;
     }
     notifyListeners();
   }
