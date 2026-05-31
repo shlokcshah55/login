@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/video_extras.dart';
 import 'package:login/models/video_insights.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
+import 'package:login/widgets/home/expanded_card/full_text_sheet.dart';
 import 'package:login/widgets/home/expanded_card/helpers/vibe_display.dart';
 
 /// TikTok / Reel insights section — appears in the expanded card only
@@ -49,6 +50,13 @@ class TikTokInsightsSection extends StatelessWidget {
   bool get _hasAnyContent =>
       _hasCreatorNotes || _hasDishes || _hasOffers || _hasVibeSignals;
 
+  String get _sourceLabel {
+    final url = insight.sourceVideoUrl.toLowerCase();
+    if (url.contains('instagram.com')) return 'REEL';
+    if (url.contains('tiktok.com')) return 'TIKTOK';
+    return 'SOCIAL VIDEO';
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_hasAnyContent) return const SizedBox.shrink();
@@ -58,7 +66,7 @@ class TikTokInsightsSection extends StatelessWidget {
       children: [
         // Section header
         Text(
-          'FROM THIS TIKTOK',
+          'FROM THIS $_sourceLabel',
           style: GoogleFonts.dmSans(
             fontSize: 11,
             fontWeight: FontWeight.w600,
@@ -271,7 +279,7 @@ class _DishCard extends StatelessWidget {
         dish.description != null && dish.description!.trim().isNotEmpty;
     final hasPrice = dish.price != null && dish.price!.trim().isNotEmpty;
 
-    return Container(
+    final card = Container(
       width: 180,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -325,6 +333,24 @@ class _DishCard extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+
+    if (!hasDescription) return card;
+
+    return Semantics(
+      button: true,
+      label: 'Read full dish notes',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => showExpandedCardTextSheet(
+          context: context,
+          title: 'Dish notes',
+          eyebrow: dish.name,
+          meta: hasPrice ? dish.price : null,
+          text: dish.description!,
+        ),
+        child: card,
       ),
     );
   }
@@ -382,7 +408,8 @@ class _OfferBanner extends StatelessWidget {
                             vertical: 3,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFFCC80).withValues(alpha: 0.4),
+                            color:
+                                const Color(0xFFFFCC80).withValues(alpha: 0.4),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
@@ -463,8 +490,7 @@ class _VideoVibePills extends StatelessWidget {
           children: top.map((entry) {
             final icon = vibeIcons[entry.key] ?? Icons.label_rounded;
             return Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
               decoration: BoxDecoration(
                 color: PinitColors.accent.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(999),

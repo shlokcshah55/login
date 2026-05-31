@@ -3,6 +3,7 @@ import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/video_insights.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
+import 'package:login/utils/social_video_link.dart';
 
 class SharedSocialPostsSection extends StatelessWidget {
   const SharedSocialPostsSection({
@@ -13,6 +14,15 @@ class SharedSocialPostsSection extends StatelessWidget {
 
   final List<SocialVideoPost> posts;
   final ValueChanged<SocialVideoPost> onPostTap;
+
+  String get _heading {
+    final allTikTok = posts.every(
+      (post) =>
+          socialVideoPlatformFrom(sourceUrl: post.sourceVideoUrl) ==
+          SocialVideoPlatform.tiktok,
+    );
+    return allTikTok ? 'Seen on TikTok' : 'Seen on social';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +52,7 @@ class SharedSocialPostsSection extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Seen on TikTok',
+                    _heading,
                     style: GoogleFonts.dmSans(
                       color: PinitColors.aubergine,
                       fontSize: 18,
@@ -101,7 +111,7 @@ class _SocialPostCard extends StatelessWidget {
         ? 'Try $dish'
         : description != null && description.isNotEmpty
             ? description
-            : 'Open shared TikTok';
+            : _fallbackSubtitle;
 
     return Material(
       color: Colors.transparent,
@@ -178,5 +188,11 @@ class _SocialPostCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String get _fallbackSubtitle {
+    final platform = socialVideoPlatformFrom(sourceUrl: post.sourceVideoUrl);
+    if (platform == SocialVideoPlatform.instagram) return 'Open shared Reel';
+    return 'Open shared TikTok';
   }
 }
