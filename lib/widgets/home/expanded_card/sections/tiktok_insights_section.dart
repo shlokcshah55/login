@@ -345,8 +345,9 @@ class _DishCard extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         onTap: () => showExpandedCardTextSheet(
           context: context,
-          title: 'Dish notes',
-          eyebrow: dish.name,
+          title: dish.name,
+          eyebrow: 'Dish notes',
+          preserveEyebrowCase: true,
           meta: hasPrice ? dish.price : null,
           text: dish.description!,
         ),

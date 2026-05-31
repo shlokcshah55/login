@@ -86,6 +86,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Dish notes'), findsOneWidget);
+    expect(find.text('Masala dosa'), findsNWidgets(2));
     expect(find.text(description), findsNWidgets(2));
   });
 }
