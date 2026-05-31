@@ -188,8 +188,6 @@ class _PinitReviewCard extends StatelessWidget {
         isFriend ? PinitColors.cream.withValues(alpha: 0.65) : PinitColors.mute;
     final border =
         isFriend ? null : Border.all(color: PinitColors.creamDeep, width: 1.5);
-    final border =
-        isFriend ? null : Border.all(color: PinitColors.creamDeep, width: 1.5);
     final badgeLabel = isFriend ? 'FRIEND' : 'PINIT';
     final name = _displayName();
     final avatar = _avatarUrl();
