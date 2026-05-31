@@ -21,7 +21,7 @@ class SharedSocialPostsSection extends StatelessWidget {
           socialVideoPlatformFrom(sourceUrl: post.sourceVideoUrl) ==
           SocialVideoPlatform.tiktok,
     );
-    return allTikTok ? 'Seen on TikTok' : 'Seen on social';
+    return allTikTok ? 'Seen on TikTok' : 'Seen on Socials';
   }
 
   @override

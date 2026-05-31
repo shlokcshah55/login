@@ -27,7 +27,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Seen on social'), findsOneWidget);
+    expect(find.text('Seen on Socials'), findsOneWidget);
     expect(find.text('Seen on TikTok'), findsNothing);
   });
 
