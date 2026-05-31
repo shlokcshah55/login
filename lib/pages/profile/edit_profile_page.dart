@@ -337,6 +337,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               'Edit Profile',
               style: const TextStyle(
                 fontFamily: 'Rova',
+                fontFamilyFallback: ['Naria'],
                 fontSize: 22,
                 fontWeight: FontWeight.w100,
                 color: PinitColors.aubergine,
@@ -607,6 +608,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
             'Delete account',
             style: const TextStyle(
               fontFamily: 'Rova',
+              fontFamilyFallback: ['Naria'],
               fontSize: 24,
               fontWeight: FontWeight.w800,
               color: PinitColors.aubergine,

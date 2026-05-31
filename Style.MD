@@ -38,15 +38,16 @@ The guiding principle: **commit to extremes**. Vibe-coded UIs hedge with medium 
 
 ### Fonts
 
-Three fonts, with strict role separation:
+Three primary fonts, with strict role separation:
 
 | Family | Role | Source |
 |---|---|---|
 | **Rova** | Display, headings, titles, labels | `assets/rova-font/RovaRegular-5yV0a.ttf` |
+| **Naria** | Fallback glyphs for Rova numbers and symbols | `naria-font/naria.otf` |
 | **Manrope** | Body copy, reading text | `assets/fonts/Manrope-VF.ttf` |
 | **DM Sans** | Accent labels, tags, badges, captions | Google Fonts |
 
-Rova is used for anything that needs editorial weight. Manrope for readable prose. DM Sans for compact functional text (chips, counts, all-caps labels). Never swap their roles.
+Rova is used for anything that needs editorial weight, with Naria only as its glyph fallback for characters Rova does not contain. Manrope is for readable prose. DM Sans is for compact functional text (chips, counts, all-caps labels). Never swap their roles.
 
 ### Type scale
 
@@ -435,7 +436,7 @@ Things that signal "vibe-coded" and should be removed during refactor:
 - Any screen with less than 20px horizontal padding.
 - Any card missing its 1.5pt `creamDeep` border.
 - Any gradient other than: the warm CTA gradient (`#E85D4C → #FF7A6B`) or a cream → cream-sunk background gradient. Nothing else.
-- Any use of a font other than Rova, Manrope, or DM Sans.
+- Any use of a font other than Rova, Naria as the Rova fallback, Manrope, or DM Sans.
 
 ---
 
@@ -480,7 +481,7 @@ class PinitSpace {
 
 Before shipping any screen, verify:
 
-- [ ] Fonts: Rova for display/headings, Manrope for body, DM Sans for labels/chips. No other fonts.
+- [ ] Fonts: Rova for display/headings, Naria only as Rova fallback, Manrope for body, DM Sans for labels/chips. No other fonts.
 - [ ] Background is `cream`. Cards are `creamSunk`. No pure white anywhere.
 - [ ] All text is `aubergine`, `aubergineSoft`, or `mute`. No black, no grey.
 - [ ] Accent colour appears on at most two elements per screen.

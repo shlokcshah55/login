@@ -186,6 +186,7 @@ class _CarouselListPageState extends State<CarouselListPage> {
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(
             fontFamily: 'Rova',
+            fontFamilyFallback: ['Naria'],
             fontSize: 24,
             fontWeight: FontWeight.w800,
             color: PinitColors.aubergine,

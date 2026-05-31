@@ -113,6 +113,7 @@ class _CreateCollectionSheetState extends State<CreateCollectionSheet> {
               'New Eat-List',
               style: TextStyle(
                 fontFamily: 'Rova',
+                fontFamilyFallback: ['Naria'],
                 fontSize: 28,
                 fontWeight: FontWeight.w200,
                 color: PinitColors.aubergine,

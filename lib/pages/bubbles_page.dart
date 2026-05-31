@@ -261,6 +261,7 @@ class _BubblesPageState extends State<BubblesPage>
                   'Bubbles',
                   style: TextStyle(
                     fontFamily: 'Rova',
+                    fontFamilyFallback: ['Naria'],
                     fontSize: 28,
                     fontWeight: FontWeight.w100,
                     color: PinitColors.aubergine,
@@ -433,6 +434,7 @@ class _BubblesPageState extends State<BubblesPage>
                       'Create New Bubble',
                       style: TextStyle(
                         fontFamily: 'Rova',
+                        fontFamilyFallback: ['Naria'],
                         fontSize: 22,
                         fontWeight: FontWeight.w100,
                         color: PinitColors.aubergine,
@@ -903,6 +905,7 @@ class _BubblesPageState extends State<BubblesPage>
                 'No Bubbles Yet',
                 style: TextStyle(
                   fontFamily: 'Rova',
+                  fontFamilyFallback: ['Naria'],
                   fontSize: 22,
                   fontWeight: FontWeight.w100,
                   color: PinitColors.aubergine,
@@ -982,6 +985,7 @@ class _BubblesPageState extends State<BubblesPage>
           'Find Friends',
           style: TextStyle(
             fontFamily: 'Rova',
+            fontFamilyFallback: ['Naria'],
             fontSize: 22,
             fontWeight: FontWeight.w100,
             color: PinitColors.aubergine,

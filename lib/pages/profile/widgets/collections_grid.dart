@@ -474,6 +474,7 @@ class _CollectionsGridState extends State<CollectionsGrid>
             'Pinit Eat-Lists',
             style: TextStyle(
               fontFamily: 'Rova',
+              fontFamilyFallback: ['Naria'],
               fontSize: 24,
               fontWeight: FontWeight.w100,
               color: PinitColors.aubergine,
@@ -639,6 +640,7 @@ class _CollectionsGridState extends State<CollectionsGrid>
                       'Your Eat-Lists',
                       style: TextStyle(
                         fontFamily: 'Rova',
+                        fontFamilyFallback: ['Naria'],
                         fontSize: 24,
                         fontWeight: FontWeight.w100,
                         color: PinitColors.aubergine,
@@ -841,6 +843,7 @@ class _CollectionsGridState extends State<CollectionsGrid>
                     'Saved Eat-Lists',
                     style: TextStyle(
                       fontFamily: 'Rova',
+                      fontFamilyFallback: ['Naria'],
                       fontSize: 24,
                       fontWeight: FontWeight.w100,
                       color: PinitColors.aubergine,
@@ -870,6 +873,7 @@ class _CollectionsGridState extends State<CollectionsGrid>
                   'Explore Eat-Lists',
                   style: TextStyle(
                     fontFamily: 'Rova',
+                    fontFamilyFallback: ['Naria'],
                     fontSize: 24,
                     fontWeight: FontWeight.w100,
                     color: PinitColors.aubergine,
@@ -1215,6 +1219,7 @@ class _CollectionCardState extends State<_CollectionCard> {
                                 widget.collection.ownerName!,
                                 style: const TextStyle(
                                   fontFamily: 'Rova',
+                                  fontFamilyFallback: ['Naria'],
                                   fontSize: 13,
                                   fontWeight: FontWeight.w700,
                                   color: PinitColors.aubergine,
@@ -1372,6 +1377,7 @@ class _EmptyCollections extends StatelessWidget {
             'Waiting for your first eat-list...',
             style: TextStyle(
               fontFamily: 'Rova',
+              fontFamilyFallback: ['Naria'],
               fontSize: 28,
               fontWeight: FontWeight.w800,
               color: PinitColors.aubergine,
@@ -2180,6 +2186,7 @@ class _LocationRow extends StatelessWidget {
                       location.name,
                       style: const TextStyle(
                         fontFamily: 'Rova',
+                        fontFamilyFallback: ['Naria'],
                         fontSize: 16,
                         fontWeight: FontWeight.w100,
                         color: PinitColors.aubergine,
@@ -2618,6 +2625,7 @@ class _EditCollectionSheetState extends State<_EditCollectionSheet> {
               'Edit Eat-List',
               style: TextStyle(
                 fontFamily: 'Rova',
+                fontFamilyFallback: ['Naria'],
                 fontSize: 28,
                 fontWeight: FontWeight.w200,
                 color: PinitColors.aubergine,

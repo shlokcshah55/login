@@ -18,8 +18,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   bool _isLoading = false;
   bool _emailSent = false;
 
-  static final RegExp _emailRegex =
-      RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+  static final RegExp _emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
 
   @override
   void dispose() {
@@ -179,6 +178,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
           'Forgot your password?',
           style: TextStyle(
             fontFamily: 'Rova',
+            fontFamilyFallback: ['Naria'],
             fontSize: 34,
             fontWeight: FontWeight.w100,
             color: PinitColors.aubergine,
@@ -259,6 +259,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
             'Check your email',
             style: TextStyle(
               fontFamily: 'Rova',
+              fontFamilyFallback: ['Naria'],
               fontSize: 30,
               fontWeight: FontWeight.w100,
               color: PinitColors.aubergine,

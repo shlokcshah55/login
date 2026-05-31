@@ -637,6 +637,7 @@ class _AccountStepState extends State<AccountStep>
                     text: 'What should we call you?',
                     style: const TextStyle(
                       fontFamily: 'Rova',
+                      fontFamilyFallback: ['Naria'],
                       fontSize: 18,
                       fontWeight: FontWeight.w100,
                       color: PinitColors.aubergine,
@@ -777,6 +778,7 @@ class _AccountStepState extends State<AccountStep>
                     text: 'Pick a username for your mates to see..',
                     style: const TextStyle(
                       fontFamily: 'Rova',
+                      fontFamilyFallback: ['Naria'],
                       fontSize: 22,
                       fontWeight: FontWeight.normal,
                       color: PinitColors.aubergine,
@@ -912,6 +914,7 @@ class _AccountStepState extends State<AccountStep>
                     text: 'What\'s your email address?',
                     style: const TextStyle(
                       fontFamily: 'Rova',
+                      fontFamilyFallback: ['Naria'],
                       fontSize: 22,
                       fontWeight: FontWeight.normal,
                       color: PinitColors.aubergine,
@@ -1047,6 +1050,7 @@ class _AccountStepState extends State<AccountStep>
                     text: 'Create a secure password',
                     style: const TextStyle(
                       fontFamily: 'Rova',
+                      fontFamilyFallback: ['Naria'],
                       fontSize: 24,
                       fontWeight: FontWeight.normal,
                       color: PinitColors.aubergine,

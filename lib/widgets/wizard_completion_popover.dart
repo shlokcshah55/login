@@ -15,7 +15,8 @@ class WizardCompletionPopover extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  State<WizardCompletionPopover> createState() => _WizardCompletionPopoverState();
+  State<WizardCompletionPopover> createState() =>
+      _WizardCompletionPopoverState();
 }
 
 class _WizardCompletionPopoverState extends State<WizardCompletionPopover>
@@ -82,57 +83,58 @@ class _WizardCompletionPopoverState extends State<WizardCompletionPopover>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                  // Typing title animation
-                  TypingText(
-                    text: 'Give us some more...',
-                    totalDuration: const Duration(milliseconds: 800),
-                    style: TextStyle(
-                    fontFamily: 'Rova',
-                    fontSize: 28,
-                    fontWeight: FontWeight.w100,
-                    color: PinitColors.cream,
-                    letterSpacing: 1.7,
-                    height: 1.05,
-                  ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Description text
-                  Text(
-                    'We do better with more information! ',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.dmSans(
-                      fontSize: 16,
-                      color: PinitColors.cream,
-                      height: 1.5,
-                      decoration: TextDecoration.none,
+                    // Typing title animation
+                    TypingText(
+                      text: 'Give us some more...',
+                      totalDuration: const Duration(milliseconds: 800),
+                      style: TextStyle(
+                        fontFamily: 'Rova',
+                        fontFamilyFallback: ['Naria'],
+                        fontSize: 28,
+                        fontWeight: FontWeight.w100,
+                        color: PinitColors.cream,
+                        letterSpacing: 1.7,
+                        height: 1.05,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 40),
+                    const SizedBox(height: 20),
 
-                  // Pulsing + Shimmer CTA button
-                  _buildAnimatedButton(),
-                  const SizedBox(height: 16),
-
-                  // "Later" button
-                  TextButton(
-                    onPressed: widget.onDismiss,
-                    child: Text(
-                      'Later',
+                    // Description text
+                    Text(
+                      'We do better with more information! ',
+                      textAlign: TextAlign.center,
                       style: GoogleFonts.dmSans(
-                        color: PinitColors.cream.withValues(alpha: 0.6),
                         fontSize: 16,
+                        color: PinitColors.cream,
+                        height: 1.5,
                         decoration: TextDecoration.none,
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 40),
+
+                    // Pulsing + Shimmer CTA button
+                    _buildAnimatedButton(),
+                    const SizedBox(height: 16),
+
+                    // "Later" button
+                    TextButton(
+                      onPressed: widget.onDismiss,
+                      child: Text(
+                        'Later',
+                        style: GoogleFonts.dmSans(
+                          color: PinitColors.cream.withValues(alpha: 0.6),
+                          fontSize: 16,
+                          decoration: TextDecoration.none,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
         ),
       ),
-    ),
     );
   }
 
@@ -174,7 +176,8 @@ class _WizardCompletionPopoverState extends State<WizardCompletionPopover>
                 style: ElevatedButton.styleFrom(
                   backgroundColor: PinitColors.cream,
                   foregroundColor: PinitColors.aubergine,
-                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 40),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 16, horizontal: 40),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),

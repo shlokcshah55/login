@@ -355,6 +355,7 @@ class _RewardsAppBar extends StatelessWidget {
               'Referrals and rewards',
               style: const TextStyle(
                 fontFamily: 'Rova',
+                fontFamilyFallback: ['Naria'],
                 fontSize: 22,
                 fontWeight: FontWeight.w100,
                 color: PinitColors.aubergine,

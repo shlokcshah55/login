@@ -127,6 +127,7 @@ class _CuratedEatListDetailPageState extends State<CuratedEatListDetailPage> {
           widget.collection.name,
           style: const TextStyle(
             fontFamily: 'Rova',
+            fontFamilyFallback: ['Naria'],
             fontSize: 22,
             fontWeight: FontWeight.w800,
             color: PinitColors.aubergine,

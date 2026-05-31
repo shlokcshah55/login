@@ -513,6 +513,7 @@ class _ProfilePageState extends State<ProfilePage>
               user.name ?? 'Profile',
               style: const TextStyle(
                 fontFamily: 'Rova',
+                fontFamilyFallback: ['Naria'],
                 fontSize: 20,
                 fontWeight: FontWeight.w100,
                 color: PinitColors.cream,
@@ -590,6 +591,7 @@ class _ProfilePageState extends State<ProfilePage>
                                     entry.value,
                                     style: const TextStyle(
                                       fontFamily: 'Rova',
+                                      fontFamilyFallback: ['Naria'],
                                       fontSize: 16,
                                       fontWeight: FontWeight.w100,
                                       color: PinitColors.cream,
@@ -778,6 +780,7 @@ class _ProfilePageState extends State<ProfilePage>
                 'Something went wrong',
                 style: const TextStyle(
                   fontFamily: 'Rova',
+                  fontFamilyFallback: ['Naria'],
                   fontSize: 28,
                   fontWeight: FontWeight.w800,
                   color: PinitColors.aubergine,
@@ -1117,6 +1120,7 @@ class _ProfileSettingsIntro extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontFamily: 'Rova',
+                    fontFamilyFallback: ['Naria'],
                     fontSize: 26,
                     fontWeight: FontWeight.w800,
                     color: PinitColors.aubergine,

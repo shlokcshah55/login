@@ -86,8 +86,7 @@ class _TopPlacesStepState extends State<TopPlacesStep>
 
   void _animateAndAdvance(bool isSave) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final endX =
-        _dragOffset.dx > 0 ? screenWidth * 1.5 : -screenWidth * 1.5;
+    final endX = _dragOffset.dx > 0 ? screenWidth * 1.5 : -screenWidth * 1.5;
 
     _slideAnimation = Tween<Offset>(
       begin: _dragOffset,
@@ -230,6 +229,7 @@ class _TopPlacesStepState extends State<TopPlacesStep>
                 : 'Swipe right if you\'d go here,\nSwipe left if it\'s not for you.',
             style: const TextStyle(
               fontFamily: 'Rova',
+              fontFamilyFallback: ['Naria'],
               fontSize: 26,
               fontWeight: FontWeight.w100,
               color: PinitColors.aubergine,
@@ -453,8 +453,7 @@ class _TopPlacesStepState extends State<TopPlacesStep>
                           ),
                         ),
                       ],
-                      if (loc.cuisine != null &&
-                          loc.cuisine!.isNotEmpty) ...[
+                      if (loc.cuisine != null && loc.cuisine!.isNotEmpty) ...[
                         if (loc.rating != null)
                           Text(
                             '  ·  ',
@@ -511,8 +510,7 @@ class _TopPlacesStepState extends State<TopPlacesStep>
                 height: 22,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor:
-                      AlwaysStoppedAnimation(PinitColors.aubergineSoft),
+                  valueColor: AlwaysStoppedAnimation(PinitColors.aubergineSoft),
                 ),
               ),
             ),
@@ -569,8 +567,7 @@ class _TopPlacesStepState extends State<TopPlacesStep>
         children: [
           Row(
             children: [
-              const Icon(FeatherIcons.x,
-                  size: 13, color: Color(0xFFEF4444)),
+              const Icon(FeatherIcons.x, size: 13, color: Color(0xFFEF4444)),
               const SizedBox(width: 5),
               Text(
                 '← Skip',
@@ -630,6 +627,7 @@ class _TopPlacesStepState extends State<TopPlacesStep>
                       : 'All done!',
                   style: const TextStyle(
                     fontFamily: 'Rova',
+                    fontFamilyFallback: ['Naria'],
                     fontSize: 26,
                     fontWeight: FontWeight.w100,
                     color: PinitColors.aubergine,

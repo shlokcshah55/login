@@ -109,6 +109,7 @@ class MatchBannerSection extends StatelessWidget {
                   match.label,
                   style: const TextStyle(
                     fontFamily: 'Rova',
+                    fontFamilyFallback: ['Naria'],
                     fontSize: 20,
                     fontWeight: FontWeight.w100,
                     color: PinitColors.aubergine,
@@ -130,7 +131,8 @@ class MatchBannerSection extends StatelessWidget {
               ],
             ),
           ),
-          if (match.dietaryMatch != null) _DietaryBadge(ratio: match.dietaryMatch!),
+          if (match.dietaryMatch != null)
+            _DietaryBadge(ratio: match.dietaryMatch!),
         ],
       ),
     );

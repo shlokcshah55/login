@@ -340,6 +340,7 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
                   currentBubble.name,
                   style: const TextStyle(
                     fontFamily: 'Rova',
+                    fontFamilyFallback: ['Naria'],
                     fontSize: 22,
                     fontWeight: FontWeight.w100,
                     color: PinitColors.aubergine,

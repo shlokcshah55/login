@@ -169,6 +169,7 @@ class _WizardCompletionContentState extends State<_WizardCompletionContent> {
                         _stepTitle,
                         style: const TextStyle(
                           fontFamily: 'Rova',
+                          fontFamilyFallback: ['Naria'],
                           fontSize: 22,
                           fontWeight: FontWeight.w100,
                           color: PinitColors.aubergine,

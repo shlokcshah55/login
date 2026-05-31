@@ -71,6 +71,7 @@ class TikTokInsightsSection extends StatelessWidget {
           'What they said',
           style: TextStyle(
             fontFamily: 'Rova',
+            fontFamilyFallback: ['Naria'],
             fontSize: 28,
             fontWeight: FontWeight.w100,
             color: PinitColors.aubergine,
@@ -382,7 +383,8 @@ class _OfferBanner extends StatelessWidget {
                             vertical: 3,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFFCC80).withValues(alpha: 0.4),
+                            color:
+                                const Color(0xFFFFCC80).withValues(alpha: 0.4),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
@@ -463,8 +465,7 @@ class _VideoVibePills extends StatelessWidget {
           children: top.map((entry) {
             final icon = vibeIcons[entry.key] ?? Icons.label_rounded;
             return Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
               decoration: BoxDecoration(
                 color: PinitColors.accent.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(999),

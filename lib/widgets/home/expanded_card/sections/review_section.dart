@@ -69,6 +69,7 @@ class ReviewSection extends StatelessWidget {
               'Reviews',
               style: TextStyle(
                 fontFamily: 'Rova',
+                fontFamilyFallback: ['Naria'],
                 fontSize: 28,
                 fontWeight: FontWeight.w100,
                 color: PinitColors.aubergine,
@@ -184,9 +185,8 @@ class _PinitReviewCard extends StatelessWidget {
     final textColor = isFriend ? PinitColors.cream : PinitColors.aubergine;
     final subColor =
         isFriend ? PinitColors.cream.withValues(alpha: 0.65) : PinitColors.mute;
-    final border = isFriend
-        ? null
-        : Border.all(color: PinitColors.creamDeep, width: 1.5);
+    final border =
+        isFriend ? null : Border.all(color: PinitColors.creamDeep, width: 1.5);
     final badgeLabel = isFriend ? 'FRIEND' : 'PINIT';
     final name = _displayName();
     final avatar = _avatarUrl();
@@ -206,7 +206,8 @@ class _PinitReviewCard extends StatelessWidget {
           Row(
             children: [
               // Avatar
-              _Avatar(url: avatar, initials: _initials(name), isFriend: isFriend),
+              _Avatar(
+                  url: avatar, initials: _initials(name), isFriend: isFriend),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -357,8 +358,7 @@ class _GoogleReviewCard extends StatelessWidget {
 
   final Map<String, dynamic> review;
 
-  String _extractAuthor() =>
-      review['author_name']?.toString() ?? 'Anonymous';
+  String _extractAuthor() => review['author_name']?.toString() ?? 'Anonymous';
 
   double _extractRating() {
     final rating = review['rating'];
@@ -417,13 +417,15 @@ class _GoogleReviewCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        ...List.generate(5, (i) => Icon(
-                              Icons.star_rounded,
-                              size: 14,
-                              color: i < rating.toInt()
-                                  ? PinitColors.aubergine
-                                  : PinitColors.creamDeep,
-                            )),
+                        ...List.generate(
+                            5,
+                            (i) => Icon(
+                                  Icons.star_rounded,
+                                  size: 14,
+                                  color: i < rating.toInt()
+                                      ? PinitColors.aubergine
+                                      : PinitColors.creamDeep,
+                                )),
                         const SizedBox(width: 6),
                         Text(
                           rating.toStringAsFixed(1),

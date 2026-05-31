@@ -31,16 +31,21 @@ class VibeStep extends StatefulWidget {
 class _VibeStepState extends State<VibeStep> {
   // We'll derive the grid images from the `lib/assets/vibe` filenames.
   final Map<String, String> _imageNames = const {
-  'brunchy.png' : 'Weekend brunchie \n\n  Trendy weekend spots with a lively, social atmosphere',
-  'cozy.png': 'Quiet comfort \n\n Warm, cozy spots with a relaxed atmosphere',
-  'localSpot.png': 'No-fuss foodie \n\n Comfortable quick-bite spots with a casual, welcoming vibe',
-  'rooftop.jpg': 'Urban socialite \n\n Trendy rooftop bars with skyline views',
-  'rusticLocal.png': 'Rustic Local \n\n Charming local spots with a homey, rustic feel',
-  'upscaleGuy.png': 'High-end enthusiast \n\n Sophisticated venues with upscale ambiance and fine dining',
+    'brunchy.png':
+        'Weekend brunchie \n\n  Trendy weekend spots with a lively, social atmosphere',
+    'cozy.png': 'Quiet comfort \n\n Warm, cozy spots with a relaxed atmosphere',
+    'localSpot.png':
+        'No-fuss foodie \n\n Comfortable quick-bite spots with a casual, welcoming vibe',
+    'rooftop.jpg':
+        'Urban socialite \n\n Trendy rooftop bars with skyline views',
+    'rusticLocal.png':
+        'Rustic Local \n\n Charming local spots with a homey, rustic feel',
+    'upscaleGuy.png':
+        'High-end enthusiast \n\n Sophisticated venues with upscale ambiance and fine dining',
   };
 
   final Map<String, List<String>> _imageTags = const {
-    'brunchy.png' : [
+    'brunchy.png': [
       '5b50e311-533f-450b-b679-bb5009a1430a',
       '80b705b8-c158-4703-b775-b5c00f4fd622',
       '23849d6f-bfb1-4a9a-b02a-11f0357abc75',
@@ -51,7 +56,6 @@ class _VibeStepState extends State<VibeStep> {
       '0cc10eb4-6935-425e-b177-b528c669b18f',
       '85f83be2-8537-4a9d-94a5-1d5972fc243d',
       'a30e5b03-552a-4134-89d3-cc7bf45c86e0',
-      
     ],
     'localSpot.png': [
       'c6d0d291-f782-4890-b703-7a250a53a0a3',
@@ -77,13 +81,12 @@ class _VibeStepState extends State<VibeStep> {
       '76b42037-ff12-4536-a7fe-8a6063e95230',
       '878b661e-e245-4fab-95f3-fa5195162828',
       '5d6f988f-68bc-4ac3-bec1-70613f07ed01',
-      
     ],
   };
 
   final Set<String> _selected = <String>{};
   bool get _hasTwoSelected => _selected.length == 2;
-  
+
   Future<void> _handleNext() async {
     if (!_hasTwoSelected) {
       await AppFeedback.showError(
@@ -113,7 +116,8 @@ class _VibeStepState extends State<VibeStep> {
 
     // Write vibe affinities immediately so the downstream proximal recs call
     // sees the user's vibe vector server-side.
-    if (wizardState.userId != null && wizardState.selectedVibeTagIds.isNotEmpty) {
+    if (wizardState.userId != null &&
+        wizardState.selectedVibeTagIds.isNotEmpty) {
       await supabase.tags.updateUserTagsPhotos(
         wizardState.userId!,
         wizardState.selectedVibeTagIds,
@@ -134,7 +138,7 @@ class _VibeStepState extends State<VibeStep> {
 
   @override
   Widget build(BuildContext context) {
-  // keep wizardState available via Provider where needed; we don't read it here directly
+    // keep wizardState available via Provider where needed; we don't read it here directly
 
     return Container(
       decoration: const BoxDecoration(
@@ -148,15 +152,18 @@ class _VibeStepState extends State<VibeStep> {
         children: [
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Small textbox-like hint area
                   TypingText(
-                      text: 'Pick two who you relate to most. (hold for more info)',
-                      style: const TextStyle(
+                    text:
+                        'Pick two who you relate to most. (hold for more info)',
+                    style: const TextStyle(
                       fontFamily: 'Rova',
+                      fontFamilyFallback: ['Naria'],
                       fontSize: 20,
                       fontWeight: FontWeight.w100,
                       color: PinitColors.aubergine,
@@ -164,7 +171,6 @@ class _VibeStepState extends State<VibeStep> {
                     ),
                     totalDuration: const Duration(milliseconds: 2200),
                   ),
-                  
 
                   const SizedBox(height: 12),
 
@@ -213,7 +219,9 @@ class _VibeStepState extends State<VibeStep> {
                     style: GoogleFonts.dmSans(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: _selected.length == 2 ? PinitColors.aubergine : PinitColors.mute,
+                      color: _selected.length == 2
+                          ? PinitColors.aubergine
+                          : PinitColors.mute,
                     ),
                   ),
                 ],
@@ -265,7 +273,9 @@ class _VibeStepState extends State<VibeStep> {
                 Expanded(
                   flex: 2,
                   child: ElevatedButton(
-                    onPressed: (widget.isLoadingRestaurants || !_hasTwoSelected) ? null : _handleNext,
+                    onPressed: (widget.isLoadingRestaurants || !_hasTwoSelected)
+                        ? null
+                        : _handleNext,
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       backgroundColor: PinitColors.aubergine,
@@ -284,7 +294,8 @@ class _VibeStepState extends State<VibeStep> {
                                 height: 20,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(PinitColors.cream),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      PinitColors.cream),
                                 ),
                               ),
                               const SizedBox(width: 12),

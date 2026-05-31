@@ -55,6 +55,7 @@ class ErrorPopover extends StatelessWidget {
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontFamily: 'Rova',
+                            fontFamilyFallback: ['Naria'],
                             fontSize: 26,
                             fontWeight: FontWeight.w100,
                             color: pinit.PinitColors.aubergine,
@@ -124,8 +125,8 @@ class ErrorPopover extends StatelessWidget {
                     child: IconButton(
                       onPressed: () => Navigator.of(context).pop(),
                       style: IconButton.styleFrom(
-                        backgroundColor: pinit.PinitColors.aubergine
-                            .withValues(alpha: 0.06),
+                        backgroundColor:
+                            pinit.PinitColors.aubergine.withValues(alpha: 0.06),
                       ),
                       icon: const Icon(
                         Icons.close_rounded,
