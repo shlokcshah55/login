@@ -39,8 +39,7 @@ class WhyGoSection extends StatelessWidget {
     if (!hasSummary && !hasVibe) return const SizedBox.shrink();
 
     final isWavy = hasVibe && vibe!.wavyScore >= 0.35;
-    final isBossman =
-        hasVibe && !isWavy && vibe!.bossmanScore >= 0.35;
+    final isBossman = hasVibe && !isWavy && vibe!.bossmanScore >= 0.35;
 
     final topVibes = hasVibe ? vibe!.topTags(3) : const [];
 
@@ -61,6 +60,7 @@ class WhyGoSection extends StatelessWidget {
           'The story',
           style: TextStyle(
             fontFamily: 'Rova',
+            fontFamilyFallback: ['Naria'],
             fontSize: 28,
             fontWeight: FontWeight.w100,
             color: PinitColors.aubergine,

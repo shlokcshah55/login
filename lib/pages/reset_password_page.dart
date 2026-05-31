@@ -137,6 +137,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                 'Set a new password',
                 style: TextStyle(
                   fontFamily: 'Rova',
+                  fontFamilyFallback: ['Naria'],
                   fontSize: 34,
                   fontWeight: FontWeight.w100,
                   color: PinitColors.aubergine,
@@ -170,8 +171,8 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                     color: PinitColors.mute,
                     size: 20,
                   ),
-                  onPressed: () => setState(
-                      () => _isPasswordVisible = !_isPasswordVisible),
+                  onPressed: () =>
+                      setState(() => _isPasswordVisible = !_isPasswordVisible),
                 ),
               ),
               _buildTextField(
@@ -187,20 +188,19 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                     color: PinitColors.mute,
                     size: 20,
                   ),
-                  onPressed: () => setState(
-                      () => _isConfirmVisible = !_isConfirmVisible),
+                  onPressed: () =>
+                      setState(() => _isConfirmVisible = !_isConfirmVisible),
                 ),
               ),
               const SizedBox(height: 8),
               Container(
-                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                margin:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
                   border: Border(
-                    right: BorderSide(
-                        color: PinitColors.aubergine, width: 2),
-                    bottom: BorderSide(
-                        color: PinitColors.aubergine, width: 2),
+                    right: BorderSide(color: PinitColors.aubergine, width: 2),
+                    bottom: BorderSide(color: PinitColors.aubergine, width: 2),
                   ),
                   boxShadow: PinitColors.cardShadow,
                 ),

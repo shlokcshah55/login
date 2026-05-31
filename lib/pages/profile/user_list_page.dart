@@ -156,6 +156,7 @@ class _UserListPageState extends State<UserListPage> {
               widget.title,
               style: const TextStyle(
                 fontFamily: 'Rova',
+                fontFamilyFallback: ['Naria'],
                 fontSize: 22,
                 fontWeight: FontWeight.w100,
                 color: PinitColors.aubergine,

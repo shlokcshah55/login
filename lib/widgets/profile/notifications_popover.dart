@@ -304,6 +304,7 @@ class _NotificationsPopoverState extends State<NotificationsPopover> {
                           'Notifications',
                           style: TextStyle(
                             fontFamily: 'Rova',
+                            fontFamilyFallback: ['Naria'],
                             fontSize: 30,
                             fontWeight: FontWeight.w100,
                             color: PinitColors.aubergine,
@@ -722,6 +723,7 @@ class _EmptyNotifications extends StatelessWidget {
                 'All caught up!',
                 style: TextStyle(
                   fontFamily: 'Rova',
+                  fontFamilyFallback: ['Naria'],
                   fontSize: 24,
                   fontWeight: FontWeight.w100,
                   color: PinitColors.aubergine,

@@ -79,6 +79,7 @@ class TikTokInsightsSection extends StatelessWidget {
           'What they said',
           style: TextStyle(
             fontFamily: 'Rova',
+            fontFamilyFallback: ['Naria'],
             fontSize: 28,
             fontWeight: FontWeight.w100,
             color: PinitColors.aubergine,

@@ -38,6 +38,7 @@ class NoRecommendationsPopover extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontFamily: 'Rova',
+                      fontFamilyFallback: ['Naria'],
                       fontSize: 26,
                       fontWeight: FontWeight.w100,
                       color: pinit.PinitColors.aubergine,

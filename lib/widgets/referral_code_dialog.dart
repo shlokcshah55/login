@@ -123,6 +123,7 @@ class _ReferralCodeDialogState extends State<ReferralCodeDialog> {
             'Referral code?',
             style: const TextStyle(
               fontFamily: 'Rova',
+              fontFamilyFallback: ['Naria'],
               fontSize: 28,
               fontWeight: FontWeight.w100,
               color: PinitColors.aubergine,
@@ -272,6 +273,7 @@ class _ReferralCodeDialogState extends State<ReferralCodeDialog> {
           'Code applied',
           style: const TextStyle(
             fontFamily: 'Rova',
+            fontFamilyFallback: ['Naria'],
             fontSize: 30,
             fontWeight: FontWeight.w100,
             color: PinitColors.aubergine,

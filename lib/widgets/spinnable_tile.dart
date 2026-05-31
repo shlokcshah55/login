@@ -26,15 +26,18 @@ class SpinnableTile extends StatefulWidget {
   State<SpinnableTile> createState() => _SpinnableTileState();
 }
 
-class _SpinnableTileState extends State<SpinnableTile> with SingleTickerProviderStateMixin {
+class _SpinnableTileState extends State<SpinnableTile>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
   late final Animation<double> _flipAnim;
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
-    _flipAnim = Tween<double>(begin: 0.0, end: math.pi).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 600));
+    _flipAnim = Tween<double>(begin: 0.0, end: math.pi)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
   }
 
   @override
@@ -55,8 +58,12 @@ class _SpinnableTileState extends State<SpinnableTile> with SingleTickerProvider
           final isHalf = _flipAnim.value > (math.pi / 2);
           final rotationY = _flipAnim.value;
 
-          final frontMatrix = Matrix4.identity()..setEntry(3, 2, 0.001)..rotateY(rotationY);
-          final backMatrix = Matrix4.identity()..setEntry(3, 2, 0.001)..rotateY(rotationY + math.pi);
+          final frontMatrix = Matrix4.identity()
+            ..setEntry(3, 2, 0.001)
+            ..rotateY(rotationY);
+          final backMatrix = Matrix4.identity()
+            ..setEntry(3, 2, 0.001)
+            ..rotateY(rotationY + math.pi);
 
           final cardDecoration = BoxDecoration(
             borderRadius: BorderRadius.circular(12),
@@ -98,6 +105,7 @@ class _SpinnableTileState extends State<SpinnableTile> with SingleTickerProvider
                     widget.description,
                     style: const TextStyle(
                       fontFamily: 'Rova',
+                      fontFamilyFallback: ['Naria'],
                       fontSize: 16,
                       fontWeight: FontWeight.w100,
                       color: PinitColors.aubergine,
@@ -124,7 +132,6 @@ class _SpinnableTileState extends State<SpinnableTile> with SingleTickerProvider
                   child: frontFace,
                 ),
               ),
-
               Transform(
                 transform: backMatrix,
                 alignment: Alignment.center,
@@ -135,7 +142,6 @@ class _SpinnableTileState extends State<SpinnableTile> with SingleTickerProvider
                   child: backFace,
                 ),
               ),
-
               Positioned.fill(
                 child: AnimatedOpacity(
                   duration: const Duration(milliseconds: 200),
@@ -147,7 +153,8 @@ class _SpinnableTileState extends State<SpinnableTile> with SingleTickerProvider
                       border: Border.all(color: Colors.white, width: 2),
                     ),
                     child: const Center(
-                      child: Icon(Icons.check_circle, color: Colors.white, size: 36),
+                      child: Icon(Icons.check_circle,
+                          color: Colors.white, size: 36),
                     ),
                   ),
                 ),

@@ -73,8 +73,7 @@ class _PreferencesPageState extends State<PreferencesPage> {
 
   void _scheduleSave() {
     _saveDebounce?.cancel();
-    _saveDebounce =
-        Timer(const Duration(milliseconds: 600), () => _flushNow());
+    _saveDebounce = Timer(const Duration(milliseconds: 600), () => _flushNow());
   }
 
   Future<void> _flushNow() async {
@@ -147,6 +146,7 @@ class _PreferencesPageState extends State<PreferencesPage> {
               'Preferences',
               style: const TextStyle(
                 fontFamily: 'Rova',
+                fontFamilyFallback: ['Naria'],
                 fontSize: 22,
                 fontWeight: FontWeight.w100,
                 color: PinitColors.aubergine,
@@ -209,6 +209,7 @@ class _PreferencesPageState extends State<PreferencesPage> {
               'Tune your vibes',
               style: const TextStyle(
                 fontFamily: 'Rova',
+                fontFamilyFallback: ['Naria'],
                 fontSize: 26,
                 fontWeight: FontWeight.w800,
                 color: PinitColors.aubergine,

@@ -227,6 +227,7 @@ class _ProfileCompletionChecklistCardState
                               'Finish your profile',
                               style: const TextStyle(
                                 fontFamily: 'Rova',
+                                fontFamilyFallback: ['Naria'],
                                 fontSize: 17,
                                 fontWeight: FontWeight.w100,
                                 color: PinitColors.aubergine,
@@ -245,6 +246,7 @@ class _ProfileCompletionChecklistCardState
                             'Finish your profile',
                             style: const TextStyle(
                               fontFamily: 'Rova',
+                              fontFamilyFallback: ['Naria'],
                               fontSize: 18,
                               fontWeight: FontWeight.w100,
                               color: PinitColors.aubergine,

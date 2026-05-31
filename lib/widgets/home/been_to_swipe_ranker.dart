@@ -123,7 +123,8 @@ class _BeenToSwipeRankerState extends State<BeenToSwipeRanker>
     final threshold = screenWidth * 0.3;
 
     if (_dragOffset.dx.abs() > threshold) {
-      final isBetter = _dragOffset.dx < 0; // left = comparison is worse = new location is better
+      final isBetter = _dragOffset.dx <
+          0; // left = comparison is worse = new location is better
       _animateAndAdvance(isBetter);
     } else {
       // Return to center
@@ -160,9 +161,11 @@ class _BeenToSwipeRankerState extends State<BeenToSwipeRanker>
       _swipeCount++;
 
       if (isBetter) {
-        _hi = mid - 1; // new place is better → search upper half (lower indices)
+        _hi =
+            mid - 1; // new place is better → search upper half (lower indices)
       } else {
-        _lo = mid + 1; // new place is worse → search lower half (higher indices)
+        _lo =
+            mid + 1; // new place is worse → search lower half (higher indices)
       }
 
       if (_searchDone) {
@@ -265,6 +268,7 @@ class _BeenToSwipeRankerState extends State<BeenToSwipeRanker>
             'vs ${widget.newLocation.name}',
             style: const TextStyle(
               fontFamily: 'Rova',
+              fontFamilyFallback: ['Naria'],
               fontSize: 28,
               fontWeight: FontWeight.w100,
               color: PinitColors.aubergine,
@@ -317,7 +321,8 @@ class _BeenToSwipeRankerState extends State<BeenToSwipeRanker>
                                 Positioned.fill(
                                   child: Container(
                                     // Match the card's horizontal margin and border radius
-                                    margin: const EdgeInsets.symmetric(horizontal: 20),
+                                    margin: const EdgeInsets.symmetric(
+                                        horizontal: 20),
                                     decoration: BoxDecoration(
                                       border: Border.all(
                                         color: Colors.green,
@@ -357,7 +362,8 @@ class _BeenToSwipeRankerState extends State<BeenToSwipeRanker>
                               if (offset.dx < 0)
                                 Positioned.fill(
                                   child: Container(
-                                    margin: const EdgeInsets.symmetric(horizontal: 20),
+                                    margin: const EdgeInsets.symmetric(
+                                        horizontal: 20),
                                     decoration: BoxDecoration(
                                       border: Border.all(
                                         color: Colors.red,
@@ -484,21 +490,22 @@ class _BeenToSwipeRankerState extends State<BeenToSwipeRanker>
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               child: Row(
                 children: [
-                  const Icon(FeatherIcons.star, size: 11, color: PinitColors.mute),
+                  const Icon(FeatherIcons.star,
+                      size: 11, color: PinitColors.mute),
                   const SizedBox(width: 5),
                   Text(
-                      'YOU WENT ',
-                      style: GoogleFonts.dmSans(
-                        fontSize: 10,
-                        color: PinitColors.mute,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.0,
-                      ),
+                    'YOU WENT ',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 10,
+                      color: PinitColors.mute,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.0,
                     ),
+                  ),
                   if (createdAt.isNotEmpty)
                     Text(
                       _timeAgo(createdAt),
-                      style: GoogleFonts.dmSans(  
+                      style: GoogleFonts.dmSans(
                         fontSize: 10,
                         color: PinitColors.mute,
                         fontWeight: FontWeight.w700,
@@ -587,7 +594,8 @@ class _BeenToSwipeRankerState extends State<BeenToSwipeRanker>
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               child: Row(
                 children: [
-                  const Icon(FeatherIcons.mapPin, size: 11, color: PinitColors.mute),
+                  const Icon(FeatherIcons.mapPin,
+                      size: 11, color: PinitColors.mute),
                   const SizedBox(width: 5),
                   Text(
                     'RATING THIS',
@@ -625,8 +633,8 @@ class _BeenToSwipeRankerState extends State<BeenToSwipeRanker>
                               ),
                             ),
                           ),
-                          errorWidget: (_, __, ___) => _imageEmpty(
-                              widget.newLocation.emoji),
+                          errorWidget: (_, __, ___) =>
+                              _imageEmpty(widget.newLocation.emoji),
                         )
                       : _imageEmpty(widget.newLocation.emoji),
                   // Gradient scrim
@@ -806,6 +814,7 @@ class _BeenToSwipeRankerState extends State<BeenToSwipeRanker>
               widget.newLocation.name,
               style: const TextStyle(
                 fontFamily: 'Rova',
+                fontFamilyFallback: ['Naria'],
                 fontSize: 28,
                 fontWeight: FontWeight.w100,
                 color: PinitColors.aubergine,
@@ -835,8 +844,11 @@ class _BeenToSwipeRankerState extends State<BeenToSwipeRanker>
                       GestureDetector(
                         onTap: _editableRating > 1.0
                             ? () => setState(() {
-                                  _editableRating = ((_editableRating - 0.1) * 10).round() / 10.0;
-                                  if (_editableRating < 1.0) _editableRating = 1.0;
+                                  _editableRating =
+                                      ((_editableRating - 0.1) * 10).round() /
+                                          10.0;
+                                  if (_editableRating < 1.0)
+                                    _editableRating = 1.0;
                                 })
                             : null,
                         child: Container(
@@ -872,8 +884,11 @@ class _BeenToSwipeRankerState extends State<BeenToSwipeRanker>
                       GestureDetector(
                         onTap: _editableRating < 10.0
                             ? () => setState(() {
-                                  _editableRating = ((_editableRating + 0.1) * 10).round() / 10.0;
-                                  if (_editableRating > 10.0) _editableRating = 10.0;
+                                  _editableRating =
+                                      ((_editableRating + 0.1) * 10).round() /
+                                          10.0;
+                                  if (_editableRating > 10.0)
+                                    _editableRating = 10.0;
                                 })
                             : null,
                         child: Container(

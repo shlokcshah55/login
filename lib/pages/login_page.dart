@@ -134,6 +134,7 @@ class _LoginPageState extends State<LoginPage> {
                 'Welcome back to Pinit',
                 style: TextStyle(
                   fontFamily: 'Rova',
+                  fontFamilyFallback: ['Naria'],
                   fontSize: 34,
                   fontWeight: FontWeight.w100,
                   color: PinitColors.aubergine,

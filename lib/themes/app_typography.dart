@@ -7,6 +7,8 @@ import 'app_colors.dart';
 /// `Rova` carries the brand voice while `Manrope` handles reading comfort.
 class AppTypography {
   static const String brandFamily = 'Rova';
+  static const String brandFallbackFamily = 'Naria';
+  static const List<String> brandFallbackFamilies = [brandFallbackFamily];
   static const String sansFamily = 'Manrope';
   static const double defaultBrandLetterSpacing = 0.24;
   static const double defaultBrandHeight = 1.08;
@@ -20,6 +22,7 @@ class AppTypography {
   }) {
     return TextStyle(
       fontFamily: brandFamily,
+      fontFamilyFallback: brandFallbackFamilies,
       fontSize: fontSize,
       fontWeight: fontWeight,
       color: color,

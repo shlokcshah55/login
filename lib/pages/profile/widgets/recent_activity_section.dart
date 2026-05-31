@@ -80,6 +80,7 @@ class _RecentActivitySectionState extends State<RecentActivitySection> {
                 'Recent',
                 style: TextStyle(
                   fontFamily: 'Rova',
+                  fontFamilyFallback: ['Naria'],
                   fontSize: 28,
                   fontWeight: FontWeight.w100,
                   color: PinitColors.aubergine,
@@ -103,9 +104,8 @@ class _RecentActivitySectionState extends State<RecentActivitySection> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
-            children: actions
-                .map((action) => _ActivityItem(action: action))
-                .toList(),
+            children:
+                actions.map((action) => _ActivityItem(action: action)).toList(),
           ),
         ),
       ],
@@ -130,17 +130,23 @@ class _ActivityItem extends StatelessWidget {
   _ActionMeta _meta(String actionType) {
     switch (actionType) {
       case 'save':
-        return const _ActionMeta(label: 'SAVED', accentColor: PinitColors.primary);
+        return const _ActionMeta(
+            label: 'SAVED', accentColor: PinitColors.primary);
       case 'like':
-        return const _ActionMeta(label: 'LIKED', accentColor: Color(0xFFE85D4C));
+        return const _ActionMeta(
+            label: 'LIKED', accentColor: Color(0xFFE85D4C));
       case 'dislike':
-        return const _ActionMeta(label: 'PASSED', accentColor: PinitColors.textMuted);
+        return const _ActionMeta(
+            label: 'PASSED', accentColor: PinitColors.textMuted);
       case 'visit':
-        return const _ActionMeta(label: 'VISITED', accentColor: Color(0xFF34A853));
+        return const _ActionMeta(
+            label: 'VISITED', accentColor: Color(0xFF34A853));
       case 'bubble_save':
-        return const _ActionMeta(label: 'PINNED TO BUBBLE', accentColor: Color(0xFF5B4DC7));
+        return const _ActionMeta(
+            label: 'PINNED TO BUBBLE', accentColor: Color(0xFF5B4DC7));
       default:
-        return const _ActionMeta(label: 'PINNED', accentColor: PinitColors.primary);
+        return const _ActionMeta(
+            label: 'PINNED', accentColor: PinitColors.primary);
     }
   }
 
@@ -179,66 +185,68 @@ class _ActivityItem extends StatelessWidget {
             children: [
               // Left accent bar
               Container(width: 3, color: meta.accentColor),
-            // Content
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            meta.label,
-                            style: GoogleFonts.dmSans(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1.4,
-                              color: meta.accentColor,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            placeName,
-                            style: GoogleFonts.dmSans(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: PinitColors.aubergine,
-                              height: 1.2,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          if (bubbleName.isNotEmpty && actionType == 'bubble_save')
+              // Content
+              Expanded(
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
                             Text(
-                              bubbleName,
+                              meta.label,
                               style: GoogleFonts.dmSans(
-                                fontSize: 11,
-                                color: PinitColors.aubergineSoft,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.4,
+                                color: meta.accentColor,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              placeName,
+                              style: GoogleFonts.dmSans(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: PinitColors.aubergine,
+                                height: 1.2,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                        ],
+                            if (bubbleName.isNotEmpty &&
+                                actionType == 'bubble_save')
+                              Text(
+                                bubbleName,
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 11,
+                                  color: PinitColors.aubergineSoft,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      timeAgo,
-                      style: GoogleFonts.dmSans(
-                        fontSize: 11,
-                        color: PinitColors.mute,
+                      const SizedBox(width: 12),
+                      Text(
+                        timeAgo,
+                        style: GoogleFonts.dmSans(
+                          fontSize: 11,
+                          color: PinitColors.mute,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
         ),
       ),
     );

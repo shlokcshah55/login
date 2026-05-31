@@ -27,7 +27,8 @@ class BubbleDiscoverView extends StatelessWidget {
       final scoreA = a.compatibilityScore ?? 0;
       final scoreB = b.compatibilityScore ?? 0;
       if (scoreA != scoreB) return scoreB.compareTo(scoreA);
-      if (a.memberCount != b.memberCount) return b.memberCount.compareTo(a.memberCount);
+      if (a.memberCount != b.memberCount)
+        return b.memberCount.compareTo(a.memberCount);
       return b.groupLocations.length.compareTo(a.groupLocations.length);
     });
     return sorted.take(5).toList();
@@ -89,6 +90,7 @@ class _SectionHeader extends StatelessWidget {
             title,
             style: const TextStyle(
               fontFamily: 'Rova',
+              fontFamilyFallback: ['Naria'],
               fontSize: 28,
               fontWeight: FontWeight.w100,
               color: PinitColors.aubergine,
@@ -173,6 +175,7 @@ class _HotBubbleCard extends StatelessWidget {
                         bubble.name,
                         style: const TextStyle(
                           fontFamily: 'Rova',
+                          fontFamilyFallback: ['Naria'],
                           fontSize: 17,
                           fontWeight: FontWeight.w100,
                           color: PinitColors.aubergine,
@@ -187,12 +190,14 @@ class _HotBubbleCard extends StatelessWidget {
                         children: [
                           _MiniStat(
                             icon: Icons.people_outline_rounded,
-                            label: '${bubble.memberCount} member${bubble.memberCount == 1 ? '' : 's'}',
+                            label:
+                                '${bubble.memberCount} member${bubble.memberCount == 1 ? '' : 's'}',
                           ),
                           const SizedBox(width: 10),
                           _MiniStat(
                             icon: Icons.place_outlined,
-                            label: '${bubble.groupLocations.length} place${bubble.groupLocations.length == 1 ? '' : 's'}',
+                            label:
+                                '${bubble.groupLocations.length} place${bubble.groupLocations.length == 1 ? '' : 's'}',
                           ),
                         ],
                       ),
@@ -239,7 +244,8 @@ class _MiniAvatarStack extends StatelessWidget {
           color: PinitColors.creamSunk,
           shape: BoxShape.circle,
         ),
-        child: const Icon(Icons.people_outline_rounded, size: 14, color: PinitColors.mute),
+        child: const Icon(Icons.people_outline_rounded,
+            size: 14, color: PinitColors.mute),
       );
     }
 
@@ -271,7 +277,8 @@ class _MiniAvatarStack extends StatelessWidget {
                     ? Image.network(
                         url,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _Initial(initial: initial),
+                        errorBuilder: (_, __, ___) =>
+                            _Initial(initial: initial),
                       )
                     : _Initial(initial: initial),
               ),

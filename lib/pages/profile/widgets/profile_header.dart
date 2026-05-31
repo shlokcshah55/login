@@ -64,6 +64,7 @@ class ProfileHeader extends StatelessWidget {
                             user.name ?? 'No Name',
                             style: const TextStyle(
                               fontFamily: 'Rova',
+                              fontFamilyFallback: ['Naria'],
                               fontSize: 28,
                               fontWeight: FontWeight.w100,
                               color: PinitColors.cream,

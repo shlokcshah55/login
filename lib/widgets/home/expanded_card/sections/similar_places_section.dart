@@ -41,6 +41,7 @@ class SimilarPlacesSection extends StatelessWidget {
                 'You might also like',
                 style: TextStyle(
                   fontFamily: 'Rova',
+                  fontFamilyFallback: ['Naria'],
                   fontSize: 28,
                   fontWeight: FontWeight.w100,
                   color: PinitColors.aubergine,
@@ -121,8 +122,7 @@ class _SimilarPlaceCard extends StatelessWidget {
                 : PinitColors.creamDeep,
             width: (isStrongSim || isWavy) ? 2.0 : 1.5,
           ),
-          boxShadow:
-              (isStrongSim || isWavy) ? PinitColors.subtleShadow : null,
+          boxShadow: (isStrongSim || isWavy) ? PinitColors.subtleShadow : null,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -153,8 +153,8 @@ class _SimilarPlaceCard extends StatelessWidget {
                   top: 8,
                   right: 8,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 5),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
                       color: isStrongSim
                           ? PinitColors.accent

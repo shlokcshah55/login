@@ -120,8 +120,8 @@ class _CuratedEatListsStepState extends State<CuratedEatListsStep> {
       if (!mounted) return;
 
       setState(() {
-        final idx =
-            _collections.indexWhere((c) => c.collectionId == collection.collectionId);
+        final idx = _collections
+            .indexWhere((c) => c.collectionId == collection.collectionId);
         if (idx == -1) return;
         final current = _collections[idx];
         final nextSaved = !current.isSaved;
@@ -173,6 +173,7 @@ class _CuratedEatListsStepState extends State<CuratedEatListsStep> {
                     'Pick a few eat-lists to start with',
                     style: TextStyle(
                       fontFamily: 'Rova',
+                      fontFamilyFallback: ['Naria'],
                       fontSize: 22,
                       fontWeight: FontWeight.w100,
                       color: PinitColors.aubergine,
@@ -243,15 +244,13 @@ class _CuratedEatListsStepState extends State<CuratedEatListsStep> {
                                   final saving =
                                       _savingCollectionId == c.collectionId;
                                   return Padding(
-                                    padding:
-                                        const EdgeInsets.only(bottom: 10),
+                                    padding: const EdgeInsets.only(bottom: 10),
                                     child: _CuratedRow(
                                       collection: c,
                                       cityLabel: c.curatedCity,
                                       description: c.description ?? '',
                                       saving: saving,
-                                      onToggle: () =>
-                                          _toggleSaveCollection(c),
+                                      onToggle: () => _toggleSaveCollection(c),
                                       onTap: () => _openDetail(c),
                                     ),
                                   );
@@ -362,7 +361,8 @@ class _SearchField extends StatelessWidget {
             Icon(Icons.search_rounded, size: 20, color: PinitColors.mute),
         filled: true,
         fillColor: PinitColors.creamSunk,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
@@ -417,111 +417,114 @@ class _CuratedRow extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: PinitColors.cream,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: PinitColors.creamDeep,
-                  width: 1.5,
-                ),
-              ),
-              child: Center(
-                child: Text(
-                  collection.emoji ?? '📌',
-                  style: const TextStyle(fontSize: 20),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    collection.name,
-                    style: GoogleFonts.dmSans(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: PinitColors.aubergine,
-                      height: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    description.isEmpty
-                        ? '${collection.placeCount} place${collection.placeCount == 1 ? '' : 's'}'
-                        : description,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.dmSans(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: PinitColors.aubergineSoft,
-                      height: 1.3,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Text(
-                        '${collection.placeCount} place${collection.placeCount == 1 ? '' : 's'}',
-                        style: GoogleFonts.dmSans(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: PinitColors.mute,
-                          letterSpacing: 0.8,
-                        ),
-                      ),
-                      if ((cityLabel ?? '').trim().isNotEmpty) ...[
-                        const SizedBox(width: 8),
-                        Text(
-                          (cityLabel ?? '').toUpperCase(),
-                          style: GoogleFonts.dmSans(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            color: PinitColors.aubergineSoft,
-                            letterSpacing: 1.0,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 10),
-            GestureDetector(
-              onTap: saving ? null : onToggle,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              Container(
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
-                  color: selected ? PinitColors.aubergine : PinitColors.cream,
-                  borderRadius: BorderRadius.circular(999),
+                  color: PinitColors.cream,
+                  borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: PinitColors.aubergine,
+                    color: PinitColors.creamDeep,
                     width: 1.5,
                   ),
                 ),
-                child: saving
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(PinitColors.aubergine),
-                        ),
-                      )
-                    : Icon(
-                        selected ? Icons.check_rounded : Icons.add_rounded,
-                        size: 18,
-                        color: selected ? PinitColors.cream : PinitColors.aubergine,
-                      ),
+                child: Center(
+                  child: Text(
+                    collection.emoji ?? '📌',
+                    style: const TextStyle(fontSize: 20),
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      collection.name,
+                      style: GoogleFonts.dmSans(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: PinitColors.aubergine,
+                        height: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      description.isEmpty
+                          ? '${collection.placeCount} place${collection.placeCount == 1 ? '' : 's'}'
+                          : description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.dmSans(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: PinitColors.aubergineSoft,
+                        height: 1.3,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Text(
+                          '${collection.placeCount} place${collection.placeCount == 1 ? '' : 's'}',
+                          style: GoogleFonts.dmSans(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: PinitColors.mute,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                        if ((cityLabel ?? '').trim().isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          Text(
+                            (cityLabel ?? '').toUpperCase(),
+                            style: GoogleFonts.dmSans(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: PinitColors.aubergineSoft,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              GestureDetector(
+                onTap: saving ? null : onToggle,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: selected ? PinitColors.aubergine : PinitColors.cream,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: PinitColors.aubergine,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: saving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                                PinitColors.aubergine),
+                          ),
+                        )
+                      : Icon(
+                          selected ? Icons.check_rounded : Icons.add_rounded,
+                          size: 18,
+                          color: selected
+                              ? PinitColors.cream
+                              : PinitColors.aubergine,
+                        ),
+                ),
+              ),
             ],
           ),
         ),

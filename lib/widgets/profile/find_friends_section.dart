@@ -116,6 +116,7 @@ class _FindFriendsSectionState extends State<FindFriendsSection> {
                   'People',
                   style: TextStyle(
                     fontFamily: 'Rova',
+                    fontFamilyFallback: ['Naria'],
                     fontSize: 28,
                     fontWeight: FontWeight.w100,
                     color: PinitColors.aubergine,
@@ -131,16 +132,19 @@ class _FindFriendsSectionState extends State<FindFriendsSection> {
                   _fetchSuggestedUsers();
                 },
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
                     color: PinitColors.creamSunk,
                     borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: PinitColors.creamDeep, width: 1.5),
+                    border:
+                        Border.all(color: PinitColors.creamDeep, width: 1.5),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.refresh_rounded, size: 13, color: PinitColors.aubergine),
+                      const Icon(Icons.refresh_rounded,
+                          size: 13, color: PinitColors.aubergine),
                       const SizedBox(width: 5),
                       Text(
                         'Refresh',
@@ -194,8 +198,7 @@ class _FindFriendsSectionState extends State<FindFriendsSection> {
                     ),
                     decoration: InputDecoration(
                       isCollapsed: true,
-                      contentPadding:
-                          const EdgeInsets.symmetric(vertical: 16),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 16),
                       border: InputBorder.none,
                       hintText: 'SEARCH PEOPLE',
                       hintStyle: GoogleFonts.dmSans(
@@ -299,6 +302,7 @@ class _FindFriendsSectionState extends State<FindFriendsSection> {
               'No one around yet...',
               style: TextStyle(
                 fontFamily: 'Rova',
+                fontFamilyFallback: ['Naria'],
                 fontSize: 24,
                 fontWeight: FontWeight.w800,
                 color: PinitColors.aubergine,
@@ -323,13 +327,15 @@ class _FindFriendsSectionState extends State<FindFriendsSection> {
     }
 
     return Column(
-      children: _suggestedUsers.map((user) => Padding(
-        padding: const EdgeInsets.only(bottom: 16, right: 4),
-        child: UserCard(
-          user: user,
-          onTap: widget.onUserTap,
-        ),
-      )).toList(),
+      children: _suggestedUsers
+          .map((user) => Padding(
+                padding: const EdgeInsets.only(bottom: 16, right: 4),
+                child: UserCard(
+                  user: user,
+                  onTap: widget.onUserTap,
+                ),
+              ))
+          .toList(),
     );
   }
 }

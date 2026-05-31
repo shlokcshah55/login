@@ -162,6 +162,7 @@ class _AddToCollectionSheetState extends State<AddToCollectionSheet> {
                   'Add to Eat-List',
                   style: TextStyle(
                     fontFamily: 'Rova',
+                    fontFamilyFallback: ['Naria'],
                     fontSize: 28,
                     fontWeight: FontWeight.w100,
                     color: PinitColors.aubergine,
@@ -246,6 +247,7 @@ class _AddToCollectionSheetState extends State<AddToCollectionSheet> {
                       'No eat-lists yet',
                       style: TextStyle(
                         fontFamily: 'Rova',
+                        fontFamilyFallback: ['Naria'],
                         fontSize: 22,
                         fontWeight: FontWeight.w100,
                         color: PinitColors.aubergine,

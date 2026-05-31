@@ -70,6 +70,7 @@ class ReviewSection extends StatelessWidget {
               'Reviews',
               style: TextStyle(
                 fontFamily: 'Rova',
+                fontFamilyFallback: ['Naria'],
                 fontSize: 28,
                 fontWeight: FontWeight.w100,
                 color: PinitColors.aubergine,
@@ -185,6 +186,8 @@ class _PinitReviewCard extends StatelessWidget {
     final textColor = isFriend ? PinitColors.cream : PinitColors.aubergine;
     final subColor =
         isFriend ? PinitColors.cream.withValues(alpha: 0.65) : PinitColors.mute;
+    final border =
+        isFriend ? null : Border.all(color: PinitColors.creamDeep, width: 1.5);
     final border =
         isFriend ? null : Border.all(color: PinitColors.creamDeep, width: 1.5);
     final badgeLabel = isFriend ? 'FRIEND' : 'PINIT';

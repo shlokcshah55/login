@@ -297,6 +297,7 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
                 'Block ${widget.user.name ?? "this user"}?',
                 style: const TextStyle(
                   fontFamily: 'Rova',
+                  fontFamilyFallback: ['Naria'],
                   fontSize: 22,
                   fontWeight: FontWeight.w100,
                   color: PinitColors.aubergine,
@@ -491,6 +492,7 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   fontFamily: 'Rova',
+                                  fontFamilyFallback: ['Naria'],
                                   fontSize: 28,
                                   fontWeight: FontWeight.w100,
                                   color: PinitColors.cream,
@@ -630,6 +632,7 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
           value,
           style: const TextStyle(
             fontFamily: 'Rova',
+            fontFamilyFallback: ['Naria'],
             fontSize: 20,
             fontWeight: FontWeight.w800,
             color: PinitColors.cream,
@@ -788,6 +791,7 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
             'Eat-Lists',
             style: TextStyle(
               fontFamily: 'Rova',
+              fontFamilyFallback: ['Naria'],
               fontSize: 24,
               fontWeight: FontWeight.w100,
               color: PinitColors.aubergine,
@@ -959,6 +963,7 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 fontFamily: 'Rova',
+                fontFamilyFallback: ['Naria'],
                 fontSize: 20,
                 fontWeight: FontWeight.w100,
                 color: PinitColors.cream,
@@ -1068,6 +1073,7 @@ class _VibeMatchCard extends StatelessWidget {
                   hasData ? '$percentage%' : '—',
                   style: const TextStyle(
                     fontFamily: 'Rova',
+                    fontFamilyFallback: ['Naria'],
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
                     color: PinitColors.aubergine,
@@ -1096,6 +1102,7 @@ class _VibeMatchCard extends StatelessWidget {
                   label,
                   style: const TextStyle(
                     fontFamily: 'Rova',
+                    fontFamilyFallback: ['Naria'],
                     fontSize: 22,
                     fontWeight: FontWeight.w800,
                     color: PinitColors.aubergine,
@@ -1182,6 +1189,7 @@ class _PublicCollectionsSection extends StatelessWidget {
                   'Eat-Lists',
                   style: TextStyle(
                     fontFamily: 'Rova',
+                    fontFamilyFallback: ['Naria'],
                     fontSize: 24,
                     fontWeight: FontWeight.w100,
                     color: PinitColors.aubergine,

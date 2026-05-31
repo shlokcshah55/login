@@ -11,8 +11,20 @@ void main() {
 
   test('brand text styles use Rova while body styles use Manrope', () {
     expect(AppTypography.textTheme.displayLarge?.fontFamily, 'Rova');
+    expect(
+      AppTypography.textTheme.displayLarge?.fontFamilyFallback,
+      AppTypography.brandFallbackFamilies,
+    );
     expect(AppTypography.textTheme.headlineMedium?.fontFamily, 'Rova');
+    expect(
+      AppTypography.textTheme.headlineMedium?.fontFamilyFallback,
+      AppTypography.brandFallbackFamilies,
+    );
     expect(AppTypography.textTheme.labelLarge?.fontFamily, 'Rova');
+    expect(
+      AppTypography.textTheme.labelLarge?.fontFamilyFallback,
+      AppTypography.brandFallbackFamilies,
+    );
 
     expect(AppTypography.textTheme.bodyLarge?.fontFamily, 'Manrope');
     expect(AppTypography.textTheme.bodyMedium?.fontFamily, 'Manrope');

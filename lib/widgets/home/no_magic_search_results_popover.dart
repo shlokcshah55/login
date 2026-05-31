@@ -64,6 +64,7 @@ class NoMagicSearchResultsPopover extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontFamily: 'Rova',
+                        fontFamilyFallback: ['Naria'],
                         fontSize: 28,
                         fontWeight: FontWeight.w100,
                         color: PinitColors.aubergine,

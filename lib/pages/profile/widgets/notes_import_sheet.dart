@@ -192,6 +192,7 @@ class _NotesImportSheetState extends State<NotesImportSheet> {
             'Bring in a saved list',
             style: const TextStyle(
               fontFamily: 'Rova',
+              fontFamilyFallback: ['Naria'],
               fontSize: 26,
               fontWeight: FontWeight.w100,
               color: PinitColors.aubergine,

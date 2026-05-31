@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -82,7 +81,8 @@ class _DietaryStepState extends State<DietaryStep> {
                           children: [
                             Text(
                               _error!,
-                              style: GoogleFonts.dmSans(color: PinitColors.accent),
+                              style:
+                                  GoogleFonts.dmSans(color: PinitColors.accent),
                               textAlign: TextAlign.center,
                             ),
                             const SizedBox(height: 16),
@@ -94,7 +94,8 @@ class _DietaryStepState extends State<DietaryStep> {
                         ),
                       )
                     : Padding(
-                        padding: const EdgeInsets.fromLTRB(24.0, 16.0, 24.0, 12.0),
+                        padding:
+                            const EdgeInsets.fromLTRB(24.0, 16.0, 24.0, 12.0),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -104,22 +105,19 @@ class _DietaryStepState extends State<DietaryStep> {
                               children: [
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       const SizedBox(height: 4),
-                                      Text(
-                                        'Which of these apply to you?',
-                                        style:
-                                            TextStyle(
-                                                fontFamily: 'Rova',
-                                                fontSize: 20,
-                                                fontWeight: FontWeight.w100,
-                                                color: PinitColors.aubergine,
-                                                letterSpacing: 1.5,
-                                                height: 1.1
-                                                )
-                                                                    
-                                      ),
+                                      Text('Which of these apply to you?',
+                                          style: TextStyle(
+                                              fontFamily: 'Rova',
+                                              fontFamilyFallback: ['Naria'],
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.w100,
+                                              color: PinitColors.aubergine,
+                                              letterSpacing: 1.5,
+                                              height: 1.1)),
                                     ],
                                   ),
                                 ),
@@ -134,10 +132,13 @@ class _DietaryStepState extends State<DietaryStep> {
                               runSpacing: 6,
                               children: _dietaryTags.map((tag) {
                                 final tagId = tag['tag_id'] as String;
-                                final isSelected = wizardState.selectedDietaryTagIds
+                                final isSelected = wizardState
+                                    .selectedDietaryTagIds
                                     .contains(tagId);
                                 final tagColor = tag['colour'] != null
-                                    ? Color(int.parse(tag['colour'].toString().replaceAll('#', '0xFF')))
+                                    ? Color(int.parse(tag['colour']
+                                        .toString()
+                                        .replaceAll('#', '0xFF')))
                                     : PinitColors.creamSunk;
 
                                 return Container(
@@ -151,14 +152,18 @@ class _DietaryStepState extends State<DietaryStep> {
                                     ),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: isSelected ? PinitColors.black : PinitColors.aubergine,
+                                        color: isSelected
+                                            ? PinitColors.black
+                                            : PinitColors.aubergine,
                                         blurRadius: 0,
                                         offset: const Offset(3, 3),
                                       ),
                                     ],
                                   ),
                                   child: Material(
-                                    color: isSelected ? PinitColors.aubergine : tagColor,
+                                    color: isSelected
+                                        ? PinitColors.aubergine
+                                        : tagColor,
                                     borderRadius: BorderRadius.circular(12),
                                     child: InkWell(
                                       onTap: () {
@@ -196,7 +201,7 @@ class _DietaryStepState extends State<DietaryStep> {
                                 height: 170,
                               ),
                             ),
-                            
+
                             const SizedBox(height: 20),
 
                             // Spice tolerance section
@@ -204,6 +209,7 @@ class _DietaryStepState extends State<DietaryStep> {
                               'How much spice can you handle...',
                               style: TextStyle(
                                 fontFamily: 'Rova',
+                                fontFamilyFallback: ['Naria'],
                                 fontSize: 24,
                                 fontWeight: FontWeight.w100,
                                 color: PinitColors.aubergine,
@@ -220,7 +226,8 @@ class _DietaryStepState extends State<DietaryStep> {
                                   vertical: 8,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: PinitColors.aubergine.withValues(alpha: 0.08),
+                                  color: PinitColors.aubergine
+                                      .withValues(alpha: 0.08),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Text(
@@ -244,7 +251,8 @@ class _DietaryStepState extends State<DietaryStep> {
                                 activeTrackColor: PinitColors.accent,
                                 inactiveTrackColor: PinitColors.creamDeep,
                                 thumbColor: PinitColors.accent,
-                                overlayColor: PinitColors.accent.withValues(alpha: 0.2),
+                                overlayColor:
+                                    PinitColors.accent.withValues(alpha: 0.2),
                                 trackHeight: 6,
                                 thumbShape: const RoundSliderThumbShape(
                                   enabledThumbRadius: 12,
@@ -263,9 +271,11 @@ class _DietaryStepState extends State<DietaryStep> {
 
                             // Level indicators
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 8.0),
                               child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: List.generate(
                                   5,
                                   (index) => Text(
@@ -285,7 +295,6 @@ class _DietaryStepState extends State<DietaryStep> {
                                 ),
                               ),
                             ),
-
                           ],
                         ),
                       ),

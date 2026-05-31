@@ -95,6 +95,7 @@ class SummarySlabSection extends StatelessWidget {
                 location.name,
                 style: const TextStyle(
                   fontFamily: 'Rova',
+                  fontFamilyFallback: ['Naria'],
                   fontSize: 36,
                   fontWeight: FontWeight.w100,
                   color: PinitColors.aubergine,

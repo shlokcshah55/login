@@ -513,6 +513,7 @@ class _ProfilePageState extends State<ProfilePage>
               user.name ?? 'Profile',
               style: const TextStyle(
                 fontFamily: 'Rova',
+                fontFamilyFallback: ['Naria'],
                 fontSize: 20,
                 fontWeight: FontWeight.w100,
                 color: PinitColors.cream,
@@ -590,6 +591,7 @@ class _ProfilePageState extends State<ProfilePage>
                                     entry.value,
                                     style: const TextStyle(
                                       fontFamily: 'Rova',
+                                      fontFamilyFallback: ['Naria'],
                                       fontSize: 16,
                                       fontWeight: FontWeight.w100,
                                       color: PinitColors.cream,
@@ -778,6 +780,7 @@ class _ProfilePageState extends State<ProfilePage>
                 'Something went wrong',
                 style: const TextStyle(
                   fontFamily: 'Rova',
+                  fontFamilyFallback: ['Naria'],
                   fontSize: 28,
                   fontWeight: FontWeight.w800,
                   color: PinitColors.aubergine,
@@ -904,7 +907,7 @@ class _ProfilePageState extends State<ProfilePage>
         },
         onShareProfile: () {
           Navigator.pop(sheetContext);
-          _shareProfile(context);
+          _shareProfile(context, user);
         },
         onRewards: () {
           Navigator.pop(sheetContext);
@@ -918,13 +921,14 @@ class _ProfilePageState extends State<ProfilePage>
     );
   }
 
-  void _shareProfile(BuildContext context) {
+  void _shareProfile(BuildContext context, UserModel user) {
     const appStoreUrl =
-        'https://apps.apple.com/app/pinit'; // replace with real URL
-    Share.share(
-      "I've got Pinit and I want to be your friend! 🍽️ Join me on the app: $appStoreUrl",
-      subject: 'Join me on Pinit!',
-    );
+        'https://apps.apple.com/gb/app/pinit/id6762100292';
+    final referralCode = user.referralCode;
+    final message = referralCode != null
+        ? "I've got Pinit and I want to be your friend! 🍽️ Use my referral code $referralCode and we both get rewards! Join me on the app: $appStoreUrl"
+        : "I've got Pinit and I want to be your friend! 🍽️ Join me on the app: $appStoreUrl";
+    Share.share(message, subject: 'Join me on Pinit!');
   }
 }
 
@@ -1117,6 +1121,7 @@ class _ProfileSettingsIntro extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontFamily: 'Rova',
+                    fontFamilyFallback: ['Naria'],
                     fontSize: 26,
                     fontWeight: FontWeight.w800,
                     color: PinitColors.aubergine,
