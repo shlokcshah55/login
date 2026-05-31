@@ -56,7 +56,7 @@ class SearchSuggestionItem {
       id: 'place:${location.locationId}',
       kind: SearchSuggestionKind.place,
       title: location.name,
-      subtitle: location.vicinity ?? location.cuisine,
+      subtitle: location.vicinity ?? location.displayCuisine,
       queryValue: location.name,
       location: location,
       distanceMeters: distanceMeters,

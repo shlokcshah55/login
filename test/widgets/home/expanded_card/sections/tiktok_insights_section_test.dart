@@ -89,4 +89,45 @@ void main() {
     expect(find.text('Masala dosa'), findsNWidgets(2));
     expect(find.text(description), findsNWidgets(2));
   });
+
+  testWidgets('long dish notes scroll inside the dish card', (tester) async {
+    final description = List.filled(
+      12,
+      'Crispy chilli noodles with garlic oil, herbs, pickles, and extra sauce.',
+    ).join(' ');
+
+    await tester.pumpWidget(
+      buildSubject(
+        VideoInsight(
+          id: 'insight-5',
+          sourceVideoUrl: 'https://www.tiktok.com/@chef/video/456',
+          locationId: 42,
+          keyDishes: [
+            DishHighlight(
+              name: 'Chilli noodles',
+              description: description,
+              price: '£12',
+            ),
+          ],
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(
+      find.descendant(
+        of: find.byType(SingleChildScrollView),
+        matching: find.text(description),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.drag(
+      find.byType(SingleChildScrollView).last,
+      const Offset(0, -40),
+    );
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+  });
 }

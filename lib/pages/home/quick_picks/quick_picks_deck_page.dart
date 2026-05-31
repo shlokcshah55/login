@@ -126,8 +126,7 @@ class _QuickPicksDeckPageState extends State<QuickPicksDeckPage>
     showGeneralDialog<void>(
       context: context,
       barrierDismissible: true,
-      barrierLabel:
-          MaterialLocalizations.of(context).modalBarrierDismissLabel,
+      barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
       barrierColor: Colors.transparent,
       transitionDuration: const Duration(milliseconds: 300),
       pageBuilder: (ctx, _, __) => ExpandedLocationCard(
@@ -273,9 +272,8 @@ class _QuickPicksDeckPageState extends State<QuickPicksDeckPage>
             AnimatedBuilder(
               animation: _flyController,
               builder: (context, child) {
-                final Offset offset = _flyingOut && _flyAnim != null
-                    ? _flyAnim!.value
-                    : _drag;
+                final Offset offset =
+                    _flyingOut && _flyAnim != null ? _flyAnim!.value : _drag;
                 final double rotation = offset.dx / 1400;
 
                 return Transform.translate(
@@ -494,8 +492,7 @@ class _QuickPickCard extends StatelessWidget {
                           ),
                       ],
                     ),
-                    if (location.cuisine != null &&
-                        location.cuisine!.isNotEmpty)
+                    if (location.displayCuisine != null)
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 12,
@@ -510,7 +507,7 @@ class _QuickPickCard extends StatelessWidget {
                           ),
                         ),
                         child: Text(
-                          location.cuisine!.toUpperCase(),
+                          location.displayCuisine!.toUpperCase(),
                           style: AppTypography.sans(
                             fontSize: 10,
                             fontWeight: FontWeight.w800,

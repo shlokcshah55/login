@@ -30,7 +30,7 @@ class _BubbleProfilePageState extends State<BubbleProfilePage>
   List<MapMarkerData> _markerData = [];
   List<LocationModel> allMemberLocations = [];
   bool isLoading = true;
-  
+
   // Local state for bubble data that can be updated
   late Bubble currentBubble;
 
@@ -53,9 +53,10 @@ class _BubbleProfilePageState extends State<BubbleProfilePage>
 
   Future<void> _reloadBubbleData() async {
     try {
-      final supabaseProvider = Provider.of<SupabaseService>(context, listen: false);
-      final updatedBubble = await supabaseProvider.bubbles
-          .getBubbleById(widget.chatGroup.id);
+      final supabaseProvider =
+          Provider.of<SupabaseService>(context, listen: false);
+      final updatedBubble =
+          await supabaseProvider.bubbles.getBubbleById(widget.chatGroup.id);
 
       if (updatedBubble != null) {
         setState(() {
@@ -71,7 +72,8 @@ class _BubbleProfilePageState extends State<BubbleProfilePage>
     setState(() => isLoading = true);
 
     try {
-      final supabaseProvider = Provider.of<SupabaseService>(context, listen: false);
+      final supabaseProvider =
+          Provider.of<SupabaseService>(context, listen: false);
       final locations = await supabaseProvider.bubbles
           .getAllMemberLocations(widget.chatGroup.id);
 
@@ -125,7 +127,7 @@ class _BubbleProfilePageState extends State<BubbleProfilePage>
 
   Widget _buildLocationDetailsSheet(LocationModel location) {
     final theme = Theme.of(context);
-    
+
     return Container(
       height: MediaQuery.of(context).size.height * 0.4,
       decoration: BoxDecoration(
@@ -161,8 +163,9 @@ class _BubbleProfilePageState extends State<BubbleProfilePage>
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      Icon(Icons.location_on, 
-                        size: 16, 
+                      Icon(
+                        Icons.location_on,
+                        size: 16,
                         color: Colors.grey[600],
                       ),
                       const SizedBox(width: 4),
@@ -180,8 +183,9 @@ class _BubbleProfilePageState extends State<BubbleProfilePage>
                   if (location.rating != null)
                     Row(
                       children: [
-                        Icon(Icons.star, 
-                          size: 20, 
+                        Icon(
+                          Icons.star,
+                          size: 20,
                           color: Colors.amber,
                         ),
                         const SizedBox(width: 4),
@@ -203,9 +207,9 @@ class _BubbleProfilePageState extends State<BubbleProfilePage>
                       ],
                     ),
                   const SizedBox(height: 12),
-                  if (location.cuisine != null)
+                  if (location.displayCuisine != null)
                     Chip(
-                      label: Text(location.cuisine!),
+                      label: Text(location.displayCuisine!),
                       backgroundColor: theme.primaryColor.withOpacity(0.1),
                       labelStyle: TextStyle(color: theme.primaryColor),
                     ),
@@ -272,9 +276,13 @@ class _BubbleProfilePageState extends State<BubbleProfilePage>
     final camera = await mapController!.cameraForCoordinateBounds(
       bounds.toCoordinateBounds(),
       mapbox.MbxEdgeInsets(top: 100, left: 100, bottom: 100, right: 100),
-      null, null, null, null,
+      null,
+      null,
+      null,
+      null,
     );
-    await mapController!.flyTo(camera, mapbox.MapAnimationOptions(duration: 500));
+    await mapController!
+        .flyTo(camera, mapbox.MapAnimationOptions(duration: 500));
   }
 
   @override
@@ -586,12 +594,14 @@ class _BubbleProfilePageState extends State<BubbleProfilePage>
                     children: [
                       CircleAvatar(
                         radius: 28,
-                        backgroundImage: currentBubble.memberAvatars[index].isNotEmpty
+                        backgroundImage: currentBubble
+                                .memberAvatars[index].isNotEmpty
                             ? NetworkImage(currentBubble.memberAvatars[index])
                             : null,
                         backgroundColor: theme.primaryColor.withOpacity(0.2),
                         child: currentBubble.memberAvatars[index].isEmpty
-                            ? Icon(Icons.person, color: theme.primaryColor, size: 28)
+                            ? Icon(Icons.person,
+                                color: theme.primaryColor, size: 28)
                             : null,
                       ),
                       const SizedBox(height: 6),

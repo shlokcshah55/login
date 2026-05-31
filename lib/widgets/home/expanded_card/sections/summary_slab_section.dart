@@ -251,6 +251,7 @@ class _KeyFactsCluster extends StatelessWidget {
   Widget build(BuildContext context) {
     final saves = location.savedCount ?? 0;
     final savesTrending = saves >= 50;
+    final cuisineLabel = location.displayCuisine;
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -275,18 +276,18 @@ class _KeyFactsCluster extends StatelessWidget {
               icon: Icons.reviews_rounded,
               variant: _FactVariant.outlined,
             ),
+          if (cuisineLabel != null)
+            _FactChip(
+              label: cuisineLabel,
+              icon: Icons.restaurant_menu_rounded,
+              variant: _FactVariant.cuisine,
+            ),
           if (saves > 0)
             _FactChip(
               label: '${formatCount(saves)} saves',
               icon: Icons.bookmark_rounded,
               variant:
                   savesTrending ? _FactVariant.accent : _FactVariant.outlined,
-            ),
-          if (location.cuisinePrimary != null)
-            _FactChip(
-              label: location.cuisinePrimary!,
-              icon: Icons.restaurant_menu_rounded,
-              variant: _FactVariant.outlined,
             ),
           if (location.isOpenLate == true)
             const _FactChip(
@@ -312,7 +313,7 @@ class _KeyFactsCluster extends StatelessWidget {
   }
 }
 
-enum _FactVariant { outlined, filled, accent, orange }
+enum _FactVariant { outlined, filled, accent, orange, cuisine }
 
 class _FactChip extends StatelessWidget {
   const _FactChip({
@@ -348,6 +349,10 @@ class _FactChip extends StatelessWidget {
         fg = const Color(0xFF92620A);
         border = Border.all(
             color: const Color(0xFFFFB800).withValues(alpha: 0.5), width: 1.5);
+      case _FactVariant.cuisine:
+        bg = const Color(0xFF494331);
+        fg = PinitColors.cream;
+        border = null;
     }
 
     return Container(

@@ -87,7 +87,8 @@ class LocationCard extends StatelessWidget {
               padding: const EdgeInsets.all(8.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween, // Distribute space
+                mainAxisAlignment:
+                    MainAxisAlignment.spaceBetween, // Distribute space
                 children: [
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -111,15 +112,17 @@ class LocationCard extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         )
-                      else if (location.cuisine != null && location.cuisine!.isNotEmpty)
+                      else if (location.displayCuisine != null)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6.0, vertical: 2.0),
                           decoration: BoxDecoration(
-                            color: colorScheme.secondaryContainer.withOpacity(0.7),
+                            color:
+                                colorScheme.secondaryContainer.withOpacity(0.7),
                             borderRadius: BorderRadius.circular(8.0),
                           ),
                           child: Text(
-                            location.cuisine!,
+                            location.displayCuisine!,
                             style: textTheme.bodySmall?.copyWith(
                               color: colorScheme.onSecondaryContainer,
                               fontWeight: FontWeight.w500,
@@ -132,7 +135,8 @@ class LocationCard extends StatelessWidget {
                       const SizedBox(height: 4.0),
                       Row(
                         children: [
-                          Icon(FeatherIcons.star, size: 16, color: Colors.amber[700]),
+                          Icon(FeatherIcons.star,
+                              size: 16, color: Colors.amber[700]),
                           const SizedBox(width: 4),
                           Text(
                             location.rating?.toStringAsFixed(1) ?? 'N/A',
@@ -160,11 +164,17 @@ class LocationCard extends StatelessWidget {
                   Align(
                     alignment: Alignment.bottomRight,
                     child: IconButton(
-                      padding: EdgeInsets.zero, // Remove default padding to make it more compact
-                      constraints: const BoxConstraints(), // Remove default constraints
+                      padding: EdgeInsets
+                          .zero, // Remove default padding to make it more compact
+                      constraints:
+                          const BoxConstraints(), // Remove default constraints
                       icon: Icon(
-                        isInitiallySaved ? FeatherIcons.bookmark : FeatherIcons.bookmark,
-                        color: isInitiallySaved ? colorScheme.primary : colorScheme.onSurfaceVariant,
+                        isInitiallySaved
+                            ? FeatherIcons.bookmark
+                            : FeatherIcons.bookmark,
+                        color: isInitiallySaved
+                            ? colorScheme.primary
+                            : colorScheme.onSurfaceVariant,
                         size: 24,
                       ),
                       onPressed: () {

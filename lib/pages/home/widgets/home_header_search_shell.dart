@@ -1507,7 +1507,7 @@ class _SearchResultListTile extends StatelessWidget {
     if (subtitle != null && subtitle.isNotEmpty) {
       return subtitle;
     }
-    final cuisine = location?.cuisine?.trim();
+    final cuisine = location?.displayCuisine;
     if (cuisine != null && cuisine.isNotEmpty) {
       return cuisine;
     }

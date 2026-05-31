@@ -257,6 +257,31 @@ class LocationModel {
 
   LocationPreference? preference;
 
+  /// Human-facing cuisine label.
+  ///
+  /// Keeps raw cuisine fields untouched for queries/filtering, while hiding
+  /// placeholder `unknown` values and normalizing DB labels such as
+  /// `middle_eastern` to `Middle Eastern`.
+  String? get displayCuisine =>
+      formatCuisineLabel(cuisinePrimary) ?? formatCuisineLabel(cuisine);
+
+  static String? formatCuisineLabel(String? value) {
+    final normalized =
+        value?.trim().replaceAll('_', ' ').replaceAll(RegExp(r'\s+'), ' ');
+    if (normalized == null || normalized.isEmpty) return null;
+    if (normalized.toLowerCase() == 'unknown') return null;
+
+    return normalized.replaceAllMapped(
+      RegExp(r"[A-Za-z]+(?:'[A-Za-z]+)?"),
+      (match) {
+        final word = match.group(0)!;
+        final lower = word.toLowerCase();
+        if (lower == "xi'an") return "Xi'An";
+        return lower[0].toUpperCase() + lower.substring(1);
+      },
+    );
+  }
+
   LocationModel({
     required this.locationId,
     required this.name,

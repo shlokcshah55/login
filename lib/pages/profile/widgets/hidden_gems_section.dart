@@ -379,9 +379,8 @@ class _HiddenGemCard extends StatelessWidget {
                                       label: '£' * location.priceLevel!,
                                       filled: true,
                                     ),
-                                  if (location.cuisine != null &&
-                                      location.cuisine!.isNotEmpty)
-                                    _PinitPill(label: location.cuisine!),
+                                  if (location.displayCuisine != null)
+                                    _PinitPill(label: location.displayCuisine!),
                                   ..._topVibeTags.map((entry) {
                                     final style = _vibeStyles[entry.key];
                                     if (style == null) {

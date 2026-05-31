@@ -2223,10 +2223,9 @@ class _LocationRow extends StatelessWidget {
                           ),
                           const SizedBox(width: 5),
                         ],
-                        if (location.cuisine != null &&
-                            location.cuisine!.isNotEmpty)
+                        if (location.displayCuisine != null)
                           _Pill(
-                            text: location.cuisine!,
+                            text: location.displayCuisine!,
                             bgColor: PinitColors.surfaceLight,
                             textColor: PinitColors.textSecondary,
                           ),

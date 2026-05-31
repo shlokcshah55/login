@@ -43,7 +43,8 @@ class MessageBubble extends StatelessWidget {
                 opacity: showSenderInfo ? 1 : 0,
                 child: _Avatar(
                   message: message,
-                  onTap: onAvatarTap == null ? null : () => onAvatarTap!(message),
+                  onTap:
+                      onAvatarTap == null ? null : () => onAvatarTap!(message),
                 ),
               ),
             ),
@@ -374,27 +375,25 @@ class _SharedLocationCard extends StatelessWidget {
                             location?.name ?? 'Place unavailable',
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                             style: GoogleFonts.dmSans(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800,
-                                color: PinitColors.aubergine,
-                                letterSpacing: -0.8,
-                                height: 1.15,
-                              ),
+                            style: GoogleFonts.dmSans(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: PinitColors.aubergine,
+                              letterSpacing: -0.8,
+                              height: 1.15,
+                            ),
                           ),
                           if ((location?.vicinity?.trim().isNotEmpty ??
                                   false) ||
-                              (location?.cuisine?.trim().isNotEmpty ??
-                                  false)) ...[
+                              location?.displayCuisine != null) ...[
                             const SizedBox(height: 6),
                             Text(
                               [
                                 if (location?.vicinity?.trim().isNotEmpty ??
                                     false)
                                   location!.vicinity!.trim(),
-                                if (location?.cuisine?.trim().isNotEmpty ??
-                                    false)
-                                  location!.cuisine!.trim(),
+                                if (location?.displayCuisine != null)
+                                  location!.displayCuisine!,
                               ].join(' · '),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,

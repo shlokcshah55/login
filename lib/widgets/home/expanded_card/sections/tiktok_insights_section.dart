@@ -321,15 +321,17 @@ class _DishCard extends StatelessWidget {
           if (hasDescription) ...[
             const SizedBox(height: 6),
             Expanded(
-              child: Text(
-                dish.description!,
-                style: GoogleFonts.dmSans(
-                  fontSize: 12,
-                  color: PinitColors.aubergineSoft,
-                  height: 1.35,
+              child: SingleChildScrollView(
+                primary: false,
+                physics: const BouncingScrollPhysics(),
+                child: Text(
+                  dish.description!,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 12,
+                    color: PinitColors.aubergineSoft,
+                    height: 1.35,
+                  ),
                 ),
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],

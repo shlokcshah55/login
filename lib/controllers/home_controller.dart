@@ -41,7 +41,8 @@ class HomeController {
   /// Fetches recommended pins using the LocationListManager.
   /// Requires current location.
   Future<void> fetchAndPlotRecommendedPins(LatLng? location) async {
-    const double defaultRadius = 5.0; // Match default from fetchRecommendedLocations
+    const double defaultRadius =
+        5.0; // Match default from fetchRecommendedLocations
 
     if (location == null) {
       // Get device GPS location
@@ -222,7 +223,7 @@ class HomeController {
                   style: const TextStyle(fontSize: 10)),
               const Spacer(),
               Text(
-                location.cuisine ?? 'Cuisine',
+                location.displayCuisine ?? 'Cuisine',
                 style: const TextStyle(fontSize: 10, color: Colors.grey),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

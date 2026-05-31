@@ -379,6 +379,7 @@ class _ListCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final manager = Provider.of<LocationListManager?>(context);
+    final cuisineLabel = location.displayCuisine;
     final walkEta = _walkEtaLabel(manager?.currentPosition);
     final Color borderColor =
         _isWavy ? PinitColors.accent : PinitColors.aubergine;
@@ -633,9 +634,11 @@ class _ListCard extends StatelessWidget {
                                       label: '£' * location.priceLevel!,
                                       filled: true,
                                     ),
-                                  if (location.cuisine != null &&
-                                      location.cuisine!.isNotEmpty)
-                                    _PinitPill(label: location.cuisine!),
+                                  if (cuisineLabel != null)
+                                    _PinitPill(
+                                      label: cuisineLabel,
+                                      cuisine: true,
+                                    ),
                                   ..._topVibeTags.map((entry) {
                                     final style = _vibeStyles[entry.key];
                                     if (style == null) {
@@ -684,8 +687,9 @@ class _ListCard extends StatelessWidget {
     if (location.savedCount != null && location.savedCount! > 0) {
       return '${location.savedCount} SAVES';
     }
-    if (location.cuisine != null && location.cuisine!.isNotEmpty) {
-      return location.cuisine!.toUpperCase();
+    final cuisineLabel = location.displayCuisine;
+    if (cuisineLabel != null) {
+      return cuisineLabel.toUpperCase();
     }
     return 'NEARBY';
   }
@@ -886,12 +890,14 @@ class _PinitPill extends StatelessWidget {
   final IconData? icon;
   final bool filled;
   final bool accent;
+  final bool cuisine;
 
   const _PinitPill({
     required this.label,
     this.icon,
     this.filled = false,
     this.accent = false,
+    this.cuisine = false,
   });
 
   @override
@@ -904,6 +910,10 @@ class _PinitPill extends StatelessWidget {
       bg = PinitColors.accent;
       fg = PinitColors.cream;
       border = PinitColors.accent;
+    } else if (cuisine) {
+      bg = const Color(0xFF494331);
+      fg = PinitColors.cream;
+      border = const Color(0xFF494331);
     } else if (filled) {
       bg = PinitColors.aubergine;
       fg = PinitColors.cream;

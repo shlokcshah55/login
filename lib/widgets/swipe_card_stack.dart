@@ -198,8 +198,9 @@ class SwipeCardStackState extends State<SwipeCardStack>
         AnimatedBuilder(
           animation: _animationController,
           builder: (context, child) {
-            final offset =
-                _animationController.isAnimating ? _slideAnimation.value : _dragOffset;
+            final offset = _animationController.isAnimating
+                ? _slideAnimation.value
+                : _dragOffset;
             final rotation = offset.dx / 1000;
 
             return Transform.translate(
@@ -392,7 +393,7 @@ class SwipeCardStackState extends State<SwipeCardStack>
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 8),
-                    if (location.cuisine != null)
+                    if (location.displayCuisine != null)
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 12,
@@ -403,7 +404,7 @@ class SwipeCardStackState extends State<SwipeCardStack>
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          location.cuisine!,
+                          location.displayCuisine!,
                           style: const TextStyle(
                             color: Color(0xFF6A1B9A),
                             fontWeight: FontWeight.w600,

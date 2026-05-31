@@ -218,9 +218,9 @@ class _ShortlistItem extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                if (location.cuisine != null)
+                if (location.displayCuisine != null)
                   Text(
-                    location.cuisine!,
+                    location.displayCuisine!,
                     style: AppTypography.sans(
                       fontSize: 11,
                       color: isDark ? Colors.white38 : Colors.black38,

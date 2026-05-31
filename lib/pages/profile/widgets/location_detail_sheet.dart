@@ -32,7 +32,11 @@ class _LocationDetailSheetState extends State<LocationDetailSheet> {
     try {
       final review = await LocationReviewsHelper()
           .getLatestPublicReview(locationId: widget.location.locationId);
-      if (mounted) setState(() { _review = review; _reviewLoaded = true; });
+      if (mounted)
+        setState(() {
+          _review = review;
+          _reviewLoaded = true;
+        });
     } catch (_) {
       if (mounted) setState(() => _reviewLoaded = true);
     }
@@ -82,7 +86,7 @@ class _LocationDetailSheetState extends State<LocationDetailSheet> {
   List<String> _getServes() {
     final loc = widget.location;
     final serves = <String>[];
-    if (loc.cuisine != null && loc.cuisine!.isNotEmpty) serves.add(loc.cuisine!);
+    if (loc.displayCuisine != null) serves.add(loc.displayCuisine!);
     if (loc.servesBreakfast == true) serves.add('Breakfast');
     if (loc.servesBrunch == true) serves.add('Brunch');
     if (loc.servesLunch == true) serves.add('Lunch');
@@ -221,13 +225,15 @@ class _LocationDetailSheetState extends State<LocationDetailSheet> {
       child: Row(
         children: [
           if (rating != null) ...[
-            ...List.generate(5, (i) => Icon(
-              Icons.star_rounded,
-              size: 18,
-              color: i < rating.round()
-                  ? const Color(0xFFF59E0B)
-                  : const Color(0xFFE5E7EB),
-            )),
+            ...List.generate(
+                5,
+                (i) => Icon(
+                      Icons.star_rounded,
+                      size: 18,
+                      color: i < rating.round()
+                          ? const Color(0xFFF59E0B)
+                          : const Color(0xFFE5E7EB),
+                    )),
             const SizedBox(width: 6),
             Text(
               rating.toStringAsFixed(1),
@@ -298,7 +304,8 @@ class _LocationDetailSheetState extends State<LocationDetailSheet> {
               label: 'Website',
               value: widget.location.website!
                   .replaceFirst(RegExp(r'https?://'), '')
-                  .split('/').first,
+                  .split('/')
+                  .first,
               onTap: _openWebsite,
             ),
           if (todayHours != null)
@@ -376,13 +383,15 @@ class _LocationDetailSheetState extends State<LocationDetailSheet> {
         children: [
           if (rating != null)
             Row(
-              children: List.generate(5, (i) => Icon(
-                Icons.star_rounded,
-                size: 16,
-                color: i < rating
-                    ? const Color(0xFFF59E0B)
-                    : const Color(0xFFE5E7EB),
-              )),
+              children: List.generate(
+                  5,
+                  (i) => Icon(
+                        Icons.star_rounded,
+                        size: 16,
+                        color: i < rating
+                            ? const Color(0xFFF59E0B)
+                            : const Color(0xFFE5E7EB),
+                      )),
             ),
           if (content != null && content.isNotEmpty) ...[
             const SizedBox(height: 8),
@@ -469,7 +478,8 @@ class _LocationMiniMapState extends State<_LocationMiniMap> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.location_on_rounded, color: Color(0xFFEF4444), size: 36),
+              Icon(Icons.location_on_rounded,
+                  color: Color(0xFFEF4444), size: 36),
               SizedBox(height: 18), // visual offset so pin base hits center
             ],
           ),
@@ -524,9 +534,13 @@ class _InfoRow extends StatelessWidget {
                     value,
                     style: TextStyle(
                       fontSize: 14,
-                      color: onTap != null ? PinitColors.primary : PinitColors.textPrimary,
-                      fontWeight: onTap != null ? FontWeight.w600 : FontWeight.w400,
-                      decoration: onTap != null ? TextDecoration.underline : null,
+                      color: onTap != null
+                          ? PinitColors.primary
+                          : PinitColors.textPrimary,
+                      fontWeight:
+                          onTap != null ? FontWeight.w600 : FontWeight.w400,
+                      decoration:
+                          onTap != null ? TextDecoration.underline : null,
                     ),
                   ),
                 ],
@@ -554,9 +568,7 @@ class _OpenBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: isOpen
-            ? const Color(0xFFF0FDF4)
-            : const Color(0xFFFEF2F2),
+        color: isOpen ? const Color(0xFFF0FDF4) : const Color(0xFFFEF2F2),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
