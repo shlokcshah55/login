@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/users.dart';
 import 'package:login/supabase/supabase_client.dart';
 import 'pinit_colors.dart';
+import 'creator_tag.dart';
 
 class ProfileHeader extends StatelessWidget {
   final UserModel user;
@@ -60,20 +61,39 @@ class ProfileHeader extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            user.name ?? 'No Name',
-                            style: const TextStyle(
-                              fontFamily: 'Rova',
-                              fontFamilyFallback: ['Naria'],
-                              fontSize: 28,
-                              fontWeight: FontWeight.w100,
-                              color: PinitColors.cream,
-                              letterSpacing: 1.7,
-                              height: 1.05,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  user.name ?? 'No Name',
+                                  style: const TextStyle(
+                                    fontFamily: 'Rova',
+                                    fontFamilyFallback: ['Naria'],
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.w100,
+                                    color: PinitColors.cream,
+                                    letterSpacing: 1.7,
+                                    height: 1.05,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (user.verified) ...[
+                                const SizedBox(width: 6),
+                                const Icon(
+                                  Icons.verified_rounded,
+                                  size: 22,
+                                  color: PinitColors.cream,
+                                ),
+                              ],
+                            ],
                           ),
+                          if (user.verified) ...[
+                            const SizedBox(height: 6),
+                            const CreatorTag(),
+                          ],
                           if (user.bio != null && user.bio!.isNotEmpty) ...[
                             const SizedBox(height: 4),
                             Text(
