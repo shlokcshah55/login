@@ -222,6 +222,16 @@ class LocationModel {
   /// Null if not yet computed or user has no affinity data.
   final double? matchScore;
 
+  /// Magic-search ranking and explanation metadata. These values are returned
+  /// by the recommendations service and are not persisted to Supabase.
+  final double? distanceKm;
+  final int? magicSearchRank;
+  final List<String> magicSearchSources;
+  final List<Map<String, dynamic>> magicSearchSourceMetadata;
+  final List<String> magicSearchMatchReasons;
+  final Map<String, dynamic>? magicSearchIntentMatches;
+  final double? magicSearchConfidence;
+
   /// Source URL the user saved this location from (e.g. a TikTok link).
   /// Pulled from `user_location_actions.source_video_url` when this model
   /// is returned by a saved-locations query. Null in other contexts.
@@ -246,6 +256,10 @@ class LocationModel {
   /// LocationModel via `attachFriendSaves`. Drives the avatar stack
   /// rendered on map pins for places friends already know about.
   final List<FriendSave> friendSaves;
+
+  /// Section header returned by magic search for grouped responses.
+  /// This is UI-only metadata and is not persisted to Supabase.
+  final String? magicSearchSectionTitle;
 
   /// Public TikTok/social-video context for this place. These fields are
   /// aggregated across users and are safe to display even when the current
@@ -333,11 +347,19 @@ class LocationModel {
     this.dietaryRequirementVector,
     this.cuisineScoresJson,
     this.matchScore,
+    this.distanceKm,
+    this.magicSearchRank,
+    this.magicSearchSources = const [],
+    this.magicSearchSourceMetadata = const [],
+    this.magicSearchMatchReasons = const [],
+    this.magicSearchIntentMatches,
+    this.magicSearchConfidence,
     this.savedFrom,
     this.savedMethod,
     this.savedAt,
     this.videoExtras,
     this.friendSaves = const [],
+    this.magicSearchSectionTitle,
     this.socialVideoCount = 0,
     this.socialVideoUrl,
     this.socialVideoCreatorHandle,
@@ -430,11 +452,19 @@ class LocationModel {
       dietaryRequirementVector: dietaryRequirementVector,
       cuisineScoresJson: cuisineScoresJson,
       matchScore: matchScore,
+      distanceKm: distanceKm,
+      magicSearchRank: magicSearchRank,
+      magicSearchSources: magicSearchSources,
+      magicSearchSourceMetadata: magicSearchSourceMetadata,
+      magicSearchMatchReasons: magicSearchMatchReasons,
+      magicSearchIntentMatches: magicSearchIntentMatches,
+      magicSearchConfidence: magicSearchConfidence,
       savedFrom: savedFrom,
       savedMethod: savedMethod,
       savedAt: savedAt,
       videoExtras: videoExtras,
       friendSaves: saves,
+      magicSearchSectionTitle: magicSearchSectionTitle,
       socialVideoCount: socialVideoCount,
       socialVideoUrl: socialVideoUrl,
       socialVideoCreatorHandle: socialVideoCreatorHandle,
@@ -842,11 +872,19 @@ class LocationModel {
     List<int>? dietaryRequirementVector,
     Map<String, dynamic>? cuisineScoresJson,
     double? matchScore,
+    double? distanceKm,
+    int? magicSearchRank,
+    List<String>? magicSearchSources,
+    List<Map<String, dynamic>>? magicSearchSourceMetadata,
+    List<String>? magicSearchMatchReasons,
+    Map<String, dynamic>? magicSearchIntentMatches,
+    double? magicSearchConfidence,
     String? savedFrom,
     String? savedMethod,
     DateTime? savedAt,
     VideoExtras? videoExtras,
     List<FriendSave>? friendSaves,
+    String? magicSearchSectionTitle,
     int? socialVideoCount,
     String? socialVideoUrl,
     String? socialVideoCreatorHandle,
@@ -932,11 +970,24 @@ class LocationModel {
           dietaryRequirementVector ?? this.dietaryRequirementVector,
       cuisineScoresJson: cuisineScoresJson ?? this.cuisineScoresJson,
       matchScore: matchScore ?? this.matchScore,
+      distanceKm: distanceKm ?? this.distanceKm,
+      magicSearchRank: magicSearchRank ?? this.magicSearchRank,
+      magicSearchSources: magicSearchSources ?? this.magicSearchSources,
+      magicSearchSourceMetadata:
+          magicSearchSourceMetadata ?? this.magicSearchSourceMetadata,
+      magicSearchMatchReasons:
+          magicSearchMatchReasons ?? this.magicSearchMatchReasons,
+      magicSearchIntentMatches:
+          magicSearchIntentMatches ?? this.magicSearchIntentMatches,
+      magicSearchConfidence:
+          magicSearchConfidence ?? this.magicSearchConfidence,
       savedFrom: savedFrom ?? this.savedFrom,
       savedMethod: savedMethod ?? this.savedMethod,
       savedAt: savedAt ?? this.savedAt,
       videoExtras: videoExtras ?? this.videoExtras,
       friendSaves: friendSaves ?? this.friendSaves,
+      magicSearchSectionTitle:
+          magicSearchSectionTitle ?? this.magicSearchSectionTitle,
       socialVideoCount: socialVideoCount ?? this.socialVideoCount,
       socialVideoUrl: socialVideoUrl ?? this.socialVideoUrl,
       socialVideoCreatorHandle:

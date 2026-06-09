@@ -14,6 +14,23 @@ import 'package:provider/provider.dart';
 
 enum _SavedSort { none, lastAdded, alphabetical, highestRated }
 
+String? _visibleSectionTitle(List<LocationModel> locations, int index) {
+  if (index < 0 || index >= locations.length) return null;
+  final current = locations[index].magicSearchSectionTitle?.trim();
+  if (current == null || current.isEmpty) return null;
+  if (index == 0) return current;
+  final previous = locations[index - 1].magicSearchSectionTitle?.trim();
+  return previous == current ? null : current;
+}
+
+String _friendSaveLabel(LocationModel location) {
+  final firstName = location.friendSaves.first.friendName.trim();
+  final displayName = firstName.isEmpty ? 'Friend' : firstName.split(' ').first;
+  final remaining = location.friendSaves.length - 1;
+  if (remaining <= 0) return '$displayName saved';
+  return '$displayName +$remaining saved';
+}
+
 // ─────────────────────────────────────────────────────────────
 //  Vibe tag display config – mirrors location_carousel.dart
 // ─────────────────────────────────────────────────────────────
@@ -357,8 +374,21 @@ class _CarouselListPageState extends State<CarouselListPage> {
                 : ListView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
                     itemCount: visible.length,
-                    itemBuilder: (context, index) =>
-                        _ListCard(location: visible[index]),
+                    itemBuilder: (context, index) {
+                      final location = visible[index];
+                      final sectionTitle = _visibleSectionTitle(
+                        visible,
+                        index,
+                      );
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (sectionTitle != null)
+                            _MagicSearchSectionHeader(title: sectionTitle),
+                          _ListCard(location: location),
+                        ],
+                      );
+                    },
                   ),
           ),
         ],
@@ -370,6 +400,30 @@ class _CarouselListPageState extends State<CarouselListPage> {
 // ─────────────────────────────────────────────────────────────
 //  List card – image-left / info-right, mirrors carousel card
 // ─────────────────────────────────────────────────────────────
+class _MagicSearchSectionHeader extends StatelessWidget {
+  final String title;
+
+  const _MagicSearchSectionHeader({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 14, 2, 10),
+      child: Text(
+        title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: GoogleFonts.dmSans(
+          fontSize: 12,
+          fontWeight: FontWeight.w900,
+          color: PinitColors.aubergine,
+          letterSpacing: 0.6,
+        ),
+      ),
+    );
+  }
+}
+
 class _ListCard extends StatelessWidget {
   final LocationModel location;
   const _ListCard({required this.location});
@@ -632,6 +686,12 @@ class _ListCard extends StatelessWidget {
                                     _PinitPill(
                                       label: '£' * location.priceLevel!,
                                       filled: true,
+                                    ),
+                                  if (location.friendSaves.isNotEmpty)
+                                    _PinitPill(
+                                      label: _friendSaveLabel(location),
+                                      icon: FeatherIcons.users,
+                                      accent: true,
                                     ),
                                   if (location.cuisine != null &&
                                       location.cuisine!.isNotEmpty)

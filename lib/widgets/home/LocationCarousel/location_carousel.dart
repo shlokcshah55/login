@@ -119,6 +119,10 @@ class LocationCarousel extends StatelessWidget {
           final locationIndex = index - leadingCount;
           final location = locations[locationIndex];
           final isSelected = selectedMarkerId == location.locationId.toString();
+          final sectionTitle = _visibleSectionTitle(
+            locations,
+            locationIndex,
+          );
           return AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeOutQuint,
@@ -132,6 +136,7 @@ class LocationCarousel extends StatelessWidget {
             transformAlignment: Alignment.center,
             child: _SwipeableCard(
               location: location,
+              sectionTitle: sectionTitle,
               isSelected: isSelected,
               bottomNavVisible: bottomNavVisible,
               showSwipeHint: showFirstItemSwipeHint && locationIndex == 0,
@@ -149,10 +154,28 @@ class LocationCarousel extends StatelessWidget {
   }
 }
 
+String? _visibleSectionTitle(List<LocationModel> locations, int index) {
+  if (index < 0 || index >= locations.length) return null;
+  final current = locations[index].magicSearchSectionTitle?.trim();
+  if (current == null || current.isEmpty) return null;
+  if (index == 0) return current;
+  final previous = locations[index - 1].magicSearchSectionTitle?.trim();
+  return previous == current ? null : current;
+}
+
+String _friendSaveLabel(LocationModel location) {
+  final firstName = location.friendSaves.first.friendName.trim();
+  final displayName = firstName.isEmpty ? 'Friend' : firstName.split(' ').first;
+  final remaining = location.friendSaves.length - 1;
+  if (remaining <= 0) return '$displayName saved';
+  return '$displayName +$remaining saved';
+}
+
 /// Wraps a [_CarouselCard] with vertical swipe gesture detection.
 /// Swipe up → shortlist; swipe down → save.
 class _SwipeableCard extends StatefulWidget {
   final LocationModel location;
+  final String? sectionTitle;
   final bool isSelected;
   final bool bottomNavVisible;
   final bool showSwipeHint;
@@ -164,6 +187,7 @@ class _SwipeableCard extends StatefulWidget {
 
   const _SwipeableCard({
     required this.location,
+    required this.sectionTitle,
     required this.isSelected,
     required this.bottomNavVisible,
     required this.showSwipeHint,
@@ -300,6 +324,7 @@ class _SwipeableCardState extends State<_SwipeableCard>
                 },
                 child: _CarouselCard(
                   location: widget.location,
+                  sectionTitle: widget.sectionTitle,
                   isSelected: widget.isSelected,
                   bottomNavVisible: widget.bottomNavVisible,
                   beenToLocationIds: widget.beenToLocationIds,
@@ -502,6 +527,7 @@ class _SwipeUpShortlistHint extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────
 class _CarouselCard extends StatelessWidget {
   final LocationModel location;
+  final String? sectionTitle;
   final bool isSelected;
   final bool bottomNavVisible;
   final Set<int> beenToLocationIds;
@@ -509,6 +535,7 @@ class _CarouselCard extends StatelessWidget {
 
   const _CarouselCard({
     required this.location,
+    required this.sectionTitle,
     required this.isSelected,
     required this.bottomNavVisible,
     required this.beenToLocationIds,
@@ -548,309 +575,328 @@ class _CarouselCard extends StatelessWidget {
               FadeTransition(opacity: anim, child: child),
         );
       },
-      child: Container(
-        decoration: BoxDecoration(
-          color: PinitColors.cream,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: borderColor,
-            width: isSelected ? 2.0 : 1.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: shadowColor,
-              blurRadius: 0,
-              offset: Offset(isSelected ? 5 : 4, isSelected ? 5 : 4),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(8.5),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // ── Left: Image column (with floating overlays) ──
-              SizedBox(
-                width: 122,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    _buildImage(theme),
-                    // Subtle bottom-up scrim so overlays stay legible
-                    const Positioned.fill(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Color(0x00000000),
-                              Color(0x33000000),
-                            ],
-                            stops: [0.55, 1.0],
-                          ),
-                        ),
-                      ),
-                    ),
-                    // Emoji circle (top-left)
-                    if (location.emoji != null && location.emoji!.isNotEmpty)
-                      Positioned(
-                        top: 8,
-                        left: 8,
-                        child: Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: PinitColors.cream,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: PinitColors.aubergine,
-                              width: 1.4,
-                            ),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            location.emoji!,
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                        ),
-                      ),
-                    if (isBeenTo)
-                      Positioned(
-                        top: 8,
-                        right: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: PinitColors.warning,
-                            borderRadius: BorderRadius.circular(999),
-                            border: Border.all(
-                              color: PinitColors.aubergine,
-                              width: 1.2,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                FeatherIcons.check,
-                                size: 10,
-                                color: PinitColors.cream,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                'Been',
-                                style: GoogleFonts.dmSans(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.2,
-                                  color: PinitColors.cream,
-                                  height: 1,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    // Open / closed pill (bottom-left of image)
-                    if (location.openNow != null)
-                      Positioned(
-                        bottom: 8,
-                        left: 8,
-                        right: 8,
-                        child: _PinitPill(
-                          label: location.openNow! ? 'OPEN' : 'CLOSED',
-                          icon: location.openNow!
-                              ? FeatherIcons.checkCircle
-                              : FeatherIcons.xCircle,
-                          filled: true,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-
-              // ── Vertical divider (matches the chunky border style) ──
-              Container(
-                width: 1.5,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: PinitColors.cream,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
                 color: borderColor,
+                width: isSelected ? 2.0 : 1.5,
               ),
-
-              // ── Right: Info column ──
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  mainAxisSize: MainAxisSize.max,
-                  children: [
-                    // Top label strip (cream-sunk) — distance / preference / match
-                    Container(
-                      color: PinitColors.creamSunk,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      child: Row(
-                        children: [
-                          Icon(
-                            location.preference == LocationPreference.saved
-                                ? FeatherIcons.heart
-                                : location.preference ==
-                                        LocationPreference.recommended
-                                    ? FeatherIcons.award
-                                    : location.preference ==
-                                            LocationPreference.bubble
-                                        ? FeatherIcons.users
-                                        : FeatherIcons.mapPin,
-                            size: 11,
-                            color: PinitColors.mute,
-                          ),
-                          const SizedBox(width: 5),
-                          Expanded(
-                            child: Text(
-                              _topStripLabel(),
-                              style: GoogleFonts.dmSans(
-                                fontSize: 10,
-                                color: PinitColors.mute,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 1.0,
+              boxShadow: [
+                BoxShadow(
+                  color: shadowColor,
+                  blurRadius: 0,
+                  offset: Offset(isSelected ? 5 : 4, isSelected ? 5 : 4),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8.5),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // ── Left: Image column (with floating overlays) ──
+                  SizedBox(
+                    width: 122,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        _buildImage(theme),
+                        // Subtle bottom-up scrim so overlays stay legible
+                        const Positioned.fill(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Color(0x00000000),
+                                  Color(0x33000000),
+                                ],
+                                stops: [0.55, 1.0],
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          Flexible(
-                            child: Align(
-                              alignment: Alignment.centerRight,
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    if (walkEta != null) ...[
-                                      const SizedBox(width: 8),
-                                      const Icon(
-                                        Icons.directions_walk_rounded,
-                                        size: 14,
-                                        color: PinitColors.mute,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        walkEta,
-                                        style: GoogleFonts.dmSans(
-                                          fontSize: 12,
-                                          color: PinitColors.mute,
-                                          fontWeight: FontWeight.w700,
-                                          letterSpacing: 0.2,
-                                        ),
-                                      ),
-                                    ],
-                                    if (location.rating != null) ...[
-                                      const SizedBox(width: 6),
-                                      _CompactRating(
-                                        rating: location.rating!,
-                                        reviewCount: location.userRatingsTotal,
-                                      ),
-                                    ],
-                                    if (location.matchScore != null &&
-                                        location.matchScore! > 0.1) ...[
-                                      const SizedBox(width: 6),
-                                      _MatchBadge(
-                                        score: (location.matchScore! * 100)
-                                            .round(),
-                                      ),
-                                    ],
-                                  ],
+                        ),
+                        // Emoji circle (top-left)
+                        if (location.emoji != null &&
+                            location.emoji!.isNotEmpty)
+                          Positioned(
+                            top: 8,
+                            left: 8,
+                            child: Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: PinitColors.cream,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: PinitColors.aubergine,
+                                  width: 1.4,
                                 ),
                               ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                location.emoji!,
+                                style: const TextStyle(fontSize: 16),
+                              ),
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-
-                    // Body
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(14, 10, 12, 10),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.max,
-                          children: [
-                            // Name — full row, up to 2 lines
-                            Text(
-                              location.name,
-                              style: GoogleFonts.dmSans(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w800,
-                                color: PinitColors.aubergine,
-                                height: 1.15,
-                                letterSpacing: -0.3,
+                        if (isBeenTo)
+                          Positioned(
+                            top: 8,
+                            right: 8,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 5,
                               ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4),
-                            if (_summaryText != null)
-                              Text(
-                                _summaryText!,
-                                style: GoogleFonts.dmSans(
-                                  fontSize: 11.5,
-                                  color: PinitColors.mute,
-                                  fontWeight: FontWeight.w500,
-                                  height: 1.3,
+                              decoration: BoxDecoration(
+                                color: PinitColors.warning,
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(
+                                  color: PinitColors.aubergine,
+                                  width: 1.2,
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
                               ),
-                            const Spacer(),
-                            // Tags row: price + cuisine + vibe pills + features
-                            SizedBox(
-                              height: 24,
-                              child: ListView(
-                                scrollDirection: Axis.horizontal,
-                                physics: const BouncingScrollPhysics(),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  if (location.priceLevel != null &&
-                                      location.priceLevel! > 0)
-                                    _PinitPill(
-                                      label: '£' * location.priceLevel!,
-                                      filled: true,
+                                  const Icon(
+                                    FeatherIcons.check,
+                                    size: 10,
+                                    color: PinitColors.cream,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Been',
+                                    style: GoogleFonts.dmSans(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.2,
+                                      color: PinitColors.cream,
+                                      height: 1,
                                     ),
-                                  if (location.cuisine != null &&
-                                      location.cuisine!.isNotEmpty)
-                                    _PinitPill(label: location.cuisine!),
-                                  ..._topVibeTags.map((entry) {
-                                    final style = _vibeStyles[entry.key];
-                                    if (style == null) {
-                                      return const SizedBox.shrink();
-                                    }
-                                    final isWavyTag = entry.key == 'wavy';
-                                    return _PinitPill(
-                                      label: style.label,
-                                      icon: style.icon,
-                                      accent: isWavyTag,
-                                    );
-                                  }),
-                                  if (location.isOpenLate == true)
-                                    const _PinitPill(
-                                      label: 'Late Night',
-                                      icon: FeatherIcons.moon,
-                                    ),
-                                  ..._featureMicros,
+                                  ),
                                 ],
                               ),
                             ),
-                          ],
-                        ),
-                      ),
+                          ),
+                        // Open / closed pill (bottom-left of image)
+                        if (location.openNow != null)
+                          Positioned(
+                            bottom: 8,
+                            left: 8,
+                            right: 8,
+                            child: _PinitPill(
+                              label: location.openNow! ? 'OPEN' : 'CLOSED',
+                              icon: location.openNow!
+                                  ? FeatherIcons.checkCircle
+                                  : FeatherIcons.xCircle,
+                              filled: true,
+                            ),
+                          ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+
+                  // ── Vertical divider (matches the chunky border style) ──
+                  Container(
+                    width: 1.5,
+                    color: borderColor,
+                  ),
+
+                  // ── Right: Info column ──
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.max,
+                      children: [
+                        // Top label strip (cream-sunk) — distance / preference / match
+                        Container(
+                          color: PinitColors.creamSunk,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          child: Row(
+                            children: [
+                              Icon(
+                                location.preference == LocationPreference.saved
+                                    ? FeatherIcons.heart
+                                    : location.preference ==
+                                            LocationPreference.recommended
+                                        ? FeatherIcons.award
+                                        : location.preference ==
+                                                LocationPreference.bubble
+                                            ? FeatherIcons.users
+                                            : FeatherIcons.mapPin,
+                                size: 11,
+                                color: PinitColors.mute,
+                              ),
+                              const SizedBox(width: 5),
+                              Expanded(
+                                child: Text(
+                                  _topStripLabel(),
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 10,
+                                    color: PinitColors.mute,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 1.0,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              Flexible(
+                                child: Align(
+                                  alignment: Alignment.centerRight,
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (walkEta != null) ...[
+                                          const SizedBox(width: 8),
+                                          const Icon(
+                                            Icons.directions_walk_rounded,
+                                            size: 14,
+                                            color: PinitColors.mute,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            walkEta,
+                                            style: GoogleFonts.dmSans(
+                                              fontSize: 12,
+                                              color: PinitColors.mute,
+                                              fontWeight: FontWeight.w700,
+                                              letterSpacing: 0.2,
+                                            ),
+                                          ),
+                                        ],
+                                        if (location.rating != null) ...[
+                                          const SizedBox(width: 6),
+                                          _CompactRating(
+                                            rating: location.rating!,
+                                            reviewCount:
+                                                location.userRatingsTotal,
+                                          ),
+                                        ],
+                                        if (location.matchScore != null &&
+                                            location.matchScore! > 0.1) ...[
+                                          const SizedBox(width: 6),
+                                          _MatchBadge(
+                                            score: (location.matchScore! * 100)
+                                                .round(),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Body
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(14, 10, 12, 10),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.max,
+                              children: [
+                                // Name — full row, up to 2 lines
+                                Text(
+                                  location.name,
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w800,
+                                    color: PinitColors.aubergine,
+                                    height: 1.15,
+                                    letterSpacing: -0.3,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                if (_summaryText != null)
+                                  Text(
+                                    _summaryText!,
+                                    style: GoogleFonts.dmSans(
+                                      fontSize: 11.5,
+                                      color: PinitColors.mute,
+                                      fontWeight: FontWeight.w500,
+                                      height: 1.3,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                const Spacer(),
+                                // Tags row: price + cuisine + vibe pills + features
+                                SizedBox(
+                                  height: 24,
+                                  child: ListView(
+                                    scrollDirection: Axis.horizontal,
+                                    physics: const BouncingScrollPhysics(),
+                                    children: [
+                                      if (location.priceLevel != null &&
+                                          location.priceLevel! > 0)
+                                        _PinitPill(
+                                          label: '£' * location.priceLevel!,
+                                          filled: true,
+                                        ),
+                                      if (location.friendSaves.isNotEmpty)
+                                        _PinitPill(
+                                          label: _friendSaveLabel(location),
+                                          icon: FeatherIcons.users,
+                                          accent: true,
+                                        ),
+                                      if (location.cuisine != null &&
+                                          location.cuisine!.isNotEmpty)
+                                        _PinitPill(label: location.cuisine!),
+                                      ..._topVibeTags.map((entry) {
+                                        final style = _vibeStyles[entry.key];
+                                        if (style == null) {
+                                          return const SizedBox.shrink();
+                                        }
+                                        final isWavyTag = entry.key == 'wavy';
+                                        return _PinitPill(
+                                          label: style.label,
+                                          icon: style.icon,
+                                          accent: isWavyTag,
+                                        );
+                                      }),
+                                      if (location.isOpenLate == true)
+                                        const _PinitPill(
+                                          label: 'Late Night',
+                                          icon: FeatherIcons.moon,
+                                        ),
+                                      ..._featureMicros,
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+          if (sectionTitle != null)
+            Positioned(
+              top: -8,
+              left: 14,
+              child: _MagicSearchSectionChip(title: sectionTitle!),
+            ),
+        ],
       ),
     );
   }
@@ -1103,6 +1149,44 @@ class _MatchBadge extends StatelessWidget {
           fontWeight: FontWeight.w800,
           color: color,
           letterSpacing: 0.4,
+        ),
+      ),
+    );
+  }
+}
+
+class _MagicSearchSectionChip extends StatelessWidget {
+  final String title;
+
+  const _MagicSearchSectionChip({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 260),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: PinitColors.aubergine,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: PinitColors.aubergine, width: 1.2),
+        boxShadow: const [
+          BoxShadow(
+            color: PinitColors.aubergine,
+            blurRadius: 0,
+            offset: Offset(2, 2),
+          ),
+        ],
+      ),
+      child: Text(
+        title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: GoogleFonts.dmSans(
+          color: PinitColors.cream,
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.5,
+          height: 1,
         ),
       ),
     );

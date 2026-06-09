@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/models/markers.dart';
+import 'package:login/models/proximal_models.dart';
 import 'package:login/models/video_insights.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/providers/location_list_provider.dart';
@@ -24,6 +25,7 @@ import 'package:login/widgets/home/expanded_card/helpers/match_result.dart';
 import 'package:login/widgets/home/expanded_card/helpers/similar_place.dart';
 import 'package:login/widgets/home/expanded_card/helpers/social_video_source.dart';
 import 'package:login/widgets/home/expanded_card/sections/details_section.dart';
+import 'package:login/widgets/home/expanded_card/sections/friend_saves_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/hero_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/persistent_action_dock.dart';
 import 'package:login/widgets/home/expanded_card/sections/recommended_dishes_section.dart';
@@ -85,6 +87,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   // ── Pinit reviews + friends ──
   List<Map<String, dynamic>> _pinitReviews = [];
   Set<String> _friendIds = {};
+  List<FriendSave> _friendSaves = const [];
 
   // ── Hero photo state ──
   int _currentPhotoIndex = 0;
@@ -176,6 +179,8 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     _fetchPinitAvgRating();
     _fetchPinitReviews();
     _fetchFriendIds();
+    _friendSaves = widget.location.friendSaves;
+    _fetchFriendSaves();
     _findSimilarPlaces();
     _seedSocialVideoPost();
     _bootstrapSocialVideoContext();
@@ -223,6 +228,20 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   void _fetchFriendIds() async {
     final ids = await _reviewsHelper.getFriendIds();
     if (mounted) setState(() => _friendIds = ids);
+  }
+
+  Future<void> _fetchFriendSaves() async {
+    if (widget.location.friendSaves.isNotEmpty) return;
+
+    final savesByLocationId =
+        await _locationHelper.getFriendSavesForLocationIds(
+      [widget.location.locationId],
+    );
+    if (!mounted) return;
+
+    final saves = savesByLocationId[widget.location.locationId];
+    if (saves == null || saves.isEmpty) return;
+    setState(() => _friendSaves = saves);
   }
 
   void _checkBeenToStatus() async {
@@ -853,8 +872,11 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                 widget.location.savedFrom!.trim().isEmpty))
         ? widget.location.copyWith(savedFrom: _resolvedSharedVideoUrl)
         : widget.location;
-    final isWavy =
-        displayLocation.vibe != null && displayLocation.vibe!.wavyScore >= 0.35;
+    final locationWithSocialContext = _friendSaves.isEmpty
+        ? displayLocation
+        : displayLocation.copyWithFriendSaves(_friendSaves);
+    final isWavy = locationWithSocialContext.vibe != null &&
+        locationWithSocialContext.vibe!.wavyScore >= 0.35;
 
     return Material(
       color: Colors.transparent,
@@ -907,7 +929,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                               scrollCtrl: scrollCtrl,
                               heroHeight: size.height * 0.34,
                               isWavy: isWavy,
-                              location: displayLocation,
+                              location: locationWithSocialContext,
                             ),
 
                             // Drag handle
@@ -1038,6 +1060,14 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                 SharedSocialPostsSection(
                   posts: _socialVideoPosts,
                   onPostTap: _openSocialVideoPost,
+                ),
+              ],
+
+              if (_friendSaves.isNotEmpty) ...[
+                const SizedBox(height: 28),
+                FriendSavesSection(
+                  friendSaves: _friendSaves,
+                  matchScore: location.matchScore,
                 ),
               ],
 
