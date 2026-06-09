@@ -672,7 +672,7 @@ class _NariaIntroCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      "Naria is exploring the world's cuisine without leaving London. He spins a wheel and finds a restaurant. Try it out in your city.",
+                      "Kaian is exploring the world's cuisine without leaving London. He spins a wheel and finds a restaurant. Try it out in your city.",
                       style: GoogleFonts.dmSans(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w700,
