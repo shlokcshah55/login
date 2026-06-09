@@ -1,3 +1,5 @@
+import 'package:login/utils/social_video_link.dart';
+
 /// Model for video insights extracted from TikTok/Instagram videos
 /// by the LLM pipeline. Stored in the `video_insights` table and
 /// shared across all users who save the same video.
@@ -112,7 +114,11 @@ class SocialVideoPost {
 
   String get displayHandle {
     final handle = creatorHandle?.trim();
-    if (handle == null || handle.isEmpty) return 'TikTok creator';
+    if (handle == null || handle.isEmpty) {
+      final platform = socialVideoPlatformFrom(sourceUrl: sourceVideoUrl);
+      if (platform == SocialVideoPlatform.instagram) return 'Reel';
+      return 'TikTok creator';
+    }
     return handle.startsWith('@') ? handle : '@$handle';
   }
 

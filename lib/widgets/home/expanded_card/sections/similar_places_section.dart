@@ -248,10 +248,10 @@ class _SimilarPlaceCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 8),
                         ],
-                        if (loc.cuisinePrimary != null)
+                        if (loc.displayCuisine != null)
                           Expanded(
                             child: Text(
-                              loc.cuisinePrimary!,
+                              loc.displayCuisine!,
                               style: GoogleFonts.dmSans(
                                 fontSize: 11,
                                 color: PinitColors.mute,

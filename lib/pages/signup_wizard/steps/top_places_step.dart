@@ -453,7 +453,7 @@ class _TopPlacesStepState extends State<TopPlacesStep>
                           ),
                         ),
                       ],
-                      if (loc.cuisine != null && loc.cuisine!.isNotEmpty) ...[
+                      if (loc.displayCuisine != null) ...[
                         if (loc.rating != null)
                           Text(
                             '  ·  ',
@@ -462,7 +462,7 @@ class _TopPlacesStepState extends State<TopPlacesStep>
                           ),
                         Flexible(
                           child: Text(
-                            loc.cuisine!,
+                            loc.displayCuisine!,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: GoogleFonts.dmSans(

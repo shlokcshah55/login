@@ -208,7 +208,6 @@ class _ShortlistCarouselCard extends StatelessWidget {
   final VoidCallback onSwipeUpRemove;
 
   const _ShortlistCarouselCard({
-    super.key,
     required this.location,
     required this.onSwipeUpRemove,
   });
@@ -311,6 +310,8 @@ class _ShortlistCarouselCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cuisineLabel = location.displayCuisine;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       child: Dismissible(
@@ -498,9 +499,11 @@ class _ShortlistCarouselCard extends StatelessWidget {
                                           label: '£' * location.priceLevel!,
                                           filled: true,
                                         ),
-                                      if (location.cuisine != null &&
-                                          location.cuisine!.isNotEmpty)
-                                        _PinitPill(label: location.cuisine!),
+                                      if (cuisineLabel != null)
+                                        _PinitPill(
+                                          label: cuisineLabel,
+                                          cuisine: true,
+                                        ),
                                       ..._topVibeTags.map((entry) {
                                         final style = _vibeStyles[entry.key];
                                         if (style == null) {
@@ -816,12 +819,14 @@ class _PinitPill extends StatelessWidget {
   final IconData? icon;
   final bool filled;
   final bool accent;
+  final bool cuisine;
 
   const _PinitPill({
     required this.label,
     this.icon,
     this.filled = false,
     this.accent = false,
+    this.cuisine = false,
   });
 
   @override
@@ -834,6 +839,10 @@ class _PinitPill extends StatelessWidget {
       backgroundColor = pinit.PinitColors.accent;
       foregroundColor = pinit.PinitColors.cream;
       borderColor = pinit.PinitColors.accent;
+    } else if (cuisine) {
+      backgroundColor = const Color(0xFF494331);
+      foregroundColor = pinit.PinitColors.cream;
+      borderColor = const Color(0xFF494331);
     } else if (filled) {
       backgroundColor = pinit.PinitColors.aubergine;
       foregroundColor = pinit.PinitColors.cream;

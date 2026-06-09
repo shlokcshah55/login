@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:login/models/locations.dart';
 import 'package:login/pages/home/filter_types.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/supabase/helpers/tags.dart';
@@ -214,16 +215,8 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
     final rawLabel = _tagLabel(tag);
     return switch (category) {
       _HomeFilterCategory.vibe => vibeDisplayName(rawLabel),
-      _HomeFilterCategory.cuisine => rawLabel
-          .replaceAll('_', ' ')
-          .replaceAll('-', ' ')
-          .split(' ')
-          .map(
-            (word) => word.isEmpty
-                ? word
-                : '${word[0].toUpperCase()}${word.substring(1)}',
-          )
-          .join(' '),
+      _HomeFilterCategory.cuisine =>
+        LocationModel.formatCuisineLabel(rawLabel) ?? '',
     };
   }
 
@@ -604,62 +597,62 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
                 ],
               ),
               if (widget.showMaxResults) ...[
-              const SizedBox(height: 18),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'RECOMMENDATIONS SHOWN',
-                    style: GoogleFonts.dmSans(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: PinitColors.aubergineSoft,
-                      letterSpacing: 1.4,
-                      height: 1.0,
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: PinitColors.aubergine,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      '${_maxResults.round()}',
+                const SizedBox(height: 18),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'RECOMMENDATIONS SHOWN',
                       style: GoogleFonts.dmSans(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        color: PinitColors.cream,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: PinitColors.aubergineSoft,
+                        letterSpacing: 1.4,
                         height: 1.0,
                       ),
                     ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: PinitColors.aubergine,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '${_maxResults.round()}',
+                        style: GoogleFonts.dmSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: PinitColors.cream,
+                          height: 1.0,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    activeTrackColor: PinitColors.aubergine,
+                    inactiveTrackColor: PinitColors.creamDeep,
+                    thumbColor: PinitColors.aubergine,
+                    overlayColor: PinitColors.aubergine.withValues(alpha: 0.12),
+                    trackHeight: 4,
+                    thumbShape: const RoundSliderThumbShape(
+                      enabledThumbRadius: 10,
+                    ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              SliderTheme(
-                data: SliderTheme.of(context).copyWith(
-                  activeTrackColor: PinitColors.aubergine,
-                  inactiveTrackColor: PinitColors.creamDeep,
-                  thumbColor: PinitColors.aubergine,
-                  overlayColor: PinitColors.aubergine.withValues(alpha: 0.12),
-                  trackHeight: 4,
-                  thumbShape: const RoundSliderThumbShape(
-                    enabledThumbRadius: 10,
+                  child: Slider(
+                    value: _maxResults,
+                    min: 5,
+                    max: 70,
+                    divisions: 13,
+                    onChanged: (value) => setState(() => _maxResults = value),
                   ),
                 ),
-                child: Slider(
-                  value: _maxResults,
-                  min: 5,
-                  max: 70,
-                  divisions: 13,
-                  onChanged: (value) => setState(() => _maxResults = value),
-                ),
-              ),
-              const SizedBox(height: 10),
+                const SizedBox(height: 10),
               ],
               SizedBox(
                 width: double.infinity,

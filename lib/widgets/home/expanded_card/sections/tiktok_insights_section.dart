@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/video_extras.dart';
 import 'package:login/models/video_insights.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
+import 'package:login/widgets/home/expanded_card/full_text_sheet.dart';
 import 'package:login/widgets/home/expanded_card/helpers/vibe_display.dart';
 
 /// TikTok / Reel insights section — appears in the expanded card only
@@ -49,6 +50,13 @@ class TikTokInsightsSection extends StatelessWidget {
   bool get _hasAnyContent =>
       _hasCreatorNotes || _hasDishes || _hasOffers || _hasVibeSignals;
 
+  String get _sourceLabel {
+    final url = insight.sourceVideoUrl.toLowerCase();
+    if (url.contains('instagram.com')) return 'REEL';
+    if (url.contains('tiktok.com')) return 'TIKTOK';
+    return 'SOCIAL VIDEO';
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_hasAnyContent) return const SizedBox.shrink();
@@ -58,7 +66,7 @@ class TikTokInsightsSection extends StatelessWidget {
       children: [
         // Section header
         Text(
-          'FROM THIS TIKTOK',
+          'FROM THIS $_sourceLabel',
           style: GoogleFonts.dmSans(
             fontSize: 11,
             fontWeight: FontWeight.w600,
@@ -272,7 +280,7 @@ class _DishCard extends StatelessWidget {
         dish.description != null && dish.description!.trim().isNotEmpty;
     final hasPrice = dish.price != null && dish.price!.trim().isNotEmpty;
 
-    return Container(
+    final card = Container(
       width: 180,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -313,19 +321,40 @@ class _DishCard extends StatelessWidget {
           if (hasDescription) ...[
             const SizedBox(height: 6),
             Expanded(
-              child: Text(
-                dish.description!,
-                style: GoogleFonts.dmSans(
-                  fontSize: 12,
-                  color: PinitColors.aubergineSoft,
-                  height: 1.35,
+              child: SingleChildScrollView(
+                primary: false,
+                physics: const BouncingScrollPhysics(),
+                child: Text(
+                  dish.description!,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 12,
+                    color: PinitColors.aubergineSoft,
+                    height: 1.35,
+                  ),
                 ),
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
         ],
+      ),
+    );
+
+    if (!hasDescription) return card;
+
+    return Semantics(
+      button: true,
+      label: 'Read full dish notes',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => showExpandedCardTextSheet(
+          context: context,
+          title: dish.name,
+          eyebrow: 'Dish notes',
+          preserveEyebrowCase: true,
+          meta: hasPrice ? dish.price : null,
+          text: dish.description!,
+        ),
+        child: card,
       ),
     );
   }

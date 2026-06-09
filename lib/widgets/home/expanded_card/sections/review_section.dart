@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
+import 'package:login/widgets/home/expanded_card/full_text_sheet.dart';
 
 /// Displays reviews for a location.
 ///
@@ -193,7 +194,7 @@ class _PinitReviewCard extends StatelessWidget {
     final rating = _rating();
     final content = review['content']?.toString() ?? '';
 
-    return Container(
+    final card = Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: bg,
@@ -207,7 +208,10 @@ class _PinitReviewCard extends StatelessWidget {
             children: [
               // Avatar
               _Avatar(
-                  url: avatar, initials: _initials(name), isFriend: isFriend),
+                url: avatar,
+                initials: _initials(name),
+                isFriend: isFriend,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -279,6 +283,24 @@ class _PinitReviewCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+
+    if (content.trim().isEmpty) return card;
+
+    return Semantics(
+      button: true,
+      label: 'Read full review',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => showExpandedCardTextSheet(
+          context: context,
+          title: 'Full review',
+          eyebrow: name,
+          meta: rating != null ? '${rating.toStringAsFixed(1)} / 10' : null,
+          text: content,
+        ),
+        child: card,
       ),
     );
   }
@@ -388,7 +410,7 @@ class _GoogleReviewCard extends StatelessWidget {
     final text = _extractText();
     final time = _formatTimeAgo(review['time'] as int?);
 
-    return Container(
+    final card = Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: PinitColors.creamSunk,
@@ -418,14 +440,15 @@ class _GoogleReviewCard extends StatelessWidget {
                     Row(
                       children: [
                         ...List.generate(
-                            5,
-                            (i) => Icon(
-                                  Icons.star_rounded,
-                                  size: 14,
-                                  color: i < rating.toInt()
-                                      ? PinitColors.aubergine
-                                      : PinitColors.creamDeep,
-                                )),
+                          5,
+                          (i) => Icon(
+                            Icons.star_rounded,
+                            size: 14,
+                            color: i < rating.toInt()
+                                ? PinitColors.aubergine
+                                : PinitColors.creamDeep,
+                          ),
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           rating.toStringAsFixed(1),
@@ -482,6 +505,24 @@ class _GoogleReviewCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+
+    if (text.trim().isEmpty) return card;
+
+    return Semantics(
+      button: true,
+      label: 'Read full review',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => showExpandedCardTextSheet(
+          context: context,
+          title: 'Full review',
+          eyebrow: author,
+          meta: rating.toStringAsFixed(1),
+          text: text,
+        ),
+        child: card,
       ),
     );
   }
