@@ -58,7 +58,7 @@ void main() {
     expect(find.text("Kaian's way"), findsOneWidget);
     expect(
       find.text(
-        "Naria is exploring the world's cuisine without leaving London. He spins a wheel and finds a restaurant. Try it out in your city.",
+        "Kaian is exploring the world's cuisine without leaving London. He spins a wheel and finds a restaurant. Try it out in your city.",
       ),
       findsOneWidget,
     );

@@ -28,6 +28,9 @@ class UserModel {
   final bool generatedCollections;
   final String? referralCode;
 
+  /// Whether the user is a verified creator (shows a verified badge + tag).
+  final bool verified;
+
   UserModel({
     this.supabaseId,
     this.name,
@@ -45,6 +48,7 @@ class UserModel {
     this.dietaryRequirementTagAffinity,
     this.generatedCollections = false,
     this.referralCode,
+    this.verified = false,
   });
 
   // ─────────────── Match-scoring helpers ───────────────
@@ -153,6 +157,7 @@ class UserModel {
       generatedCollections:
           json[SupabaseConstants.columnGeneratedCollections] != null,
       referralCode: json[SupabaseConstants.columnReferralCode] as String?,
+      verified: json[SupabaseConstants.columnVerified] ?? false,
     );
   }
 
@@ -201,6 +206,7 @@ class UserModel {
     List<int>? dietaryRequirementTagAffinity,
     bool? generatedCollections,
     String? referralCode,
+    bool? verified,
   }) {
     return UserModel(
       supabaseId: supabaseId ?? this.supabaseId,
@@ -220,6 +226,7 @@ class UserModel {
           dietaryRequirementTagAffinity ?? this.dietaryRequirementTagAffinity,
       generatedCollections: generatedCollections ?? this.generatedCollections,
       referralCode: referralCode ?? this.referralCode,
+      verified: verified ?? this.verified,
     );
   }
 }

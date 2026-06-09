@@ -19,6 +19,7 @@ import 'package:provider/provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'widgets/pinit_colors.dart';
 import 'widgets/been_to_rankings_section.dart';
+import 'widgets/creator_tag.dart';
 
 class OtherUserProfilePage extends StatefulWidget {
   final UserModel user;
@@ -486,20 +487,39 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                _user.name ?? 'No Name',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontFamily: 'Rova',
-                                  fontFamilyFallback: ['Naria'],
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.w100,
-                                  color: PinitColors.cream,
-                                  letterSpacing: 1.7,
-                                  height: 1.05,
-                                ),
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      _user.name ?? 'No Name',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontFamily: 'Rova',
+                                        fontFamilyFallback: ['Naria'],
+                                        fontSize: 28,
+                                        fontWeight: FontWeight.w100,
+                                        color: PinitColors.cream,
+                                        letterSpacing: 1.7,
+                                        height: 1.05,
+                                      ),
+                                    ),
+                                  ),
+                                  if (_user.verified) ...[
+                                    const SizedBox(width: 6),
+                                    const Icon(
+                                      Icons.verified_rounded,
+                                      size: 22,
+                                      color: PinitColors.cream,
+                                    ),
+                                  ],
+                                ],
                               ),
+                              if (_user.verified) ...[
+                                const SizedBox(height: 6),
+                                const CreatorTag(),
+                              ],
                               if (_user.bio != null &&
                                   _user.bio!.isNotEmpty) ...[
                                 const SizedBox(height: 4),
