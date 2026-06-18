@@ -10,6 +10,10 @@ import httpx
 from urllib.parse import urlparse
 from flask import Flask, request, jsonify
 from processor import TikTokProcessor
+from social_collection_redirects import (
+    apply_social_post_action,
+    find_social_post_action,
+)
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
@@ -238,6 +242,65 @@ def send_success_notification(user_id: str, saved_locations: list, source_url: s
         logger.error(f"Error sending success notification: {e}", exc_info=True)
 
 
+def send_eat_list_success_notification(user_id: str, collection: dict, source_url: str | None = None):
+    """Send a push notification after a mapped TikTok URL saves an eat-list."""
+    try:
+        if not supabase_client:
+            logger.warning("Supabase client not initialized - cannot fetch fcm_token")
+            return
+
+        if not SEND_PUSH_NOTIF_SECRET:
+            logger.warning("SEND_PUSH_NOTIF_SECRET not configured - skipping eat-list notification")
+            return
+
+        response = supabase_client.table('users').select('fcm_token').eq('supabase_id', user_id).maybe_single().execute()
+
+        if not response or not hasattr(response, 'data') or not response.data:
+            logger.warning(f"User {user_id} not found in database")
+            return
+
+        fcm_token = response.data.get('fcm_token')
+
+        if not fcm_token:
+            logger.warning(f"User {user_id} has no fcm_token - cannot send notification")
+            return
+
+        collection_name = collection.get('name') or 'your eat-list'
+        if collection.get('already_owned'):
+            body = f"{collection_name} is ready in your eat-lists."
+        else:
+            body = f"We saved {collection_name} to your eat-lists."
+
+        headers = {
+            "Authorization": f"Bearer {SEND_PUSH_NOTIF_SECRET}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "fcm_token": fcm_token,
+            "user_id": user_id,
+            "type": "collection_saved",
+            "title": "Eat-list saved",
+            "body": body,
+            "metadata": {
+                "collectionId": collection.get('collection_id'),
+                "collectionName": collection_name,
+                "platform": _platform_from_url(source_url),
+            },
+        }
+
+        logger.info(f"Sending eat-list success notification to {PUSH_NOTIFICATION_URL} for user {user_id}")
+        with httpx.Client(timeout=10.0) as client:
+            resp = client.post(PUSH_NOTIFICATION_URL, headers=headers, json=payload)
+            resp.raise_for_status()
+
+        logger.info(f"Successfully sent eat-list success notification to user {user_id}")
+
+    except httpx.HTTPStatusError as e:
+        logger.error(f"Push notification API returned error {e.response.status_code}: {e.response.text}")
+    except Exception as e:
+        logger.error(f"Error sending eat-list success notification: {e}", exc_info=True)
+
+
 def save_video_insights(location_id: int, url: str, loc_data: dict, video_data: dict):
     """
     Upsert global video insights (shared across all users who save the same
@@ -414,6 +477,45 @@ def process_and_save_async(url: str, user_id: str):
     """
     try:
         logger.info(f"Background processing started for user {user_id}, URL: {url}")
+
+        social_post_action = find_social_post_action(supabase_client, url)
+        if social_post_action:
+            logger.info(
+                "URL matched social post action for user %s, platform %s, locations=%s, eat_list=%s",
+                user_id,
+                social_post_action["platform"],
+                social_post_action.get("location_ids", []),
+                social_post_action.get("eat_list_collection_id"),
+            )
+
+            applied = apply_social_post_action(
+                supabase_client,
+                user_id=user_id,
+                source_url=url,
+                action=social_post_action,
+            )
+            saved_locations = applied.get("saved_locations") or []
+            collection_result = applied.get("collection")
+            if saved_locations:
+                send_success_notification(user_id, saved_locations, source_url=url)
+            if collection_result and collection_result.get("success"):
+                send_eat_list_success_notification(user_id, collection_result, source_url=url)
+
+            if applied.get("success"):
+                logger.info(
+                    "Applied social post action for user %s: %s locations, collection_saved=%s",
+                    user_id,
+                    len(saved_locations),
+                    bool(collection_result and collection_result.get("success")),
+                )
+            else:
+                logger.error(
+                    "Failed to apply social post action for user %s: %s",
+                    user_id,
+                    applied.get("errors", []),
+                )
+                send_error_notification(user_id, error_type="generic", tiktok_url=url)
+            return
 
         # Check if this URL has already been processed by anyone
         if supabase_client:
