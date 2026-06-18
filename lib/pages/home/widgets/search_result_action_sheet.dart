@@ -61,12 +61,16 @@ class SearchResultActionHandler {
   static Future<int?> sendToBubble(
     BuildContext context,
     LocationModel location,
-  ) {
+  ) async {
+    final hydrated = await ensureLocationReady(location);
+    if (hydrated == null) {
+      return null;
+    }
     return showModalBottomSheet<int>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => AddToBubbleSheet(location: location),
+      builder: (_) => AddToBubbleSheet(location: hydrated),
     );
   }
 
