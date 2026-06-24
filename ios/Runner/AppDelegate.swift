@@ -2,13 +2,16 @@ import Flutter
 import UIKit
 import FirebaseCore
 import FirebaseMessaging
+import UserNotifications
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
   private let CHANNEL = "com.example.srishlok.pinit/share"
   private let GEOFENCE_CHANNEL = "com.example.srishlok.pinit/geofence"
+  private let NOTIFICATIONS_CHANNEL = "com.example.srishlok.pinit/notifications"
   private var shareChannel: FlutterMethodChannel?
   private var geofenceChannel: FlutterMethodChannel?
+  private var notificationsChannel: FlutterMethodChannel?
   private let geofenceManager = GeofenceManager()
 
   override func application(
@@ -53,6 +56,10 @@ import FirebaseMessaging
       geofenceManager.setEventChannel(geofenceChannel!)
     }
 
+    if let controller = window?.rootViewController as? FlutterViewController {
+      notificationsChannel = FlutterMethodChannel(name: NOTIFICATIONS_CHANNEL, binaryMessenger: controller.binaryMessenger)
+    }
+
     geofenceChannel?.setMethodCallHandler { (call: FlutterMethodCall, result: @escaping FlutterResult) in
       if call.method == "registerGeofences" {
         guard let regions = call.arguments as? [[String: Any]] else {
@@ -64,6 +71,14 @@ import FirebaseMessaging
       } else if call.method == "clearGeofences" {
         self.geofenceManager.stopMonitoringAll()
         result(nil)
+      } else {
+        result(FlutterMethodNotImplemented)
+      }
+    }
+
+    notificationsChannel?.setMethodCallHandler { (call: FlutterMethodCall, result: @escaping FlutterResult) in
+      if call.method == "clearBubbleNotifications" {
+        self.clearBubbleNotifications(call: call, result: result)
       } else {
         result(FlutterMethodNotImplemented)
       }
@@ -110,6 +125,44 @@ import FirebaseMessaging
       result(nil)
     } else {
       result(FlutterError(code: "UNAVAILABLE", message: "Could not access app group", details: nil))
+    }
+  }
+
+  private func clearBubbleNotifications(call: FlutterMethodCall, result: @escaping FlutterResult) {
+    guard #available(iOS 10.0, *) else {
+      result(0)
+      return
+    }
+
+    guard let args = call.arguments as? [String: Any],
+          let bubbleId = args["bubbleId"] as? String,
+          !bubbleId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+      result(FlutterError(code: "INVALID_ARGS", message: "Missing bubbleId", details: nil))
+      return
+    }
+
+    let normalizedBubbleId = bubbleId.trimmingCharacters(in: .whitespacesAndNewlines)
+    let center = UNUserNotificationCenter.current()
+
+    center.getDeliveredNotifications { notifications in
+      let matchingIds = notifications.compactMap { notification -> String? in
+        let userInfo = notification.request.content.userInfo
+        let payloadBubbleId =
+          (userInfo["bubbleId"] as? String) ??
+          (userInfo["bubble_id"] as? String)
+
+        return payloadBubbleId == normalizedBubbleId
+          ? notification.request.identifier
+          : nil
+      }
+
+      if !matchingIds.isEmpty {
+        center.removeDeliveredNotifications(withIdentifiers: matchingIds)
+      }
+
+      DispatchQueue.main.async {
+        result(matchingIds.count)
+      }
     }
   }
 }

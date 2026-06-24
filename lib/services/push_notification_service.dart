@@ -5,6 +5,24 @@ import 'package:http/http.dart' as http;
 import 'package:login/supabase/supabase_client.dart';
 import 'package:login/supabase/constants.dart';
 
+@visibleForTesting
+bool containsAtMention(String messageContent) {
+  return RegExp(r'(^|\s)@[^\s@]+').hasMatch(messageContent);
+}
+
+@visibleForTesting
+String buildBubbleMessageNotificationTitle({
+  required String bubbleName,
+  required String senderName,
+  required String messageContent,
+}) {
+  if (containsAtMention(messageContent)) {
+    return 'New mention from $senderName in $bubbleName';
+  }
+
+  return 'New message in $bubbleName';
+}
+
 class PushNotificationService {
   final String? apiSecretKey = dotenv.env["API_SECRET_KEY"];
   final String apiEndpoint =
@@ -296,7 +314,11 @@ class PushNotificationService {
         // Send notification
         await _sendNotification(
           fcmToken: fcmToken,
-          title: 'New message in $bubbleName',
+          title: buildBubbleMessageNotificationTitle(
+            bubbleName: bubbleName,
+            senderName: senderName,
+            messageContent: messageContent,
+          ),
           body: '$senderName: $messagePreview',
           recipientUserId: memberId,
           type: 'new_message',

@@ -43,8 +43,7 @@ class _BubbleMessagingPageState extends State<BubbleMessagingPage> {
   void initState() {
     super.initState();
     _activeView = widget.initialView;
-    _provider =
-        widget.provider ??
+    _provider = widget.provider ??
         MessagingProvider(
           bubbleId: widget.bubble.id,
           messagingHelper: SupabaseService().messaging,
@@ -159,7 +158,8 @@ class _BubbleMessagingPageState extends State<BubbleMessagingPage> {
                                         ),
                                         Expanded(
                                           child: Listener(
-                                            behavior: HitTestBehavior.translucent,
+                                            behavior:
+                                                HitTestBehavior.translucent,
                                             onPointerMove: (_) =>
                                                 _dismissKeyboard(),
                                             child: MessageList(
@@ -181,22 +181,19 @@ class _BubbleMessagingPageState extends State<BubbleMessagingPage> {
                                                       BubbleMessageView.pins
                                                   ? 'When someone sends a place into this bubble, it will land here as a tappable pin.'
                                                   : 'Break the silence and drop the first plan, pin, or opinion.',
-                                              onLocationTap:
-                                                  _handleLocationTap,
+                                              onLocationTap: _handleLocationTap,
                                               onMessageAvatarTap:
                                                   _handleOpenUserProfile,
-                                              onScrollStart:
-                                                  _dismissKeyboard,
-                                              onMessageDoubleTap: widget
-                                                          .bubble.memberCount ==
-                                                      2
-                                                  ? (message) {
-                                                      provider
-                                                          .toggleMessageLiked(
-                                                        message,
-                                                      );
-                                                    }
-                                                  : null,
+                                              onScrollStart: _dismissKeyboard,
+                                              onMessageDoubleTap:
+                                                  widget.bubble.memberCount == 2
+                                                      ? (message) {
+                                                          provider
+                                                              .toggleMessageLiked(
+                                                            message,
+                                                          );
+                                                        }
+                                                      : null,
                                             ),
                                           ),
                                         ),
@@ -213,6 +210,9 @@ class _BubbleMessagingPageState extends State<BubbleMessagingPage> {
                         controller: _messageController,
                         focusNode: _focusNode,
                         isSending: provider.isSending,
+                        mentionMemberIds: widget.bubble.memberIds,
+                        mentionMemberNames: widget.bubble.memberNames,
+                        mentionMemberAvatarUrls: widget.bubble.memberAvatars,
                         onSend: _handleSendMessage,
                       ),
                     ),

@@ -133,11 +133,24 @@ class MessageBubble extends StatelessWidget {
                                 ],
                                 if (message.locationId == null ||
                                     message.content.trim().isNotEmpty)
-                                  Text(
-                                    message.content.trim().isEmpty &&
-                                            message.locationId != null
-                                        ? 'Shared a place'
-                                        : message.content,
+                                  Text.rich(
+                                    key: Key('message_content_${message.id}'),
+                                    TextSpan(
+                                      children: _buildMentionSpans(
+                                        message.content.trim().isEmpty &&
+                                                message.locationId != null
+                                            ? 'Shared a place'
+                                            : message.content,
+                                        AppTypography.sans(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                          color: isFromCurrentUser
+                                              ? PinitColors.cream
+                                              : PinitColors.aubergine,
+                                          height: 1.35,
+                                        ),
+                                      ),
+                                    ),
                                     style: AppTypography.sans(
                                       fontSize: 15,
                                       fontWeight: FontWeight.w600,
@@ -209,6 +222,40 @@ class MessageBubble extends StatelessWidget {
     final minute = localDateTime.minute.toString().padLeft(2, '0');
     final period = localDateTime.hour >= 12 ? 'PM' : 'AM';
     return '$hour:$minute $period';
+  }
+
+  List<TextSpan> _buildMentionSpans(String content, TextStyle baseStyle) {
+    final spans = <TextSpan>[];
+    final mentionPattern = RegExp(r'(^|\s)(@[^\s@]+)');
+    var cursor = 0;
+
+    for (final match in mentionPattern.allMatches(content)) {
+      final leading = match.group(1) ?? '';
+      final mention = match.group(2);
+      if (mention == null) continue;
+
+      final mentionStart = match.start + leading.length;
+      if (cursor < mentionStart) {
+        spans.add(TextSpan(text: content.substring(cursor, mentionStart)));
+      }
+
+      spans.add(
+        TextSpan(
+          text: mention,
+          style: baseStyle.copyWith(
+            fontWeight: FontWeight.w900,
+            fontVariations: const [FontVariation('wght', 900)],
+          ),
+        ),
+      );
+      cursor = match.end;
+    }
+
+    if (cursor < content.length) {
+      spans.add(TextSpan(text: content.substring(cursor)));
+    }
+
+    return spans.isEmpty ? [TextSpan(text: content)] : spans;
   }
 }
 

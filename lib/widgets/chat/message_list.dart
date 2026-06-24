@@ -81,6 +81,11 @@ class MessageList extends StatelessWidget {
 
           final message = messages[index];
           final isFromCurrentUser = message.senderId == currentUserId;
+          final showDateSeparator = index == messages.length - 1 ||
+              !_isSameLocalDay(
+                message.createdAt,
+                messages[index + 1].createdAt,
+              );
 
           var showSenderInfo = true;
           if (index < messages.length - 1) {
@@ -88,17 +93,60 @@ class MessageList extends StatelessWidget {
             showSenderInfo = nextMessage.senderId != message.senderId;
           }
 
-          return MessageBubble(
-            message: message,
-            isFromCurrentUser: isFromCurrentUser,
-            showSenderInfo: showSenderInfo && !isFromCurrentUser,
-            onLocationTap: onLocationTap,
-            onAvatarTap: onMessageAvatarTap,
-            onDoubleTap: isFromCurrentUser ? null : onMessageDoubleTap,
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (showDateSeparator)
+                _DateSeparator(label: _formatDateSeparator(message.createdAt)),
+              MessageBubble(
+                message: message,
+                isFromCurrentUser: isFromCurrentUser,
+                showSenderInfo: showSenderInfo && !isFromCurrentUser,
+                onLocationTap: onLocationTap,
+                onAvatarTap: onMessageAvatarTap,
+                onDoubleTap: isFromCurrentUser ? null : onMessageDoubleTap,
+              ),
+            ],
           );
         },
       ),
     );
+  }
+
+  bool _isSameLocalDay(DateTime a, DateTime b) {
+    final localA = a.toLocal();
+    final localB = b.toLocal();
+    return localA.year == localB.year &&
+        localA.month == localB.month &&
+        localA.day == localB.day;
+  }
+
+  String _formatDateSeparator(DateTime dateTime) {
+    final localDate = dateTime.toLocal();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final messageDay = DateTime(localDate.year, localDate.month, localDate.day);
+    final dayDelta = today.difference(messageDay).inDays;
+
+    if (dayDelta == 0) return 'Today';
+    if (dayDelta == 1) return 'Yesterday';
+
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final base = '${months[localDate.month - 1]} ${localDate.day}';
+    return localDate.year == now.year ? base : '$base, ${localDate.year}';
   }
 
   Widget _buildEmptyState() {
@@ -170,6 +218,54 @@ class MessageList extends StatelessWidget {
             valueColor: AlwaysStoppedAnimation<Color>(PinitColors.aubergine),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _DateSeparator extends StatelessWidget {
+  const _DateSeparator({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Divider(
+              height: 1,
+              thickness: 1,
+              color: PinitColors.creamDeep,
+            ),
+          ),
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: PinitColors.cream.withValues(alpha: 0.92),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: PinitColors.creamDeep, width: 1.2),
+            ),
+            child: Text(
+              label,
+              style: AppTypography.sans(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: PinitColors.aubergineSoft,
+              ),
+            ),
+          ),
+          const Expanded(
+            child: Divider(
+              height: 1,
+              thickness: 1,
+              color: PinitColors.creamDeep,
+            ),
+          ),
+        ],
       ),
     );
   }

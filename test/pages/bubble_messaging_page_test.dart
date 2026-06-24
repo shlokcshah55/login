@@ -53,6 +53,102 @@ void main() {
     expect(find.text('1 messages'), findsNothing);
   });
 
+  testWidgets('message list separates messages by local date', (tester) async {
+    tester.view.physicalSize = const Size(1200, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    final currentYear = DateTime.now().year;
+
+    final provider = _TestMessagingProvider(
+      messages: [
+        MessageModel(
+          id: 'message-1',
+          bubbleId: 'bubble-1',
+          senderId: 'user-1',
+          senderName: 'Alex',
+          senderAvatarUrl: '',
+          content: 'Friday plan',
+          messageType: 'text',
+          createdAt: DateTime(currentYear, 5, 15, 10),
+        ),
+        MessageModel(
+          id: 'message-2',
+          bubbleId: 'bubble-1',
+          senderId: 'user-2',
+          senderName: 'Sam',
+          senderAvatarUrl: '',
+          content: 'Thursday idea',
+          messageType: 'text',
+          createdAt: DateTime(currentYear, 5, 14, 20),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BubbleMessagingPage(
+          bubble: Bubble(
+            id: 'bubble-1',
+            name: 'Weekend Plans',
+            createdBy: 'user-1',
+            lastMessage: 'Friday plan',
+            lastMessageTime: 'now',
+            memberCount: 3,
+            memberAvatars: const [],
+            groupAvatar: '',
+          ),
+          provider: provider,
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('May 15'), findsOneWidget);
+    expect(find.text('May 14'), findsOneWidget);
+  });
+
+  testWidgets('typing @ shows members and inserts a mention', (tester) async {
+    tester.view.physicalSize = const Size(1200, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final provider = _TestMessagingProvider(messages: const []);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BubbleMessagingPage(
+          bubble: Bubble(
+            id: 'bubble-1',
+            name: 'Weekend Plans',
+            createdBy: 'user-1',
+            lastMessage: '',
+            lastMessageTime: 'now',
+            memberCount: 3,
+            memberAvatars: const ['', '', ''],
+            groupAvatar: '',
+            memberIds: const ['user-1', 'user-2', 'user-3'],
+            memberNames: const ['Alex', 'Sam', 'Taylor'],
+          ),
+          provider: provider,
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'Meet @');
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('mention_suggestion_user-2')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('mention_suggestion_user-2')));
+    await tester.pumpAndSettle();
+
+    final editable = tester.widget<EditableText>(find.byType(EditableText));
+    expect(editable.controller.text, 'Meet @Sam ');
+  });
+
   testWidgets('dragging the chat list dismisses the composer focus', (
     tester,
   ) async {
@@ -220,11 +316,11 @@ void main() {
 
 class _TestMessagingProvider extends MessagingProvider {
   _TestMessagingProvider({required List<MessageModel> messages})
-    : _messages = messages,
-      super(
-        bubbleId: 'bubble-1',
-        messagingHelper: _FakeMessagingHelper(),
-      );
+      : _messages = messages,
+        super(
+          bubbleId: 'bubble-1',
+          messagingHelper: _FakeMessagingHelper(),
+        );
 
   final List<MessageModel> _messages;
 
@@ -260,7 +356,8 @@ class _TestMessagingProvider extends MessagingProvider {
     String content, {
     String? replyToId,
     int? locationId,
-  }) async => true;
+  }) async =>
+      true;
 
   @override
   void dispose() {

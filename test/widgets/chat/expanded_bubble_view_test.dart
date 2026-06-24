@@ -33,6 +33,33 @@ void main() {
     expect(opened, isTrue);
   });
 
+  testWidgets('tapping a recent activity record opens its place', (
+    tester,
+  ) async {
+    int? openedLocationId;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ExpandedChatView(
+          bubble: _bubble(),
+          onClose: () {},
+          initialUnreadCount: 2,
+          initialActivities: [_activity()],
+          onOpenActivityLocation: (activity) async {
+            openedLocationId = activity.locationId;
+          },
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('expanded_bubble_activity_1')));
+    await tester.pumpAndSettle();
+
+    expect(openedLocationId, 1);
+  });
+
   testWidgets('tapping top pins opens the pins chat tab', (tester) async {
     var openedPins = false;
 

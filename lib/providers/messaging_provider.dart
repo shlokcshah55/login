@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/message.dart';
+import '../services/bubble_notification_cleanup_service.dart';
 import '../supabase/helpers/messaging.dart';
 import '../supabase/helpers/notifications.dart';
 import '../supabase/supabase_client.dart';
@@ -9,6 +10,7 @@ import '../supabase/supabase_client.dart';
 class MessagingProvider with ChangeNotifier {
   final MessagingHelper _messagingHelper;
   final NotificationsHelper? _notificationsHelper;
+  final BubbleNotificationCleanupService _notificationCleanupService;
   final String bubbleId;
 
   List<MessageModel> _messages = [];
@@ -23,8 +25,11 @@ class MessagingProvider with ChangeNotifier {
     required this.bubbleId,
     required MessagingHelper messagingHelper,
     NotificationsHelper? notificationsHelper,
-  }) : _messagingHelper = messagingHelper,
-       _notificationsHelper = notificationsHelper;
+    BubbleNotificationCleanupService notificationCleanupService =
+        const BubbleNotificationCleanupService(),
+  })  : _messagingHelper = messagingHelper,
+        _notificationsHelper = notificationsHelper,
+        _notificationCleanupService = notificationCleanupService;
 
   // Getters
   List<MessageModel> get messages => _messages;
@@ -270,6 +275,16 @@ class MessagingProvider with ChangeNotifier {
       if (kDebugMode) {
         print(
           'MessagingProvider: Error clearing bubble message notifications: $e',
+        );
+      }
+    }
+
+    try {
+      await _notificationCleanupService.clearBubbleNotifications(bubbleId);
+    } catch (e) {
+      if (kDebugMode) {
+        print(
+          'MessagingProvider: Error removing delivered bubble notifications: $e',
         );
       }
     }

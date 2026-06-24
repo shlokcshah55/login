@@ -8,6 +8,7 @@ import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/utils/route_open_guard.dart';
 import 'package:login/widgets/chat/add_members_dialog.dart';
+import 'package:login/widgets/home/expanded_location_card.dart';
 import 'dart:math' as math;
 
 class ExpandedChatView extends StatefulWidget {
@@ -19,6 +20,8 @@ class ExpandedChatView extends StatefulWidget {
   final Future<void> Function()? onOpenPinsChat;
   final VoidCallback? onShowActivity;
   final Future<void> Function(String userId)? onOpenUserProfile;
+  final Future<void> Function(UserLocationActionModel activity)?
+      onOpenActivityLocation;
 
   const ExpandedChatView({
     Key? key,
@@ -30,6 +33,7 @@ class ExpandedChatView extends StatefulWidget {
     this.onOpenPinsChat,
     this.onShowActivity,
     this.onOpenUserProfile,
+    this.onOpenActivityLocation,
   }) : super(key: key);
 
   @override
@@ -200,8 +204,38 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
         bubbleName: currentBubble.name,
         activities: _activities,
         timeAgoFor: _getTimeAgo,
+        onOpenActivityLocation: _openActivityLocation,
       ),
     );
+  }
+
+  Future<void> _openActivityLocation(UserLocationActionModel activity) async {
+    if (widget.onOpenActivityLocation != null) {
+      await widget.onOpenActivityLocation!(activity);
+      return;
+    }
+
+    try {
+      final locations = await SupabaseService().locations.getLocationsByIds(
+        [activity.locationId],
+      );
+      if (!mounted || locations.isEmpty) return;
+
+      showGeneralDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        barrierLabel:
+            MaterialLocalizations.of(context).modalBarrierDismissLabel,
+        barrierColor: Colors.transparent,
+        transitionDuration: const Duration(milliseconds: 300),
+        pageBuilder: (ctx, _, __) => ExpandedLocationCard(
+          location: locations.first,
+          onClose: () => Navigator.of(ctx).pop(),
+        ),
+        transitionBuilder: (ctx, anim, _, child) =>
+            FadeTransition(opacity: anim, child: child),
+      );
+    } catch (_) {}
   }
 
   Future<void> _openUserProfile(String userId) async {
@@ -575,13 +609,20 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
 
   Widget _buildRecentActivity() {
     return GestureDetector(
-      key: const Key('expanded_bubble_recent_activity'),
       onTap: _isLoadingActivities ? null : _showActivityNotifications,
       child: _SectionCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _SectionLabel(label: 'RECENT ACTIVITY', icon: Icons.bolt_rounded),
+            GestureDetector(
+              key: const Key('expanded_bubble_recent_activity'),
+              behavior: HitTestBehavior.opaque,
+              onTap: _isLoadingActivities ? null : _showActivityNotifications,
+              child: _SectionLabel(
+                label: 'RECENT ACTIVITY',
+                icon: Icons.bolt_rounded,
+              ),
+            ),
             const SizedBox(height: 10),
             if (_isLoadingActivities)
               const Padding(
@@ -608,7 +649,10 @@ class _ExpandedChatViewState extends State<ExpandedChatView>
                   ..._activities.take(2).map((a) => Padding(
                         padding: const EdgeInsets.only(bottom: 8),
                         child: _ActivityRow(
-                            activity: a, timeAgo: _getTimeAgo(a.createdAt)),
+                          activity: a,
+                          timeAgo: _getTimeAgo(a.createdAt),
+                          onTap: () => _openActivityLocation(a),
+                        ),
                       )),
                   if (_activities.length > 2)
                     GestureDetector(
@@ -1044,11 +1088,14 @@ class _ActivityNotificationsSheet extends StatelessWidget {
   final String bubbleName;
   final List<UserLocationActionModel> activities;
   final String Function(DateTime?) timeAgoFor;
+  final Future<void> Function(UserLocationActionModel activity)
+      onOpenActivityLocation;
 
   const _ActivityNotificationsSheet({
     required this.bubbleName,
     required this.activities,
     required this.timeAgoFor,
+    required this.onOpenActivityLocation,
   });
 
   @override
@@ -1186,6 +1233,7 @@ class _ActivityNotificationsSheet extends StatelessWidget {
                         child: _ActivityNotificationTile(
                           activity: activity,
                           timeAgo: timeAgoFor(activity.createdAt),
+                          onTap: () => onOpenActivityLocation(activity),
                         ),
                       );
                     },
@@ -1205,10 +1253,12 @@ class _ActivityNotificationsSheet extends StatelessWidget {
 class _ActivityNotificationTile extends StatelessWidget {
   final UserLocationActionModel activity;
   final String timeAgo;
+  final VoidCallback? onTap;
 
   const _ActivityNotificationTile({
     required this.activity,
     required this.timeAgo,
+    this.onTap,
   });
 
   @override
@@ -1220,123 +1270,132 @@ class _ActivityNotificationTile extends StatelessWidget {
         activity.locationName.isNotEmpty ? activity.locationName : 'a place';
     final initial = displayName[0].toUpperCase();
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: PinitColors.creamSunk,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: PinitColors.creamDeep),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
+        child: Ink(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: PinitColors.creamSunk,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: PinitColors.creamDeep),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: tone.color.withValues(alpha: 0.18),
-                  border: Border.all(color: PinitColors.cream, width: 2),
-                ),
-                child: ClipOval(
-                  child: avatarUrl != null && avatarUrl.isNotEmpty
-                      ? Image.network(
-                          avatarUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _InitialCenter(
-                            initial: initial,
-                            size: 42,
-                          ),
-                        )
-                      : _InitialCenter(initial: initial, size: 42),
-                ),
-              ),
-              Positioned(
-                right: -2,
-                bottom: -2,
-                child: Container(
-                  width: 19,
-                  height: 19,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: tone.color,
-                    border: Border.all(color: PinitColors.creamSunk, width: 2),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: tone.color.withValues(alpha: 0.18),
+                      border: Border.all(color: PinitColors.cream, width: 2),
+                    ),
+                    child: ClipOval(
+                      child: avatarUrl != null && avatarUrl.isNotEmpty
+                          ? Image.network(
+                              avatarUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => _InitialCenter(
+                                initial: initial,
+                                size: 42,
+                              ),
+                            )
+                          : _InitialCenter(initial: initial, size: 42),
+                    ),
                   ),
-                  child: Icon(tone.icon, color: PinitColors.cream, size: 11),
+                  Positioned(
+                    right: -2,
+                    bottom: -2,
+                    child: Container(
+                      width: 19,
+                      height: 19,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: tone.color,
+                        border:
+                            Border.all(color: PinitColors.creamSunk, width: 2),
+                      ),
+                      child:
+                          Icon(tone.icon, color: PinitColors.cream, size: 11),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text.rich(
+                            TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: displayName,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w800),
+                                ),
+                                TextSpan(text: ' ${tone.message} '),
+                                TextSpan(
+                                  text: placeName,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w800),
+                                ),
+                              ],
+                            ),
+                            style: GoogleFonts.dmSans(
+                              fontSize: 13,
+                              color: PinitColors.aubergine,
+                              height: 1.25,
+                            ),
+                          ),
+                        ),
+                        if (timeAgo.isNotEmpty) ...[
+                          const SizedBox(width: 10),
+                          Text(
+                            timeAgo,
+                            style: GoogleFonts.dmSans(
+                              fontSize: 11,
+                              color: PinitColors.mute,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: tone.color.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        tone.label,
+                        style: GoogleFonts.dmSans(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.1,
+                          color: tone.color,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text.rich(
-                        TextSpan(
-                          children: [
-                            TextSpan(
-                              text: displayName,
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.w800),
-                            ),
-                            TextSpan(text: ' ${tone.message} '),
-                            TextSpan(
-                              text: placeName,
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.w800),
-                            ),
-                          ],
-                        ),
-                        style: GoogleFonts.dmSans(
-                          fontSize: 13,
-                          color: PinitColors.aubergine,
-                          height: 1.25,
-                        ),
-                      ),
-                    ),
-                    if (timeAgo.isNotEmpty) ...[
-                      const SizedBox(width: 10),
-                      Text(
-                        timeAgo,
-                        style: GoogleFonts.dmSans(
-                          fontSize: 11,
-                          color: PinitColors.mute,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: tone.color.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    tone.label,
-                    style: GoogleFonts.dmSans(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.1,
-                      color: tone.color,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -1382,7 +1441,13 @@ class _ActivityTone {
 class _ActivityRow extends StatelessWidget {
   final UserLocationActionModel activity;
   final String timeAgo;
-  const _ActivityRow({required this.activity, required this.timeAgo});
+  final VoidCallback? onTap;
+
+  const _ActivityRow({
+    required this.activity,
+    required this.timeAgo,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1393,68 +1458,75 @@ class _ActivityRow extends StatelessWidget {
     };
     const accentColor = PinitColors.aubergineSoft;
 
-    return Container(
-      decoration: const BoxDecoration(
-        color: PinitColors.creamSunk,
-      ),
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(width: 3, color: accentColor),
-            Expanded(
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            actionLabel,
-                            style: GoogleFonts.dmSans(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1.4,
-                              color: accentColor,
-                            ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        key: Key('expanded_bubble_activity_${activity.locationId}'),
+        onTap: onTap,
+        child: Ink(
+          decoration: const BoxDecoration(
+            color: PinitColors.creamSunk,
+          ),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(width: 3, color: accentColor),
+                Expanded(
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                actionLabel,
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1.4,
+                                  color: accentColor,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                activity.locationName,
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: PinitColors.aubergine,
+                                  height: 1.2,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                activity.name,
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 11,
+                                  color: PinitColors.mute,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 2),
+                        ),
+                        if (timeAgo.isNotEmpty)
                           Text(
-                            activity.locationName,
+                            timeAgo,
                             style: GoogleFonts.dmSans(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: PinitColors.aubergine,
-                              height: 1.2,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                                fontSize: 11, color: PinitColors.mute),
                           ),
-                          Text(
-                            activity.name,
-                            style: GoogleFonts.dmSans(
-                              fontSize: 11,
-                              color: PinitColors.mute,
-                            ),
-                          ),
-                        ],
-                      ),
+                      ],
                     ),
-                    if (timeAgo.isNotEmpty)
-                      Text(
-                        timeAgo,
-                        style: GoogleFonts.dmSans(
-                            fontSize: 11, color: PinitColors.mute),
-                      ),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
