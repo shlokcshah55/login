@@ -36,7 +36,7 @@ class GooglePlacesService {
     } else if (apiKey!.length < 10) {
       log('GooglePlaceService: API Key loaded: YES (${apiKey!.length} chars - TOO SHORT)');
     } else {
-      log('GooglePlaceService: API Key loaded: YES (${apiKey!.substring(0, 10)}...)');
+      log('GooglePlaceService: API Key loaded: YES');
     }
     log('GooglePlaceService: All env vars: ${dotenv.env.keys.toList()}');
   }

@@ -1,6 +1,7 @@
 import functions_framework
 from firebase_admin import credentials, messaging, initialize_app, get_app
 from supabase import create_client, Client
+import hmac
 import json
 import os
 
@@ -72,8 +73,15 @@ def send_push_notification(request):
     # 3. Verify Authorization
     auth_header = request.headers.get('Authorization', '')
     expected_token = os.environ.get('API_SECRET_KEY', '')
-    
-    if not auth_header.startswith('Bearer ') or auth_header[7:] != expected_token:
+
+    # Fail closed if the shared secret is not configured, otherwise an empty
+    # expected_token would authorize any request presenting an empty bearer.
+    if not expected_token:
+        print("❌ API_SECRET_KEY is not configured; rejecting request")
+        return (json.dumps({'error': 'Server misconfigured'}), 500, headers)
+
+    provided_token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    if not hmac.compare_digest(provided_token, expected_token):
         return (json.dumps({'error': 'Unauthorized'}), 401, headers)
     
     if request.method != 'POST':
@@ -203,8 +211,8 @@ def send_push_notification(request):
     except ValueError as e:
         # Catches FCM-specific errors (invalid token, etc.)
         print(f"❌ FCM Error: {e}")
-        return (json.dumps({'error': 'FCM error', 'details': str(e)}), 500, headers)
-        
+        return (json.dumps({'error': 'FCM error'}), 500, headers)
+
     except Exception as e:
         print(f"❌ Error: {str(e)}")
-        return (json.dumps({'error': 'Internal server error', 'details': str(e)}), 500, headers)
+        return (json.dumps({'error': 'Internal server error'}), 500, headers)

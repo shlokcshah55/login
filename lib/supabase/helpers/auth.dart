@@ -114,7 +114,7 @@ class AuthHelper {
       String? name,
       String? username}) async {
     try {
-      print('📝 [SIGNUP] Starting signup for email: $email');
+      print('📝 [SIGNUP] Starting signup');
 
       final response = await _client.auth.signUp(
         email: email,
@@ -263,7 +263,7 @@ class AuthHelper {
       // If user doesn't exist, create a new record
       if (existingUser == null) {
         if (kDebugMode) {
-          print('Creating database record for new OAuth user: ${user.email}');
+          print('Creating database record for new OAuth user: ${user.id}');
         }
 
         final name = resolveOAuthDisplayName(

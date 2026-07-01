@@ -281,7 +281,7 @@ def import_notes():
         return jsonify({"success": False, "error": str(exc)}), 400
     except Exception as exc:
         logger.error("Unexpected error in /import-notes: %s", exc, exc_info=True)
-        return jsonify({"success": False, "error": f"Internal server error: {exc}"}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @app.errorhandler(404)

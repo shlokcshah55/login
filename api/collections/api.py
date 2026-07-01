@@ -125,7 +125,7 @@ def generate_collections():
         logger.error(f"Unexpected error in /generate-collections: {e}", exc_info=True)
         return jsonify({
             "success": False,
-            "error": f"Internal server error: {str(e)}"
+            "error": "Internal server error"
         }), 500
 
 
@@ -169,7 +169,7 @@ def auto_update_collections():
 
     except Exception as e:
         logger.error(f"Unexpected error in /auto-update-collections: {e}", exc_info=True)
-        return jsonify({"success": False, "error": f"Internal server error: {str(e)}"}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @app.errorhandler(404)
