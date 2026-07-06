@@ -9,4 +9,5 @@ enum NotificationType {
   userAddedToBubble,
   notesImportComplete,
   blast,
+  socialPostReview,
 }

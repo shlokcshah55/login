@@ -128,7 +128,7 @@ class BubbleHelper {
         // actual conversation activity instead of creation order.
         final results = await Future.wait([
           _getBubbleMembers(bubbleId),
-          _getBubbleLocations(bubbleId),
+          getBubbleLocations(bubbleId),
           _getCompatibilityScore(bubbleId),
           _getLatestMessagePreview(bubbleId),
           _messagingHelper.getUnreadCount(bubbleId),
@@ -263,7 +263,7 @@ class BubbleHelper {
   }
 
   /// Get all locations for a bubble
-  Future<List<LocationModel>> _getBubbleLocations(String bubbleId) async {
+  Future<List<LocationModel>> getBubbleLocations(String bubbleId) async {
     try {
       final response =
           await _client.from(SupabaseConstants.tableBubbleLocations).select('''
@@ -342,7 +342,7 @@ class BubbleHelper {
 
       final results = await Future.wait([
         _getBubbleMembers(bubbleId),
-        _getBubbleLocations(bubbleId),
+        getBubbleLocations(bubbleId),
         _getCompatibilityScore(bubbleId),
         _getLatestMessagePreview(bubbleId),
         _messagingHelper.getUnreadCount(bubbleId),

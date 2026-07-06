@@ -21,6 +21,7 @@ import 'package:login/models/notifications/follow_request_notification.dart';
 import 'package:login/models/notifications/user_added_to_bubble_notification.dart';
 import 'package:login/models/notifications/video_processed_notification.dart';
 import 'package:login/widgets/profile/notifications_popover.dart';
+import 'package:login/pages/social_review/social_post_review_page.dart';
 import 'package:login/services/notification_routes.dart';
 import 'package:login/services/analytics_service.dart';
 import 'package:login/utils/route_open_guard.dart';
@@ -538,6 +539,27 @@ class FCMService {
         await markAsReadIfPossible();
         await _openLocation(locationId: locationId);
         _trackDeepLinkRouted(deepLink: deepLink, route: 'location');
+        return true;
+
+      case 'social-review':
+        final postId = (segments.length >= 2 ? segments[1] : null) ??
+            _firstNonEmptyString(data, const ['socialPostId']);
+        if (postId == null) {
+          _trackDeepLinkFailed(
+            deepLink: deepLink,
+            reason: 'missing_social_post_id',
+            route: 'social-review',
+          );
+          return false;
+        }
+        await markAsReadIfPossible();
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(
+            builder: (_) =>
+                SocialPostReviewPage(postId: postId, source: 'notification'),
+          ),
+        );
+        _trackDeepLinkRouted(deepLink: deepLink, route: 'social-review');
         return true;
 
       default:

@@ -37,37 +37,30 @@ class TikTokProcessor:
             location_dicts = await asyncio.to_thread(self._extract_locations, video_data, False)
             logger.info(f"Location extraction result: {location_dicts}")
 
-            # 3. If no location found, retry with comments
+            # 3. Comment-based retry temporarily disabled — no comment scraping.
             if not location_dicts:
-                logger.info("No location found, retrying with comments...")
-                if is_instagram:
-                    video_data = await self._get_instagram_data_appify(tiktok_url, fetch_comments=True)
-                else:
-                    video_data = await self._get_tiktok_data_appify(tiktok_url, fetch_comments=True)
-
-                location_dicts = await asyncio.to_thread(self._extract_locations, video_data, True)
-                logger.info(f"Location extraction with comments: {location_dicts}")
-
-                if not location_dicts:
-                    return {
-                        "success": False,
-                        "error": "Could not extract location from video even with comments"
-                    }
+                return {
+                    "success": False,
+                    "error": "Could not extract location from video"
+                }
 
             logger.info(f"✅ Location found! Count: {len(location_dicts)}")
 
-            # 4. Extract insights in parallel (Calls 2a + 2b)
-            logger.info("Extracting insights in parallel...")
-            factual, interpretive = await asyncio.gather(
-                asyncio.to_thread(self._extract_factual_insights, video_data),
-                asyncio.to_thread(self._extract_interpretive_signals, video_data),
-            )
-            insights = {**factual, **interpretive}
-            logger.info(f"Insights extracted: {insights}")
+            # 4. Extract insights PER PLACE — a video covering multiple venues has
+            # distinct dishes/vibes for each, so each location gets its own scoped
+            # extraction calls (factual + interpretive run in parallel per venue).
+            logger.info("Extracting per-place insights in parallel...")
 
-            # Merge insights onto each location dict
-            for loc in location_dicts:
-                loc.update(insights)
+            async def _insights_for_location(loc: Dict):
+                venue_name = loc.get("location_name") or ""
+                factual, interpretive = await asyncio.gather(
+                    asyncio.to_thread(self._extract_factual_insights, video_data, venue_name),
+                    asyncio.to_thread(self._extract_interpretive_signals, video_data, venue_name),
+                )
+                loc.update({**factual, **interpretive})
+                logger.info(f"Insights for {venue_name!r}: {factual} {interpretive}")
+
+            await asyncio.gather(*(_insights_for_location(loc) for loc in location_dicts))
 
             logger.info("Completed Google Places search")
             return self._search_and_return_locations(location_dicts, video_data)
@@ -121,13 +114,20 @@ class TikTokProcessor:
         # TikTok hashtags are often nested in 'textExtra'
         logger.info(video_info.get("hashtags",[]))
         hashtags = [
-            h.get("name") 
-            for h in video_info.get("hashtags", []) 
+            h.get("name")
+            for h in video_info.get("hashtags", [])
         ]
 
         # 5. Extract creator handle
         author_info = video_info.get("authorMeta", {}) or video_info.get("author", {})
         creator_handle = author_info.get("name") or author_info.get("uniqueId")
+
+        # 5b. Fetch subtitle transcript (TikTok's own machine captions) — the
+        # spoken content often names restaurants the caption never mentions.
+        subtitle_links = (video_info.get("videoMeta") or {}).get("subtitleLinks") or []
+        transcript = await asyncio.to_thread(self._fetch_subtitle_transcript, subtitle_links)
+        if transcript:
+            logger.info(f"Subtitle transcript fetched: {len(transcript)} chars")
 
         # 6. Return the single consolidated object
         to_return =  {
@@ -137,6 +137,7 @@ class TikTokProcessor:
             "hashtags": hashtags,
             "comments": video_comments,
             "creator_handle": creator_handle,
+            "transcript": transcript,
         }
 
         logger.info(to_return)
@@ -212,8 +213,9 @@ class TikTokProcessor:
             hashtags = video_data.get("hashtags", [])
             comments = video_data.get("comments", [])
             location_created = video_data.get("locationCreated")
+            transcript = video_data.get("transcript", "")
 
-            extra_bit  = "When using the comments field, be extra cautious and only return locations if there are multiple corroborating comments mentioning the same place. Comments are often speculative or questions, so require strong signals to trust them." 
+            extra_bit  = "When using the comments field, be extra cautious and only return locations if there are multiple corroborating comments mentioning the same place. Comments are often speculative or questions, so require strong signals to trust them."
 
 
             prompt = f"""
@@ -226,6 +228,7 @@ Be liberal: it is not the worst thing if a result is slightly incorrect.
 # Available Data
 - Video Description: "{video_desc}"
 - Hashtags: {', '.join(hashtags) if hashtags else 'None'}
+- Spoken Transcript (machine-generated subtitles): "{transcript if transcript else 'None'}"
 - Top Comments: {json.dumps(comments) if comments else 'None'}
 - Location Metadata: "{location_created if location_created else 'None'}"
 
@@ -234,8 +237,12 @@ Be liberal: it is not the worst thing if a result is slightly incorrect.
 2. Video description — most common; look for restaurant/venue names, addresses, neighborhoods
    - High confidence: name + neighborhood (e.g. "Carbone in Greenwich Village")
    - Medium confidence: name only (e.g. "went to Carbone today")
-3. Hashtags — venue-specific only (e.g. #nobudowntown); generic tags like #foodie are not enough
-4. Comments — last resort only; require multiple corroborating comments naming the same place
+3. Spoken transcript — creators often say venue names aloud that never appear in the caption
+   (e.g. "first up is Dhamaka on the Lower East Side"). The transcript is machine-generated,
+   so venue names may be misspelled or phonetically wrong — normalise obvious errors when
+   the intended name is clear (e.g. "dama ka" → "Dhamaka")
+4. Hashtags — venue-specific only (e.g. #nobudowntown); generic tags like #foodie are not enough
+5. Comments — last resort only; require multiple corroborating comments naming the same place
 
 {extra_bit if with_comments else ""}
 
@@ -277,25 +284,40 @@ Be liberal: it is not the worst thing if a result is slightly incorrect.
             logger.error(f"Error extracting locations: {e}")
             return None
 
-    def _extract_factual_insights(self, video_data: Dict) -> Dict:
+    def _extract_factual_insights(self, video_data: Dict, venue_name: str = "") -> Dict:
         """
-        Call 2a (parallel): Extract factual claims — key dishes and special offers.
-        Every item requires a verbatim evidence quote from the source text.
-        If no quote can be found, the array stays empty.
+        Call 2a (parallel, per venue): Extract factual claims — key dishes and
+        special offers — scoped to a single venue. Every item requires a verbatim
+        evidence quote from the source text. If no quote can be found, the array
+        stays empty.
         """
         try:
             video_desc = video_data.get("description", "")
             hashtags = video_data.get("hashtags", [])
             comments = video_data.get("comments", [])
+            transcript = video_data.get("transcript", "")
+
+            venue_scope = f"""
+# Venue Scope — IMPORTANT
+This video may mention multiple venues. You are extracting insights for ONE venue only: "{venue_name}".
+Only include dishes and offers that are clearly attributable to "{venue_name}".
+If a dish or offer belongs to a different venue mentioned in the video, or you cannot tell which venue it belongs to, DO NOT include it.
+""" if venue_name else ""
 
             prompt = f"""
 # Role
 You are a factual claim extractor. Your job is to find specific dishes and special offers that are EXPLICITLY mentioned in TikTok/Reel video metadata.
+{venue_scope}
 
 # Source Data
 - Video Description: "{video_desc}"
 - Hashtags: {', '.join(hashtags) if hashtags else 'None'}
+- Spoken Transcript (machine-generated subtitles): "{transcript if transcript else 'None'}"
 - Comments: {json.dumps(comments) if comments else 'None'}
+
+The spoken transcript counts as a valid evidence source — creators usually describe dishes
+aloud rather than in the caption. Quote the transcript verbatim in the evidence field.
+Note it is machine-generated, so dish names may be slightly garbled; normalise only when obvious.
 
 For every item you extract, you MUST include an "evidence" field containing the exact verbatim text from the source data that supports it. If you cannot find a direct quote, do not include the item. Return an empty array rather than fabricating claims.
 
@@ -343,34 +365,46 @@ Please note that comments are less reliable sources of information, so only incl
             logger.error(f"Error extracting factual insights: {e}")
             return {"key_dishes": [], "special_offers": []}
 
-    def _extract_interpretive_signals(self, video_data: Dict) -> Dict:
+    def _extract_interpretive_signals(self, video_data: Dict, venue_name: str = "") -> Dict:
         """
-        Call 2b (parallel): Extract interpretive signals — vibe scores, sentiment,
-        and a creator summary. These are impression-based, not factual claims,
-        so evidence quoting is not required — but only include vibes with clear
-        support from the content.
+        Call 2b (parallel, per venue): Extract interpretive signals — vibe scores,
+        sentiment, and a creator summary — scoped to a single venue. These are
+        impression-based, not factual claims, so evidence quoting is not required —
+        but only include vibes with clear support from the content.
         """
         try:
             video_desc = video_data.get("description", "")
             hashtags = video_data.get("hashtags", [])
             comments = video_data.get("comments", [])
+            transcript = video_data.get("transcript", "")
 
             # Load the fixed vibe vocabulary from the checked-in table file.
             with open(SCRIPT_DIR / "vibe_table.txt", "r") as f:
                 vibe_tags_list = f.read().strip()
 
-    
+            venue_scope = f"""
+# Venue Scope — IMPORTANT
+This video may mention multiple venues. You are analysing ONE venue only: "{venue_name}".
+Only score vibes, sentiment, and notes based on content clearly about "{venue_name}".
+Ignore content about other venues. If nothing in the video is specifically about this venue's atmosphere, return minimal output.
+""" if venue_name else ""
+
             prompt = f"""
 # Role
 You are an atmosphere and sentiment analyser. Given TikTok/Reel video metadata about a venue, extract:
 1. vibe_signals — scored impressions of the venue's atmosphere
 2. sentiment — the creator's overall tone
 3. creator_notes — a short summary of the creator's take
+{venue_scope}
 
 # Source Data
 - Video Description: "{video_desc}"
 - Hashtags: {', '.join(hashtags) if hashtags else 'None'}
+- Spoken Transcript (machine-generated subtitles): "{transcript if transcript else 'None'}"
 - Comments: {json.dumps(comments) if comments else 'None'}
+
+The spoken transcript is usually the richest signal for atmosphere and the creator's genuine
+opinion — weight it strongly when present.
 
 # Instructions
 
@@ -524,6 +558,50 @@ The creator's overall tone: "positive", "negative", or "mixed".
         except Exception as e:
             logger.error(f"Error searching Google Places: {e}")
             return None
+
+    def _fetch_subtitle_transcript(self, subtitle_links: List[Dict], max_chars: int = 4000) -> str:
+        """
+        Download and parse TikTok's machine-generated subtitles (WebVTT) into a
+        plain-text transcript. Prefers English. Held in memory only — the raw
+        VTT is never stored; only extraction results are persisted.
+        """
+        if not subtitle_links:
+            return ""
+
+        # Prefer English subtitle tracks, fall back to the first available
+        preferred = sorted(
+            subtitle_links,
+            key=lambda s: 0 if str(s.get("language", "")).lower().startswith("eng") else 1,
+        )
+        link = preferred[0].get("downloadLink") or preferred[0].get("tiktokLink")
+        if not link:
+            return ""
+
+        try:
+            with httpx.Client(timeout=10.0) as client:
+                response = client.get(link)
+                response.raise_for_status()
+                return self._parse_vtt(response.text, max_chars)
+        except Exception as e:
+            logger.warning(f"Failed to fetch subtitle transcript: {e}")
+            return ""
+
+    @staticmethod
+    def _parse_vtt(vtt_text: str, max_chars: int = 4000) -> str:
+        """Strip WebVTT headers/timestamps and collapse duplicate cues to plain text."""
+        lines = []
+        prev = None
+        for raw_line in vtt_text.splitlines():
+            line = raw_line.strip()
+            if (not line
+                    or line.startswith(("WEBVTT", "NOTE", "STYLE"))
+                    or "-->" in line
+                    or line.isdigit()):
+                continue
+            if line != prev:
+                lines.append(line)
+                prev = line
+        return " ".join(lines)[:max_chars]
 
     def _safe_parse_json(self, text: str) -> Dict:
         """Parse JSON from OpenAI response, handling markdown code blocks"""

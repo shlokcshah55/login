@@ -601,6 +601,7 @@ class _KeepExploringCard extends StatelessWidget {
       HomeMode.you => 'Pinned',
       HomeMode.explore => 'Explore',
       HomeMode.bubble => 'Bubble',
+      HomeMode.bubbleSaved => 'Bubble Saves',
     };
 
     return Padding(

@@ -19,6 +19,7 @@ KNOWN_TYPES: frozenset[str] = frozenset(
     {
         # Current app-supported notification types.
         "video_processed",
+        "social_post_review",
         "processing_error",
         "follow_request",
         "follow_accepted",
@@ -98,6 +99,14 @@ def resolve_deep_link(notif_type: str, metadata: dict[str, Any]) -> str | None:
                 f"Missing required metadata field: bubbleId for type {t}"
             )
         return f"pinit://bubble/{bubble_id}"
+
+    if t == "social_post_review":
+        social_post_id = _first_non_empty(metadata, ("socialPostId",))
+        if not social_post_id:
+            raise DeepLinkResolutionError(
+                "Missing required metadata field: socialPostId for type social_post_review"
+            )
+        return f"pinit://social-review/{social_post_id}"
 
     if t == "video_processed":
         location_id = _first_non_empty(metadata, ("locationId",))

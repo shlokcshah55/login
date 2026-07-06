@@ -24,6 +24,10 @@ String? resolveNotificationDeepLink(Map<String, dynamic> data) {
       final locationId = _firstNonEmptyString(data, const ['locationId']);
       return locationId == null ? null : 'pinit://location/$locationId';
 
+    case 'social_post_review':
+      final socialPostId = _firstNonEmptyString(data, const ['socialPostId']);
+      return socialPostId == null ? null : 'pinit://social-review/$socialPostId';
+
     default:
       return null;
   }

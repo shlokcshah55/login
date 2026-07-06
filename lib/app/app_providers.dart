@@ -8,6 +8,7 @@ import 'package:login/providers/user_data_provider.dart';
 import 'package:login/providers/navigation_provider.dart';
 import 'package:login/providers/bubble_mode_provider.dart';
 import 'package:login/providers/shortlist_provider.dart';
+import 'package:login/providers/social_review_provider.dart';
 import 'package:provider/provider.dart';
 
 class AppProviders extends StatelessWidget {
@@ -41,6 +42,7 @@ class AppProviders extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => NavigationProvider()),
         ChangeNotifierProvider(create: (_) => BubbleModeProvider()),
         ChangeNotifierProvider(create: (_) => ShortlistProvider()),
+        ChangeNotifierProvider(create: (_) => SocialReviewProvider()),
       ],
       child: child,
     );

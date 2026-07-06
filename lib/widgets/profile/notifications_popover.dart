@@ -8,7 +8,9 @@ import 'package:login/models/notifications/base_notification.dart';
 import 'package:login/models/notifications/follow_accepted_notification.dart';
 import 'package:login/models/notifications/follow_request_notification.dart';
 import 'package:login/models/notifications/processing_error_notification.dart';
+import 'package:login/models/notifications/social_post_review_notification.dart';
 import 'package:login/models/notifications/video_processed_notification.dart';
+import 'package:login/pages/social_review/social_post_review_page.dart';
 import 'package:login/pages/profile/other_user_profile_page.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/providers/navigation_provider.dart';
@@ -96,6 +98,25 @@ class _NotificationsPopoverState extends State<NotificationsPopover> {
     }
 
     try {
+      if (notification is SocialPostReviewNotification) {
+        if (!notification.isRead) {
+          await FCMService().markAsRead(notification.id);
+        }
+        if (!mounted) return;
+        setState(() {
+          _notifications = _visibleNotifications(FCMService().notifications);
+        });
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) => SocialPostReviewPage(
+              postId: notification.socialPostId,
+              source: 'notification',
+            ),
+          ),
+        );
+        return;
+      }
+
       if (targetUserId != null) {
         final auth = Provider.of<SupabaseService>(context, listen: false).users;
         final user = await auth.getUserProfileById(targetUserId);
@@ -671,6 +692,11 @@ class _NotificationCard extends StatelessWidget {
       case NotificationType.blast:
         return const _NotificationMeta(
           label: 'ANNOUNCEMENT',
+          accentColor: PinitColors.primary,
+        );
+      case NotificationType.socialPostReview:
+        return const _NotificationMeta(
+          label: 'POST REVIEW',
           accentColor: PinitColors.primary,
         );
     }

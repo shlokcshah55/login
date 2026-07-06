@@ -175,6 +175,8 @@ class HomeViewModel extends ChangeNotifier {
         return HomeMode.explore;
       case LocationListType.bubble:
         return HomeMode.bubble;
+      case LocationListType.bubbleSaved:
+        return HomeMode.bubbleSaved;
     }
   }
 
@@ -187,7 +189,7 @@ class HomeViewModel extends ChangeNotifier {
         !_isBubbleModeActive) {
       return;
     }
-    if (mode != HomeMode.bubble) {
+    if (mode != HomeMode.bubble && mode != HomeMode.bubbleSaved) {
       _lastNonBubbleMode = mode;
     }
     _homeMode = mode;
@@ -206,6 +208,15 @@ class HomeViewModel extends ChangeNotifier {
         break;
       case HomeMode.bubble:
         locationListManager.setCurrentListType(LocationListType.bubble);
+        break;
+      case HomeMode.bubbleSaved:
+        locationListManager.setCurrentListType(LocationListType.bubbleSaved);
+        final bubbleId = _activeBubble?.id;
+        if (bubbleId != null) {
+          unawaited(
+            locationListManager.fetchBubbleSavedLocations(bubbleId: bubbleId),
+          );
+        }
         break;
     }
     notifyListeners();
@@ -1059,7 +1070,7 @@ class HomeViewModel extends ChangeNotifier {
   Future<void> activateBubbleMode(Bubble chatGroup) async {
     _isBubbleModeActive = true;
     _activeBubble = chatGroup;
-    if (_homeMode != HomeMode.bubble) {
+    if (_homeMode != HomeMode.bubble && _homeMode != HomeMode.bubbleSaved) {
       _lastNonBubbleMode = _homeMode;
     }
     _homeMode = HomeMode.bubble;
@@ -1070,6 +1081,11 @@ class HomeViewModel extends ChangeNotifier {
     // the bubble list immediately so we don't show stale items while loading.
     locationListManager.clearBubbleLocations(notify: false);
     await locationListManager.setCurrentListType(LocationListType.bubble);
+
+    // Warm the "sent to this bubble" list so the SAVED tab opens instantly.
+    unawaited(
+      locationListManager.fetchBubbleSavedLocations(bubbleId: chatGroup.id),
+    );
 
     final currentLocation = locationListManager.currentPosition ??
         await locationListManager.getCurrentLocation();
@@ -1102,7 +1118,9 @@ class HomeViewModel extends ChangeNotifier {
     _isBubbleModeActive = false;
     _activeBubble = null;
     final fallbackMode =
-        _homeMode == HomeMode.bubble ? _lastNonBubbleMode : _homeMode;
+        _homeMode == HomeMode.bubble || _homeMode == HomeMode.bubbleSaved
+            ? _lastNonBubbleMode
+            : _homeMode;
     _homeMode = fallbackMode;
 
     final currentLocation = locationListManager.currentPosition ??
@@ -1132,6 +1150,7 @@ class HomeViewModel extends ChangeNotifier {
         );
         break;
       case HomeMode.bubble:
+      case HomeMode.bubbleSaved:
         _homeMode = HomeMode.you;
         _lastNonBubbleMode = HomeMode.you;
         await locationListManager.setCurrentListType(LocationListType.saved);

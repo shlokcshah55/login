@@ -5,7 +5,7 @@ import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/supabase/helpers/collections.dart';
 
 /// Mode toggle enum.
-enum HomeMode { you, explore, bubble }
+enum HomeMode { you, explore, bubble, bubbleSaved }
 
 /// Single centered chip used while viewing magic search results.
 class MagicSearchChipRow extends StatelessWidget {
@@ -87,7 +87,7 @@ class _HomeChipRowState extends State<HomeChipRow> {
     final collectionActive = !bubbleActive &&
         (_showCollections || widget.activeCollectionId != null);
     final chips = <Widget>[
-      if (bubbleActive)
+      if (bubbleActive) ...[
         _Chip(
           label: 'BUBBLE',
           icon: FeatherIcons.users,
@@ -98,8 +98,19 @@ class _HomeChipRowState extends State<HomeChipRow> {
             _closeCollections();
             widget.onModeChanged(HomeMode.bubble);
           },
-        )
-      else ...[
+        ),
+        _Chip(
+          label: 'SAVED',
+          icon: FeatherIcons.bookmark,
+          state: widget.currentMode == HomeMode.bubbleSaved
+              ? _ChipState.filled
+              : _ChipState.normal,
+          onTap: () {
+            _closeCollections();
+            widget.onModeChanged(HomeMode.bubbleSaved);
+          },
+        ),
+      ] else ...[
         _Chip(
           label: 'SAVED',
           icon: FeatherIcons.user,

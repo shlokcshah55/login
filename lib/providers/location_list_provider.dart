@@ -21,7 +21,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:login/services/fcm_service.dart';
 
 // Enum to represent the different types of location lists
-enum LocationListType { saved, recommended, search, bubble }
+enum LocationListType { saved, recommended, search, bubble, bubbleSaved }
 
 class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
   static const String noRecommendationsInAreaMessage =
@@ -70,6 +70,8 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
   List<LocationModel> _allSavedLocations = [];
   List<LocationModel> _allSearchLocations = [];
   List<LocationModel> _allBubbleLocations = [];
+  List<LocationModel> _allBubbleSavedLocations = [];
+  bool _isLoadingBubbleSaved = false;
 
   // Viewport-aware name selection state
   LatLngBounds? _currentViewportBounds;
@@ -102,6 +104,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
   Map<LocationModel, MapMarkerData> _recommendedLocations = {};
   Map<LocationModel, MapMarkerData> _searchLocations = {};
   Map<LocationModel, MapMarkerData> _bubbleLocations = {};
+  Map<LocationModel, MapMarkerData> _bubbleSavedLocations = {};
 
   // Per-collection marker cache. Keyed by collectionId, capped LRU.
   static const int _collectionCacheMaxEntries = 10;
@@ -123,6 +126,9 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       _recommendedLocations;
   Map<LocationModel, MapMarkerData> get searchLocations => _searchLocations;
   Map<LocationModel, MapMarkerData> get bubbleLocations => _bubbleLocations;
+  Map<LocationModel, MapMarkerData> get bubbleSavedLocations =>
+      _bubbleSavedLocations;
+  bool get isLoadingBubbleSaved => _isLoadingBubbleSaved;
   Map<LocationModel, MapMarkerData> get currentItems => _currentItems;
   List<LocationModel> get justDecideLocations => _justDecideLocations;
   LocationListType get currentListType => _currentListType;
@@ -181,9 +187,16 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
   /// Clears any existing bubble locations so activating a new bubble doesn't
   /// briefly show stale results from the previously active bubble.
   void clearBubbleLocations({bool notify = true}) {
-    if (_bubbleLocations.isEmpty && _allBubbleLocations.isEmpty) return;
+    if (_bubbleLocations.isEmpty &&
+        _allBubbleLocations.isEmpty &&
+        _bubbleSavedLocations.isEmpty &&
+        _allBubbleSavedLocations.isEmpty) {
+      return;
+    }
     _bubbleLocations.clear();
     _allBubbleLocations = [];
+    _bubbleSavedLocations.clear();
+    _allBubbleSavedLocations = [];
     _error = null;
     _syncBubbleItemsIfActive();
     if (notify) {
@@ -199,12 +212,15 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
     _recommendedLocations.clear();
     _searchLocations.clear();
     _bubbleLocations.clear();
+    _bubbleSavedLocations.clear();
     _currentItems.clear();
 
     _allSavedLocations = [];
     _allRecommendedLocations = [];
     _allSearchLocations = [];
     _allBubbleLocations = [];
+    _allBubbleSavedLocations = [];
+    _isLoadingBubbleSaved = false;
 
     _justDecideLocations = [];
     _popularLocations = [];
@@ -263,6 +279,8 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
   void _syncBubbleItemsIfActive() {
     if (_currentListType == LocationListType.bubble) {
       _currentItems = _bubbleLocations;
+    } else if (_currentListType == LocationListType.bubbleSaved) {
+      _currentItems = _bubbleSavedLocations;
     }
   }
 
@@ -812,6 +830,9 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       case LocationListType.bubble:
         _currentItems = _bubbleLocations;
         break;
+      case LocationListType.bubbleSaved:
+        _currentItems = _bubbleSavedLocations;
+        break;
     }
     print(
         "Set current list type to: $type, item count: ${_currentItems.length}");
@@ -1280,6 +1301,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       LocationListType.saved => _allSavedLocations,
       LocationListType.search => _allSearchLocations,
       LocationListType.bubble => _allBubbleLocations,
+      LocationListType.bubbleSaved => _allBubbleSavedLocations,
     };
   }
 
@@ -1289,6 +1311,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       LocationListType.saved => _savedLocations,
       LocationListType.search => _searchLocations,
       LocationListType.bubble => _bubbleLocations,
+      LocationListType.bubbleSaved => _bubbleSavedLocations,
     };
   }
 
@@ -1302,6 +1325,8 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
         _allSearchLocations = list;
       case LocationListType.bubble:
         _allBubbleLocations = list;
+      case LocationListType.bubbleSaved:
+        _allBubbleSavedLocations = list;
     }
   }
 
@@ -1316,6 +1341,8 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
         _searchLocations = map;
       case LocationListType.bubble:
         _bubbleLocations = map;
+      case LocationListType.bubbleSaved:
+        _bubbleSavedLocations = map;
     }
   }
 
@@ -1494,7 +1521,9 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       LocationListType.recommended => LocationPreference.recommended,
       LocationListType.saved => LocationPreference.saved,
       LocationListType.search => LocationPreference.search,
-      LocationListType.bubble => LocationPreference.bubble,
+      LocationListType.bubble ||
+      LocationListType.bubbleSaved =>
+        LocationPreference.bubble,
     };
 
     final markers = await Future.wait(
@@ -1761,6 +1790,39 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       return false;
     } finally {
       _isLoadingRecommendations = false;
+      notifyListeners();
+    }
+  }
+
+  /// Fetches only the locations that members have sent to the bubble
+  /// (the `bubble_locations` table) — no recommendations involved.
+  Future<void> fetchBubbleSavedLocations({required String bubbleId}) async {
+    if (_isLoadingBubbleSaved) {
+      print('[fetchBubbleSavedLocations] Already in-flight, skipping');
+      return;
+    }
+
+    _isLoadingBubbleSaved = true;
+    notifyListeners();
+
+    try {
+      final locations =
+          await _supabaseService.bubbles.getBubbleLocations(bubbleId);
+      print(
+          '[fetchBubbleSavedLocations] Got ${locations.length} locations for bubble $bubbleId');
+
+      _setAllLocationsFor(LocationListType.bubbleSaved, locations);
+      await _buildMarkersForType(LocationListType.bubbleSaved, locations);
+      _error = null;
+      _syncBubbleItemsIfActive();
+    } catch (e) {
+      print('Error fetching bubble saved locations: $e');
+      _error = "Failed to load places sent to this bubble: ${e.toString()}";
+      _bubbleSavedLocations = {};
+      _allBubbleSavedLocations = [];
+      _syncBubbleItemsIfActive();
+    } finally {
+      _isLoadingBubbleSaved = false;
       notifyListeners();
     }
   }

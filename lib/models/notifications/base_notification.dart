@@ -10,6 +10,7 @@ import 'package:login/models/notifications/user_added_to_bubble_notification.dar
 import 'package:login/models/notifications/notes_import_complete_notification.dart';
 import 'package:login/models/notifications/processing_error_notification.dart';
 import 'package:login/models/notifications/blast_notification.dart';
+import 'package:login/models/notifications/social_post_review_notification.dart';
 
 abstract class BaseNotification {
   final String id;
@@ -91,6 +92,8 @@ abstract class BaseNotification {
           return NotesImportCompleteNotification.fromFCMData(data);
         case 'blast':
           return BlastNotification.fromFCMData(data);
+        case 'social_post_review':
+          return SocialPostReviewNotification.fromFCMData(data);
         default:
           print('Unknown notification type: $type');
           return null;
@@ -146,6 +149,8 @@ abstract class BaseNotification {
           return NotesImportCompleteNotification.fromFCMData(data);
         case 'blast':
           return BlastNotification.fromFCMData(data);
+        case 'social_post_review':
+          return SocialPostReviewNotification.fromFCMData(data);
         default:
           print('Unknown notification type: $type');
           return null;
