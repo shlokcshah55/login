@@ -46,6 +46,18 @@ _HEADERS = {
 }
 
 
+def discover_slide_urls(url: str) -> list[str]:
+    """
+    Resolve the direct CDN image URLs for a TikTok photo post, or [] if `url`
+    is not a photo post (or discovery failed). gallery-dl first, page-JSON
+    fallback second. Shared by the OCR and vision slideshow stages.
+    """
+    slide_urls = _slide_urls_via_gallery_dl(url)
+    if not slide_urls:
+        slide_urls = _slide_urls_via_page_json(url)
+    return slide_urls
+
+
 def ocr_slideshow(url: str) -> tuple[bool, str]:
     """
     Detect whether `url` is a TikTok photo post and OCR its slides.
@@ -54,9 +66,7 @@ def ocr_slideshow(url: str) -> tuple[bool, str]:
       (False, "") — not a slideshow (or slide discovery failed)
       (True,  "…") — slideshow; text may be empty if OCR found nothing
     """
-    slide_urls = _slide_urls_via_gallery_dl(url)
-    if not slide_urls:
-        slide_urls = _slide_urls_via_page_json(url)
+    slide_urls = discover_slide_urls(url)
     if not slide_urls:
         return (False, "")
 

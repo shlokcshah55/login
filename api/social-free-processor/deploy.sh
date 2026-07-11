@@ -56,6 +56,10 @@ REGION="${GCP_REGION:-europe-west1}"
 SERVICE_NAME="${SERVICE_NAME:-social-free-processor}"
 IMAGE_NAME="${REGION}-docker.pkg.dev/${PROJECT_ID}/${SERVICE_NAME}/${SERVICE_NAME}"
 
+# Cloud Tasks: the queue that drives async pipeline processing.
+TASKS_QUEUE="${TASKS_QUEUE:-social-share-processing}"
+TASKS_LOCATION="${TASKS_LOCATION:-$REGION}"
+
 echo "======================================"
 echo "Social Free Processor - Cloud Run Deployment"
 echo "======================================"
@@ -100,6 +104,36 @@ echo ""
 echo "Enabling required GCP APIs..."
 gcloud services enable run.googleapis.com
 gcloud services enable artifactregistry.googleapis.com
+gcloud services enable cloudtasks.googleapis.com
+
+# ===== Cloud Tasks setup =====
+# Resolve the project number → default service account used both as the Cloud
+# Run runtime identity and as the OIDC principal on worker task requests.
+PROJECT_NUMBER="$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')"
+TASKS_SERVICE_ACCOUNT="${TASKS_SERVICE_ACCOUNT:-${PROJECT_NUMBER}-compute@developer.gserviceaccount.com}"
+CLOUD_TASKS_AGENT="service-${PROJECT_NUMBER}@gcp-sa-cloudtasks.iam.gserviceaccount.com"
+
+echo ""
+echo "Ensuring Cloud Tasks queue '${TASKS_QUEUE}' exists..."
+gcloud tasks queues describe "$TASKS_QUEUE" --location="$TASKS_LOCATION" &> /dev/null || \
+gcloud tasks queues create "$TASKS_QUEUE" \
+  --location="$TASKS_LOCATION" \
+  --max-attempts=5 \
+  --min-backoff=10s \
+  --max-backoff=300s \
+  --max-concurrent-dispatches=10
+
+# IAM (idempotent):
+#   - runtime SA may enqueue tasks
+#   - the Cloud Tasks service agent may mint OIDC tokens as the invoker SA
+echo ""
+echo "Ensuring Cloud Tasks IAM bindings..."
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:${TASKS_SERVICE_ACCOUNT}" \
+  --role="roles/cloudtasks.enqueuer" --condition=None &> /dev/null
+gcloud iam service-accounts add-iam-policy-binding "$TASKS_SERVICE_ACCOUNT" \
+  --member="serviceAccount:${CLOUD_TASKS_AGENT}" \
+  --role="roles/iam.serviceAccountTokenCreator" --condition=None &> /dev/null
 
 # Ensure Artifact Registry repository exists
 echo ""
@@ -140,15 +174,25 @@ gcloud run deploy $SERVICE_NAME \
   --timeout 300 \
   --concurrency 10 \
   --max-instances 10 \
-  --set-env-vars "OPENAI_API_KEY=${OPENAI_API_KEY},GOOGLE_PLACES_API_KEY=${GOOGLE_PLACES_API_KEY},SUPABASE_URL=${SUPABASE_URL},SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY},SEND_PUSH_NOTIF_SECRET=${SEND_PUSH_NOTIF_SECRET},PUSH_NOTIFICATION_URL=${PUSH_NOTIFICATION_URL:-},LOCATIONS_ADD_URL=${LOCATIONS_ADD_URL:-}"
+  --service-account "${TASKS_SERVICE_ACCOUNT}" \
+  --set-env-vars "OPENAI_API_KEY=${OPENAI_API_KEY},GOOGLE_PLACES_API_KEY=${GOOGLE_PLACES_API_KEY},SUPABASE_URL=${SUPABASE_URL},SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY},SEND_PUSH_NOTIF_SECRET=${SEND_PUSH_NOTIF_SECRET},PUSH_NOTIFICATION_URL=${PUSH_NOTIFICATION_URL:-},LOCATIONS_ADD_URL=${LOCATIONS_ADD_URL:-},GCP_PROJECT=${PROJECT_ID},TASKS_LOCATION=${TASKS_LOCATION},TASKS_QUEUE=${TASKS_QUEUE},TASKS_SERVICE_ACCOUNT=${TASKS_SERVICE_ACCOUNT}"
+
+# Get the service URL
+SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region $REGION --format 'value(status.url)')
+
+# Second pass: WORKER_URL isn't known until the service has a URL. Set it now
+# so Cloud Tasks dispatches back to /tasks/process-share (and the worker's OIDC
+# audience check matches). update-env-vars merges, preserving the vars above.
+WORKER_URL="${SERVICE_URL}/tasks/process-share"
+echo ""
+echo "Setting WORKER_URL=${WORKER_URL} ..."
+gcloud run services update $SERVICE_NAME --region $REGION \
+  --update-env-vars "WORKER_URL=${WORKER_URL}" > /dev/null
 
 echo ""
 echo "======================================"
 echo "Deployment complete!"
 echo "======================================"
-
-# Get the service URL
-SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region $REGION --format 'value(status.url)')
 echo ""
 echo "Service URL: $SERVICE_URL"
 echo ""

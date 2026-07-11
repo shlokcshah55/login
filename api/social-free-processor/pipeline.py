@@ -26,7 +26,7 @@ from models import (
 from stages.url_metadata import fetch_url_metadata, resolve_canonical_url
 from stages.candidate_extractor import extract_candidates
 from stages.thumbnail_ocr import ocr_thumbnail
-from stages.slideshow_ocr import ocr_slideshow
+from stages.slideshow_vision import extract_slides_via_vision
 from stages.subtitles import fetch_transcript
 from stages.frame_ocr import ocr_frames
 from stages.place_resolver import resolve_candidates
@@ -153,19 +153,26 @@ def process_url(url: str, openai_client: OpenAI, gmaps_key: str) -> PipelineResu
                 evidence.thumbnail_ocr = True
                 logger.info("Thumbnail OCR: %d chars", len(thumb_ocr_text))
 
-        # ── Stage 2b: Slideshow OCR (TikTok photo posts) ───────────────────
-        # Photo posts have no video stream but their slides are text-heavy —
-        # OCRing every slide is cheap and has a high venue-name hit rate.
-        is_slideshow, slideshow_text = (False, "")
+        # ── Stage 2b: Slideshow vision extraction (TikTok photo posts) ─────
+        # Photo posts have no video stream; their venue names are stylised
+        # text over photos that OCR mangles, so we read the slides with a
+        # vision model instead — it returns venue candidates directly.
+        is_slideshow, slideshow_candidates = (False, [])
         if platform == "tiktok":
-            is_slideshow, slideshow_text = ocr_slideshow(work_url)
-            if slideshow_text:
+            is_slideshow, slideshow_candidates = extract_slides_via_vision(
+                openai_client, work_url, meta
+            )
+            if is_slideshow:
                 evidence.slideshow_ocr = True
-                logger.info("Slideshow OCR: %d chars", len(slideshow_text))
+                logger.info("Slideshow vision: %d candidates", len(slideshow_candidates))
 
-        # ── Stage 3: Candidate extraction (caption + cheap OCR) ────────────
-        cheap_ocr = " ".join(filter(None, [thumb_ocr_text, slideshow_text]))
-        candidates = extract_candidates(openai_client, meta, cheap_ocr)
+        # ── Stage 3: Candidate extraction ──────────────────────────────────
+        # Photo posts use the vision candidates directly; everything else runs
+        # the text extractor over caption + thumbnail OCR.
+        if is_slideshow:
+            candidates = slideshow_candidates
+        else:
+            candidates = extract_candidates(openai_client, meta, thumb_ocr_text)
         logger.info("Candidates extracted: %d", len(candidates))
 
         # ── Stage 4+5: Place resolution + confidence scoring ───────────────

@@ -2,14 +2,19 @@
 Flask API for the social-free-processor.
 
 Endpoints:
-  POST /process-share — user shares a TikTok/Reel URL → 202, async processing
-  GET  /health        — health check
+  POST /process-share       — share extension enqueues a URL → 202
+  POST /tasks/process-share — Cloud Tasks worker: runs the pipeline (OIDC-auth)
+  GET  /health              — health check
 
 Processing flow:
-  1. Return 202 immediately (never block the share extension)
-  2. Background thread canonicalises the URL and dedupes against social_posts
-  3. New posts run the extraction pipeline once, globally; results land in
-     social_posts + social_post_places
+  1. /process-share returns 202 immediately and enqueues a Cloud Task (never
+     block the share extension). Offline, it runs the worker in a thread.
+  2. The task is dispatched back as a real HTTP request to /tasks/process-share,
+     which runs synchronously with full CPU — the pipeline can't be starved or
+     evicted the way a post-response background thread is on Cloud Run.
+  3. The worker canonicalises the URL and dedupes against social_posts. New
+     posts run the extraction pipeline once, globally; results land in
+     social_posts + social_post_places.
   4. Every sharer gets a social_post_reviews row — the app's review inbox.
      High/medium-confidence places are saved to their Eat List by default
      (a share pays off even if the user never opens the app), and a push
@@ -18,7 +23,6 @@ Processing flow:
 """
 import logging
 import os
-import threading
 from datetime import datetime, timezone
 from urllib.parse import urlparse, urlunparse
 
@@ -29,6 +33,7 @@ from supabase import create_client, Client
 
 import notifications as notif
 import supabase_store as store
+import tasks
 from insights_extractor import extract_all_insights
 from models import PipelineResult
 from pipeline import process_url
@@ -66,6 +71,11 @@ _DEFAULT_LOCATIONS_ADD_URL = (
 # Insight extraction costs LLM calls per place; a listicle post rarely has
 # more than this many genuinely distinct venues.
 MAX_PLACES_PER_POST = 8
+
+# A post left 'processing' longer than this is assumed to belong to a crashed
+# worker and may be reclaimed by a retry. Comfortably longer than a full
+# pipeline run (incl. frame OCR) so we never steal an in-flight post.
+PROCESSING_LEASE_SECONDS = 600
 
 
 def _clean_url(value: str | None, default: str) -> str:
@@ -170,12 +180,15 @@ def _notify_reviewers(post_id: str, platform: str, *, failed: bool = False):
         )
 
 
-# ── Background worker ────────────────────────────────────────────────────────
+# ── Processing worker ────────────────────────────────────────────────────────
 
-def _background_process(url: str, user_id: str):
+def _process_share(url: str, user_id: str):
     """
     Canonicalise, dedupe, and (if this share owns the post) run the pipeline.
     Every path ends with a review row for the sharer — including failures.
+
+    Runs synchronously inside the Cloud Tasks worker request (full CPU), or
+    inline in a daemon thread on the local fallback path.
     """
     post_id: str | None = None
     platform = "instagram" if "instagram" in url.lower() else "tiktok"
@@ -201,11 +214,19 @@ def _background_process(url: str, user_id: str):
                 _notify_reviewers(post_id, platform)
                 return
             if status == "processing":
-                # Another worker owns this post; it will notify all pending
-                # reviewers (including this user) when it finishes.
-                return
-            # status == 'failed' → retry the pipeline for this new share
-            store.mark_post_processing(supabase, post_id)
+                # A live worker owns this post; it will notify all pending
+                # reviewers (including this user) when it finishes. But if that
+                # worker crashed (or its Cloud Task was retried), the post is
+                # stuck 'processing' and every pending reviewer is orphaned —
+                # so reclaim a stale lease and reprocess.
+                if store.is_processing_lease_stale(post, PROCESSING_LEASE_SECONDS):
+                    logger.info("Reclaiming stale 'processing' lease for post %s", post_id)
+                    store.mark_post_processing(supabase, post_id)
+                else:
+                    return
+            elif status == "failed":
+                # A new share of a previously-failed post → retry the pipeline.
+                store.mark_post_processing(supabase, post_id)
 
         # ── This worker owns processing from here ────────────────────────────
 
@@ -315,11 +336,18 @@ def _background_process(url: str, user_id: str):
         _notify_reviewers(post_id, platform)
 
     except Exception as exc:
-        logger.error("Background processing error for %s: %s", url, exc, exc_info=True)
+        # Unexpected/infra error (network, OpenAI 5xx, Supabase blip) — distinct
+        # from an expected `result.status == 'failed'` outcome, which is handled
+        # above with a notification and a normal return. Mark the post 'failed'
+        # (not left 'processing') so a Cloud Tasks retry reprocesses it via the
+        # status=='failed' branch, then re-raise so the worker returns 500 and
+        # the retry actually fires. We deliberately do NOT notify here: retries
+        # would otherwise spam a "we couldn't read that post" push every attempt.
+        logger.error("Processing error for %s: %s", url, exc, exc_info=True)
         if post_id:
             store.update_post(supabase, post_id, {"status": "failed", "error": str(exc)})
             store.touch_reviews_for_post(supabase, post_id)
-            _notify_reviewers(post_id, platform, failed=True)
+        raise
 
 
 # ── API endpoints ────────────────────────────────────────────────────────────
@@ -333,7 +361,8 @@ def health():
 def process_share():
     """
     Accept a TikTok/Reel URL from the user's share extension.
-    Returns 202 immediately; processing happens asynchronously.
+    Returns 202 immediately; the actual pipeline runs in a Cloud Tasks worker
+    request (or, offline, an inline thread) so it gets full CPU to completion.
 
     Body: {"url": "...", "userId": "..."}
     """
@@ -352,10 +381,43 @@ def process_share():
 
     logger.info("Share received: user=%s url=%s", user_id, url)
 
-    thread = threading.Thread(target=_background_process, args=(url, user_id), daemon=True)
-    thread.start()
+    tasks.enqueue_share(url, user_id, local_worker=_process_share)
 
     return jsonify({"success": True, "message": "Saving this post…"}), 202
+
+
+@app.route("/tasks/process-share", methods=["POST"])
+def worker_process_share():
+    """
+    Cloud Tasks worker: runs the extraction pipeline synchronously, inside a
+    real HTTP request, so Cloud Run keeps CPU allocated for its full duration.
+
+    Auth: verifies the Google OIDC token Cloud Tasks attaches. Returns
+      200 — handled (success, or a genuinely-unreadable post we recorded)
+      500 — unexpected infra error → Cloud Tasks retries with backoff
+      403 — missing/invalid OIDC token
+    """
+    if not tasks.verify_oidc_token(request.headers.get("Authorization")):
+        return jsonify({"success": False, "error": "Unauthorized"}), 403
+
+    data = request.get_json(silent=True) or {}
+    url = (data.get("url") or "").strip()
+    user_id = (data.get("userId") or "").strip()
+    if not url or not user_id:
+        # Malformed task body — retrying will not help, so ack it.
+        logger.error("Worker got task with missing url/userId: %r", data)
+        return jsonify({"success": False, "error": "url and userId are required"}), 200
+
+    try:
+        _process_share(url, user_id)
+    except Exception as exc:
+        # _process_share already records failed posts + notifies for expected
+        # pipeline failures; reaching here means an unexpected infra error, so
+        # let Cloud Tasks retry.
+        logger.error("Worker unexpected error for %s: %s", url, exc, exc_info=True)
+        return jsonify({"success": False, "error": "processing failed"}), 500
+
+    return jsonify({"success": True}), 200
 
 
 @app.errorhandler(404)

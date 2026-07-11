@@ -7,4 +7,6 @@ python-dotenv==1.0.1
 beautifulsoup4==4.12.3
 Pillow==10.4.0
 pytesseract==0.3.13
-gallery-dl==1.27.7
+gallery-dl==1.32.5
+google-cloud-tasks==2.16.5
+google-auth==2.35.0

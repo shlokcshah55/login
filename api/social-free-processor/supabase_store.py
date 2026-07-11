@@ -14,11 +14,34 @@ Never stores: raw OCR text, raw captions, raw comments, video files,
               screenshot images, or audio.
 """
 import logging
+from datetime import datetime, timezone
 
 import httpx
 from supabase import Client
 
 logger = logging.getLogger(__name__)
+
+
+def is_processing_lease_stale(post: dict, lease_seconds: int) -> bool:
+    """
+    True if a post has been 'processing' longer than lease_seconds — i.e. its
+    owning worker likely crashed and a retry may safely reclaim it.
+
+    Uses updated_at (bumped by mark_post_processing and the row's update
+    trigger). If the timestamp is missing/unparseable, err on the side of NOT
+    reclaiming so we never steal a genuinely in-flight post.
+    """
+    raw = post.get("updated_at") or post.get("created_at")
+    if not raw:
+        return False
+    try:
+        updated = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if updated.tzinfo is None:
+        updated = updated.replace(tzinfo=timezone.utc)
+    age = (datetime.now(timezone.utc) - updated).total_seconds()
+    return age > lease_seconds
 
 
 # ── Social posts ─────────────────────────────────────────────────────────────
