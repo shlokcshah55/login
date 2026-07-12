@@ -14,8 +14,8 @@ class SocialReviewsHelper {
   final SupabaseClient _client = SupabaseClientManager().client;
   RealtimeChannel? _realtimeChannel;
 
-  /// Fetch the user's open review items (pending + snoozed), newest first,
-  /// with the post, its place candidates, and the user's per-place actions.
+  /// Fetch the user's visible review history, newest first, with the post,
+  /// its place candidates, and the user's per-place actions.
   Future<List<SocialPostReviewItem>> fetchReviewItems() async {
     final user = SupabaseClientManager().currentUser;
     if (user == null) return [];
@@ -29,7 +29,8 @@ class SocialReviewsHelper {
             'location_id, candidate_name, candidate_area, confidence_score, '
             'confidence_tier, extracted_context, added_by))')
         .eq('user_id', user.id)
-        .inFilter('status', ['pending', 'later']).order('created_at',
+        .inFilter('status', ['pending', 'later', 'reviewed']).order(
+            'created_at',
             ascending: false);
 
     final items = (rows as List)
@@ -38,10 +39,8 @@ class SocialReviewsHelper {
         .toList();
     if (items.isEmpty) return items;
 
-    final placeIds = items
-        .expand((item) => item.places)
-        .map((place) => place.id)
-        .toList();
+    final placeIds =
+        items.expand((item) => item.places).map((place) => place.id).toList();
     if (placeIds.isEmpty) return items;
 
     final actionRows = await _client
@@ -125,17 +124,14 @@ class SocialReviewsHelper {
     final user = SupabaseClientManager().currentUser;
     if (user == null) throw Exception('User not authenticated');
 
-    final rows = await _client
-        .from('social_post_places')
-        .insert({
-          'social_post_id': postId,
-          'name': name,
-          'address': address,
-          'google_place_id': googlePlaceId,
-          'location_id': locationId,
-          'added_by': user.id,
-        })
-        .select('id');
+    final rows = await _client.from('social_post_places').insert({
+      'social_post_id': postId,
+      'name': name,
+      'address': address,
+      'google_place_id': googlePlaceId,
+      'location_id': locationId,
+      'added_by': user.id,
+    }).select('id');
     if (rows.isNotEmpty) {
       return rows.first['id'] as String?;
     }

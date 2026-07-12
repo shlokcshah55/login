@@ -31,6 +31,7 @@ class NotificationsHelper {
             ${SupabaseConstants.columnCreatedAt}
           ''')
           .eq('${SupabaseConstants.columnUserId}', userId)
+          .isFilter('dismissed_at', null)
           .order('${SupabaseConstants.columnCreatedAt}', ascending: false)
           .limit(limit);
 
@@ -79,7 +80,8 @@ class NotificationsHelper {
         SupabaseConstants.columnMetadata: metadata,
         SupabaseConstants.columnIsRead: notification.isRead,
         SupabaseConstants.columnUserId: userId,
-        SupabaseConstants.columnCreatedAt: notification.timestamp.toIso8601String(),
+        SupabaseConstants.columnCreatedAt:
+            notification.timestamp.toIso8601String(),
       });
 
       print('📲 Saved notification ${notification.id} to DB');
@@ -94,14 +96,28 @@ class NotificationsHelper {
     try {
       await _client
           .from(SupabaseConstants.tableNotifications)
-          .update({SupabaseConstants.columnIsRead: true})
-          .eq(SupabaseConstants.columnNotificationId, notificationId);
+          .update({SupabaseConstants.columnIsRead: true}).eq(
+              SupabaseConstants.columnNotificationId, notificationId);
 
       print('📲 Marked notification $notificationId as read in DB');
     } catch (e) {
       print('📲 Error marking notification as read: $e');
       rethrow;
     }
+  }
+
+  Future<void> dismissNotification(String notificationId) async {
+    await _client
+        .from(SupabaseConstants.tableNotifications)
+        .update({'dismissed_at': DateTime.now().toUtc().toIso8601String()}).eq(
+            SupabaseConstants.columnNotificationId, notificationId);
+  }
+
+  Future<void> restoreNotification(String notificationId) async {
+    await _client
+        .from(SupabaseConstants.tableNotifications)
+        .update({'dismissed_at': null}).eq(
+            SupabaseConstants.columnNotificationId, notificationId);
   }
 
   /// Mark unread new-message notifications as read once the bubble itself has
@@ -144,8 +160,8 @@ class NotificationsHelper {
 
       await _client
           .from(SupabaseConstants.tableNotifications)
-          .update({SupabaseConstants.columnIsRead: true})
-          .inFilter(SupabaseConstants.columnNotificationId, matchingIds);
+          .update({SupabaseConstants.columnIsRead: true}).inFilter(
+              SupabaseConstants.columnNotificationId, matchingIds);
 
       print(
         '📲 Marked ${matchingIds.length} bubble message notifications as read',
@@ -169,8 +185,8 @@ class NotificationsHelper {
 
       await _client
           .from(SupabaseConstants.tableNotifications)
-          .update({SupabaseConstants.columnIsRead: true})
-          .eq(SupabaseConstants.columnUserId, userId);
+          .update({SupabaseConstants.columnIsRead: true}).eq(
+              SupabaseConstants.columnUserId, userId);
 
       print('📲 Marked all notifications as read in DB');
     } catch (e) {
@@ -202,9 +218,8 @@ class NotificationsHelper {
         final record = payload.newRecord.isNotEmpty
             ? payload.newRecord
             : payload.oldRecord;
-        final notification = record.isNotEmpty
-            ? BaseNotification.fromSupabase(record)
-            : null;
+        final notification =
+            record.isNotEmpty ? BaseNotification.fromSupabase(record) : null;
         onChange(notification);
       } catch (e) {
         print('📲 Error parsing Realtime notification: $e');

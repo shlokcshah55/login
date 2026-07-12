@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/pages/home/carousel_list_page.dart';
 import 'package:login/providers/location_list_provider.dart';
+import 'package:login/widgets/home/location_list_card.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -51,6 +52,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Last added'), findsOneWidget);
+    expect(find.byType(LocationListCard), findsNWidgets(3));
 
     final newestTop = tester.getTopLeft(find.text('Newest Save')).dy;
     final middleTop = tester.getTopLeft(find.text('Middle Save')).dy;

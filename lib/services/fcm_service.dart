@@ -258,22 +258,9 @@ class FCMService {
         if (locationId != null) _locationSavedController.add(locationId);
       }
 
-      // Save to database first
-      try {
-        await _notificationsHelper.saveNotification(notification);
-
-        // Reload from DB to get the saved version
-        await _loadNotificationsFromDB();
-
-        // TODO: Show in-app banner/snackbar
-        // TODO: Update badge count
-      } catch (e) {
-        print('📲 Error saving notification to DB: $e');
-
-        // Fallback: add to memory if DB fails
-        _notifications.insert(0, notification);
-        _notificationController.add(notification);
-      }
+      // The push service persists before sending FCM. Reload that canonical
+      // row instead of inserting the same notification a second time.
+      await _loadNotificationsFromDB();
     }
   }
 
@@ -738,6 +725,16 @@ class FCMService {
     } catch (e) {
       print('📲 Error marking notification as read: $e');
     }
+  }
+
+  Future<void> dismissNotification(String notificationId) async {
+    await _notificationsHelper.dismissNotification(notificationId);
+    await _loadNotificationsFromDB();
+  }
+
+  Future<void> restoreNotification(String notificationId) async {
+    await _notificationsHelper.restoreNotification(notificationId);
+    await _loadNotificationsFromDB();
   }
 
   /// Mark any unread followRequest notifications from [requesterId] as read.

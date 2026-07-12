@@ -23,8 +23,6 @@ import 'package:login/themes/pinit_colors.dart';
 import 'package:login/pages/home/widgets/mode_toggle.dart';
 import 'package:login/pages/home/carousel_list_page.dart';
 import 'package:login/pages/home/widgets/shortlist_pill.dart';
-import 'package:login/pages/home/widgets/social_review_pill.dart';
-import 'package:login/pages/social_review/social_review_inbox_page.dart';
 import 'package:login/providers/social_review_provider.dart';
 import 'package:login/pages/home/widgets/shortlist_carousel_sheet.dart';
 import 'package:login/providers/location_list_provider.dart';
@@ -1107,27 +1105,6 @@ class _HomePageState extends State<HomePage> {
                                       ),
                                       const SizedBox(height: 10),
                                     ],
-                                    Consumer<SocialReviewProvider>(
-                                      builder: (context, socialReview, _) {
-                                        if (socialReview.pendingCount == 0) {
-                                          return const SizedBox.shrink();
-                                        }
-                                        return Padding(
-                                          padding: const EdgeInsets.only(
-                                              bottom: 10),
-                                          child: SocialReviewPill(
-                                            count: socialReview.pendingCount,
-                                            onTap: () =>
-                                                Navigator.of(context).push(
-                                              MaterialPageRoute(
-                                                builder: (_) =>
-                                                    const SocialReviewInboxPage(),
-                                              ),
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
                                     Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [

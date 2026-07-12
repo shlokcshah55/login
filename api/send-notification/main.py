@@ -97,8 +97,8 @@ def send_push_notification(request):
         user_id = request_json.get('user_id')  # Required for DB persistence
         notif_type_raw = request_json.get('type')  # Maps to Flutter NotificationType enum
         
-        if not all([fcm_token, user_id, notif_type_raw]):
-            return (json.dumps({'error': 'Missing fcm_token, user_id, or type'}), 400, headers)
+        if not all([user_id, notif_type_raw]):
+            return (json.dumps({'error': 'Missing user_id or type'}), 400, headers)
 
         notif_type = normalize_notification_type(notif_type_raw)
         if not notif_type:
@@ -168,33 +168,33 @@ def send_push_notification(request):
             fcm_data[key] = str(value)
         
         # 7. Build the FCM Message
-        message = messaging.Message(
-            notification=messaging.Notification(
-                title=title,
-                body=body,
-            ),
-            token=fcm_token,
-            data=fcm_data,
-            apns=messaging.APNSConfig(
-                payload=messaging.APNSPayload(
-                    aps=messaging.Aps(
+        fcm_response = None
+        if fcm_token:
+            message = messaging.Message(
+                notification=messaging.Notification(
+                    title=title,
+                    body=body,
+                ),
+                token=fcm_token,
+                data=fcm_data,
+                apns=messaging.APNSConfig(
+                    payload=messaging.APNSPayload(
+                        aps=messaging.Aps(
+                            sound='default',
+                            badge=1,
+                            content_available=True,
+                        )
+                    )
+                ),
+                android=messaging.AndroidConfig(
+                    priority='high',
+                    notification=messaging.AndroidNotification(
                         sound='default',
-                        badge=1,
-                        content_available=True,
+                        priority='high',
                     )
                 )
-            ),
-            android=messaging.AndroidConfig(
-                priority='high',
-                notification=messaging.AndroidNotification(
-                    sound='default',
-                    priority='high',
-                )
             )
-        )
-        
-        # 8. Send the notification
-        fcm_response = messaging.send(message)
+            fcm_response = messaging.send(message)
         
         return (json.dumps({
             'success': True,

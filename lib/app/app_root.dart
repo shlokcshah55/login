@@ -15,6 +15,7 @@ import 'package:login/supabase/supabase_client.dart';
 import 'package:login/themes/pinit_theme.dart';
 import 'package:login/widgets/keyboard_dismiss_drag_region.dart';
 import 'package:login/widgets/profile/notifications_popover.dart';
+import 'package:login/widgets/social_share_signal_host.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AppRoot extends StatelessWidget {
@@ -132,21 +133,23 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       darkTheme: PinitTheme.dark(),
       themeMode: ThemeMode.dark,
       builder: (context, child) {
-        return KeyboardDismissDragRegion(
-          child: Listener(
-            behavior: HitTestBehavior.translucent,
-            onPointerDown: (_) => _analyticsService.registerUserInteraction(
-                interactionKey: 'pointer'),
-            onPointerMove: (_) => _analyticsService.registerUserInteraction(
-                interactionKey: 'pointer'),
-            child: NotificationListener<ScrollNotification>(
-              onNotification: (notification) {
-                _analyticsService.registerUserInteraction(
-                  interactionKey: 'scroll',
-                );
-                return false;
-              },
-              child: child ?? const SizedBox.shrink(),
+        return SocialShareSignalHost(
+          child: KeyboardDismissDragRegion(
+            child: Listener(
+              behavior: HitTestBehavior.translucent,
+              onPointerDown: (_) => _analyticsService.registerUserInteraction(
+                  interactionKey: 'pointer'),
+              onPointerMove: (_) => _analyticsService.registerUserInteraction(
+                  interactionKey: 'pointer'),
+              child: NotificationListener<ScrollNotification>(
+                onNotification: (notification) {
+                  _analyticsService.registerUserInteraction(
+                    interactionKey: 'scroll',
+                  );
+                  return false;
+                },
+                child: child ?? const SizedBox.shrink(),
+              ),
             ),
           ),
         );

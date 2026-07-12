@@ -9,6 +9,7 @@ import 'package:login/providers/navigation_provider.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/utils/geo_types.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
+import 'package:login/widgets/home/location_list_card.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 
@@ -385,7 +386,7 @@ class _CarouselListPageState extends State<CarouselListPage> {
                         children: [
                           if (sectionTitle != null)
                             _MagicSearchSectionHeader(title: sectionTitle),
-                          _ListCard(location: location),
+                          LocationListCard(location: location),
                         ],
                       );
                     },
@@ -424,6 +425,9 @@ class _MagicSearchSectionHeader extends StatelessWidget {
   }
 }
 
+// Kept temporarily as the source of truth for older visual helpers while the
+// reusable card is adopted by all callers.
+// ignore: unused_element
 class _ListCard extends StatelessWidget {
   final LocationModel location;
   const _ListCard({required this.location});

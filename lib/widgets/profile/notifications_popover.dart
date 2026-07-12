@@ -10,11 +10,13 @@ import 'package:login/models/notifications/follow_request_notification.dart';
 import 'package:login/models/notifications/processing_error_notification.dart';
 import 'package:login/models/notifications/social_post_review_notification.dart';
 import 'package:login/models/notifications/video_processed_notification.dart';
-import 'package:login/pages/social_review/social_post_review_page.dart';
+import 'package:login/pages/social_review/social_review_inbox_page.dart';
+import 'package:login/pages/social_review/social_review_place_item.dart';
 import 'package:login/pages/profile/other_user_profile_page.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/providers/navigation_provider.dart';
 import 'package:login/services/fcm_service.dart';
+import 'package:login/services/notification_surface_visibility.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/utils/route_open_guard.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
@@ -39,6 +41,7 @@ class _NotificationsPopoverState extends State<NotificationsPopover> {
   @override
   void initState() {
     super.initState();
+    NotificationSurfaceVisibility.instance.enter();
     _notifications = _visibleNotifications(FCMService().notifications);
 
     _notificationSubscription =
@@ -53,6 +56,7 @@ class _NotificationsPopoverState extends State<NotificationsPopover> {
   @override
   void dispose() {
     _notificationSubscription.cancel();
+    NotificationSurfaceVisibility.instance.exit();
     super.dispose();
   }
 
@@ -108,9 +112,11 @@ class _NotificationsPopoverState extends State<NotificationsPopover> {
         });
         await Navigator.of(context).push<void>(
           MaterialPageRoute(
-            builder: (_) => SocialPostReviewPage(
-              postId: notification.socialPostId,
-              source: 'notification',
+            builder: (_) => SocialReviewInboxPage(
+              initialFilter:
+                  notification.outcome == SocialShareNotificationOutcome.saved
+                      ? SocialReviewInboxFilter.recentlySaved
+                      : SocialReviewInboxFilter.needsChecking,
             ),
           ),
         );
@@ -180,7 +186,46 @@ class _NotificationsPopoverState extends State<NotificationsPopover> {
       await _handleViewLocation(notification);
     } else if (notification is ProcessingErrorNotification) {
       await _handleAddLocationManually(notification);
+    } else if (notification is SocialPostReviewNotification) {
+      await _handleNotificationTap(notification);
     }
+  }
+
+  Future<void> _dismissNotification(BaseNotification notification) async {
+    final originalIndex = _notifications.indexOf(notification);
+    setState(() => _notifications.remove(notification));
+    try {
+      await FCMService().dismissNotification(notification.id);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        final index = originalIndex.clamp(0, _notifications.length);
+        _notifications.insert(index, notification);
+      });
+      return;
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: const Text('Notification dismissed'),
+          action: SnackBarAction(
+            label: 'Undo',
+            onPressed: () {
+              unawaited(_restoreNotification(notification));
+            },
+          ),
+        ),
+      );
+  }
+
+  Future<void> _restoreNotification(BaseNotification notification) async {
+    await FCMService().restoreNotification(notification.id);
+    if (!mounted) return;
+    setState(() {
+      _notifications = _visibleNotifications(FCMService().notifications);
+    });
   }
 
   Future<void> _handleFollowRequestAccept(
@@ -391,13 +436,32 @@ class _NotificationsPopoverState extends State<NotificationsPopover> {
                         itemCount: _notifications.length,
                         itemBuilder: (context, index) {
                           final notification = _notifications[index];
-                          return _NotificationCard(
-                            notification: notification,
-                            onTap: () => _handleNotificationTap(notification),
-                            onActionTap: notification.hasAction() &&
-                                    notification.getActionLabel() != null
-                                ? () => _handleAction(notification)
-                                : null,
+                          return Dismissible(
+                            key: ValueKey('notification:${notification.id}'),
+                            direction: DismissDirection.endToStart,
+                            onDismissed: (_) =>
+                                unawaited(_dismissNotification(notification)),
+                            background: Container(
+                              margin: const EdgeInsets.only(bottom: 10),
+                              padding: const EdgeInsets.only(right: 22),
+                              alignment: Alignment.centerRight,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE85D4C),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(
+                                Icons.delete_outline_rounded,
+                                color: PinitColors.cream,
+                              ),
+                            ),
+                            child: _NotificationCard(
+                              notification: notification,
+                              onTap: () => _handleNotificationTap(notification),
+                              onActionTap: notification.hasAction() &&
+                                      notification.getActionLabel() != null
+                                  ? () => _handleAction(notification)
+                                  : null,
+                            ),
                           );
                         },
                       ),

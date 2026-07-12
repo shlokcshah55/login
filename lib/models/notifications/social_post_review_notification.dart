@@ -1,11 +1,16 @@
 import 'package:login/models/notifications/base_notification.dart';
 import 'package:login/models/notification_type.dart';
 
+enum SocialShareNotificationOutcome { saved, needsChecking, failed }
+
 class SocialPostReviewNotification extends BaseNotification {
   final String socialPostId;
   final String? platform;
   final int placeCount;
+  final int savedCount;
+  final String? firstPlaceName;
   final bool failed;
+  final SocialShareNotificationOutcome outcome;
   final String title;
   final String body;
 
@@ -16,7 +21,10 @@ class SocialPostReviewNotification extends BaseNotification {
     required this.socialPostId,
     required this.platform,
     required this.placeCount,
+    required this.savedCount,
+    required this.firstPlaceName,
     required this.failed,
+    required this.outcome,
     required this.title,
     required this.body,
   }) : super(
@@ -31,6 +39,7 @@ class SocialPostReviewNotification extends BaseNotification {
     final rawSocialPostId = data['socialPostId'];
     final rawPlatform = data['platform'];
     final rawPlaceCount = data['placeCount'];
+    final rawSavedCount = data['savedCount'];
     final rawFailed = data['failed'];
 
     // placeCount may arrive as a string
@@ -51,6 +60,13 @@ class SocialPostReviewNotification extends BaseNotification {
       failed = rawFailed?.toString().toLowerCase() == 'true';
     }
 
+    final savedCount = _parseCount(rawSavedCount);
+    final outcome = _parseOutcome(
+      data['outcome']?.toString(),
+      failed: failed,
+      savedCount: savedCount,
+    );
+
     return SocialPostReviewNotification(
       id: data['id'].toString(),
       // Handle both String (FCM) and DateTime (DB)
@@ -62,7 +78,10 @@ class SocialPostReviewNotification extends BaseNotification {
       socialPostId: rawSocialPostId?.toString() ?? '',
       platform: rawPlatform?.toString(),
       placeCount: placeCount,
+      savedCount: savedCount,
+      firstPlaceName: _nonEmpty(data['firstPlaceName']),
       failed: failed,
+      outcome: outcome,
       title: (data['title'] as String?) ?? '',
       body: (data['body'] as String?) ?? '',
     );
@@ -76,7 +95,11 @@ class SocialPostReviewNotification extends BaseNotification {
       body.isNotEmpty ? body : 'Your shared post is ready to review';
 
   @override
-  String? getActionLabel() => 'Review';
+  String? getActionLabel() => switch (outcome) {
+        SocialShareNotificationOutcome.saved => 'View',
+        SocialShareNotificationOutcome.needsChecking => 'Check',
+        SocialShareNotificationOutcome.failed => 'Add place',
+      };
 
   @override
   bool hasAction() => socialPostId.isNotEmpty;
@@ -90,13 +113,49 @@ class SocialPostReviewNotification extends BaseNotification {
       'socialPostId': socialPostId,
       if (platform != null && platform!.isNotEmpty) 'platform': platform,
       'placeCount': placeCount,
+      'savedCount': savedCount,
+      if (firstPlaceName != null) 'firstPlaceName': firstPlaceName,
       'failed': failed,
+      'outcome': switch (outcome) {
+        SocialShareNotificationOutcome.saved => 'saved',
+        SocialShareNotificationOutcome.needsChecking => 'needs_checking',
+        SocialShareNotificationOutcome.failed => 'failed',
+      },
       if (title.isNotEmpty) 'title': title,
       if (body.isNotEmpty) 'body': body,
     };
   }
 
   @override
-  String getNotificationTitle() =>
-      title.isNotEmpty ? title : 'Ready to review';
+  String getNotificationTitle() => title.isNotEmpty ? title : 'Ready to review';
+
+  static int _parseCount(dynamic raw) {
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+    return int.tryParse(raw?.toString() ?? '') ?? 0;
+  }
+
+  static String? _nonEmpty(dynamic raw) {
+    final value = raw?.toString().trim();
+    return value == null || value.isEmpty ? null : value;
+  }
+
+  static SocialShareNotificationOutcome _parseOutcome(
+    String? raw, {
+    required bool failed,
+    required int savedCount,
+  }) {
+    switch (raw?.trim().toLowerCase()) {
+      case 'saved':
+        return SocialShareNotificationOutcome.saved;
+      case 'needs_checking':
+      case 'needs-checking':
+        return SocialShareNotificationOutcome.needsChecking;
+      case 'failed':
+        return SocialShareNotificationOutcome.failed;
+    }
+    if (failed) return SocialShareNotificationOutcome.failed;
+    if (savedCount > 0) return SocialShareNotificationOutcome.saved;
+    return SocialShareNotificationOutcome.needsChecking;
+  }
 }

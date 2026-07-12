@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:login/models/locations.dart';
 import 'package:login/models/social_review_models.dart';
+import 'package:login/pages/social_review/social_review_place_item.dart';
 import 'package:login/services/analytics_service.dart';
 import 'package:login/services/recommendations_api.dart';
 import 'package:login/supabase/helpers/location.dart';
@@ -14,17 +15,34 @@ import 'package:login/supabase/helpers/social_reviews.dart';
 /// save_location_with_tags RPC as every other save, so saved places behave
 /// normally across the rest of the app (Eat List, map, collections).
 class SocialReviewProvider extends ChangeNotifier {
-  final SocialReviewsHelper _helper = SocialReviewsHelper();
-  final LocationHelper _locationHelper = LocationHelper();
+  SocialReviewProvider({
+    Future<List<SocialPostReviewItem>> Function()? reviewLoader,
+    Future<List<LocationModel>> Function(List<int> ids)? locationBatchLoader,
+  }) {
+    _reviewLoader = reviewLoader ?? () => _reviews.fetchReviewItems();
+    _locationBatchLoader =
+        locationBatchLoader ?? (ids) => _locations.getLocationsByIds(ids);
+  }
+
+  SocialReviewsHelper? _helper;
+  LocationHelper? _locationHelper;
   final RecommendationsApi _recommendationsApi = RecommendationsApi();
   final AnalyticsService _analytics = AnalyticsService();
+  late final Future<List<SocialPostReviewItem>> Function() _reviewLoader;
+  late final Future<List<LocationModel>> Function(List<int> ids)
+      _locationBatchLoader;
+
+  SocialReviewsHelper get _reviews => _helper ??= SocialReviewsHelper();
+  LocationHelper get _locations => _locationHelper ??= LocationHelper();
 
   List<SocialPostReviewItem> _items = [];
+  List<SocialReviewPlaceItem> _placeItems = [];
   bool _isLoading = false;
   bool _hasLoaded = false;
   String? _error;
 
   List<SocialPostReviewItem> get items => _items;
+  List<SocialReviewPlaceItem> get placeItems => _placeItems;
   bool get isLoading => _isLoading;
   bool get hasLoaded => _hasLoaded;
   String? get error => _error;
@@ -37,6 +55,8 @@ class SocialReviewProvider extends ChangeNotifier {
       _items.where((i) => i.reviewStatus == 'later').toList();
 
   int get pendingCount => pendingItems.length;
+  int get needsCheckingCount =>
+      _placeItems.where((item) => item.needsChecking).length;
 
   SocialPostReviewItem? itemByPostId(String postId) {
     for (final item in _items) {
@@ -46,12 +66,12 @@ class SocialReviewProvider extends ChangeNotifier {
   }
 
   void startListening() {
-    _helper.subscribe(() => refresh());
+    _reviews.subscribe(() => refresh());
     refresh();
   }
 
   void stopListening() {
-    _helper.unsubscribe();
+    _helper?.unsubscribe();
   }
 
   Future<void> refresh() async {
@@ -59,7 +79,24 @@ class SocialReviewProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      _items = await _helper.fetchReviewItems();
+      _items = await _reviewLoader();
+      final projected = SocialReviewPlaceItem.fromReviews(_items);
+      final locationIds = projected
+          .map((item) => item.resolvedLocationId)
+          .whereType<int>()
+          .toSet()
+          .toList(growable: false);
+      final locations = locationIds.isEmpty
+          ? const <LocationModel>[]
+          : await _locationBatchLoader(locationIds);
+      final locationsById = {
+        for (final location in locations) location.locationId: location,
+      };
+      _placeItems = projected
+          .map((item) => item.copyWith(
+                location: locationsById[item.resolvedLocationId],
+              ))
+          .toList(growable: false);
     } catch (e) {
       _error = 'Could not load your shared posts';
       debugPrint('[SocialReviewProvider] refresh failed: $e');
@@ -107,12 +144,12 @@ class SocialReviewProvider extends ChangeNotifier {
       final locationId = await _resolveLocationId(item, place);
       if (locationId == null) return false;
 
-      await _locationHelper.saveLocation(
+      await _locations.saveLocation(
         locationId,
         savedMethod: item.platform,
         sourceVideoUrl: item.openUrl,
       );
-      await _helper.upsertPlaceAction(
+      await _reviews.upsertPlaceAction(
         placeId: place.id,
         action: SocialPlaceAction.saved,
         savedLocationId: locationId,
@@ -147,11 +184,12 @@ class SocialReviewProvider extends ChangeNotifier {
     SocialPostPlace place,
   ) async {
     try {
-      final savedLocationId = item.savedLocationIds[place.id] ?? place.locationId;
+      final savedLocationId =
+          item.savedLocationIds[place.id] ?? place.locationId;
       if (savedLocationId != null) {
-        await _locationHelper.unsaveLocation(savedLocationId);
+        await _locations.unsaveLocation(savedLocationId);
       }
-      await _helper.upsertPlaceAction(
+      await _reviews.upsertPlaceAction(
         placeId: place.id,
         action: SocialPlaceAction.discarded,
       );
@@ -198,15 +236,15 @@ class SocialReviewProvider extends ChangeNotifier {
       final previousLocationId =
           item.savedLocationIds[place.id] ?? place.locationId;
       if (previousLocationId != null && previousLocationId != locationId) {
-        await _locationHelper.unsaveLocation(previousLocationId);
+        await _locations.unsaveLocation(previousLocationId);
       }
 
-      await _locationHelper.saveLocation(
+      await _locations.saveLocation(
         locationId,
         savedMethod: item.platform,
         sourceVideoUrl: item.openUrl,
       );
-      await _helper.upsertPlaceAction(
+      await _reviews.upsertPlaceAction(
         placeId: place.id,
         action: SocialPlaceAction.corrected,
         correctedGooglePlaceId: googlePlaceId,
@@ -248,20 +286,20 @@ class SocialReviewProvider extends ChangeNotifier {
       );
       if (locationId == null) return false;
 
-      final placeRowId = await _helper.insertManualPlace(
+      final placeRowId = await _reviews.insertManualPlace(
         postId: item.postId,
         name: pickedPlace.name,
         address: pickedPlace.vicinity,
         googlePlaceId: googlePlaceId,
         locationId: locationId,
       );
-      await _locationHelper.saveLocation(
+      await _locations.saveLocation(
         locationId,
         savedMethod: item.platform,
         sourceVideoUrl: item.openUrl,
       );
       if (placeRowId != null) {
-        await _helper.upsertPlaceAction(
+        await _reviews.upsertPlaceAction(
           placeId: placeRowId,
           action: SocialPlaceAction.manualAdded,
           savedLocationId: locationId,
@@ -324,7 +362,7 @@ class SocialReviewProvider extends ChangeNotifier {
 
   /// Sticky bar: keep the post in the inbox under "Review later".
   Future<void> reviewLater(SocialPostReviewItem item) async {
-    await _helper.updateReviewStatus(item.reviewId, 'later');
+    await _reviews.updateReviewStatus(item.reviewId, 'later');
     _replaceItem(item.copyWith(reviewStatus: 'later'));
     _analytics.trackFeature(
       'social_review_later',
@@ -341,7 +379,7 @@ class SocialReviewProvider extends ChangeNotifier {
   }
 
   Future<LocationModel?> fetchLocation(int locationId) =>
-      _helper.fetchLocation(locationId);
+      _reviews.fetchLocation(locationId);
 
   // ── Internals ──────────────────────────────────────────────────────────────
 
@@ -396,11 +434,12 @@ class SocialReviewProvider extends ChangeNotifier {
     String status,
   ) async {
     try {
-      await _helper.updateReviewStatus(item.reviewId, status);
+      await _reviews.updateReviewStatus(item.reviewId, status);
     } catch (e) {
       debugPrint('[SocialReviewProvider] updateReviewStatus failed: $e');
     }
     _items = _items.where((i) => i.reviewId != item.reviewId).toList();
+    _rebuildPlaceItems();
     notifyListeners();
   }
 
@@ -408,7 +447,20 @@ class SocialReviewProvider extends ChangeNotifier {
     _items = _items
         .map((i) => i.reviewId == updated.reviewId ? updated : i)
         .toList();
+    _rebuildPlaceItems();
     notifyListeners();
+  }
+
+  void _rebuildPlaceItems() {
+    final locationsById = {
+      for (final item in _placeItems)
+        if (item.location != null) item.location!.locationId: item.location!,
+    };
+    _placeItems = SocialReviewPlaceItem.fromReviews(_items)
+        .map((item) => item.copyWith(
+              location: locationsById[item.resolvedLocationId],
+            ))
+        .toList(growable: false);
   }
 
   @override

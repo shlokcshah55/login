@@ -31,9 +31,11 @@ import 'package:login/widgets/home/expanded_card/sections/persistent_action_dock
 import 'package:login/widgets/home/expanded_card/sections/recommended_dishes_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/shared_social_posts_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/social_proof_section.dart';
+import 'package:login/widgets/home/expanded_card/sections/social_match_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/summary_slab_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/tiktok_insights_section.dart';
 import 'package:login/widgets/home/expanded_card/sections/why_go_section.dart';
+import 'package:login/widgets/home/expanded_card/social_review_context.dart';
 import 'package:login/widgets/feedback/app_feedback.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -52,12 +54,14 @@ class ExpandedLocationCard extends StatefulWidget {
     super.key,
     required this.location,
     required this.onClose,
-    this.resolveSharedVideoUrlOnOpen = false,
+    this.resolveSharedVideoUrlOnOpen = true,
+    this.socialReviewContext,
   });
 
   final LocationModel location;
   final VoidCallback onClose;
   final bool resolveSharedVideoUrlOnOpen;
+  final SocialReviewContext? socialReviewContext;
 
   @override
   State<ExpandedLocationCard> createState() => _ExpandedLocationCardState();
@@ -1045,6 +1049,11 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                 pinitReviewCount: _pinitReviewCount,
                 creatorHandle: _videoInsight?.creatorHandle,
               ),
+
+              if (widget.socialReviewContext != null) ...[
+                const SizedBox(height: 28),
+                SocialMatchSection(context: widget.socialReviewContext!),
+              ],
 
               // Layer 2b — TikTok insights (only for social-video saves)
               if (_videoInsight != null) ...[
