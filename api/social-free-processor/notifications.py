@@ -36,7 +36,7 @@ def _send(
     *,
     push_url: str,
     secret: str,
-    fcm_token: str,
+    fcm_token: str | None,
     user_id: str,
     notif_type: str,
     title: str,
@@ -82,25 +82,28 @@ def notify_review_ready(
     failed: bool = False,
 ):
     fcm_token = _fetch_fcm_token(supabase, user_id)
-    if not fcm_token:
-        return
 
     post_word = "Reel" if platform == "instagram" else "TikTok"
     if failed:
+        outcome = "failed"
         title = "We couldn't read that post"
         body = f"Your {post_word} is saved — add the place yourself when you know it."
     elif place_count == 0:
+        outcome = "needs_checking"
         title = "Post saved"
         body = f"We couldn't spot a place in that {post_word} — add it yourself when you know it."
     elif saved_count == 0:
+        outcome = "needs_checking"
         title = "Take a look"
         body = f"Found {place_count} place{'s' if place_count != 1 else ''} in your {post_word}, but we're not sure which — tap to confirm."
     elif saved_count == 1:
-        title = "Saved!"
-        body = f"We saved {first_place_name or 'a place'} from your {post_word} — tap to review."
+        outcome = "saved"
+        title = f"Saved from {post_word}"
+        body = f"{first_place_name or 'A place'} was added to your saves."
     else:
-        title = "Saved!"
-        body = f"We saved {saved_count} places from your {post_word} — tap to review."
+        outcome = "saved"
+        title = f"Saved from {post_word}"
+        body = f"{saved_count} places were added to your saves."
 
     _send(
         push_url=push_url, secret=secret,
@@ -113,6 +116,8 @@ def notify_review_ready(
             "platform": platform,
             "placeCount": place_count,
             "savedCount": saved_count,
+            "firstPlaceName": first_place_name,
             "failed": failed,
+            "outcome": outcome,
         },
     )
