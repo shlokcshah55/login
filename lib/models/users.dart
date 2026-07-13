@@ -155,7 +155,9 @@ class UserModel {
                       .map((e) => (e as num).toInt()))
               : null,
       generatedCollections:
-          json[SupabaseConstants.columnGeneratedCollections] != null,
+          json[SupabaseConstants.columnGeneratedCollections] is bool
+              ? json[SupabaseConstants.columnGeneratedCollections] as bool
+              : json[SupabaseConstants.columnGeneratedCollections] != null,
       referralCode: json[SupabaseConstants.columnReferralCode] as String?,
       verified: json[SupabaseConstants.columnVerified] ?? false,
     );
@@ -184,6 +186,17 @@ class UserModel {
     }
     if (referralCode != null)
       data[SupabaseConstants.columnReferralCode] = referralCode;
+    if (createdAt != null) {
+      data[SupabaseConstants.columnCreatedAt] = createdAt!.toIso8601String();
+    }
+    if (lastLogin != null) {
+      data['last_login'] = lastLogin!.toIso8601String();
+    }
+    data['followers_count'] = followersCount;
+    data['following_count'] = followingCount;
+    data[SupabaseConstants.columnWizardCompleted] = wizardCompleted;
+    data[SupabaseConstants.columnGeneratedCollections] = generatedCollections;
+    data[SupabaseConstants.columnVerified] = verified;
 
     return data;
   }
