@@ -93,4 +93,38 @@ void main() {
       'source': 'magic-search-open',
     });
   });
+
+  test('process location posts canonical processing request', () async {
+    late Map<String, dynamic> payload;
+    late Uri requestUri;
+    final api = RecommendationsApi(
+      baseUrl: 'http://localhost:8080',
+      client: MockClient((request) async {
+        requestUri = request.url;
+        payload = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response(
+          jsonEncode({
+            'queued': true,
+            'location_id': 42,
+            'request_id': 'request-42',
+          }),
+          202,
+          headers: const {'Content-Type': 'application/json'},
+        );
+      }),
+    );
+
+    await api.processLocation(
+      locationId: 42,
+      googlePlaceId: ' place-42 ',
+      source: 'expanded-card-open',
+    );
+
+    expect(requestUri.toString(), 'http://localhost:8080/locations/process');
+    expect(payload, {
+      'location_id': 42,
+      'google_place_id': 'place-42',
+      'source': 'expanded-card-open',
+    });
+  });
 }

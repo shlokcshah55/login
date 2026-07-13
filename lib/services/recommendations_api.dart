@@ -11,6 +11,7 @@ class RecommendationsApi {
       'https://pinit-recommendations-api-jkqbw4i75a-nw.a.run.app';
   static const String _path = '/recommendations/proximal';
   static const String _addLocationPath = '/locations/add';
+  static const String _processLocationPath = '/locations/process';
 
   final http.Client _client;
   final String _baseUrl;
@@ -230,6 +231,41 @@ class RecommendationsApi {
       return locationId.toInt();
     }
     return null;
+  }
+
+  Future<void> processLocation({
+    required int locationId,
+    String? googlePlaceId,
+    String source = 'expanded-card-open',
+  }) async {
+    if (locationId <= 0) {
+      throw ArgumentError.value(
+        locationId,
+        'locationId',
+        'must be a positive canonical location ID',
+      );
+    }
+
+    final trimmedPlaceId = googlePlaceId?.trim();
+    final uri = Uri.parse('$_baseUrl$_processLocationPath');
+    final response = await _client.post(
+      uri,
+      headers: const {
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'location_id': locationId,
+        if (trimmedPlaceId != null && trimmedPlaceId.isNotEmpty)
+          'google_place_id': trimmedPlaceId,
+        'source': source,
+      }),
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw RecommendationsApiException(
+        'Failed with status ${response.statusCode}: ${response.body}',
+      );
+    }
   }
 }
 

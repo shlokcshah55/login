@@ -22,6 +22,7 @@ import 'package:login/widgets/home/been_to_swipe_ranker.dart';
 import 'package:login/widgets/home/expanded_card/add_to_bubble_sheet.dart';
 import 'package:login/widgets/home/expanded_card/add_to_collection_sheet.dart';
 import 'package:login/widgets/home/expanded_card/helpers/match_result.dart';
+import 'package:login/widgets/home/expanded_card/helpers/google_maps_target.dart';
 import 'package:login/widgets/home/expanded_card/helpers/similar_place.dart';
 import 'package:login/widgets/home/expanded_card/helpers/social_video_source.dart';
 import 'package:login/widgets/home/expanded_card/sections/details_section.dart';
@@ -189,7 +190,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     _seedSocialVideoPost();
     _bootstrapSocialVideoContext();
     _fetchSocialVideoPosts();
-    _enrichLocationIfNeeded();
+    unawaited(_requestLocationProcessing());
   }
 
   @override
@@ -626,17 +627,13 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   //  Location enrichment
   // ─────────────────────────────────────────────────────────────
 
-  Future<void> _enrichLocationIfNeeded() async {
-    final website = widget.location.website?.trim();
-    if (website != null && website.isNotEmpty) return;
-
-    final googlePlaceId = widget.location.googlePlaceId?.trim();
-    if (googlePlaceId == null || googlePlaceId.isEmpty) return;
-
+  Future<void> _requestLocationProcessing() async {
+    if (widget.location.locationId <= 0) return;
     try {
-      await _recommendationsApi.addLocationByGooglePlaceId(
-        googlePlaceId: googlePlaceId,
-        source: 'in-app',
+      await _recommendationsApi.processLocation(
+        locationId: widget.location.locationId,
+        googlePlaceId: widget.location.googlePlaceId,
+        source: 'expanded-card-open',
       );
     } catch (e) {
       if (kDebugMode) {
@@ -742,21 +739,15 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   // ─────────────────────────────────────────────────────────────
 
   Future<void> _openInGoogleMaps() async {
-    final uri = widget.location.googleMapsUri;
-    if (uri != null && uri.isNotEmpty) {
-      final parsed = Uri.tryParse(uri);
-      if (parsed != null && await canLaunchUrl(parsed)) {
-        await launchUrl(parsed, mode: LaunchMode.externalApplication);
-        return;
-      }
-    }
-    // Fallback: open coords
-    if (widget.location.lat != null && widget.location.lng != null) {
-      final fallback = Uri.parse(
-        'https://www.google.com/maps/search/?api=1&query='
-        '${widget.location.lat},${widget.location.lng}',
-      );
-      await launchUrl(fallback, mode: LaunchMode.externalApplication);
+    final target = resolveGoogleMapsTarget(
+      googleMapsUri: widget.location.googleMapsUri,
+      name: widget.location.name,
+      googlePlaceId: widget.location.googlePlaceId,
+      lat: widget.location.lat,
+      lng: widget.location.lng,
+    );
+    if (target != null && await canLaunchUrl(target)) {
+      await launchUrl(target, mode: LaunchMode.externalApplication);
     }
   }
 
