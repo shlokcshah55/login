@@ -29,7 +29,7 @@ class AppRoot extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppProviders(
       dependencies: dependencies,
-      child: const MyApp(),
+      child: MyApp(dependencies: dependencies),
     );
   }
 }
@@ -38,7 +38,12 @@ class AppRoot extends StatelessWidget {
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 class MyApp extends StatefulWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({
+    Key? key,
+    required this.dependencies,
+  }) : super(key: key);
+
+  final AppDependencies dependencies;
 
   @override
   _MyAppState createState() => _MyAppState();
@@ -60,6 +65,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     _lastAuthenticatedUserId = SupabaseClientManager().currentUser?.id;
     _analyticsService.setUser(_lastAuthenticatedUserId);
     _analyticsService.startSession(reason: 'app_launch');
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(widget.dependencies.deferredInitializer.start());
+    });
 
     _authSubscription =
         SupabaseClientManager().client.auth.onAuthStateChange.listen((data) {

@@ -40,58 +40,6 @@ Future<AppDependencies> bootstrap({
   FirebaseMessaging.onBackgroundMessage(backgroundMessageHandler);
   await FCMService().registerMessageOpenHandling();
 
-  analyticsService.track(
-    eventName: 'notification_permission_prompted',
-    eventCategory: 'notification',
-    properties: const <String, dynamic>{'source': 'app_bootstrap'},
-  );
-  FirebaseMessaging.instance
-      .requestPermission(alert: true, badge: true, sound: true)
-      .then((settings) {
-    print('✅ Notification permissions: ${settings.authorizationStatus}');
-    analyticsService.track(
-      eventName: 'notification_permission_result',
-      eventCategory: 'notification',
-      properties: <String, dynamic>{
-        'status': settings.authorizationStatus.name,
-        'alert': settings.alert.name,
-        'badge': settings.badge.name,
-        'sound': settings.sound.name,
-      },
-    );
-  }).catchError((e) {
-    print('❌ Error requesting notification permissions: $e');
-    analyticsService.track(
-      eventName: 'notification_permission_result',
-      eventCategory: 'notification',
-      properties: <String, dynamic>{
-        'status': 'error',
-        'error': '$e',
-      },
-    );
-    analyticsService.recordError(
-      key: 'notification_permission_result',
-      properties: <String, dynamic>{'error': '$e'},
-    );
-  });
-
-  print('🔧 Initializing Location Service...');
-  try {
-    await LocationService().initialize();
-    print('✅ Location Service initialized');
-  } catch (e) {
-    print('⚠️ Location Service initialization failed: $e');
-  }
-
-  print('🔧 Initializing custom marker...');
-  try {
-    await LocationModel.initializeCustomMarker();
-    print('✅ Custom marker initialized');
-  } catch (e) {
-    print('⚠️ Custom marker initialization failed: $e');
-    print('⚠️ App will continue without custom markers');
-  }
-
   print('🔧 Loading .env file...');
   await dotenv.load();
 
@@ -112,16 +60,75 @@ Future<AppDependencies> bootstrap({
   analyticsService.setSupabaseReady();
   analyticsService.setUser(supabaseService.users.currentUser?.id);
 
-  print('✅ All initialization complete!');
+  print('✅ Essential initialization complete!');
 
-  print('🔧 Initializing FCM...');
-  try {
-    await FCMService().initialize();
-    print('✅ FCM initialized');
-  } catch (e) {
-    print('⚠️ FCM initialization failed: $e');
-    print('⚠️ Push notifications may not work');
-  }
+  final deferredInitializer = DeferredAppInitializer(
+    initialize: () async {
+      analyticsService.track(
+        eventName: 'notification_permission_prompted',
+        eventCategory: 'notification',
+        properties: const <String, dynamic>{'source': 'app_bootstrap'},
+      );
+      try {
+        final settings = await FirebaseMessaging.instance.requestPermission(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+        print('✅ Notification permissions: ${settings.authorizationStatus}');
+        analyticsService.track(
+          eventName: 'notification_permission_result',
+          eventCategory: 'notification',
+          properties: <String, dynamic>{
+            'status': settings.authorizationStatus.name,
+            'alert': settings.alert.name,
+            'badge': settings.badge.name,
+            'sound': settings.sound.name,
+          },
+        );
+      } catch (e) {
+        print('❌ Error requesting notification permissions: $e');
+        analyticsService.track(
+          eventName: 'notification_permission_result',
+          eventCategory: 'notification',
+          properties: <String, dynamic>{
+            'status': 'error',
+            'error': '$e',
+          },
+        );
+        analyticsService.recordError(
+          key: 'notification_permission_result',
+          properties: <String, dynamic>{'error': '$e'},
+        );
+      }
+
+      print('🔧 Initializing Location Service...');
+      try {
+        await LocationService().initialize();
+        print('✅ Location Service initialized');
+      } catch (e) {
+        print('⚠️ Location Service initialization failed: $e');
+      }
+
+      print('🔧 Initializing custom marker...');
+      try {
+        await LocationModel.initializeCustomMarker();
+        print('✅ Custom marker initialized');
+      } catch (e) {
+        print('⚠️ Custom marker initialization failed: $e');
+        print('⚠️ App will continue without custom markers');
+      }
+
+      print('🔧 Initializing FCM...');
+      try {
+        await FCMService().initialize();
+        print('✅ FCM initialized');
+      } catch (e) {
+        print('⚠️ FCM initialization failed: $e');
+        print('⚠️ Push notifications may not work');
+      }
+    },
+  );
 
   return AppDependencies(
     supabaseService: supabaseService,
@@ -129,5 +136,6 @@ Future<AppDependencies> bootstrap({
     startupCacheCoordinator: StartupCacheCoordinator(
       store: JsonStartupSnapshotStore(),
     ),
+    deferredInitializer: deferredInitializer,
   );
 }
