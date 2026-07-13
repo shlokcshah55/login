@@ -11,6 +11,7 @@ import 'package:login/services/google_place_service.dart';
 import 'package:login/services/location_service.dart';
 import 'package:login/services/natural_language_search_service.dart';
 import 'package:login/services/proximity_notification_service.dart';
+import 'package:login/services/startup_cache/startup_timing.dart';
 import 'package:login/pages/home/filter_types.dart';
 import 'package:login/supabase/constants.dart';
 import 'package:login/supabase/helpers/location_reviews.dart';
@@ -927,6 +928,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
     } finally {
       if (_userId == requestUserId) {
         _isRebuildingCachedMarkers = false;
+        startupTiming.mark(StartupMilestone.markerBuild);
         notifyListeners();
       }
     }

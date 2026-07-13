@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:login/services/analytics_service.dart';
+import 'package:login/services/startup_cache/startup_snapshot_store.dart';
+import 'package:login/services/startup_cache/startup_timing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 Future<void> _flushAsyncQueue() async {
@@ -146,6 +148,55 @@ void main() {
 
       expect(signalTypes, contains('repeated_tap'));
       expect(signalTypes, contains('repeated_error'));
+    });
+
+    test('emits startup performance once with cache-safe properties', () async {
+      analytics.setSupabaseReady();
+      final timing = StartupTiming()
+        ..markDartEntry()
+        ..mark(StartupMilestone.runApp)
+        ..recordSnapshotRead(
+          const StartupSnapshotReadResult(
+            status: StartupSnapshotReadStatus.miss,
+          ),
+          isPartial: false,
+        )
+        ..mark(StartupMilestone.firstUsableHome);
+
+      analytics.trackStartupPerformance(timing);
+      analytics.trackStartupPerformance(timing);
+      await _flushAsyncQueue();
+
+      final startupEvents = sentEvents.where(
+        (event) => event['p_event_name'] == 'startup_performance',
+      );
+      expect(startupEvents, hasLength(1));
+      final properties = Map<String, dynamic>.from(
+        startupEvents.single['p_properties'] as Map<String, dynamic>,
+      );
+      expect(properties['snapshot_outcome'], 'miss');
+      expect(properties, contains('first_usable_home_ms'));
+      expect(properties, isNot(contains('user_id')));
+    });
+
+    test('emits low-cardinality startup refresh measurements', () async {
+      analytics.setSupabaseReady();
+
+      analytics.trackStartupRefresh(
+        section: 'saved_locations',
+        durationMs: 42,
+        outcome: 'stale',
+      );
+      await _flushAsyncQueue();
+
+      final event = sentEvents.singleWhere(
+        (event) => event['p_event_name'] == 'startup_refresh',
+      );
+      expect(event['p_duration_ms'], 42);
+      expect(event['p_properties'], <String, dynamic>{
+        'section': 'saved_locations',
+        'outcome': 'stale',
+      });
     });
   });
 }

@@ -3,6 +3,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:login/app/app_root.dart';
 import 'package:login/bootstrap/app_bootstrap.dart';
+import 'package:login/services/startup_cache/startup_timing.dart';
 import 'firebase_options.dart';
 
 /// Background message handler - must be top-level function
@@ -15,9 +16,11 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 }
 
 void main() async {
+  startupTiming.markDartEntry();
   final dependencies = await bootstrap(
     backgroundMessageHandler: _firebaseMessagingBackgroundHandler,
   );
 
+  startupTiming.mark(StartupMilestone.runApp);
   runApp(AppRoot(dependencies: dependencies));
 }

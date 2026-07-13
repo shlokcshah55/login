@@ -12,6 +12,7 @@ import 'package:login/pages/signup_wizard/wizard_completion_page.dart';
 import 'package:login/pages/auth_handler.dart';
 import 'package:login/services/analytics_service.dart';
 import 'package:login/services/startup_cache/startup_cache_coordinator.dart';
+import 'package:login/services/startup_cache/startup_timing.dart';
 import 'package:login/supabase/supabase_client.dart';
 import 'package:login/themes/pinit_theme.dart';
 import 'package:login/widgets/keyboard_dismiss_drag_region.dart';
@@ -67,6 +68,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     _analyticsService.startSession(reason: 'app_launch');
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      startupTiming.mark(StartupMilestone.firstFrame);
       unawaited(widget.dependencies.deferredInitializer.start());
     });
 

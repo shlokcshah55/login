@@ -8,6 +8,7 @@ import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:login/services/startup_cache/startup_snapshot.dart';
 import 'package:login/services/startup_cache/startup_snapshot_store.dart';
+import 'package:login/services/startup_cache/startup_timing.dart';
 
 enum StartupCacheRefreshStatus { idle, refreshing, fresh, stale }
 
@@ -44,8 +45,10 @@ class StartupCacheCoordinator extends ChangeNotifier {
       defaultValue: true,
     ),
     DateTime Function()? now,
+    StartupTiming? timing,
   })  : _store = store,
-        _now = now ?? DateTime.now;
+        _now = now ?? DateTime.now,
+        _timing = timing ?? startupTiming;
 
   static const String currentLegalConsentVersion = 'v1';
 
@@ -54,6 +57,7 @@ class StartupCacheCoordinator extends ChangeNotifier {
   final Duration writeDebounce;
   final bool enabled;
   final DateTime Function() _now;
+  final StartupTiming _timing;
 
   String? _activeUserId;
   String? _acceptedConsentVersion;
@@ -76,10 +80,18 @@ class StartupCacheCoordinator extends ChangeNotifier {
     _activeUserId = userId;
     _hasHydratedData = false;
     _refreshStatus = StartupCacheRefreshStatus.idle;
-    if (!enabled) return StartupHydrationResult.empty;
+    if (!enabled) {
+      _timing.recordSnapshotDisabled();
+      return StartupHydrationResult.empty;
+    }
 
     final result = await _store.read(userId);
     if (_activeUserId != userId) return StartupHydrationResult.empty;
+    _timing.recordSnapshotRead(
+      result,
+      isPartial: result.status == StartupSnapshotReadStatus.hit &&
+          result.snapshot?.profile == null,
+    );
     _lastReadResult = result;
     final snapshot = result.snapshot;
     if (result.status != StartupSnapshotReadStatus.hit || snapshot == null) {
@@ -97,6 +109,9 @@ class StartupCacheCoordinator extends ChangeNotifier {
     _acceptedConsentVersion = snapshot.acceptedConsentVersion;
     _hasHydratedData = true;
     _lastFingerprint = _fingerprint(snapshot);
+    if (profile != null) {
+      _timing.mark(StartupMilestone.cachedProvidersUsable);
+    }
     return StartupHydrationResult(
       profileHydrated: profile != null,
       savedLocationsHydrated: true,

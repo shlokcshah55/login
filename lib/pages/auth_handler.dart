@@ -10,7 +10,9 @@ import 'package:login/pages/main_screen.dart';
 import 'package:login/pages/welcome_page.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
+import 'package:login/services/analytics_service.dart';
 import 'package:login/services/startup_cache/startup_cache_coordinator.dart';
+import 'package:login/services/startup_cache/startup_timing.dart';
 import 'package:login/widgets/launch_splash_body.dart';
 import 'package:login/widgets/startup_cache_status_banner.dart';
 import 'package:provider/provider.dart';
@@ -61,6 +63,7 @@ class _AuthHandlerState extends State<AuthHandler> {
   UserDataProvider? _observedUserDataProvider;
   LocationListManager? _observedLocationListManager;
   String? _observedCacheUserId;
+  bool _hasReportedFirstUsableHome = false;
 
   @override
   void initState() {
@@ -262,13 +265,47 @@ class _AuthHandlerState extends State<AuthHandler> {
       supabaseProvider.clearCachedUserProfile();
     }
 
-    final profileRefresh = userDataProvider.setUserIdAndFetchData(
+    final profileStopwatch = Stopwatch()..start();
+    final profileRefresh = userDataProvider
+        .setUserIdAndFetchData(
       userId,
       cachedProfile: cachedProfile,
-    );
+    )
+        .whenComplete(() {
+      profileStopwatch.stop();
+      startupTiming.mark(StartupMilestone.profileRefresh);
+      AnalyticsService().trackStartupRefresh(
+        section: 'profile',
+        durationMs: profileStopwatch.elapsedMilliseconds,
+        outcome: userDataProvider.error == null ? 'fresh' : 'unavailable',
+      );
+    });
+    final savedLocationsStopwatch = Stopwatch()..start();
     final savedLocationsRefresh =
-        locationListManager.fetchSavedLocations(force: true);
-    final consentRefresh = supabaseProvider.users.getLegalConsentStatus(userId);
+        locationListManager.fetchSavedLocations(force: true).whenComplete(() {
+      savedLocationsStopwatch.stop();
+      startupTiming.mark(StartupMilestone.savedLocationsRefresh);
+      AnalyticsService().trackStartupRefresh(
+        section: 'saved_locations',
+        durationMs: savedLocationsStopwatch.elapsedMilliseconds,
+        outcome: locationListManager.isSavedDataStale ? 'stale' : 'fresh',
+      );
+    });
+    final consentStopwatch = Stopwatch()..start();
+    final consentRefresh =
+        supabaseProvider.users.getLegalConsentStatus(userId).then((consent) {
+      consentStopwatch.stop();
+      AnalyticsService().trackStartupRefresh(
+        section: 'consent',
+        durationMs: consentStopwatch.elapsedMilliseconds,
+        outcome: consent == null
+            ? 'unavailable'
+            : consent
+                ? 'accepted'
+                : 'required',
+      );
+      return consent;
+    });
 
     final results = await Future.wait<dynamic>([
       profileRefresh,
@@ -562,6 +599,12 @@ class _AuthHandlerState extends State<AuthHandler> {
           if (shouldPresentWizard) {
             _scheduleWizardCompletionRoute();
             return const LaunchSplashBody();
+          }
+
+          if (!_hasReportedFirstUsableHome) {
+            _hasReportedFirstUsableHome = true;
+            startupTiming.mark(StartupMilestone.firstUsableHome);
+            AnalyticsService().trackStartupPerformance(startupTiming);
           }
 
           // Show MainScreen - wizard completion handled via popover

@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:login/supabase/supabase_client.dart';
+import 'package:login/services/startup_cache/startup_timing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 typedef AnalyticsEventDispatcher = Future<void> Function(
@@ -250,6 +251,45 @@ class AnalyticsService {
       featureName: featureName,
       screenName: screenName,
       properties: properties,
+    );
+  }
+
+  void trackStartupPerformance(StartupTiming timing) {
+    final properties = timing.takeStartupPerformanceProperties();
+    if (properties == null) return;
+    track(
+      eventName: 'startup_performance',
+      eventCategory: 'performance',
+      durationMs: timing.elapsedFor(StartupMilestone.firstUsableHome),
+      properties: properties,
+    );
+  }
+
+  void trackStartupRefresh({
+    required String section,
+    required int durationMs,
+    required String outcome,
+  }) {
+    const allowedSections = <String>{
+      'profile',
+      'saved_locations',
+      'consent',
+    };
+    const allowedOutcomes = <String>{
+      'fresh',
+      'stale',
+      'accepted',
+      'required',
+      'unavailable',
+    };
+    track(
+      eventName: 'startup_refresh',
+      eventCategory: 'performance',
+      durationMs: durationMs < 0 ? 0 : durationMs,
+      properties: <String, dynamic>{
+        'section': allowedSections.contains(section) ? section : 'unknown',
+        'outcome': allowedOutcomes.contains(outcome) ? outcome : 'unavailable',
+      },
     );
   }
 
