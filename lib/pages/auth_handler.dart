@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:login/pages/legal_consent_gate_page.dart';
 import 'package:login/pages/reset_password_page.dart';
@@ -8,8 +10,28 @@ import 'package:login/pages/main_screen.dart';
 import 'package:login/pages/welcome_page.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
+import 'package:login/services/startup_cache/startup_cache_coordinator.dart';
 import 'package:login/widgets/launch_splash_body.dart';
+import 'package:login/widgets/startup_cache_status_banner.dart';
 import 'package:provider/provider.dart';
+
+enum AuthenticatedStartupSurface { splash, legalConsent, home }
+
+@visibleForTesting
+AuthenticatedStartupSurface resolveAuthenticatedStartupSurface({
+  required bool hasValidSession,
+  required bool hasProfile,
+  required bool hasSavedLocations,
+  required bool hasCurrentConsent,
+}) {
+  if (!hasValidSession || !hasProfile || !hasSavedLocations) {
+    return AuthenticatedStartupSurface.splash;
+  }
+  if (!hasCurrentConsent) {
+    return AuthenticatedStartupSurface.legalConsent;
+  }
+  return AuthenticatedStartupSurface.home;
+}
 
 @visibleForTesting
 bool shouldPresentWizardCompletionAfterOAuthSignIn({
@@ -36,6 +58,9 @@ class _AuthHandlerState extends State<AuthHandler> {
   bool _wizardCompletionRouteScheduled = false;
   String? _legalConsentCheckedUserId;
   bool? _hasAcceptedLegalConsent;
+  UserDataProvider? _observedUserDataProvider;
+  LocationListManager? _observedLocationListManager;
+  String? _observedCacheUserId;
 
   @override
   void initState() {
@@ -61,6 +86,7 @@ class _AuthHandlerState extends State<AuthHandler> {
 
   @override
   void dispose() {
+    _detachCachePersistenceListeners();
     // Defensive: provider is a singleton so it outlives this widget.
     try {
       Provider.of<SupabaseService>(context, listen: false)
@@ -103,7 +129,11 @@ class _AuthHandlerState extends State<AuthHandler> {
       _logoutCleanupScheduled = false;
       if (!mounted) return;
 
+      _detachCachePersistenceListeners();
+      await context.read<StartupCacheCoordinator>().clearActiveUser();
+      if (!mounted) return;
       await context.read<UserDataProvider>().clearUserData();
+      if (!mounted) return;
       context.read<LocationListManager>().clearData();
 
       _hasCleanedLoggedOutState = true;
@@ -139,34 +169,74 @@ class _AuthHandlerState extends State<AuthHandler> {
       }
 
       log("AuthHandler: Session valid, initializing user data");
-      final supabaseUser = supabaseProvider.users.currentUser!;
+      final supabaseUser = supabaseProvider.users.currentUser;
+      if (supabaseUser == null) {
+        if (mounted) {
+          setState(() {
+            _isInitializing = false;
+            _hasInitializedData = false;
+          });
+        }
+        return;
+      }
+      final userId = supabaseUser.id;
 
       final userDataProvider =
           Provider.of<UserDataProvider>(context, listen: false);
       final locationListManager =
           Provider.of<LocationListManager>(context, listen: false);
+      final cacheCoordinator = context.read<StartupCacheCoordinator>();
 
-      // Initialize user data and locations
-      // setUserId already calls fetchSavedLocations() internally, no need to call it again
-      locationListManager.setUserId(supabaseUser.id);
-
-      // Use cached profile if available (from signIn), otherwise fetch
-      final cachedProfile = supabaseProvider.cachedUserProfile;
-      if (cachedProfile != null) {
-        log("AuthHandler: Using cached user profile from sign-in");
-        await userDataProvider.setUserIdAndFetchData(supabaseUser.id,
-            cachedProfile: cachedProfile);
-        supabaseProvider.clearCachedUserProfile(); // Clear after use
-      } else {
-        await userDataProvider.setUserIdAndFetchData(supabaseUser.id);
+      _detachCachePersistenceListeners();
+      final previousCacheUserId = cacheCoordinator.activeUserId;
+      if (previousCacheUserId != null && previousCacheUserId != userId) {
+        await cacheCoordinator.clearUser(previousCacheUserId);
+        if (!_isActiveUser(userId)) return;
       }
 
-      _hasInitializedData = true;
-      if (mounted) {
+      // Establish the user scope before reading disk. Other background location
+      // services may start, but the saved-location request is coordinated below.
+      locationListManager.setUserId(userId, fetchSavedLocations: false);
+      final hydration = await cacheCoordinator.hydrate(
+        userId: userId,
+        userDataProvider: userDataProvider,
+        locationListManager: locationListManager,
+      );
+      if (!_isActiveUser(userId)) return;
+
+      _attachCachePersistenceListeners(
+        userId: userId,
+        userDataProvider: userDataProvider,
+        locationListManager: locationListManager,
+      );
+
+      final hasCachedBaseData =
+          hydration.profileHydrated && hydration.savedLocationsHydrated;
+      final refresh = _refreshAuthenticatedData(
+        userId: userId,
+        userDataProvider: userDataProvider,
+        locationListManager: locationListManager,
+        cacheCoordinator: cacheCoordinator,
+      );
+
+      if (hasCachedBaseData) {
+        _hasInitializedData = true;
         setState(() {
           _isInitializing = false;
+          _legalConsentCheckedUserId = userId;
+          _hasAcceptedLegalConsent = hydration.hasCurrentConsent;
         });
+        unawaited(refresh);
+        return;
       }
+
+      await refresh;
+      if (!_isActiveUser(userId)) return;
+
+      _hasInitializedData = true;
+      setState(() {
+        _isInitializing = false;
+      });
     } else if (!supabaseProvider.isAuthenticated) {
       // Reset flags when user logs out
       _hasInitializedData = false;
@@ -175,6 +245,119 @@ class _AuthHandlerState extends State<AuthHandler> {
       _legalConsentCheckedUserId = null;
       _hasAcceptedLegalConsent = null;
     }
+  }
+
+  Future<void> _refreshAuthenticatedData({
+    required String userId,
+    required UserDataProvider userDataProvider,
+    required LocationListManager locationListManager,
+    required StartupCacheCoordinator cacheCoordinator,
+  }) async {
+    if (!_isActiveUser(userId)) return;
+    cacheCoordinator.markRefreshStarted();
+
+    final supabaseProvider = context.read<SupabaseService>();
+    final cachedProfile = supabaseProvider.cachedUserProfile;
+    if (cachedProfile != null) {
+      supabaseProvider.clearCachedUserProfile();
+    }
+
+    final profileRefresh = userDataProvider.setUserIdAndFetchData(
+      userId,
+      cachedProfile: cachedProfile,
+    );
+    final savedLocationsRefresh =
+        locationListManager.fetchSavedLocations(force: true);
+    final consentRefresh = supabaseProvider.users.getLegalConsentStatus(userId);
+
+    final results = await Future.wait<dynamic>([
+      profileRefresh,
+      savedLocationsRefresh,
+      consentRefresh,
+    ]);
+    if (!_isActiveUser(userId)) return;
+
+    final serverConsent = results[2] as bool?;
+    setState(() {
+      _legalConsentCheckedUserId = userId;
+      if (serverConsent != null) {
+        _hasAcceptedLegalConsent = serverConsent;
+      } else {
+        _hasAcceptedLegalConsent ??= false;
+      }
+    });
+
+    if (serverConsent == true) {
+      cacheCoordinator.markConsentAccepted(
+        userId: userId,
+        profile: userDataProvider.supabaseUserData,
+        savedLocations: locationListManager.savedLocations.keys.toList(),
+      );
+    } else if (serverConsent == false) {
+      cacheCoordinator.clearConsentAcceptance(
+        userId: userId,
+        profile: userDataProvider.supabaseUserData,
+        savedLocations: locationListManager.savedLocations.keys.toList(),
+      );
+    }
+
+    final hadFailure = userDataProvider.error != null ||
+        locationListManager.isSavedDataStale ||
+        serverConsent == null;
+    cacheCoordinator.markRefreshCompleted(hadFailure: hadFailure);
+    _scheduleCurrentSnapshotWrite();
+  }
+
+  bool _isActiveUser(String userId) {
+    if (!mounted) return false;
+    final supabaseProvider = context.read<SupabaseService>();
+    return supabaseProvider.isAuthenticated &&
+        supabaseProvider.hasValidSession &&
+        supabaseProvider.users.currentUser?.id == userId;
+  }
+
+  void _attachCachePersistenceListeners({
+    required String userId,
+    required UserDataProvider userDataProvider,
+    required LocationListManager locationListManager,
+  }) {
+    if (_observedCacheUserId == userId &&
+        identical(_observedUserDataProvider, userDataProvider) &&
+        identical(_observedLocationListManager, locationListManager)) {
+      return;
+    }
+    _detachCachePersistenceListeners();
+    _observedCacheUserId = userId;
+    _observedUserDataProvider = userDataProvider;
+    _observedLocationListManager = locationListManager;
+    userDataProvider.addListener(_scheduleCurrentSnapshotWrite);
+    locationListManager.addListener(_scheduleCurrentSnapshotWrite);
+    _scheduleCurrentSnapshotWrite();
+  }
+
+  void _detachCachePersistenceListeners() {
+    _observedUserDataProvider?.removeListener(_scheduleCurrentSnapshotWrite);
+    _observedLocationListManager?.removeListener(_scheduleCurrentSnapshotWrite);
+    _observedCacheUserId = null;
+    _observedUserDataProvider = null;
+    _observedLocationListManager = null;
+  }
+
+  void _scheduleCurrentSnapshotWrite() {
+    if (!mounted) return;
+    final userId = _observedCacheUserId;
+    final userDataProvider = _observedUserDataProvider;
+    final locationListManager = _observedLocationListManager;
+    if (userId == null ||
+        userDataProvider == null ||
+        locationListManager == null) {
+      return;
+    }
+    context.read<StartupCacheCoordinator>().scheduleWrite(
+          userId: userId,
+          profile: userDataProvider.supabaseUserData,
+          savedLocations: locationListManager.savedLocations.keys.toList(),
+        );
   }
 
   void _scheduleLegalConsentCheck() {
@@ -199,8 +382,9 @@ class _AuthHandlerState extends State<AuthHandler> {
       _isCheckingLegalConsent = true;
     });
 
-    final hasAccepted =
-        await supabaseProvider.users.hasAcceptedLegalConsent(currentUser.id);
+    final serverConsent =
+        await supabaseProvider.users.getLegalConsentStatus(currentUser.id);
+    final hasAccepted = serverConsent ?? false;
 
     if (!mounted) {
       return;
@@ -211,6 +395,23 @@ class _AuthHandlerState extends State<AuthHandler> {
       _legalConsentCheckedUserId = currentUser.id;
       _hasAcceptedLegalConsent = hasAccepted;
     });
+
+    final userDataProvider = context.read<UserDataProvider>();
+    final locationListManager = context.read<LocationListManager>();
+    final cacheCoordinator = context.read<StartupCacheCoordinator>();
+    if (hasAccepted) {
+      cacheCoordinator.markConsentAccepted(
+        userId: currentUser.id,
+        profile: userDataProvider.supabaseUserData,
+        savedLocations: locationListManager.savedLocations.keys.toList(),
+      );
+    } else if (serverConsent == false) {
+      cacheCoordinator.clearConsentAcceptance(
+        userId: currentUser.id,
+        profile: userDataProvider.supabaseUserData,
+        savedLocations: locationListManager.savedLocations.keys.toList(),
+      );
+    }
   }
 
   Future<void> _acceptLegalConsent() async {
@@ -231,6 +432,14 @@ class _AuthHandlerState extends State<AuthHandler> {
       _legalConsentCheckedUserId = currentUser.id;
       _hasAcceptedLegalConsent = true;
     });
+
+    final userDataProvider = context.read<UserDataProvider>();
+    final locationListManager = context.read<LocationListManager>();
+    context.read<StartupCacheCoordinator>().markConsentAccepted(
+          userId: currentUser.id,
+          profile: userDataProvider.supabaseUserData,
+          savedLocations: locationListManager.savedLocations.keys.toList(),
+        );
   }
 
   void _scheduleWizardCompletionRoute() {
@@ -282,6 +491,8 @@ class _AuthHandlerState extends State<AuthHandler> {
     final currentUserId = supabaseProvider.users.currentUser?.id;
     final needsLegalConsentRefresh = supabaseProvider.isAuthenticated &&
         supabaseProvider.hasValidSession &&
+        _hasInitializedData &&
+        !_isInitializing &&
         currentUserId != null &&
         _legalConsentCheckedUserId != currentUserId &&
         !_isCheckingLegalConsent;
@@ -302,48 +513,37 @@ class _AuthHandlerState extends State<AuthHandler> {
           return const LaunchSplashBody();
         }
 
-        if (supabaseProvider.isAuthenticated &&
-            supabaseProvider.hasValidSession &&
-            !_hasInitializedData) {
-          return const LaunchSplashBody();
-        }
-
-        if (_isCheckingLegalConsent ||
-            (supabaseProvider.isAuthenticated &&
-                supabaseProvider.hasValidSession &&
-                currentUserId != null &&
-                _legalConsentCheckedUserId != currentUserId)) {
-          return const LaunchSplashBody();
-        }
-
         // Check Supabase authentication and session validity
         if (supabaseProvider.isAuthenticated &&
             supabaseProvider.hasValidSession) {
-          // Show loading while initializing user data
           final userDataProvider =
-              Provider.of<UserDataProvider>(context, listen: false);
-          if (_isInitializing ||
-              (userDataProvider.isLoading &&
-                  userDataProvider.supabaseUserData == null)) {
-            return const LaunchSplashBody();
-          }
-
-          // Keep the launch splash visible until saved locations are loaded.
+              Provider.of<UserDataProvider>(context, listen: true);
           final locationListManager =
               Provider.of<LocationListManager>(context, listen: true);
-          if (locationListManager.isLoadingSaved ||
-              !locationListManager.hasLoadedSavedLocations) {
+
+          if (!_hasInitializedData ||
+              _isCheckingLegalConsent ||
+              currentUserId == null ||
+              _legalConsentCheckedUserId != currentUserId) {
             return const LaunchSplashBody();
           }
 
-          // User is logged in with valid session
-          log("AuthHandler: User logged in with valid session, showing MainScreen");
-
-          if (_hasAcceptedLegalConsent == false) {
+          final startupSurface = resolveAuthenticatedStartupSurface(
+            hasValidSession: supabaseProvider.hasValidSession,
+            hasProfile: userDataProvider.supabaseUserData != null,
+            hasSavedLocations: locationListManager.hasLoadedSavedLocations,
+            hasCurrentConsent: _hasAcceptedLegalConsent == true,
+          );
+          if (startupSurface == AuthenticatedStartupSurface.splash) {
+            return const LaunchSplashBody();
+          }
+          if (startupSurface == AuthenticatedStartupSurface.legalConsent) {
             return LegalConsentGatePage(
               onAccept: _acceptLegalConsent,
             );
           }
+
+          log("AuthHandler: User logged in with valid session, showing MainScreen");
 
           final userProfile = userDataProvider.supabaseUserData;
           final shouldPresentWizard = userProfile != null &&
@@ -365,7 +565,9 @@ class _AuthHandlerState extends State<AuthHandler> {
           }
 
           // Show MainScreen - wizard completion handled via popover
-          return const MainScreen();
+          return const StartupCacheStatusBanner(
+            child: MainScreen(),
+          );
         } else {
           // Not authenticated or session invalid - show welcome page
           log("AuthHandler: User not authenticated or session invalid, showing welcome page");

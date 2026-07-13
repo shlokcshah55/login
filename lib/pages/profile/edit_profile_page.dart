@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../models/users.dart';
 import '../../providers/location_list_provider.dart';
 import '../../providers/user_data_provider.dart';
+import '../../services/startup_cache/startup_cache_coordinator.dart';
 import '../../supabase/service.dart';
 import '../auth_handler.dart';
 import 'user_list_page.dart';
@@ -224,6 +225,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
     final supabase = context.read<SupabaseService>();
     final userData = context.read<UserDataProvider>();
     final locationList = context.read<LocationListManager>();
+    final startupCache = context.read<StartupCacheCoordinator>();
+    final deletingUserId = supabase.users.currentUser?.id;
 
     setState(() {
       _deleting = true;
@@ -232,6 +235,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
     try {
       await supabase.deleteMyAccount();
+
+      if (deletingUserId != null) {
+        await startupCache.clearUser(deletingUserId);
+      }
 
       if (!mounted) return;
 

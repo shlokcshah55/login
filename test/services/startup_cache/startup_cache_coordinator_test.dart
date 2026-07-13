@@ -201,6 +201,34 @@ void main() {
     expect(store.writes.single.acceptedConsentVersion, 'v1');
   });
 
+  test('clearing consent acceptance removes the cached policy version',
+      () async {
+    final store = _FakeStartupSnapshotStore(
+      _hit(_snapshot(userId: 'user-1')),
+    );
+    final coordinator = StartupCacheCoordinator(
+      store: store,
+      requiredConsentVersion: 'v1',
+      writeDebounce: Duration.zero,
+    );
+    final userProvider = UserDataProvider();
+    final locationManager = _locationManager();
+    await coordinator.hydrate(
+      userId: 'user-1',
+      userDataProvider: userProvider,
+      locationListManager: locationManager,
+    );
+
+    coordinator.clearConsentAcceptance(
+      userId: 'user-1',
+      profile: userProvider.supabaseUserData,
+      savedLocations: locationManager.savedLocations.keys.toList(),
+    );
+    await pumpEventQueue();
+
+    expect(store.writes.single.acceptedConsentVersion, isNull);
+  });
+
   test('refresh status exposes stale cached data only after failure', () async {
     final coordinator = StartupCacheCoordinator(
       store: _FakeStartupSnapshotStore(_hit(_snapshot(userId: 'user-1'))),

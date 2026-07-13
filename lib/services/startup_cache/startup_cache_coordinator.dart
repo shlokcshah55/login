@@ -146,6 +146,20 @@ class StartupCacheCoordinator extends ChangeNotifier {
     );
   }
 
+  void clearConsentAcceptance({
+    required String userId,
+    required UserModel? profile,
+    required List<LocationModel> savedLocations,
+  }) {
+    if (!enabled || _activeUserId != userId) return;
+    _acceptedConsentVersion = null;
+    scheduleWrite(
+      userId: userId,
+      profile: profile,
+      savedLocations: savedLocations,
+    );
+  }
+
   void markRefreshStarted() {
     _setRefreshStatus(StartupCacheRefreshStatus.refreshing);
   }

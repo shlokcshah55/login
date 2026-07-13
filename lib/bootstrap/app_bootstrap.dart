@@ -9,6 +9,8 @@ import 'package:login/services/analytics_service.dart';
 import 'package:login/services/fcm_service.dart';
 import 'package:login/services/google_place_service.dart';
 import 'package:login/services/location_service.dart';
+import 'package:login/services/startup_cache/startup_cache_coordinator.dart';
+import 'package:login/services/startup_cache/startup_snapshot_store.dart';
 import 'package:login/supabase/service.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 import 'package:package_info_plus/package_info_plus.dart';
@@ -124,5 +126,8 @@ Future<AppDependencies> bootstrap({
   return AppDependencies(
     supabaseService: supabaseService,
     googlePlacesService: googlePlacesService,
+    startupCacheCoordinator: StartupCacheCoordinator(
+      store: JsonStartupSnapshotStore(),
+    ),
   );
 }

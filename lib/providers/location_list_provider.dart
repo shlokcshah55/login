@@ -1050,6 +1050,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       print('[fetchSavedLocations] ERROR: $e\n$st');
       // Still mark as loaded so we don't retry in an infinite loop
       _savedLocationsLoaded = true;
+      _isSavedDataStale = true;
     } finally {
       stopwatch.stop();
       _isLoadingSaved = false;

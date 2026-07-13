@@ -9,6 +9,7 @@ import 'package:login/providers/navigation_provider.dart';
 import 'package:login/providers/bubble_mode_provider.dart';
 import 'package:login/providers/shortlist_provider.dart';
 import 'package:login/providers/social_review_provider.dart';
+import 'package:login/services/startup_cache/startup_cache_coordinator.dart';
 import 'package:provider/provider.dart';
 
 class AppProviders extends StatelessWidget {
@@ -26,6 +27,9 @@ class AppProviders extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: dependencies.supabaseService),
+        ChangeNotifierProvider<StartupCacheCoordinator>.value(
+          value: dependencies.startupCacheCoordinator,
+        ),
         ChangeNotifierProvider(create: (_) => UserDataProvider()),
         ChangeNotifierProvider(create: (_) => MapStateProvider()),
         ChangeNotifierProxyProvider<MapStateProvider, LocationListManager>(

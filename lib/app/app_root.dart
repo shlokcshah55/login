@@ -11,11 +11,13 @@ import 'package:login/pages/profile/profile_page.dart';
 import 'package:login/pages/signup_wizard/wizard_completion_page.dart';
 import 'package:login/pages/auth_handler.dart';
 import 'package:login/services/analytics_service.dart';
+import 'package:login/services/startup_cache/startup_cache_coordinator.dart';
 import 'package:login/supabase/supabase_client.dart';
 import 'package:login/themes/pinit_theme.dart';
 import 'package:login/widgets/keyboard_dismiss_drag_region.dart';
 import 'package:login/widgets/profile/notifications_popover.dart';
 import 'package:login/widgets/social_share_signal_host.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AppRoot extends StatelessWidget {
@@ -46,18 +48,28 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   static const platform = MethodChannel('com.example.srishlok.pinit/share');
   final AnalyticsService _analyticsService = AnalyticsService();
   StreamSubscription<AuthState>? _authSubscription;
+  late final StartupCacheCoordinator _startupCacheCoordinator;
+  String? _lastAuthenticatedUserId;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _startupCacheCoordinator = context.read<StartupCacheCoordinator>();
 
-    _analyticsService.setUser(SupabaseClientManager().currentUser?.id);
+    _lastAuthenticatedUserId = SupabaseClientManager().currentUser?.id;
+    _analyticsService.setUser(_lastAuthenticatedUserId);
     _analyticsService.startSession(reason: 'app_launch');
 
     _authSubscription =
         SupabaseClientManager().client.auth.onAuthStateChange.listen((data) {
       final session = data.session;
+      final nextUserId = session?.user.id;
+      final previousUserId = _lastAuthenticatedUserId;
+      if (previousUserId != null && previousUserId != nextUserId) {
+        unawaited(_startupCacheCoordinator.clearUser(previousUserId));
+      }
+      _lastAuthenticatedUserId = nextUserId;
       if (session != null) {
         _analyticsService.setUser(session.user.id);
         _saveUserIdToAppGroup();

@@ -1128,6 +1128,12 @@ class AuthHelper {
   }
 
   Future<bool> hasAcceptedLegalConsent(String userId) async {
+    return await getLegalConsentStatus(userId) ?? false;
+  }
+
+  /// Returns null when the server could not be reached or the response could
+  /// not be decoded, so cached consent is not mistaken for a server rejection.
+  Future<bool?> getLegalConsentStatus(String userId) async {
     try {
       final response = await _client
           .from(SupabaseConstants.tableUsers)
@@ -1140,7 +1146,7 @@ class AuthHelper {
       if (kDebugMode) {
         print('Error checking legal consent: $e');
       }
-      return false;
+      return null;
     }
   }
 
