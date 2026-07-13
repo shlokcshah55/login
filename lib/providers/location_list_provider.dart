@@ -23,6 +23,12 @@ import 'package:login/services/fcm_service.dart';
 // Enum to represent the different types of location lists
 enum LocationListType { saved, recommended, search, bubble, bubbleSaved }
 
+typedef SavedLocationMarkerBuilder = Future<MapMarkerData?> Function(
+  LocationModel location,
+  bool shouldShowName,
+);
+typedef SavedLocationsLoader = Future<List<LocationModel>> Function();
+
 class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
   static const String noRecommendationsInAreaMessage =
       'No recommendations found in this area';
@@ -82,16 +88,27 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
   // Flags to prevent duplicate data fetches
   bool _isLoadingSaved = false;
   bool _savedLocationsLoaded = false;
+  bool _isSavedDataStale = false;
+  bool _isRebuildingCachedMarkers = false;
   bool _isSubscribed = false;
   StreamSubscription<int>? _locationSavedSubscription;
   bool _isLoadingPopular = false;
   bool _isLoadingHiddenGems = false;
   Set<int> _beenToLocationIds = <int>{};
+  final bool _startBackgroundUserServices;
+  final SavedLocationMarkerBuilder? _savedMarkerBuilder;
+  final SavedLocationsLoader? _savedLocationsLoader;
 
   LocationListManager(
     this._googlePlacesService, {
     RecommendationsApi? recommendationsApi,
-  }) : _recommendationsApi = recommendationsApi ?? RecommendationsApi();
+    bool startBackgroundUserServices = true,
+    SavedLocationMarkerBuilder? savedMarkerBuilder,
+    SavedLocationsLoader? savedLocationsLoader,
+  })  : _recommendationsApi = recommendationsApi ?? RecommendationsApi(),
+        _startBackgroundUserServices = startBackgroundUserServices,
+        _savedMarkerBuilder = savedMarkerBuilder,
+        _savedLocationsLoader = savedLocationsLoader;
 
   GooglePlacesService get googlePlacesService => _googlePlacesService;
 
@@ -142,6 +159,8 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       _availabilityFilter != AvailabilityFilter.any;
   bool get isLoadingSaved => _isLoadingSaved;
   bool get hasLoadedSavedLocations => _savedLocationsLoaded;
+  bool get isSavedDataStale => _isSavedDataStale;
+  bool get isRebuildingCachedMarkers => _isRebuildingCachedMarkers;
   Set<int> get beenToLocationIds => Set.unmodifiable(_beenToLocationIds);
 
   // Device location getters - delegate to LocationService
@@ -249,6 +268,8 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
 
     _savedLocationsLoaded = false;
     _isLoadingSaved = false;
+    _isSavedDataStale = false;
+    _isRebuildingCachedMarkers = false;
     _isLoadingPopular = false;
     _isLoadingHiddenGems = false;
     _beenToLocationIds = <int>{};
@@ -285,7 +306,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
   }
 
   // Method to update the user ID when the user logs in
-  void setUserId(String? userId) {
+  void setUserId(String? userId, {bool fetchSavedLocations = true}) {
     // Prevent redundant calls if userId hasn't changed
     if (_userId == userId) {
       print('UserId unchanged, skipping initialization');
@@ -296,7 +317,9 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
 
     // Unsubscribe from previous realtime channel
     print('Unsubscribing from realtime updates');
-    _supabaseService.locations.unsubscribeFromUserLocationActions();
+    if (_startBackgroundUserServices) {
+      _supabaseService.locations.unsubscribeFromUserLocationActions();
+    }
     _isSubscribed = false;
     _resetUserScopedState(stopLocationTracking: userId == null);
     notifyListeners();
@@ -308,10 +331,11 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       WidgetsBinding.instance.removeObserver(this);
       return;
     } else {
+      if (!_startBackgroundUserServices) return;
       unawaited(_proximityNotificationService.initializeForUser(_userId!));
 
       // Fetch initial data ONCE when user logs in
-      fetchSavedLocations();
+      if (fetchSavedLocations) this.fetchSavedLocations();
       fetchPopularLocations();
       fetchHiddenGems();
       unawaited(refreshBeenToLocationIds());
@@ -843,8 +867,85 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
     notifyListeners();
   }
 
+  void hydrateCachedSavedLocations(List<LocationModel> locations) {
+    _allSavedLocations = List<LocationModel>.of(locations);
+    _savedLocations = <LocationModel, MapMarkerData>{
+      for (final location in locations)
+        location: MapMarkerData(
+          id: location.locationId.toString(),
+          position: LatLng(location.lat ?? 0, location.lng ?? 0),
+          imageBytes: const <int>[],
+        ),
+    };
+    _savedLocationsLoaded = true;
+    _isSavedDataStale = true;
+    _isRebuildingCachedMarkers = locations.isNotEmpty;
+    if (_currentListType == LocationListType.saved) {
+      _currentItems = Map<LocationModel, MapMarkerData>.of(_savedLocations);
+    }
+    notifyListeners();
+    if (locations.isNotEmpty) {
+      unawaited(_rebuildCachedSavedMarkers(locations));
+    }
+  }
+
+  Future<void> _rebuildCachedSavedMarkers(
+    List<LocationModel> locations,
+  ) async {
+    final requestUserId = _userId;
+    final expectedIds =
+        locations.map((location) => location.locationId).toSet();
+    try {
+      final selectedForNames = _selectLocationsForNameDisplay(
+        _savedLocations,
+        viewportBounds: _currentViewportBounds,
+        zoom: _currentZoom,
+      );
+      final markers = await Future.wait(
+        locations.map((location) async {
+          final shouldShowName = selectedForNames.contains(location.locationId);
+          final marker =
+              await _buildSavedMarker(location, shouldShowName: shouldShowName);
+          return MapEntry(
+            location,
+            marker ?? _savedLocations[location]!,
+          );
+        }),
+      );
+
+      final currentIds =
+          _savedLocations.keys.map((location) => location.locationId).toSet();
+      if (_userId != requestUserId || !setEquals(currentIds, expectedIds)) {
+        return;
+      }
+      _savedLocations = Map<LocationModel, MapMarkerData>.fromEntries(markers);
+      if (_currentListType == LocationListType.saved) {
+        _currentItems = Map<LocationModel, MapMarkerData>.of(_savedLocations);
+      }
+    } catch (error) {
+      debugPrint('Cached marker rebuild failed: $error');
+    } finally {
+      if (_userId == requestUserId) {
+        _isRebuildingCachedMarkers = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<MapMarkerData?> _buildSavedMarker(
+    LocationModel location, {
+    required bool shouldShowName,
+  }) {
+    final builder = _savedMarkerBuilder;
+    if (builder != null) return builder(location, shouldShowName);
+    return location.setPreference(LocationPreference.saved).toMarker(
+          _devicePixelRatio,
+          shouldShowName: shouldShowName,
+        );
+  }
+
   /// Fetches saved locations from Supabase and falls back to Firebase if needed
-  Future<void> fetchSavedLocations() async {
+  Future<void> fetchSavedLocations({bool force = false}) async {
     final requestUserId = _userId;
     if (requestUserId == null) {
       print("Cannot fetch saved locations: userId is null.");
@@ -858,7 +959,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
     }
 
     // Already completed a successful load — don't re-fetch
-    if (_savedLocationsLoaded) {
+    if (_savedLocationsLoaded && !force) {
       print(
           '[fetchSavedLocations] Already loaded (${_savedLocations.length} items), skipping');
       return;
@@ -870,8 +971,10 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
     final stopwatch = Stopwatch()..start();
 
     try {
-      List<LocationModel> supabaseSavedLocations =
-          await _supabaseService.locations.getSavedLocations();
+      final loader = _savedLocationsLoader;
+      final supabaseSavedLocations = loader == null
+          ? await _supabaseService.locations.getSavedLocations()
+          : await loader();
 
       if (_userId != requestUserId) {
         print('[fetchSavedLocations] Discarding stale result for user '
@@ -884,6 +987,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
 
       // Always mark as loaded — even if empty (user simply has no saves yet)
       _savedLocationsLoaded = true;
+      _isSavedDataStale = false;
       _allSavedLocations = supabaseSavedLocations;
       _savedLocations = {};
 
@@ -907,9 +1011,10 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
           supabaseSavedLocations.map((location) async {
             final shouldShowName =
                 selectedForNames.contains(location.locationId);
-            final marker = await location
-                .setPreference(LocationPreference.saved)
-                .toMarker(_devicePixelRatio, shouldShowName: shouldShowName);
+            final marker = await _buildSavedMarker(
+              location,
+              shouldShowName: shouldShowName,
+            );
             return MapEntry(location, marker!);
           }),
         );
@@ -936,8 +1041,10 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       if (_currentListType == LocationListType.saved) {
         _currentItems = _savedLocations;
       }
-      await _proximityNotificationService
-          .syncSavedLocations(_savedLocations.keys);
+      if (_startBackgroundUserServices) {
+        await _proximityNotificationService
+            .syncSavedLocations(_savedLocations.keys);
+      }
       notifyListeners();
     } catch (e, st) {
       print('[fetchSavedLocations] ERROR: $e\n$st');
@@ -2552,6 +2659,6 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       notifyListeners();
     }
 
-    await fetchSavedLocations();
+    await fetchSavedLocations(force: true);
   }
 }

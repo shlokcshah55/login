@@ -15,6 +15,7 @@ class UserDataProvider with ChangeNotifier {
   Map<String, dynamic>? _userData;
   UserModel? _supabaseUserData;
   bool _isLoading = false;
+  bool _isStale = false;
   String? _error;
 
   // Getters
@@ -22,6 +23,7 @@ class UserDataProvider with ChangeNotifier {
   Map<String, dynamic>? get userData => _userData;
   UserModel? get supabaseUserData => _supabaseUserData;
   bool get isLoading => _isLoading;
+  bool get isStale => _isStale;
   String? get error => _error;
   bool get isLoggedIn =>
       (_userId != null && _userData != null) ||
@@ -37,6 +39,17 @@ class UserDataProvider with ChangeNotifier {
   /// Whether the user has any affinity data populated.
   bool get hasAffinityData => _supabaseUserData?.hasAffinityData ?? false;
 
+  void hydrateCachedProfile(String userId, UserModel profile) {
+    if (profile.supabaseId != null && profile.supabaseId != userId) return;
+    _userId = userId;
+    _supabaseUserData = profile;
+    _userData = _legacyUserData(profile);
+    _isLoading = false;
+    _isStale = true;
+    _error = null;
+    notifyListeners();
+  }
+
   /// Sets the user ID (typically after login) and fetches user data.
   /// If [cachedProfile] is provided, uses it instead of fetching from DB.
   Future<void> setUserIdAndFetchData(String userId,
@@ -50,16 +63,10 @@ class UserDataProvider with ChangeNotifier {
       // Use cached profile if available (from signIn response)
       if (cachedProfile != null) {
         _supabaseUserData = cachedProfile;
+        _isStale = false;
         log("UserDataProvider: Using cached profile data");
 
-        _userData = {
-          'name': cachedProfile.name,
-          'email': cachedProfile.email,
-          'uid': cachedProfile.supabaseId,
-          'profile_image_url': cachedProfile.profileImageUrl,
-          'bio': cachedProfile.bio,
-          SupabaseConstants.columnReferralCode: cachedProfile.referralCode,
-        };
+        _userData = _legacyUserData(cachedProfile);
 
         _isLoading = false;
         notifyListeners();
@@ -76,17 +83,11 @@ class UserDataProvider with ChangeNotifier {
             "UserDataProvider: getUserProfile returned: ${userModel != null ? 'UserModel(${userModel.email})' : 'null'}");
         if (userModel != null) {
           _supabaseUserData = userModel;
+          _isStale = false;
           print("UserDataProvider: Fetched Supabase data for user");
 
           // Also build a compatible map for backward compatibility
-          _userData = {
-            'name': userModel.name,
-            'email': userModel.email,
-            'uid': userModel.supabaseId,
-            'profile_image_url': userModel.profileImageUrl,
-            'bio': userModel.bio,
-            SupabaseConstants.columnReferralCode: userModel.referralCode,
-          };
+          _userData = _legacyUserData(userModel);
 
           // Success with Supabase, exit early
           _isLoading = false;
@@ -113,11 +114,23 @@ class UserDataProvider with ChangeNotifier {
     _userData = null;
     _supabaseUserData = null;
     _isLoading = false;
+    _isStale = false;
     _error = null;
     // No need to call signOut here, let the auth handler do that.
     // This provider just clears its own state.
     log("UserDataProvider: Cleared user data.");
     notifyListeners();
+  }
+
+  Map<String, dynamic> _legacyUserData(UserModel profile) {
+    return <String, dynamic>{
+      'name': profile.name,
+      'email': profile.email,
+      'uid': profile.supabaseId,
+      'profile_image_url': profile.profileImageUrl,
+      'bio': profile.bio,
+      SupabaseConstants.columnReferralCode: profile.referralCode,
+    };
   }
 
   /// Updates user profile data in Supabase
