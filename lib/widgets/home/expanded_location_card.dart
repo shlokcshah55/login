@@ -12,7 +12,7 @@ import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:login/services/analytics_service.dart';
-import 'package:login/services/recommendations_api.dart';
+import 'package:login/services/location_processing_trigger.dart';
 import 'package:login/supabase/helpers/location.dart';
 import 'package:login/supabase/helpers/location_reviews.dart';
 import 'package:login/supabase/helpers/video_insights_helper.dart';
@@ -57,12 +57,14 @@ class ExpandedLocationCard extends StatefulWidget {
     required this.onClose,
     this.resolveSharedVideoUrlOnOpen = true,
     this.socialReviewContext,
+    this.locationProcessingTrigger,
   });
 
   final LocationModel location;
   final VoidCallback onClose;
   final bool resolveSharedVideoUrlOnOpen;
   final SocialReviewContext? socialReviewContext;
+  final LocationProcessingTrigger? locationProcessingTrigger;
 
   @override
   State<ExpandedLocationCard> createState() => _ExpandedLocationCardState();
@@ -118,13 +120,15 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   // ── TikTok video insights (lazy-loaded) ──
   VideoInsight? _videoInsight;
   final VideoInsightsHelper _videoInsightsHelper = VideoInsightsHelper();
-  final RecommendationsApi _recommendationsApi = RecommendationsApi();
+  late final LocationProcessingTrigger _locationProcessingTrigger;
   String? _resolvedSharedVideoUrl;
   List<SocialVideoPost> _socialVideoPosts = const [];
 
   @override
   void initState() {
     super.initState();
+    _locationProcessingTrigger =
+        widget.locationProcessingTrigger ?? LocationProcessingTrigger();
     _analyticsService.trackFeature(
       'location_card_opened',
       featureName: 'location_card',
@@ -628,13 +632,8 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   // ─────────────────────────────────────────────────────────────
 
   Future<void> _requestLocationProcessing() async {
-    if (widget.location.locationId <= 0) return;
     try {
-      await _recommendationsApi.processLocation(
-        locationId: widget.location.locationId,
-        googlePlaceId: widget.location.googlePlaceId,
-        source: 'expanded-card-open',
-      );
+      await _locationProcessingTrigger.onExpanded(widget.location.locationId);
     } catch (e) {
       if (kDebugMode) {
         print('[ExpandedCard] Failed to enrich location: $e');
