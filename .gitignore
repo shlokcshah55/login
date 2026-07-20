@@ -116,3 +116,6 @@ ios/URLShareExtension/ShareViewController.swift
 ai/collections/venv
 ai/venv/
 api/send-notification/venv
+
+# Local isolated feature worktrees
+.worktrees/
