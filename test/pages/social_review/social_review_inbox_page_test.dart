@@ -5,50 +5,102 @@ import 'package:login/models/social_review_models.dart';
 import 'package:login/pages/social_review/social_review_inbox_page.dart';
 import 'package:login/pages/social_review/social_review_place_item.dart';
 import 'package:login/providers/social_review_provider.dart';
-import 'package:login/widgets/home/location_list_card.dart';
 import 'package:provider/provider.dart';
 
 void main() {
-  Future<SocialReviewProvider> providerWithPlaces() async {
-    final review = SocialPostReviewItem(
-      reviewId: 'review-1',
-      postId: 'post-1',
-      sharedUrl: 'https://www.tiktok.com/@food/video/1',
-      reviewStatus: 'pending',
-      canonicalUrl: 'https://www.tiktok.com/@food/video/1',
-      platform: 'tiktok',
-      creatorHandle: 'food',
-      title: 'Soho noodles',
-      postStatus: 'processed',
-      sharedAt: DateTime.utc(2026, 7, 11),
-      places: const [
-        SocialPostPlace(
-          id: 'saved-place',
-          name: 'Noodle Yard',
-          address: 'Soho, London',
-          locationId: 42,
-          confidenceTier: 'high',
-          confidenceScore: 0.93,
-        ),
-        SocialPostPlace(
-          id: 'uncertain-place',
-          name: 'Possible Cafe',
-          candidateArea: 'Shoreditch',
-          confidenceTier: 'low',
-          confidenceScore: 0.44,
-        ),
-      ],
-      placeActions: const {'saved-place': SocialPlaceAction.saved},
-      savedLocationIds: const {'saved-place': 42},
-    );
+  Future<SocialReviewProvider> providerWithPosts() async {
+    final now = DateTime.now().toUtc();
+    final reviews = [
+      SocialPostReviewItem(
+        reviewId: 'review-check',
+        postId: 'post-check',
+        sharedUrl: 'https://www.tiktok.com/@food/video/1',
+        reviewStatus: 'pending',
+        canonicalUrl: 'https://www.tiktok.com/@food/video/1',
+        platform: 'tiktok',
+        creatorHandle: 'foodwithmaya',
+        title: 'Late-night noodles in Soho',
+        caption: 'The chilli noodles were worth crossing London for.',
+        postStatus: 'processed',
+        vibes: const {'cosy': 0.92, 'late_night': 0.8},
+        postUpdatedAt: now,
+        sharedAt: now,
+        places: const [
+          SocialPostPlace(
+            id: 'possible-place',
+            name: 'Noodle Yard',
+            candidateName: 'Noodle Yard',
+            candidateArea: 'Soho',
+            address: '12 Greek Street, London',
+            locationId: 42,
+            confidenceTier: 'medium',
+            confidenceScore: 0.72,
+            extractedContext: {
+              'key_dishes': [
+                {'name': 'Chilli noodles'},
+              ],
+            },
+          ),
+        ],
+        placeActions: const {'possible-place': SocialPlaceAction.saved},
+        savedLocationIds: const {'possible-place': 42},
+      ),
+      SocialPostReviewItem(
+        reviewId: 'review-processing',
+        postId: 'post-processing',
+        sharedUrl: 'https://www.instagram.com/reel/processing',
+        reviewStatus: 'pending',
+        canonicalUrl: 'https://www.instagram.com/reel/processing',
+        platform: 'instagram',
+        creatorHandle: 'eastlondoneats',
+        title: 'A new East London opening',
+        postStatus: 'processing',
+        postUpdatedAt: now,
+        sharedAt: now,
+      ),
+      SocialPostReviewItem(
+        reviewId: 'review-resolved',
+        postId: 'post-resolved',
+        sharedUrl: 'https://www.instagram.com/reel/resolved',
+        reviewStatus: 'reviewed',
+        canonicalUrl: 'https://www.instagram.com/reel/resolved',
+        platform: 'instagram',
+        creatorHandle: 'brunchclub',
+        title: 'Sunday brunch at Lila',
+        postStatus: 'processed',
+        postUpdatedAt: now,
+        sharedAt: now,
+        places: const [
+          SocialPostPlace(
+            id: 'saved-place',
+            name: 'Lila',
+            locationId: 43,
+            confidenceTier: 'high',
+            confidenceScore: 0.96,
+          ),
+        ],
+        placeActions: const {'saved-place': SocialPlaceAction.saved},
+        savedLocationIds: const {'saved-place': 43},
+        userConfirmedPlaceIds: const {'saved-place'},
+      ),
+    ];
+
     final provider = SocialReviewProvider(
-      reviewLoader: () async => [review],
+      reviewLoader: () async => reviews,
       locationBatchLoader: (_) async => [
         LocationModel(
           locationId: 42,
           name: 'Noodle Yard',
           cuisine: 'Chinese',
           vicinity: 'Soho, London',
+          priceLevel: 2,
+          createdAt: DateTime.utc(2026, 1, 1),
+        ),
+        LocationModel(
+          locationId: 43,
+          name: 'Lila',
+          cuisine: 'Cafe',
+          vicinity: 'Hackney, London',
           createdAt: DateTime.utc(2026, 1, 1),
         ),
       ],
@@ -57,69 +109,88 @@ void main() {
     return provider;
   }
 
-  testWidgets('defaults to attention, filters saved rows, and searches places',
-      (tester) async {
-    final provider = await providerWithPlaces();
-    SocialReviewPlaceItem? opened;
+  testWidgets('renders one contextual card per shared post', (tester) async {
+    final provider = await providerWithPosts();
+    SocialPostReviewItem? opened;
 
     await tester.pumpWidget(
       ChangeNotifierProvider.value(
         value: provider,
         child: MaterialApp(
-          home: SocialReviewInboxPage(onOpenItem: (item) => opened = item),
+          home: SocialReviewInboxPage(onOpenPost: (item) => opened = item),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
     expect(find.text('Shared saves'), findsOneWidget);
-    expect(
-        find.widgetWithText(TextField, 'Search restaurants'), findsOneWidget);
-    expect(find.text('Needs checking'), findsOneWidget);
+    expect(find.text('Needs checking'), findsWidgets);
+    expect(find.text('Processing'), findsOneWidget);
     expect(find.text('Recently saved'), findsOneWidget);
-    expect(find.text('All'), findsOneWidget);
-    expect(find.text('Possible Cafe'), findsOneWidget);
-    expect(find.text('Noodle Yard'), findsNothing);
+    expect(find.text('@foodwithmaya'), findsOneWidget);
+    expect(
+      find.text('The chilli noodles were worth crossing London for.'),
+      findsOneWidget,
+    );
+    expect(find.text('Noodle Yard'), findsOneWidget);
+    expect(find.text('72% match'), findsOneWidget);
+    expect(find.text('Chinese'), findsOneWidget);
+    expect(find.text('Chilli noodles'), findsOneWidget);
+    expect(find.text('££'), findsOneWidget);
+    expect(find.text('Restaurant not identified'), findsNothing);
+
+    await tester.tap(find.text('Review match'));
+    expect(opened?.postId, 'post-check');
+  });
+
+  testWidgets('filters processing and resolved posts, then searches context',
+      (tester) async {
+    final provider = await providerWithPosts();
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: provider,
+        child: const MaterialApp(home: SocialReviewInboxPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Processing'));
+    await tester.pumpAndSettle();
+    expect(find.text('@eastlondoneats'), findsOneWidget);
+    expect(find.text('A new East London opening'), findsOneWidget);
 
     await tester.tap(find.text('Recently saved'));
     await tester.pumpAndSettle();
+    expect(find.text('@brunchclub'), findsOneWidget);
+    expect(find.text('Sunday brunch at Lila'), findsOneWidget);
 
-    expect(find.byType(LocationListCard), findsOneWidget);
-    expect(find.text('Noodle Yard'), findsOneWidget);
-
+    await tester.tap(find.text('All'));
+    await tester.pumpAndSettle();
     await tester.enterText(
-      find.widgetWithText(TextField, 'Search restaurants'),
-      'pizza',
+      find.widgetWithText(TextField, 'Search posts, creators or places'),
+      'chilli',
     );
     await tester.pump();
-    expect(find.text('No matching restaurants'), findsOneWidget);
-
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Search restaurants'),
-      'noodle',
-    );
-    await tester.pump();
-    await tester.tap(find.byType(LocationListCard));
-
-    expect(opened?.id, 'saved-place');
+    expect(find.text('@foodwithmaya'), findsOneWidget);
+    expect(find.text('@eastlondoneats'), findsNothing);
   });
 
-  testWidgets('explicit initial filter overrides attention-first default',
+  testWidgets('explicit filter still overrides the attention-first default',
       (tester) async {
-    final provider = await providerWithPlaces();
+    final provider = await providerWithPosts();
     await tester.pumpWidget(
       ChangeNotifierProvider.value(
         value: provider,
         child: const MaterialApp(
           home: SocialReviewInboxPage(
-            initialFilter: SocialReviewInboxFilter.recentlySaved,
+            initialFilter: SocialReviewInboxFilter.processing,
           ),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Noodle Yard'), findsOneWidget);
-    expect(find.text('Possible Cafe'), findsNothing);
+    expect(find.text('@eastlondoneats'), findsOneWidget);
+    expect(find.text('@foodwithmaya'), findsNothing);
   });
 }

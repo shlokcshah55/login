@@ -131,10 +131,9 @@ def _push_kwargs(user_id: str) -> dict:
 
 def _auto_save_places(post_id: str, user_id: str, platform: str, source_url: str) -> int:
     """
-    Save every high/medium-confidence place from this post to the user's Eat
-    List by default — a share should pay off even if the user never opens the
-    app to review it. Low-confidence candidates are left for the user to
-    resolve from the review screen. Returns the number saved.
+    Save only high-confidence catalogued places to the user's Eat List by
+    default. Medium/low candidates stay in the review inbox until the user
+    confirms or corrects them. Returns the number saved.
     """
     saved = 0
     for place in store.get_post_places(supabase, post_id):

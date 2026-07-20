@@ -24,14 +24,16 @@ class SocialReviewsHelper {
         .from('social_post_reviews')
         .select('id, social_post_id, shared_url, status, created_at, '
             'social_posts(canonical_url, platform, creator_handle, title, '
-            'status, vibes, sentiment, '
+            'caption, thumbnail_url, status, vibes, sentiment, evidence_flags, '
+            'error, updated_at, processed_at, '
             'social_post_places(id, name, address, google_place_id, '
             'location_id, candidate_name, candidate_area, confidence_score, '
             'confidence_tier, extracted_context, added_by))')
         .eq('user_id', user.id)
-        .inFilter('status', ['pending', 'later', 'reviewed']).order(
-            'created_at',
-            ascending: false);
+        .inFilter(
+      'status',
+      ['pending', 'later', 'reviewed', 'dismissed'],
+    ).order('created_at', ascending: false);
 
     final items = (rows as List)
         .whereType<Map<String, dynamic>>()
@@ -45,12 +47,15 @@ class SocialReviewsHelper {
 
     final actionRows = await _client
         .from('social_post_place_reviews')
-        .select('social_post_place_id, action, location_id')
+        .select(
+          'social_post_place_id, action, location_id, confirmed_by_user',
+        )
         .eq('user_id', user.id)
         .inFilter('social_post_place_id', placeIds);
 
     final actions = <String, SocialPlaceAction>{};
     final savedLocationIds = <String, int>{};
+    final userConfirmedPlaceIds = <String>{};
     for (final row in (actionRows as List).whereType<Map<String, dynamic>>()) {
       final action = socialPlaceActionFrom(row['action'] as String?);
       final placeId = row['social_post_place_id'] as String?;
@@ -60,6 +65,9 @@ class SocialReviewsHelper {
       final locationId = (row['location_id'] as num?)?.toInt();
       if (placeId != null && locationId != null) {
         savedLocationIds[placeId] = locationId;
+      }
+      if (placeId != null && row['confirmed_by_user'] == true) {
+        userConfirmedPlaceIds.add(placeId);
       }
     }
 
@@ -74,6 +82,10 @@ class SocialReviewsHelper {
                 for (final place in item.places)
                   if (savedLocationIds.containsKey(place.id))
                     place.id: savedLocationIds[place.id]!,
+              },
+              userConfirmedPlaceIds: {
+                for (final place in item.places)
+                  if (userConfirmedPlaceIds.contains(place.id)) place.id,
               },
             ))
         .toList();
@@ -95,6 +107,7 @@ class SocialReviewsHelper {
     String? correctedGooglePlaceId,
     int? correctedLocationId,
     int? savedLocationId,
+    bool confirmedByUser = true,
   }) async {
     final user = SupabaseClientManager().currentUser;
     if (user == null) throw Exception('User not authenticated');
@@ -107,6 +120,7 @@ class SocialReviewsHelper {
         'corrected_google_place_id': correctedGooglePlaceId,
         'corrected_location_id': correctedLocationId,
         'location_id': savedLocationId,
+        'confirmed_by_user': confirmedByUser,
       },
       onConflict: 'user_id,social_post_place_id',
     );

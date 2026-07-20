@@ -30,6 +30,14 @@ String socialPlaceActionValue(SocialPlaceAction action) {
   }
 }
 
+enum SocialPostWorkflowState {
+  processing,
+  needsChecking,
+  failed,
+  resolved,
+  dismissed,
+}
+
 /// One place candidate extracted from (or manually added to) a social post.
 class SocialPostPlace {
   final String id;
@@ -103,9 +111,15 @@ class SocialPostReviewItem {
   final String platform; // tiktok | instagram
   final String? creatorHandle;
   final String? title;
+  final String? caption;
+  final String? thumbnailUrl;
   final String postStatus; // processing | processed | failed
   final Map<String, dynamic> vibes;
   final String? sentiment;
+  final Map<String, dynamic> evidenceFlags;
+  final String? processingError;
+  final DateTime? postUpdatedAt;
+  final DateTime? processedAt;
   final DateTime sharedAt;
   final List<SocialPostPlace> places;
 
@@ -118,6 +132,10 @@ class SocialPostReviewItem {
   /// once a place has been corrected to a different venue.
   final Map<String, int> savedLocationIds;
 
+  /// Candidate ids for which the user explicitly made a decision. Processor
+  /// auto-saves remain false so medium-confidence matches still need review.
+  final Set<String> userConfirmedPlaceIds;
+
   const SocialPostReviewItem({
     required this.reviewId,
     required this.postId,
@@ -127,13 +145,20 @@ class SocialPostReviewItem {
     required this.platform,
     this.creatorHandle,
     this.title,
+    this.caption,
+    this.thumbnailUrl,
     required this.postStatus,
     this.vibes = const {},
     this.sentiment,
+    this.evidenceFlags = const {},
+    this.processingError,
+    this.postUpdatedAt,
+    this.processedAt,
     required this.sharedAt,
     this.places = const [],
     this.placeActions = const {},
     this.savedLocationIds = const {},
+    this.userConfirmedPlaceIds = const {},
   });
 
   factory SocialPostReviewItem.fromJson(Map<String, dynamic> json) {
@@ -146,8 +171,8 @@ class SocialPostReviewItem {
             .toList()
         : <SocialPostPlace>[];
     // Highest-confidence candidates first; manual additions last.
-    places.sort((a, b) =>
-        (b.confidenceScore ?? 0).compareTo(a.confidenceScore ?? 0));
+    places.sort(
+        (a, b) => (b.confidenceScore ?? 0).compareTo(a.confidenceScore ?? 0));
 
     return SocialPostReviewItem(
       reviewId: json['id'] as String,
@@ -158,9 +183,16 @@ class SocialPostReviewItem {
       platform: (post['platform'] as String?) ?? 'tiktok',
       creatorHandle: post['creator_handle'] as String?,
       title: post['title'] as String?,
+      caption: post['caption'] as String?,
+      thumbnailUrl: post['thumbnail_url'] as String?,
       postStatus: (post['status'] as String?) ?? 'processing',
       vibes: (post['vibes'] as Map<String, dynamic>?) ?? const {},
       sentiment: post['sentiment'] as String?,
+      evidenceFlags:
+          (post['evidence_flags'] as Map<String, dynamic>?) ?? const {},
+      processingError: post['error'] as String?,
+      postUpdatedAt: DateTime.tryParse(post['updated_at']?.toString() ?? ''),
+      processedAt: DateTime.tryParse(post['processed_at']?.toString() ?? ''),
       sharedAt: DateTime.tryParse(json['created_at']?.toString() ?? '') ??
           DateTime.now(),
       places: places,
@@ -171,6 +203,7 @@ class SocialPostReviewItem {
     String? reviewStatus,
     Map<String, SocialPlaceAction>? placeActions,
     Map<String, int>? savedLocationIds,
+    Set<String>? userConfirmedPlaceIds,
     List<SocialPostPlace>? places,
   }) {
     return SocialPostReviewItem(
@@ -182,19 +215,50 @@ class SocialPostReviewItem {
       platform: platform,
       creatorHandle: creatorHandle,
       title: title,
+      caption: caption,
+      thumbnailUrl: thumbnailUrl,
       postStatus: postStatus,
       vibes: vibes,
       sentiment: sentiment,
+      evidenceFlags: evidenceFlags,
+      processingError: processingError,
+      postUpdatedAt: postUpdatedAt,
+      processedAt: processedAt,
       sharedAt: sharedAt,
       places: places ?? this.places,
       placeActions: placeActions ?? this.placeActions,
       savedLocationIds: savedLocationIds ?? this.savedLocationIds,
+      userConfirmedPlaceIds:
+          userConfirmedPlaceIds ?? this.userConfirmedPlaceIds,
     );
   }
 
   bool get isProcessing => postStatus == 'processing';
   bool get isFailed => postStatus == 'failed';
   bool get hasPlaces => places.isNotEmpty;
+
+  SocialPostWorkflowState get workflowState =>
+      workflowStateAt(DateTime.now().toUtc());
+
+  SocialPostWorkflowState workflowStateAt(DateTime now) {
+    if (reviewStatus == 'dismissed') {
+      return SocialPostWorkflowState.dismissed;
+    }
+    if (postStatus == 'processing') {
+      final lastUpdate = postUpdatedAt ?? sharedAt;
+      if (now.toUtc().difference(lastUpdate.toUtc()) >
+          const Duration(minutes: 30)) {
+        return SocialPostWorkflowState.failed;
+      }
+      return SocialPostWorkflowState.processing;
+    }
+    if (postStatus == 'failed') return SocialPostWorkflowState.failed;
+    if (reviewStatus == 'reviewed') return SocialPostWorkflowState.resolved;
+    if (hasPlaces && pendingReviewPlaces.isEmpty) {
+      return SocialPostWorkflowState.resolved;
+    }
+    return SocialPostWorkflowState.needsChecking;
+  }
 
   /// The best URL to open the original post with.
   String get openUrl => canonicalUrl.isNotEmpty ? canonicalUrl : sharedUrl;
@@ -210,11 +274,26 @@ class SocialPostReviewItem {
   List<SocialPostPlace> get unreviewedPlaces =>
       places.where((p) => !placeActions.containsKey(p.id)).toList();
 
+  List<SocialPostPlace> get pendingReviewPlaces {
+    return places.where((place) {
+      if (userConfirmedPlaceIds.contains(place.id)) return false;
+      final action = placeActions[place.id];
+      if (action == SocialPlaceAction.corrected ||
+          action == SocialPlaceAction.manualAdded ||
+          action == SocialPlaceAction.discarded) {
+        return false;
+      }
+      final resolvedLocationId = savedLocationIds[place.id] ?? place.locationId;
+      final confidentlyAutoSaved = place.confidenceTier == 'high' &&
+          action == SocialPlaceAction.saved &&
+          resolvedLocationId != null;
+      return !confidentlyAutoSaved;
+    }).toList(growable: false);
+  }
+
   /// Top post-level vibes, strongest first, for the chips row.
   List<String> get topVibes {
-    final entries = vibes.entries
-        .where((e) => e.value is num)
-        .toList()
+    final entries = vibes.entries.where((e) => e.value is num).toList()
       ..sort((a, b) => (b.value as num).compareTo(a.value as num));
     return entries.take(4).map((e) => e.key.replaceAll('_', ' ')).toList();
   }

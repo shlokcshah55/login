@@ -10,8 +10,9 @@ Per-place save/discard/correct actions are written by the app directly
 (social_post_place_reviews + save_location_with_tags); this service only
 creates posts, candidates, and review rows.
 
-Never stores: raw OCR text, raw captions, raw comments, video files,
-              screenshot images, or audio.
+Stores only the public post caption/description and thumbnail URL needed to
+identify the share in the review UI. Never stores: raw OCR text, comments,
+video files, screenshot images, transcripts, or audio.
 """
 import logging
 from datetime import datetime, timezone

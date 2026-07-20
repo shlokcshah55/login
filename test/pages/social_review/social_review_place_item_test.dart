@@ -151,4 +151,176 @@ void main() {
       ['place-2'],
     );
   });
+
+  test('post projection keeps one row with candidate and location context', () {
+    final post = SocialReviewPostItem(
+      review: review(
+        places: const [
+          savedPlace,
+          SocialPostPlace(
+            id: 'place-2',
+            name: 'Second Noodle Bar',
+            locationId: 43,
+            confidenceTier: 'high',
+          ),
+        ],
+        actions: const {
+          'place-1': SocialPlaceAction.saved,
+          'place-2': SocialPlaceAction.saved,
+        },
+      ),
+      locationsById: {
+        42: LocationModel(
+          locationId: 42,
+          name: 'Noodle Yard',
+          cuisine: 'Chinese',
+          vicinity: 'Soho, London',
+          priceLevel: 2,
+          createdAt: DateTime.utc(2026, 1, 1),
+        ),
+      },
+    );
+
+    expect(post.id, 'review-1');
+    expect(post.review.places, hasLength(2));
+    expect(post.bestCandidate?.name, 'Noodle Yard');
+    expect(post.insightChips, containsAll(['Chinese', 'Chilli noodles', '££']));
+  });
+
+  test('post search includes caption, creator, candidates, dishes and cuisine',
+      () {
+    final source = SocialPostReviewItem(
+      reviewId: 'review-search',
+      postId: 'post-search',
+      sharedUrl: 'https://www.tiktok.com/video/search',
+      reviewStatus: 'pending',
+      canonicalUrl: 'https://www.tiktok.com/video/search',
+      platform: 'tiktok',
+      creatorHandle: 'pinitfood',
+      title: 'Best noodles in Soho',
+      caption: 'A cosy late-night bowl',
+      postStatus: 'processed',
+      sharedAt: DateTime.utc(2026, 7, 20),
+      places: const [savedPlace],
+      placeActions: const {'place-1': SocialPlaceAction.saved},
+    );
+    final post = SocialReviewPostItem(
+      review: source,
+      locationsById: {
+        42: LocationModel(
+          locationId: 42,
+          name: 'Noodle Yard',
+          cuisine: 'Chinese',
+          vicinity: 'Soho, London',
+          createdAt: DateTime.utc(2026, 1, 1),
+        ),
+      },
+    );
+
+    for (final query in [
+      'pinitfood',
+      'cosy',
+      'Noodle Yard',
+      'Greek Street',
+      'Chilli noodles',
+      'Chinese',
+    ]) {
+      expect(post.matchesQuery(query), isTrue, reason: query);
+    }
+    expect(post.matchesQuery('pizza'), isFalse);
+  });
+
+  test('post filters keep actionable, processing, resolved and all histories',
+      () {
+    final now = DateTime.now().toUtc();
+    SocialPostReviewItem withId(
+      String id, {
+      required String reviewStatus,
+      required String postStatus,
+      List<SocialPostPlace> places = const [],
+      Map<String, SocialPlaceAction> actions = const {},
+      Set<String> confirmed = const {},
+    }) {
+      return SocialPostReviewItem(
+        reviewId: id,
+        postId: 'post-$id',
+        sharedUrl: 'https://www.tiktok.com/video/$id',
+        reviewStatus: reviewStatus,
+        canonicalUrl: 'https://www.tiktok.com/video/$id',
+        platform: 'tiktok',
+        postStatus: postStatus,
+        postUpdatedAt: now,
+        sharedAt: now,
+        places: places,
+        placeActions: actions,
+        userConfirmedPlaceIds: confirmed,
+      );
+    }
+
+    final posts = [
+      SocialReviewPostItem(
+        review: withId(
+          'checking',
+          reviewStatus: 'pending',
+          postStatus: 'processed',
+        ),
+      ),
+      SocialReviewPostItem(
+        review: withId(
+          'processing',
+          reviewStatus: 'pending',
+          postStatus: 'processing',
+        ),
+      ),
+      SocialReviewPostItem(
+        review: withId(
+          'saved',
+          reviewStatus: 'reviewed',
+          postStatus: 'processed',
+          places: const [savedPlace],
+          actions: const {'place-1': SocialPlaceAction.saved},
+        ),
+      ),
+      SocialReviewPostItem(
+        review: withId(
+          'dismissed',
+          reviewStatus: 'dismissed',
+          postStatus: 'failed',
+        ),
+      ),
+    ];
+
+    expect(
+      visibleSocialReviewPosts(
+        posts,
+        filter: SocialReviewInboxFilter.needsChecking,
+        query: '',
+      ).map((post) => post.id),
+      ['checking'],
+    );
+    expect(
+      visibleSocialReviewPosts(
+        posts,
+        filter: SocialReviewInboxFilter.processing,
+        query: '',
+      ).map((post) => post.id),
+      ['processing'],
+    );
+    expect(
+      visibleSocialReviewPosts(
+        posts,
+        filter: SocialReviewInboxFilter.recentlySaved,
+        query: '',
+      ).map((post) => post.id),
+      ['saved'],
+    );
+    expect(
+      visibleSocialReviewPosts(
+        posts,
+        filter: SocialReviewInboxFilter.all,
+        query: '',
+      ),
+      hasLength(4),
+    );
+  });
 }

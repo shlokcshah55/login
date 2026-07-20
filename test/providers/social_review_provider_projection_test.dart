@@ -45,6 +45,7 @@ void main() {
     ]);
     expect(provider.placeItems, hasLength(2));
     expect(provider.placeItems.every((item) => item.location != null), isTrue);
+    expect(provider.locationsById[42]?.name, 'Noodle Yard');
   });
 
   test('reviewed history is visible but does not increase pending count',
@@ -122,6 +123,36 @@ void main() {
           confidenceTier: 'low',
         ),
       ],
+    );
+    final provider = SocialReviewProvider(
+      reviewLoader: () async => [uncertain],
+      locationBatchLoader: (_) async => const [],
+    );
+
+    await provider.refresh();
+
+    expect(provider.needsCheckingCount, 1);
+  });
+
+  test('medium processor save still counts as needing checking', () async {
+    final uncertain = SocialPostReviewItem(
+      reviewId: 'pending-medium',
+      postId: 'post-medium',
+      sharedUrl: 'https://www.tiktok.com/video/medium',
+      reviewStatus: 'pending',
+      canonicalUrl: 'https://www.tiktok.com/video/medium',
+      platform: 'tiktok',
+      postStatus: 'processed',
+      sharedAt: DateTime.utc(2026, 7, 11),
+      places: const [
+        SocialPostPlace(
+          id: 'possible-place',
+          name: 'Possible Cafe',
+          locationId: 44,
+          confidenceTier: 'medium',
+        ),
+      ],
+      placeActions: const {'possible-place': SocialPlaceAction.saved},
     );
     final provider = SocialReviewProvider(
       reviewLoader: () async => [uncertain],

@@ -2,28 +2,26 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:login/models/social_review_models.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
+import 'package:login/pages/social_review/social_post_review_page.dart';
 import 'package:login/pages/social_review/social_review_place_item.dart';
-import 'package:login/pages/social_review/widgets/social_place_search_sheet.dart';
 import 'package:login/providers/social_review_provider.dart';
 import 'package:login/themes/app_typography.dart';
-import 'package:login/widgets/feedback/app_feedback.dart';
-import 'package:login/widgets/home/expanded_card/social_review_context.dart';
-import 'package:login/widgets/home/expanded_location_card.dart';
-import 'package:login/widgets/home/location_list_card.dart';
+import 'package:login/utils/social_video_link.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-/// Restaurant-first history and correction surface for shared TikToks/Reels.
+/// Post-first history and recovery surface for shared TikToks and Reels.
 class SocialReviewInboxPage extends StatefulWidget {
   const SocialReviewInboxPage({
     super.key,
-    this.onOpenItem,
+    this.onOpenPost,
     this.initialFilter,
   });
 
-  /// Test/embedding seam. Production callers use the standard expanded card.
-  final ValueChanged<SocialReviewPlaceItem>? onOpenItem;
+  /// Test/embedding seam. Production callers open [SocialPostReviewPage].
+  final ValueChanged<SocialPostReviewItem>? onOpenPost;
   final SocialReviewInboxFilter? initialFilter;
 
   @override
@@ -48,12 +46,21 @@ class _SocialReviewInboxPageState extends State<SocialReviewInboxPage> {
   }
 
   SocialReviewInboxFilter _effectiveFilter(
-    List<SocialReviewPlaceItem> items,
+    List<SocialReviewPostItem> items,
   ) {
-    return _selectedFilter ??
-        (items.any((item) => item.needsChecking)
-            ? SocialReviewInboxFilter.needsChecking
-            : SocialReviewInboxFilter.recentlySaved);
+    if (_selectedFilter != null) return _selectedFilter!;
+    if (items.any((item) =>
+        item.state == SocialPostWorkflowState.needsChecking ||
+        item.state == SocialPostWorkflowState.failed)) {
+      return SocialReviewInboxFilter.needsChecking;
+    }
+    if (items.any((item) => item.state == SocialPostWorkflowState.processing)) {
+      return SocialReviewInboxFilter.processing;
+    }
+    if (items.any((item) => item.state == SocialPostWorkflowState.resolved)) {
+      return SocialReviewInboxFilter.recentlySaved;
+    }
+    return SocialReviewInboxFilter.all;
   }
 
   @override
@@ -63,7 +70,15 @@ class _SocialReviewInboxPageState extends State<SocialReviewInboxPage> {
       body: SafeArea(
         child: Consumer<SocialReviewProvider>(
           builder: (context, provider, _) {
-            final filter = _effectiveFilter(provider.placeItems);
+            final items = provider.items
+                .map(
+                  (review) => SocialReviewPostItem(
+                    review: review,
+                    locationsById: provider.locationsById,
+                  ),
+                )
+                .toList(growable: false);
+            final filter = _effectiveFilter(items);
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -79,16 +94,20 @@ class _SocialReviewInboxPageState extends State<SocialReviewInboxPage> {
                 ),
                 _FilterBar(
                   selected: filter,
-                  attentionCount: provider.placeItems
-                      .where((item) => item.needsChecking)
+                  attentionCount: items
+                      .where((item) =>
+                          item.state == SocialPostWorkflowState.needsChecking ||
+                          item.state == SocialPostWorkflowState.failed)
+                      .length,
+                  processingCount: items
+                      .where((item) =>
+                          item.state == SocialPostWorkflowState.processing)
                       .length,
                   onSelected: (value) =>
                       setState(() => _selectedFilter = value),
                 ),
-                const SizedBox(height: 8),
-                Expanded(
-                  child: _buildBody(provider, filter),
-                ),
+                const SizedBox(height: 10),
+                Expanded(child: _buildBody(provider, items, filter)),
               ],
             );
           },
@@ -99,17 +118,18 @@ class _SocialReviewInboxPageState extends State<SocialReviewInboxPage> {
 
   Widget _buildBody(
     SocialReviewProvider provider,
+    List<SocialReviewPostItem> items,
     SocialReviewInboxFilter filter,
   ) {
     if (provider.isLoading && !provider.hasLoaded) {
       return const _LoadingList();
     }
-    if (provider.error != null && provider.placeItems.isEmpty) {
+    if (provider.error != null && items.isEmpty) {
       return _ErrorView(onRetry: provider.refresh);
     }
 
-    final visible = visibleSocialReviewPlaces(
-      provider.placeItems,
+    final visible = visibleSocialReviewPosts(
+      items,
       filter: filter,
       query: _query,
     );
@@ -126,148 +146,62 @@ class _SocialReviewInboxPageState extends State<SocialReviewInboxPage> {
         physics: const AlwaysScrollableScrollPhysics(
           parent: BouncingScrollPhysics(),
         ),
-        padding: const EdgeInsets.fromLTRB(16, 4, 20, 28),
+        padding: const EdgeInsets.fromLTRB(16, 2, 16, 32),
         itemCount: visible.length,
         itemBuilder: (context, index) {
           final item = visible[index];
-          final location = item.location;
-          if (location == null) {
-            return _UnresolvedPlaceCard(
-              item: item,
-              onFind: () => unawaited(_findOrCorrect(item)),
-              onDismiss: () => unawaited(_dismiss(item)),
-            );
-          }
-          return LocationListCard(
-            key: ValueKey('social-place:${item.id}'),
-            location: location,
-            sourceLabel: _sourceLabel(item),
-            statusLabel: item.statusLabel,
-            statusIcon: item.needsChecking
-                ? FeatherIcons.alertCircle
-                : FeatherIcons.checkCircle,
-            borderColor: item.needsChecking
-                ? pinit.PinitColors.accent
-                : pinit.PinitColors.aubergine,
-            onTap: () => _openResolved(item),
+          return _SharedPostCard(
+            key: ValueKey('social-post:${item.id}'),
+            item: item,
+            onOpen: () => _openReview(item.review),
+            onOpenOriginal: item.review.openUrl.trim().isEmpty
+                ? null
+                : () => unawaited(_openOriginal(item.review)),
+            onDismiss: item.state == SocialPostWorkflowState.needsChecking ||
+                    item.state == SocialPostWorkflowState.failed
+                ? () => unawaited(_dismiss(item.review))
+                : null,
           );
         },
       ),
     );
   }
 
-  String _sourceLabel(SocialReviewPlaceItem item) {
-    final creator = item.review.creatorHandle?.trim();
-    if (creator == null || creator.isEmpty) return item.review.platformLabel;
-    return '${item.review.platformLabel} · @$creator';
-  }
-
-  void _openResolved(SocialReviewPlaceItem item) {
-    final override = widget.onOpenItem;
+  void _openReview(SocialPostReviewItem item) {
+    final override = widget.onOpenPost;
     if (override != null) {
       override(item);
       return;
     }
-    final location = item.location;
-    if (location == null) return;
-    final socialLocation = location.copyWith(
-      savedFrom: item.review.openUrl,
-      savedMethod: item.review.platform,
-      socialVideoUrl: item.review.openUrl,
-      socialVideoCreatorHandle: item.review.creatorHandle,
-    );
-    showGeneralDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-      barrierColor: Colors.transparent,
-      transitionDuration: const Duration(milliseconds: 300),
-      pageBuilder: (dialogContext, _, __) => ExpandedLocationCard(
-        location: socialLocation,
-        onClose: () => Navigator.of(dialogContext).pop(),
-        socialReviewContext: SocialReviewContext(
-          platform: item.review.platform,
-          placeName: location.name,
-          confidenceScore: item.place?.confidenceScore,
-          confidenceTier: item.place?.confidenceTier,
-          onConfirm:
-              item.needsChecking ? () => unawaited(_confirm(item)) : null,
-          onCorrect: () => unawaited(_findOrCorrect(item)),
-          onRemove: item.recentlySaved ? () => unawaited(_remove(item)) : null,
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SocialPostReviewPage(
+          postId: item.postId,
+          source: 'inbox',
         ),
       ),
-      transitionBuilder: (_, animation, __, child) =>
-          FadeTransition(opacity: animation, child: child),
     );
   }
 
-  Future<void> _confirm(SocialReviewPlaceItem item) async {
-    final place = item.place;
-    if (place == null) return;
-    final ok = await context.read<SocialReviewProvider>().savePlace(
-          item.review,
-          place,
-        );
+  Future<void> _openOriginal(SocialPostReviewItem item) async {
+    final uri = Uri.tryParse(item.openUrl);
+    if (uri == null || !uri.hasScheme) return;
+    context.read<SocialReviewProvider>().trackOpenedOriginalPost(item);
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  Future<void> _dismiss(SocialPostReviewItem item) async {
+    await context.read<SocialReviewProvider>().dismissPost(item);
     if (!mounted) return;
-    if (ok) {
-      AppFeedback.showSuccess(context, message: '${item.displayName} saved');
-    } else {
-      await _showFailure('Couldn’t confirm this restaurant');
-    }
-  }
-
-  Future<void> _remove(SocialReviewPlaceItem item) async {
-    final place = item.place;
-    if (place == null) return;
-    final ok = await context.read<SocialReviewProvider>().discardPlace(
-          item.review,
-          place,
-        );
-    if (!mounted) return;
-    if (ok) {
-      AppFeedback.showSuccess(context, message: 'Removed from your saves');
-    } else {
-      await _showFailure('Couldn’t remove this restaurant');
-    }
-  }
-
-  Future<void> _findOrCorrect(SocialReviewPlaceItem item) async {
-    final picked = await SocialPlaceSearchSheet.show(
-      context,
-      title: item.place == null
-          ? 'Which restaurant was it?'
-          : 'Which place did they mean?',
-    );
-    if (picked == null || !mounted) return;
-    final provider = context.read<SocialReviewProvider>();
-    final ok = item.place == null
-        ? await provider.addManualPlace(item.review, picked)
-        : await provider.correctPlace(item.review, item.place!, picked);
-    if (!mounted) return;
-    if (ok) {
-      AppFeedback.showSuccess(context, message: 'Saved ${picked.name}');
-    } else {
-      await _showFailure('Couldn’t save that restaurant');
-    }
-  }
-
-  Future<void> _dismiss(SocialReviewPlaceItem item) async {
-    final provider = context.read<SocialReviewProvider>();
-    final place = item.place;
-    if (place == null) {
-      await provider.dismissPost(item.review);
-      return;
-    }
-    final ok = await provider.discardPlace(item.review, place);
-    if (!ok && mounted) await _showFailure('Couldn’t dismiss this match');
-  }
-
-  Future<void> _showFailure(String message) {
-    return AppFeedback.showError(
-      context,
-      title: message,
-      message: 'Please try again in a moment.',
-    );
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text('Post dismissed'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: pinit.PinitColors.aubergine,
+        ),
+      );
   }
 }
 
@@ -281,42 +215,82 @@ class _Header extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 20, 8),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          InkWell(
-            customBorder: const CircleBorder(),
+          _RoundIconButton(
+            icon: FeatherIcons.chevronLeft,
+            semanticLabel: 'Back',
             onTap: onBack,
-            child: Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: pinit.PinitColors.creamSunk,
-                shape: BoxShape.circle,
-                border: Border.all(color: pinit.PinitColors.creamDeep),
-              ),
-              child: const Icon(
-                FeatherIcons.chevronLeft,
-                size: 19,
-                color: pinit.PinitColors.aubergine,
-              ),
-            ),
           ),
           const SizedBox(width: 12),
-          const Expanded(
-            child: Text(
-              'Shared saves',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontFamily: AppTypography.brandFamily,
-                fontFamilyFallback: AppTypography.brandFallbackFamilies,
-                fontSize: 27,
-                fontWeight: FontWeight.w800,
-                color: pinit.PinitColors.aubergine,
-                letterSpacing: 1.1,
-              ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Shared saves',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.brand(
+                    fontSize: 29,
+                    fontWeight: FontWeight.w800,
+                    color: pinit.PinitColors.aubergine,
+                    letterSpacing: .6,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'See what Pinit found and finish anything uncertain.',
+                  style: AppTypography.sans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: pinit.PinitColors.mute,
+                    height: 1.35,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _RoundIconButton extends StatelessWidget {
+  const _RoundIconButton({
+    required this.icon,
+    required this.semanticLabel,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String semanticLabel;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: semanticLabel,
+      child: Material(
+        color: pinit.PinitColors.creamSunk,
+        shape: CircleBorder(
+          side: BorderSide(color: pinit.PinitColors.creamDeep),
+        ),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: SizedBox(
+            width: 42,
+            height: 42,
+            child: Icon(
+              icon,
+              size: 19,
+              color: pinit.PinitColors.aubergine,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -338,21 +312,22 @@ class _SearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
       child: TextField(
         controller: controller,
         onChanged: onChanged,
         textInputAction: TextInputAction.search,
         cursorColor: pinit.PinitColors.aubergine,
-        style: GoogleFonts.dmSans(
+        style: AppTypography.sans(
           fontSize: 14,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w700,
           color: pinit.PinitColors.aubergine,
         ),
         decoration: InputDecoration(
-          hintText: 'Search restaurants',
-          hintStyle: GoogleFonts.dmSans(
+          hintText: 'Search posts, creators or places',
+          hintStyle: AppTypography.sans(
             fontSize: 14,
+            fontWeight: FontWeight.w600,
             color: pinit.PinitColors.mute,
           ),
           prefixIcon: const Icon(
@@ -363,6 +338,7 @@ class _SearchField extends StatelessWidget {
           suffixIcon: query.trim().isEmpty
               ? null
               : IconButton(
+                  tooltip: 'Clear search',
                   onPressed: onClear,
                   icon: const Icon(
                     FeatherIcons.x,
@@ -373,12 +349,12 @@ class _SearchField extends StatelessWidget {
           filled: true,
           fillColor: pinit.PinitColors.creamSunk,
           contentPadding:
-              const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+              const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(18),
             borderSide: const BorderSide(
               color: pinit.PinitColors.creamDeep,
-              width: 1.5,
+              width: 1.3,
             ),
           ),
           focusedBorder: OutlineInputBorder(
@@ -398,11 +374,13 @@ class _FilterBar extends StatelessWidget {
   const _FilterBar({
     required this.selected,
     required this.attentionCount,
+    required this.processingCount,
     required this.onSelected,
   });
 
   final SocialReviewInboxFilter selected;
   final int attentionCount;
+  final int processingCount;
   final ValueChanged<SocialReviewInboxFilter> onSelected;
 
   @override
@@ -417,6 +395,13 @@ class _FilterBar extends StatelessWidget {
             count: attentionCount,
             selected: selected == SocialReviewInboxFilter.needsChecking,
             onTap: () => onSelected(SocialReviewInboxFilter.needsChecking),
+          ),
+          const SizedBox(width: 8),
+          _FilterChip(
+            label: 'Processing',
+            count: processingCount,
+            selected: selected == SocialReviewInboxFilter.processing,
+            onTap: () => onSelected(SocialReviewInboxFilter.processing),
           ),
           const SizedBox(width: 8),
           _FilterChip(
@@ -451,191 +436,236 @@ class _FilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(999),
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-        decoration: BoxDecoration(
-          color: selected
-              ? pinit.PinitColors.aubergine
-              : pinit.PinitColors.creamSunk,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+          decoration: BoxDecoration(
             color: selected
                 ? pinit.PinitColors.aubergine
-                : pinit.PinitColors.creamDeep,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: GoogleFonts.dmSans(
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                color: selected
-                    ? pinit.PinitColors.cream
-                    : pinit.PinitColors.aubergine,
-              ),
+                : pinit.PinitColors.creamSunk,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: selected
+                  ? pinit.PinitColors.aubergine
+                  : pinit.PinitColors.creamDeep,
             ),
-            if (count != null && count! > 0) ...[
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: AppTypography.sans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
                   color: selected
-                      ? pinit.PinitColors.cream.withValues(alpha: 0.18)
-                      : pinit.PinitColors.cream,
-                  borderRadius: BorderRadius.circular(999),
+                      ? pinit.PinitColors.cream
+                      : pinit.PinitColors.aubergine,
                 ),
-                child: Text(
-                  '$count',
-                  style: GoogleFonts.dmSans(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w900,
+              ),
+              if (count != null && count! > 0) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
                     color: selected
-                        ? pinit.PinitColors.cream
-                        : pinit.PinitColors.aubergine,
+                        ? pinit.PinitColors.cream.withValues(alpha: .18)
+                        : pinit.PinitColors.cream,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: AppTypography.sans(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      color: selected
+                          ? pinit.PinitColors.cream
+                          : pinit.PinitColors.aubergine,
+                    ),
                   ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _UnresolvedPlaceCard extends StatefulWidget {
-  const _UnresolvedPlaceCard({
+class _SharedPostCard extends StatefulWidget {
+  const _SharedPostCard({
+    super.key,
     required this.item,
-    required this.onFind,
+    required this.onOpen,
+    required this.onOpenOriginal,
     required this.onDismiss,
   });
 
-  final SocialReviewPlaceItem item;
-  final VoidCallback onFind;
-  final VoidCallback onDismiss;
+  final SocialReviewPostItem item;
+  final VoidCallback onOpen;
+  final VoidCallback? onOpenOriginal;
+  final VoidCallback? onDismiss;
 
   @override
-  State<_UnresolvedPlaceCard> createState() => _UnresolvedPlaceCardState();
+  State<_SharedPostCard> createState() => _SharedPostCardState();
 }
 
-class _UnresolvedPlaceCardState extends State<_UnresolvedPlaceCard> {
+class _SharedPostCardState extends State<_SharedPostCard> {
   bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
+    final candidate = item.bestCandidate;
+    final resolvedId = candidate == null
+        ? null
+        : item.review.savedLocationIds[candidate.id] ?? candidate.locationId;
+    final location = resolvedId == null ? null : item.locationsById[resolvedId];
+    final artwork = item.review.thumbnailUrl?.trim().isNotEmpty == true
+        ? item.review.thumbnailUrl
+        : location?.imageUrl;
+
     return AnimatedScale(
-      scale: _pressed ? 0.975 : 1,
+      scale: _pressed ? .985 : 1,
       duration: const Duration(milliseconds: 140),
+      curve: Curves.easeOutCubic,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        height: 110,
+        margin: const EdgeInsets.only(bottom: 14),
         decoration: BoxDecoration(
           color: pinit.PinitColors.cream,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: pinit.PinitColors.accent, width: 1.5),
-          boxShadow: const [
-            BoxShadow(
-              color: pinit.PinitColors.accent,
-              blurRadius: 0,
-              offset: Offset(4, 4),
-            ),
-          ],
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: pinit.PinitColors.creamDeep,
+            width: 1.2,
+          ),
+          boxShadow: pinit.PinitColors.cardShadow,
         ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(10),
-          onHighlightChanged: (value) => setState(() => _pressed = value),
-          onTap: widget.onFind,
-          child: Row(
-            children: [
-              Container(
-                width: 104,
-                alignment: Alignment.center,
-                color: pinit.PinitColors.creamSunk,
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  alignment: Alignment.center,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: pinit.PinitColors.aubergine,
-                  ),
-                  child: Icon(
-                    item.review.platform == 'instagram'
-                        ? FeatherIcons.instagram
-                        : FeatherIcons.music,
-                    color: pinit.PinitColors.cream,
-                    size: 21,
-                  ),
-                ),
-              ),
-              Container(width: 1.5, color: pinit.PinitColors.accent),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 10, 10, 9),
-                  child: Column(
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(22),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: widget.onOpen,
+            onHighlightChanged: (value) => setState(() => _pressed = value),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        item.displayName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.dmSans(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          color: pinit.PinitColors.aubergine,
-                        ),
+                      _PostArtwork(
+                        imageUrl: artwork,
+                        platform: item.review.platformType,
                       ),
-                      const SizedBox(height: 3),
-                      Text(
-                        item.place == null
-                            ? 'Restaurant not identified'
-                            : 'Check this match',
-                        style: GoogleFonts.dmSans(
-                          fontSize: 11,
-                          color: pinit.PinitColors.mute,
-                        ),
-                      ),
-                      const Spacer(),
-                      Row(
-                        children: [
-                          _MiniAction(
-                            label: 'Find restaurant',
-                            onTap: widget.onFind,
-                          ),
-                          const SizedBox(width: 8),
-                          TextButton(
-                            onPressed: widget.onDismiss,
-                            style: TextButton.styleFrom(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 6),
-                              minimumSize: const Size(0, 28),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      const SizedBox(width: 13),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                _PlatformLabel(review: item.review),
+                                const Spacer(),
+                                _StatusBadge(state: item.state),
+                              ],
                             ),
-                            child: Text(
-                              'Dismiss',
-                              style: GoogleFonts.dmSans(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: pinit.PinitColors.mute,
+                            const SizedBox(height: 8),
+                            Text(
+                              item.review.creatorHandle?.trim().isNotEmpty ==
+                                      true
+                                  ? '@${item.review.creatorHandle!.trim()}'
+                                  : '${item.review.platformLabel} creator',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.sans(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: pinit.PinitColors.aubergineSoft,
                               ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 4),
+                            Text(
+                              item.summary,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.sans(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: pinit.PinitColors.aubergine,
+                                height: 1.28,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
-                ),
+                  const SizedBox(height: 13),
+                  _WhyRow(item: item),
+                  if (candidate != null) ...[
+                    const SizedBox(height: 12),
+                    _CandidateSummary(
+                      candidate: candidate,
+                      locationName: location?.name,
+                    ),
+                  ],
+                  if (item.insightChips.isNotEmpty) ...[
+                    const SizedBox(height: 11),
+                    Wrap(
+                      spacing: 7,
+                      runSpacing: 7,
+                      children: [
+                        for (final chip in item.insightChips)
+                          _InsightChip(label: chip),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      if (widget.onOpenOriginal != null)
+                        _SecondaryAction(
+                          icon: FeatherIcons.externalLink,
+                          label: 'Open post',
+                          onTap: widget.onOpenOriginal!,
+                        ),
+                      if (widget.onOpenOriginal != null &&
+                          item.primaryActionLabel != null)
+                        const SizedBox(width: 8),
+                      if (item.primaryActionLabel != null)
+                        Expanded(
+                          child: _PrimaryAction(
+                            label: item.primaryActionLabel!,
+                            onTap: widget.onOpen,
+                          ),
+                        ),
+                      if (widget.onDismiss != null) ...[
+                        const SizedBox(width: 4),
+                        IconButton(
+                          tooltip: 'Dismiss post',
+                          onPressed: widget.onDismiss,
+                          icon: const Icon(
+                            FeatherIcons.x,
+                            size: 18,
+                            color: pinit.PinitColors.mute,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -643,32 +673,390 @@ class _UnresolvedPlaceCardState extends State<_UnresolvedPlaceCard> {
   }
 }
 
-class _MiniAction extends StatelessWidget {
-  const _MiniAction({required this.label, required this.onTap});
+class _PostArtwork extends StatelessWidget {
+  const _PostArtwork({required this.imageUrl, required this.platform});
+
+  final String? imageUrl;
+  final SocialVideoPlatform platform;
+
+  @override
+  Widget build(BuildContext context) {
+    final fallback = _ArtworkFallback(platform: platform);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(15),
+      child: SizedBox(
+        width: 78,
+        height: 96,
+        child: imageUrl == null || imageUrl!.trim().isEmpty
+            ? fallback
+            : Image.network(
+                imageUrl!,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => fallback,
+              ),
+      ),
+    );
+  }
+}
+
+class _ArtworkFallback extends StatelessWidget {
+  const _ArtworkFallback({required this.platform});
+
+  final SocialVideoPlatform platform;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            pinit.PinitColors.creamSunk,
+            pinit.PinitColors.creamDeep,
+          ],
+        ),
+      ),
+      child: Center(
+        child: Container(
+          width: 42,
+          height: 42,
+          decoration: const BoxDecoration(
+            color: pinit.PinitColors.aubergine,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            platform == SocialVideoPlatform.instagram
+                ? FeatherIcons.instagram
+                : FeatherIcons.music,
+            color: pinit.PinitColors.cream,
+            size: 19,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PlatformLabel extends StatelessWidget {
+  const _PlatformLabel({required this.review});
+
+  final SocialPostReviewItem review;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          review.platformType == SocialVideoPlatform.instagram
+              ? FeatherIcons.instagram
+              : FeatherIcons.music,
+          size: 12,
+          color: pinit.PinitColors.aubergineSoft,
+        ),
+        const SizedBox(width: 5),
+        Text(
+          review.platformLabel,
+          style: AppTypography.sans(
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            color: pinit.PinitColors.aubergineSoft,
+            letterSpacing: .4,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge({required this.state});
+
+  final SocialPostWorkflowState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, background, foreground, icon) = switch (state) {
+      SocialPostWorkflowState.processing => (
+          'Processing',
+          const Color(0xFFF0E7EF),
+          pinit.PinitColors.aubergineSoft,
+          FeatherIcons.clock,
+        ),
+      SocialPostWorkflowState.needsChecking => (
+          'Needs checking',
+          const Color(0xFFFFF0CC),
+          const Color(0xFF805A08),
+          FeatherIcons.alertCircle,
+        ),
+      SocialPostWorkflowState.failed => (
+          'Couldn’t finish',
+          const Color(0xFFFBE6E2),
+          const Color(0xFF9A3025),
+          FeatherIcons.alertTriangle,
+        ),
+      SocialPostWorkflowState.resolved => (
+          'Resolved',
+          const Color(0xFFDFF3EF),
+          const Color(0xFF176F66),
+          FeatherIcons.checkCircle,
+        ),
+      SocialPostWorkflowState.dismissed => (
+          'Dismissed',
+          pinit.PinitColors.creamSunk,
+          pinit.PinitColors.mute,
+          FeatherIcons.xCircle,
+        ),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: foreground),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: AppTypography.sans(
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+              color: foreground,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WhyRow extends StatelessWidget {
+  const _WhyRow({required this.item});
+
+  final SocialReviewPostItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final isActionable = item.state == SocialPostWorkflowState.needsChecking ||
+        item.state == SocialPostWorkflowState.failed;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+      decoration: BoxDecoration(
+        color: isActionable
+            ? const Color(0xFFFFF8E8)
+            : pinit.PinitColors.creamSunk,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            isActionable ? FeatherIcons.info : FeatherIcons.activity,
+            size: 14,
+            color: isActionable
+                ? const Color(0xFF805A08)
+                : pinit.PinitColors.aubergineSoft,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              item.statusExplanation,
+              style: AppTypography.sans(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: pinit.PinitColors.aubergineSoft,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CandidateSummary extends StatelessWidget {
+  const _CandidateSummary({
+    required this.candidate,
+    required this.locationName,
+  });
+
+  final SocialPostPlace candidate;
+  final String? locationName;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = locationName?.trim().isNotEmpty == true
+        ? locationName!.trim()
+        : candidate.name;
+    final area = candidate.address?.trim().isNotEmpty == true
+        ? candidate.address!.trim()
+        : candidate.candidateArea?.trim();
+    final confidence = candidate.confidenceScore;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(11),
+      decoration: BoxDecoration(
+        color: pinit.PinitColors.creamSunk,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: pinit.PinitColors.creamDeep),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: const BoxDecoration(
+              color: pinit.PinitColors.cream,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              FeatherIcons.mapPin,
+              size: 15,
+              color: pinit.PinitColors.aubergine,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.sans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: pinit.PinitColors.aubergine,
+                  ),
+                ),
+                if (area != null && area.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    area,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.sans(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: pinit.PinitColors.mute,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (confidence != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+              decoration: BoxDecoration(
+                color: pinit.PinitColors.cream,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                '${(confidence * 100).round()}% match',
+                style: AppTypography.sans(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w900,
+                  color: pinit.PinitColors.aubergineSoft,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InsightChip extends StatelessWidget {
+  const _InsightChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: pinit.PinitColors.creamSunk,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: AppTypography.sans(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: pinit.PinitColors.aubergineSoft,
+        ),
+      ),
+    );
+  }
+}
+
+class _SecondaryAction extends StatelessWidget {
+  const _SecondaryAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 14),
+      label: Text(label),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: pinit.PinitColors.aubergine,
+        side: const BorderSide(color: pinit.PinitColors.creamDeep),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 11),
+        visualDensity: VisualDensity.compact,
+        textStyle: AppTypography.sans(
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(999),
+        ),
+      ),
+    );
+  }
+}
+
+class _PrimaryAction extends StatelessWidget {
+  const _PrimaryAction({required this.label, required this.onTap});
 
   final String label;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(999),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        decoration: BoxDecoration(
-          color: pinit.PinitColors.aubergine,
+    return FilledButton(
+      onPressed: onTap,
+      style: FilledButton.styleFrom(
+        backgroundColor: pinit.PinitColors.aubergine,
+        foregroundColor: pinit.PinitColors.cream,
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
+        visualDensity: VisualDensity.compact,
+        textStyle: AppTypography.sans(
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
+        ),
+        shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(999),
         ),
-        child: Text(
-          label,
-          style: GoogleFonts.dmSans(
-            fontSize: 10,
-            fontWeight: FontWeight.w800,
-            color: pinit.PinitColors.cream,
-          ),
-        ),
       ),
+      child: Text(label),
     );
   }
 }
@@ -680,14 +1068,14 @@ class _LoadingList extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView.builder(
       physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 4, 20, 28),
-      itemCount: 4,
+      padding: const EdgeInsets.fromLTRB(16, 2, 16, 28),
+      itemCount: 3,
       itemBuilder: (_, __) => Container(
-        height: 110,
-        margin: const EdgeInsets.only(bottom: 12),
+        height: 260,
+        margin: const EdgeInsets.only(bottom: 14),
         decoration: BoxDecoration(
           color: pinit.PinitColors.creamSunk,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(22),
         ),
       ),
     );
@@ -703,11 +1091,12 @@ class _EmptyView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final title = hasQuery
-        ? 'No matching restaurants'
+        ? 'No matching shared posts'
         : switch (filter) {
-            SocialReviewInboxFilter.needsChecking => 'No shares need checking',
+            SocialReviewInboxFilter.needsChecking => 'Nothing needs checking',
+            SocialReviewInboxFilter.processing => 'Nothing is processing',
             SocialReviewInboxFilter.recentlySaved => 'No recent social saves',
-            SocialReviewInboxFilter.all => 'No shared restaurants yet',
+            SocialReviewInboxFilter.all => 'No shared posts yet',
           };
     return Center(
       child: Padding(
@@ -716,7 +1105,7 @@ class _EmptyView extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(
-              FeatherIcons.mapPin,
+              FeatherIcons.inbox,
               size: 38,
               color: pinit.PinitColors.mute,
             ),
@@ -724,7 +1113,7 @@ class _EmptyView extends StatelessWidget {
             Text(
               title,
               textAlign: TextAlign.center,
-              style: GoogleFonts.dmSans(
+              style: AppTypography.sans(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
                 color: pinit.PinitColors.aubergine,
@@ -755,15 +1144,18 @@ class _ErrorView extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           Text(
-            'Couldn’t load shared restaurants',
-            style: GoogleFonts.dmSans(
+            'Couldn’t load shared posts',
+            style: AppTypography.sans(
               fontSize: 15,
               fontWeight: FontWeight.w800,
               color: pinit.PinitColors.aubergine,
             ),
           ),
           const SizedBox(height: 12),
-          _MiniAction(label: 'Retry', onTap: () => unawaited(onRetry())),
+          _PrimaryAction(
+            label: 'Retry',
+            onTap: () => unawaited(onRetry()),
+          ),
         ],
       ),
     );

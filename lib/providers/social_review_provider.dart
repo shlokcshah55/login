@@ -37,12 +37,14 @@ class SocialReviewProvider extends ChangeNotifier {
 
   List<SocialPostReviewItem> _items = [];
   List<SocialReviewPlaceItem> _placeItems = [];
+  Map<int, LocationModel> _locationsById = const {};
   bool _isLoading = false;
   bool _hasLoaded = false;
   String? _error;
 
   List<SocialPostReviewItem> get items => _items;
   List<SocialReviewPlaceItem> get placeItems => _placeItems;
+  Map<int, LocationModel> get locationsById => _locationsById;
   bool get isLoading => _isLoading;
   bool get hasLoaded => _hasLoaded;
   String? get error => _error;
@@ -55,8 +57,11 @@ class SocialReviewProvider extends ChangeNotifier {
       _items.where((i) => i.reviewStatus == 'later').toList();
 
   int get pendingCount => pendingItems.length;
-  int get needsCheckingCount =>
-      _placeItems.where((item) => item.needsChecking).length;
+  int get needsCheckingCount => _items.where((item) {
+        final state = item.workflowState;
+        return state == SocialPostWorkflowState.needsChecking ||
+            state == SocialPostWorkflowState.failed;
+      }).length;
 
   SocialPostReviewItem? itemByPostId(String postId) {
     for (final item in _items) {
@@ -89,12 +94,12 @@ class SocialReviewProvider extends ChangeNotifier {
       final locations = locationIds.isEmpty
           ? const <LocationModel>[]
           : await _locationBatchLoader(locationIds);
-      final locationsById = {
+      _locationsById = {
         for (final location in locations) location.locationId: location,
       };
       _placeItems = projected
           .map((item) => item.copyWith(
-                location: locationsById[item.resolvedLocationId],
+                location: _locationsById[item.resolvedLocationId],
               ))
           .toList(growable: false);
     } catch (e) {
@@ -174,6 +179,31 @@ class SocialReviewProvider extends ChangeNotifier {
       debugPrint('[SocialReviewProvider] savePlace failed: $e');
       return false;
     }
+  }
+
+  /// Confirm one ranked candidate. Other Google alternatives produced for
+  /// the same extracted candidate are discarded, while distinct listicle
+  /// venues remain independent.
+  Future<bool> confirmPlace(
+    SocialPostReviewItem item,
+    SocialPostPlace place,
+  ) async {
+    if (!await savePlace(item, place)) return false;
+    final candidateKey = _candidateKey(place);
+    if (candidateKey.isEmpty) return true;
+
+    for (final alternative in item.places) {
+      if (alternative.id == place.id ||
+          _candidateKey(alternative) != candidateKey) {
+        continue;
+      }
+      await discardPlace(
+        itemByPostId(item.postId) ?? item,
+        alternative,
+      );
+    }
+    await _finishIfFullyReviewed(item.reviewId);
+    return true;
   }
 
   /// Swipe left: discard one place candidate. Most candidates are already
@@ -315,6 +345,7 @@ class SocialReviewProvider extends ChangeNotifier {
         registerTap: true,
         interactionKey: 'social_place_manually_added',
       );
+      await _reviews.updateReviewStatus(item.reviewId, 'reviewed');
       await refresh();
       return true;
     } catch (e) {
@@ -404,26 +435,35 @@ class SocialReviewProvider extends ChangeNotifier {
     String placeId,
     SocialPlaceAction action, {
     int? savedLocationId,
+    bool confirmedByUser = true,
   }) {
+    final current = itemByPostId(item.postId) ?? item;
     final updatedActions =
-        Map<String, SocialPlaceAction>.from(item.placeActions)
+        Map<String, SocialPlaceAction>.from(current.placeActions)
           ..[placeId] = action;
-    final updatedSavedIds = Map<String, int>.from(item.savedLocationIds);
+    final updatedSavedIds = Map<String, int>.from(current.savedLocationIds);
     if (savedLocationId != null) {
       updatedSavedIds[placeId] = savedLocationId;
     } else {
       updatedSavedIds.remove(placeId);
     }
-    _replaceItem(item.copyWith(
+    final updatedConfirmations = Set<String>.from(
+      current.userConfirmedPlaceIds,
+    );
+    if (confirmedByUser) updatedConfirmations.add(placeId);
+    _replaceItem(current.copyWith(
       placeActions: updatedActions,
       savedLocationIds: updatedSavedIds,
+      userConfirmedPlaceIds: updatedConfirmations,
     ));
   }
 
   /// Once every candidate has an action, the review resolves itself.
   Future<void> _finishIfFullyReviewed(String reviewId) async {
     final item = _items.where((i) => i.reviewId == reviewId).firstOrNull;
-    if (item == null || !item.hasPlaces || item.unreviewedPlaces.isNotEmpty) {
+    if (item == null ||
+        !item.hasPlaces ||
+        item.pendingReviewPlaces.isNotEmpty) {
       return;
     }
     await _completeReview(item, 'reviewed');
@@ -438,9 +478,8 @@ class SocialReviewProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint('[SocialReviewProvider] updateReviewStatus failed: $e');
     }
-    _items = _items.where((i) => i.reviewId != item.reviewId).toList();
-    _rebuildPlaceItems();
-    notifyListeners();
+    final current = itemByPostId(item.postId) ?? item;
+    _replaceItem(current.copyWith(reviewStatus: status));
   }
 
   void _replaceItem(SocialPostReviewItem updated) {
@@ -452,15 +491,18 @@ class SocialReviewProvider extends ChangeNotifier {
   }
 
   void _rebuildPlaceItems() {
-    final locationsById = {
-      for (final item in _placeItems)
-        if (item.location != null) item.location!.locationId: item.location!,
-    };
     _placeItems = SocialReviewPlaceItem.fromReviews(_items)
         .map((item) => item.copyWith(
-              location: locationsById[item.resolvedLocationId],
+              location: _locationsById[item.resolvedLocationId],
             ))
         .toList(growable: false);
+  }
+
+  String _candidateKey(SocialPostPlace place) {
+    return (place.candidateName ?? place.name)
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'\s+'), ' ');
   }
 
   @override

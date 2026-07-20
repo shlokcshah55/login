@@ -1,29 +1,35 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
+import 'package:login/models/locations.dart';
+import 'package:login/models/social_review_models.dart';
+import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
+import 'package:login/pages/social_review/social_review_place_item.dart';
+import 'package:login/pages/social_review/widgets/social_place_search_sheet.dart';
+import 'package:login/providers/social_review_provider.dart';
+import 'package:login/themes/app_typography.dart';
+import 'package:login/utils/social_video_link.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'package:login/models/social_review_models.dart';
-import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
-import 'package:login/pages/social_review/widgets/social_place_search_sheet.dart';
-import 'package:login/providers/navigation_provider.dart';
-import 'package:login/providers/social_review_provider.dart';
-import 'package:login/themes/app_typography.dart';
-
-/// List-based review screen for ONE shared social post (TikTok / Reel).
-///
-/// Users share a post, the backend extracts place candidates, and this screen
-/// lets them save / discard / correct each candidate, add places manually, or
-/// resolve the whole post in one go.
+/// Context-rich review screen for one shared TikTok or Instagram Reel.
 class SocialPostReviewPage extends StatefulWidget {
-  final String postId;
-  final String source; // 'inbox' | 'notification' | 'deeplink'
-
   const SocialPostReviewPage({
-    Key? key,
+    super.key,
     required this.postId,
     this.source = 'inbox',
-  }) : super(key: key);
+    this.onOpenOriginal,
+    this.placeSearcher,
+  });
+
+  final String postId;
+  final String source;
+
+  /// Test/embedding seams. Production uses the external URL launcher and
+  /// Google Places-backed search.
+  final Future<void> Function(SocialPostReviewItem item)? onOpenOriginal;
+  final SocialPlaceSearcher? placeSearcher;
 
   @override
   State<SocialPostReviewPage> createState() => _SocialPostReviewPageState();
@@ -32,6 +38,9 @@ class SocialPostReviewPage extends StatefulWidget {
 class _SocialPostReviewPageState extends State<SocialPostReviewPage> {
   bool _requestedRefresh = false;
   bool _trackedShown = false;
+  bool _submitting = false;
+  String? _selectedCandidateId;
+  LocationModel? _searchedPlace;
 
   @override
   void initState() {
@@ -46,835 +55,1040 @@ class _SocialPostReviewPageState extends State<SocialPostReviewPage> {
     if (item == null) {
       if (!provider.hasLoaded && !_requestedRefresh) {
         _requestedRefresh = true;
-        provider.refresh();
+        unawaited(provider.refresh());
       }
       return;
     }
+    _seedSelection(item);
     if (!_trackedShown) {
       _trackedShown = true;
       provider.trackPostShown(item, source: widget.source);
     }
   }
 
-  // ── Actions ────────────────────────────────────────────────────────────────
+  void _seedSelection(SocialPostReviewItem item) {
+    if (_selectedCandidateId != null || item.places.isEmpty) return;
+    final candidates = _rankedCandidates(item);
+    final preferred = candidates.where(
+      (place) =>
+          item.pendingReviewPlaces.any((pending) => pending.id == place.id),
+    );
+    _selectedCandidateId =
+        (preferred.isNotEmpty ? preferred.first : candidates.first).id;
+  }
+
+  List<SocialPostPlace> _rankedCandidates(SocialPostReviewItem item) {
+    return item.places.toList(growable: false)
+      ..sort(
+        (a, b) => (b.confidenceScore ?? 0).compareTo(a.confidenceScore ?? 0),
+      );
+  }
 
   Future<void> _openPost(SocialPostReviewItem item) async {
-    final provider = context.read<SocialReviewProvider>();
-    provider.trackOpenedOriginalPost(item);
+    final override = widget.onOpenOriginal;
+    if (override != null) {
+      await override(item);
+      return;
+    }
     final uri = Uri.tryParse(item.openUrl);
-    if (uri == null) return;
+    if (uri == null || !uri.hasScheme) return;
+    context.read<SocialReviewProvider>().trackOpenedOriginalPost(item);
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
-  Future<void> _manualAdd(SocialPostReviewItem item) async {
-    final provider = context.read<SocialReviewProvider>();
-    final picked =
-        await SocialPlaceSearchSheet.show(context, title: 'Which place was it?');
-    if (picked == null) return;
-    final ok = await provider.addManualPlace(item, picked);
-    if (!mounted) return;
-    _snack(ok ? 'Saved ${picked.name}' : 'Could not add that place');
-  }
+  Future<void> _confirm(SocialPostReviewItem item) async {
+    if (_submitting) return;
+    final selected = item.places
+        .where((place) => place.id == _selectedCandidateId)
+        .firstOrNull;
+    if (selected == null && _searchedPlace == null) return;
 
-  Future<void> _saveAll(SocialPostReviewItem item) async {
+    setState(() => _submitting = true);
     final provider = context.read<SocialReviewProvider>();
-    final n = await provider.saveAll(item);
+    final bool ok;
+    if (_searchedPlace case final searched?) {
+      ok = selected == null
+          ? await provider.addManualPlace(item, searched)
+          : await provider.correctPlace(item, selected, searched);
+    } else {
+      ok = await provider.confirmPlace(item, selected!);
+    }
     if (!mounted) return;
-    _snack(n > 0 ? 'Saved $n place${n == 1 ? '' : 's'}' : 'All set');
-    Navigator.of(context).pop();
-  }
-
-  Future<void> _discardAll(SocialPostReviewItem item) async {
-    final provider = context.read<SocialReviewProvider>();
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: pinit.PinitColors.cream,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: Text(
-          'Discard all places from this post?',
-          style: AppTypography.headingSmall
-              .copyWith(color: pinit.PinitColors.textPrimary),
-        ),
-        content: Text(
-          'Places already saved from this post will be removed from your Eat List.',
-          style: AppTypography.bodyMedium
-              .copyWith(color: pinit.PinitColors.textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(
-              'Cancel',
-              style: AppTypography.bodyMedium
-                  .copyWith(color: pinit.PinitColors.textSecondary),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(
-              'Discard all',
-              style: AppTypography.bodyMedium.copyWith(
-                color: pinit.PinitColors.error,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
+    setState(() => _submitting = false);
+    _showMessage(
+      ok ? 'Restaurant confirmed' : 'Couldn’t save that restaurant',
+      isError: !ok,
     );
-    if (confirmed != true) return;
-    await provider.discardAll(item);
-    if (!mounted) return;
-    Navigator.of(context).pop();
-  }
-
-  Future<void> _reviewLater(SocialPostReviewItem item) async {
-    final provider = context.read<SocialReviewProvider>();
-    await provider.reviewLater(item);
-    if (!mounted) return;
-    Navigator.of(context).pop();
   }
 
   Future<void> _dismiss(SocialPostReviewItem item) async {
-    final provider = context.read<SocialReviewProvider>();
-    await provider.dismissPost(item);
-    if (!mounted) return;
-    Navigator.of(context).pop();
+    if (_submitting) return;
+    setState(() => _submitting = true);
+    try {
+      await context.read<SocialReviewProvider>().dismissPost(item);
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+    if (mounted) _showMessage('Post dismissed');
   }
 
-  void _snack(String message) {
+  void _showMessage(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
           content: Text(message),
           behavior: SnackBarBehavior.floating,
-          backgroundColor: pinit.PinitColors.aubergine,
+          backgroundColor:
+              isError ? pinit.PinitColors.accent : pinit.PinitColors.aubergine,
         ),
       );
   }
-
-  // ── Build ────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<SocialReviewProvider>();
     final item = provider.itemByPostId(widget.postId);
-
-    Widget body;
-    if (item == null) {
-      body = provider.hasLoaded ? _buildAllDone() : _buildLoading();
-    } else {
-      body = _buildReview(item);
-    }
+    if (item != null) _seedSelection(item);
 
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: pinit.PinitColors.cream,
-      body: SafeArea(child: body),
-    );
-  }
-
-  Widget _buildLoading() {
-    return const Center(
-      child: CircularProgressIndicator(color: pinit.PinitColors.aubergine),
-    );
-  }
-
-  Widget _buildAllDone() {
-    return Padding(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(FeatherIcons.checkCircle,
-              size: 44, color: pinit.PinitColors.teal),
-          const SizedBox(height: 16),
-          Text(
-            'All done',
-            style: AppTypography.headingSmall
-                .copyWith(color: pinit.PinitColors.textPrimary),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "This post isn't waiting for review",
-            style: AppTypography.bodyMedium
-                .copyWith(color: pinit.PinitColors.textSecondary),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-          _PrimaryButton(
-            label: 'Back',
-            onTap: () => Navigator.of(context).pop(),
-          ),
-        ],
+      body: SafeArea(
+        child: item == null
+            ? _MissingOrLoading(
+                loading: !provider.hasLoaded,
+                onBack: () => Navigator.of(context).pop(),
+              )
+            : _buildReview(provider, item),
       ),
     );
   }
 
-  Widget _buildReview(SocialPostReviewItem item) {
-    final showBottomBar = item.hasPlaces && !item.isProcessing;
+  Widget _buildReview(
+    SocialReviewProvider provider,
+    SocialPostReviewItem item,
+  ) {
+    final projection = SocialReviewPostItem(
+      review: item,
+      locationsById: provider.locationsById,
+    );
+    final actionable =
+        projection.state == SocialPostWorkflowState.needsChecking ||
+            projection.state == SocialPostWorkflowState.failed;
+
     return Column(
       children: [
-        _buildHeader(item),
-        Expanded(child: _buildContent(item)),
-        if (showBottomBar) _buildBottomBar(item),
+        _PageHeader(
+          onBack: () => Navigator.of(context).pop(),
+          state: projection.state,
+        ),
+        Expanded(
+          child: ListView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            physics: const BouncingScrollPhysics(),
+            padding: EdgeInsets.fromLTRB(16, 6, 16, actionable ? 28 : 36),
+            children: [
+              _PostHero(item: item, onOpen: () => unawaited(_openPost(item))),
+              const SizedBox(height: 14),
+              _StatusPanel(item: projection),
+              const SizedBox(height: 22),
+              _InsightsSection(
+                item: item,
+                locationsById: provider.locationsById,
+              ),
+              if (item.places.isNotEmpty) ...[
+                const SizedBox(height: 24),
+                _SectionHeading(
+                  title: 'Suggested restaurants',
+                  subtitle: actionable
+                      ? 'Ranked by how closely each place matches the post.'
+                      : 'Places extracted from this post.',
+                ),
+                const SizedBox(height: 11),
+                for (final candidate in _rankedCandidates(item)) ...[
+                  _CandidateCard(
+                    place: candidate,
+                    selected: candidate.id == _selectedCandidateId &&
+                        _searchedPlace == null,
+                    readOnly: !actionable,
+                    onTap: () {
+                      if (!actionable) return;
+                      setState(() {
+                        _selectedCandidateId = candidate.id;
+                        _searchedPlace = null;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                ],
+              ],
+              if (actionable) ...[
+                const SizedBox(height: 16),
+                const _SectionHeading(
+                  title: 'Search for a different place',
+                  subtitle:
+                      'Pick an existing result to correct the match or add the place manually.',
+                ),
+                const SizedBox(height: 11),
+                SocialPlaceSearchPanel(
+                  searcher: widget.placeSearcher,
+                  onSelected: (place) => setState(() => _searchedPlace = place),
+                ),
+                if (_searchedPlace case final searched?) ...[
+                  const SizedBox(height: 10),
+                  _SelectedSearchPlace(
+                    place: searched,
+                    onClear: () => setState(() => _searchedPlace = null),
+                  ),
+                ],
+              ],
+            ],
+          ),
+        ),
+        if (actionable)
+          _ReviewActionBar(
+            submitting: _submitting,
+            confirmEnabled:
+                _selectedCandidateId != null || _searchedPlace != null,
+            onConfirm: () => unawaited(_confirm(item)),
+            onDismiss: () => unawaited(_dismiss(item)),
+          ),
       ],
     );
   }
+}
 
-  // ── Header ─────────────────────────────────────────────────────────────────
+class _PageHeader extends StatelessWidget {
+  const _PageHeader({required this.onBack, required this.state});
 
-  Widget _buildHeader(SocialPostReviewItem item) {
+  final VoidCallback onBack;
+  final SocialPostWorkflowState state;
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
+      padding: const EdgeInsets.fromLTRB(8, 8, 16, 10),
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(FeatherIcons.chevronLeft,
-                color: pinit.PinitColors.textPrimary),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-          _PlatformChip(label: item.platformLabel),
-          if (item.creatorHandle != null) ...[
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                '@${item.creatorHandle}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.bodySmall
-                    .copyWith(color: pinit.PinitColors.textSecondary),
-              ),
+            tooltip: 'Back',
+            onPressed: onBack,
+            icon: const Icon(
+              FeatherIcons.chevronLeft,
+              color: pinit.PinitColors.aubergine,
             ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  // ── Content ────────────────────────────────────────────────────────────────
-
-  Widget _buildContent(SocialPostReviewItem item) {
-    if (item.isProcessing) {
-      return _buildProcessing();
-    }
-    if (item.isFailed || !item.hasPlaces) {
-      return _buildEmptyOrFailed(item);
-    }
-    return _buildPlacesList(item);
-  }
-
-  Widget _buildProcessing() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const CircularProgressIndicator(color: pinit.PinitColors.aubergine),
-          const SizedBox(height: 18),
-          Text(
-            'Still reading this post…',
-            style: AppTypography.bodyMedium
-                .copyWith(color: pinit.PinitColors.textSecondary),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyOrFailed(SocialPostReviewItem item) {
-    final copy = item.isFailed
-        ? "We couldn't spot the place in this post"
-        : 'No places found in this post';
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-      child: Column(
-        children: [
-          _buildOpenPostRow(item),
-          if ((item.title ?? '').isNotEmpty) ...[
-            const SizedBox(height: 16),
-            _buildTitle(item),
-          ],
-          if (item.topVibes.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            _buildVibes(item),
-          ],
-          const SizedBox(height: 40),
-          const Icon(FeatherIcons.mapPin,
-              size: 44, color: pinit.PinitColors.mute),
-          const SizedBox(height: 16),
-          Text(
-            copy,
-            style: AppTypography.bodyLarge
-                .copyWith(color: pinit.PinitColors.textPrimary),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-          _PrimaryButton(
-            label: 'Add place manually',
-            icon: FeatherIcons.plus,
-            onTap: () => _manualAdd(item),
-          ),
-          const SizedBox(height: 8),
-          TextButton(
-            onPressed: () => _dismiss(item),
+          Expanded(
             child: Text(
-              'Dismiss',
-              style: AppTypography.bodyMedium
-                  .copyWith(color: pinit.PinitColors.textSecondary),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPlacesList(SocialPostReviewItem item) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-      children: [
-        _buildOpenPostRow(item),
-        if ((item.title ?? '').isNotEmpty) ...[
-          const SizedBox(height: 16),
-          _buildTitle(item),
-        ],
-        if (item.topVibes.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          _buildVibes(item),
-        ],
-        const SizedBox(height: 16),
-        for (final place in item.places) ...[
-          _buildPlaceRow(item, place),
-          const SizedBox(height: 12),
-        ],
-        const SizedBox(height: 4),
-        Center(
-          child: TextButton.icon(
-            onPressed: () => _manualAdd(item),
-            icon: const Icon(FeatherIcons.plus,
-                size: 16, color: pinit.PinitColors.aubergine),
-            label: Text(
-              'Add another place',
-              style: AppTypography.bodyMedium.copyWith(
+              'Review shared post',
+              style: AppTypography.brand(
+                fontSize: 25,
+                fontWeight: FontWeight.w800,
                 color: pinit.PinitColors.aubergine,
-                fontWeight: FontWeight.w700,
+                letterSpacing: .4,
               ),
             ),
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildOpenPostRow(SocialPostReviewItem item) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: GestureDetector(
-        onTap: () => _openPost(item),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: pinit.PinitColors.creamSunk,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: pinit.PinitColors.creamDeep,
-              width: 1,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(FeatherIcons.externalLink,
-                  size: 14, color: pinit.PinitColors.aubergine),
-              const SizedBox(width: 8),
-              Text(
-                'Open post',
-                style: AppTypography.bodySmall.copyWith(
-                  color: pinit.PinitColors.aubergine,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTitle(SocialPostReviewItem item) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Text(
-        item.title!,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        style: AppTypography.titleMedium
-            .copyWith(color: pinit.PinitColors.textPrimary),
-      ),
-    );
-  }
-
-  Widget _buildVibes(SocialPostReviewItem item) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          for (final vibe in item.topVibes) _VibeChip(label: vibe),
+          _CompactStatus(state: state),
         ],
-      ),
-    );
-  }
-
-  // ── Place row ────────────────────────────────────────────────────────────
-
-  Widget _buildPlaceRow(SocialPostReviewItem item, SocialPostPlace place) {
-    final action = item.placeActions[place.id];
-
-    // Terminal states other than "saved" are fully resolved — static card.
-    if (action == SocialPlaceAction.discarded ||
-        action == SocialPlaceAction.corrected ||
-        action == SocialPlaceAction.manualAdded) {
-      return _PlaceCard(
-        place: place,
-        action: action,
-        onTap: () => _openDetailSheet(item, place),
-      );
-    }
-
-    // Already auto-saved: still swipeable, just discard-only (there's
-    // nothing left to "save").
-    if (action == SocialPlaceAction.saved) {
-      final discardBg = _swipeBg(
-        color: pinit.PinitColors.error,
-        icon: FeatherIcons.x,
-        label: 'Discard',
-        alignment: Alignment.centerRight,
-      );
-      return Dismissible(
-        key: ValueKey(place.id),
-        direction: DismissDirection.endToStart,
-        background: discardBg,
-        secondaryBackground: discardBg,
-        confirmDismiss: (_) async {
-          final provider = context.read<SocialReviewProvider>();
-          final ok = await provider.discardPlace(item, place);
-          if (!ok && mounted) _snack('Couldn\'t discard — try again');
-          return ok;
-        },
-        child: _PlaceCard(
-          place: place,
-          action: action,
-          onTap: () => _openDetailSheet(item, place),
-        ),
-      );
-    }
-
-    // Not yet resolved (e.g. low-confidence, no location match) — swipe
-    // right to save, left to discard.
-    return Dismissible(
-      key: ValueKey(place.id),
-      background: _swipeBg(
-        color: pinit.PinitColors.teal,
-        icon: FeatherIcons.bookmark,
-        label: 'Save',
-        alignment: Alignment.centerLeft,
-      ),
-      secondaryBackground: _swipeBg(
-        color: pinit.PinitColors.error,
-        icon: FeatherIcons.x,
-        label: 'Discard',
-        alignment: Alignment.centerRight,
-      ),
-      confirmDismiss: (direction) async {
-        final provider = context.read<SocialReviewProvider>();
-        final bool ok;
-        if (direction == DismissDirection.startToEnd) {
-          ok = await provider.savePlace(item, place);
-        } else {
-          ok = await provider.discardPlace(item, place);
-        }
-        if (!ok && mounted) _snack('Couldn\'t save — try again');
-        return ok;
-      },
-      child: _PlaceCard(
-        place: place,
-        action: null,
-        onTap: () => _openDetailSheet(item, place),
-      ),
-    );
-  }
-
-  Widget _swipeBg({
-    required Color color,
-    required IconData icon,
-    required String label,
-    required Alignment alignment,
-  }) {
-    final isLeft = alignment == Alignment.centerLeft;
-    return Container(
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      alignment: alignment,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (isLeft) ...[
-            Icon(icon, color: Colors.white, size: 18),
-            const SizedBox(width: 8),
-          ],
-          Text(
-            label,
-            style: AppTypography.bodyMedium.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          if (!isLeft) ...[
-            const SizedBox(width: 8),
-            Icon(icon, color: Colors.white, size: 18),
-          ],
-        ],
-      ),
-    );
-  }
-
-  // ── Bottom bar ─────────────────────────────────────────────────────────────
-
-  Widget _buildBottomBar(SocialPostReviewItem item) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: pinit.PinitColors.cream,
-        border: Border(
-          top: BorderSide(color: pinit.PinitColors.creamDeep, width: 1),
-        ),
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: _PrimaryButton(
-                  label: 'Save all',
-                  icon: FeatherIcons.bookmark,
-                  onTap: () => _saveAll(item),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _OutlinedButton(
-                  label: 'Discard all',
-                  onTap: () => _discardAll(item),
-                ),
-              ),
-            ],
-          ),
-          TextButton(
-            onPressed: () => _reviewLater(item),
-            child: Text(
-              'Review later',
-              style: AppTypography.bodyMedium
-                  .copyWith(color: pinit.PinitColors.textSecondary),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── Detail sheet ─────────────────────────────────────────────────────────
-
-  void _openDetailSheet(SocialPostReviewItem item, SocialPostPlace place) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _PlaceDetailSheet(
-        item: item,
-        place: place,
-        onSave: () async {
-          final provider = context.read<SocialReviewProvider>();
-          await provider.savePlace(item, place);
-        },
-        onDiscard: () async {
-          final provider = context.read<SocialReviewProvider>();
-          await provider.discardPlace(item, place);
-        },
-        onViewOnMap: () async {
-          final provider = context.read<SocialReviewProvider>();
-          final loc = await provider.fetchLocation(place.locationId!);
-          if (!mounted) return;
-          if (loc != null) {
-            context.read<NavigationProvider>().navigateToLocationOnMap(loc);
-            Navigator.of(context).popUntil((r) => r.isFirst);
-          }
-        },
-        onCorrect: () async {
-          final provider = context.read<SocialReviewProvider>();
-          final picked = await SocialPlaceSearchSheet.show(
-            context,
-            title: 'Which place did they mean?',
-          );
-          if (picked == null) return;
-          await provider.correctPlace(item, place, picked);
-          if (!mounted) return;
-          _snack('Saved ${picked.name} instead');
-        },
       ),
     );
   }
 }
 
-// ── Reusable widgets ─────────────────────────────────────────────────────────
+class _CompactStatus extends StatelessWidget {
+  const _CompactStatus({required this.state});
 
-class _PlatformChip extends StatelessWidget {
-  final String label;
-  const _PlatformChip({required this.label});
+  final SocialPostWorkflowState state;
 
   @override
   Widget build(BuildContext context) {
+    final (label, background, foreground) = switch (state) {
+      SocialPostWorkflowState.processing => (
+          'Processing',
+          const Color(0xFFF0E7EF),
+          pinit.PinitColors.aubergineSoft,
+        ),
+      SocialPostWorkflowState.needsChecking => (
+          'Check',
+          const Color(0xFFFFF0CC),
+          const Color(0xFF805A08),
+        ),
+      SocialPostWorkflowState.failed => (
+          'Failed',
+          const Color(0xFFFBE6E2),
+          const Color(0xFF9A3025),
+        ),
+      SocialPostWorkflowState.resolved => (
+          'Resolved',
+          const Color(0xFFDFF3EF),
+          const Color(0xFF176F66),
+        ),
+      SocialPostWorkflowState.dismissed => (
+          'Dismissed',
+          pinit.PinitColors.creamSunk,
+          pinit.PinitColors.mute,
+        ),
+    };
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
-        color: pinit.PinitColors.aubergine,
+        color: background,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         label,
-        style: AppTypography.bodySmall.copyWith(
-          color: pinit.PinitColors.cream,
-          fontWeight: FontWeight.w700,
+        style: AppTypography.sans(
+          fontSize: 9,
+          fontWeight: FontWeight.w900,
+          color: foreground,
         ),
       ),
     );
   }
 }
 
-class _VibeChip extends StatelessWidget {
-  final String label;
-  const _VibeChip({required this.label});
+class _PostHero extends StatelessWidget {
+  const _PostHero({required this.item, required this.onOpen});
+
+  final SocialPostReviewItem item;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: pinit.PinitColors.creamSunk,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: pinit.PinitColors.creamDeep),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _HeroArtwork(item: item),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      item.platformType == SocialVideoPlatform.instagram
+                          ? FeatherIcons.instagram
+                          : FeatherIcons.music,
+                      size: 13,
+                      color: pinit.PinitColors.aubergineSoft,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      item.platformLabel,
+                      style: AppTypography.sans(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        color: pinit.PinitColors.aubergineSoft,
+                        letterSpacing: .35,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  item.creatorHandle?.trim().isNotEmpty == true
+                      ? '@${item.creatorHandle!.trim()}'
+                      : '${item.platformLabel} creator',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.sans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    color: pinit.PinitColors.aubergine,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  item.caption?.trim().isNotEmpty == true
+                      ? item.caption!.trim()
+                      : item.title?.trim().isNotEmpty == true
+                          ? item.title!.trim()
+                          : 'Shared post',
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.sans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: pinit.PinitColors.aubergineSoft,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 11),
+                OutlinedButton.icon(
+                  onPressed: item.openUrl.trim().isEmpty ? null : onOpen,
+                  icon: const Icon(FeatherIcons.externalLink, size: 14),
+                  label: const Text('Open original'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: pinit.PinitColors.aubergine,
+                    side: const BorderSide(
+                      color: pinit.PinitColors.creamDeep,
+                    ),
+                    backgroundColor: pinit.PinitColors.cream,
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 11,
+                      vertical: 9,
+                    ),
+                    textStyle: AppTypography.sans(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeroArtwork extends StatelessWidget {
+  const _HeroArtwork({required this.item});
+
+  final SocialPostReviewItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final fallback = DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            pinit.PinitColors.cream,
+            pinit.PinitColors.creamDeep,
+          ],
+        ),
+      ),
+      child: Center(
+        child: Container(
+          width: 44,
+          height: 44,
+          decoration: const BoxDecoration(
+            color: pinit.PinitColors.aubergine,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            item.platformType == SocialVideoPlatform.instagram
+                ? FeatherIcons.instagram
+                : FeatherIcons.music,
+            color: pinit.PinitColors.cream,
+            size: 20,
+          ),
+        ),
+      ),
+    );
+    final imageUrl = item.thumbnailUrl?.trim();
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: SizedBox(
+        width: 92,
+        height: 132,
+        child: imageUrl == null || imageUrl.isEmpty
+            ? fallback
+            : Image.network(
+                imageUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => fallback,
+              ),
+      ),
+    );
+  }
+}
+
+class _StatusPanel extends StatelessWidget {
+  const _StatusPanel({required this.item});
+
+  final SocialReviewPostItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final (title, icon, background, foreground) = switch (item.state) {
+      SocialPostWorkflowState.processing => (
+          'Still processing',
+          FeatherIcons.clock,
+          const Color(0xFFF0E7EF),
+          pinit.PinitColors.aubergineSoft,
+        ),
+      SocialPostWorkflowState.needsChecking => (
+          'Your check is needed',
+          FeatherIcons.alertCircle,
+          const Color(0xFFFFF5DB),
+          const Color(0xFF805A08),
+        ),
+      SocialPostWorkflowState.failed => (
+          'Pinit couldn’t finish',
+          FeatherIcons.alertTriangle,
+          const Color(0xFFFBE9E5),
+          const Color(0xFF92392F),
+        ),
+      SocialPostWorkflowState.resolved => (
+          'Restaurant confirmed',
+          FeatherIcons.checkCircle,
+          const Color(0xFFE4F4F1),
+          const Color(0xFF176F66),
+        ),
+      SocialPostWorkflowState.dismissed => (
+          'Post dismissed',
+          FeatherIcons.xCircle,
+          pinit.PinitColors.creamSunk,
+          pinit.PinitColors.mute,
+        ),
+    };
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: foreground),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: AppTypography.sans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    color: foreground,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  item.statusExplanation,
+                  style: AppTypography.sans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: pinit.PinitColors.aubergineSoft,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InsightsSection extends StatelessWidget {
+  const _InsightsSection({
+    required this.item,
+    required this.locationsById,
+  });
+
+  final SocialPostReviewItem item;
+  final Map<int, LocationModel> locationsById;
+
+  @override
+  Widget build(BuildContext context) {
+    final chips = <String>[];
+
+    void add(String? value) {
+      final normalized = value?.trim();
+      if (normalized == null ||
+          normalized.isEmpty ||
+          chips.any((chip) => chip.toLowerCase() == normalized.toLowerCase())) {
+        return;
+      }
+      chips.add(normalized);
+    }
+
+    for (final vibe in item.topVibes) {
+      add(_humanize(vibe));
+    }
+    for (final place in item.places) {
+      for (final dish in place.keyDishNames) {
+        add(dish);
+      }
+      add(place.candidateArea);
+      final id = item.savedLocationIds[place.id] ?? place.locationId;
+      final location = id == null ? null : locationsById[id];
+      add(location?.displayCuisine);
+      if (location?.priceLevel case final price? when price > 0) {
+        add('£' * price.clamp(1, 4).toInt());
+      }
+    }
+    final notes = item.places
+        .map((place) => place.creatorNotes)
+        .whereType<String>()
+        .firstOrNull;
+    final evidence = _evidenceLabel(item.evidenceFlags);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionHeading(
+          title: 'What Pinit found',
+          subtitle: 'Useful details extracted from the post are kept here.',
+        ),
+        if (chips.isNotEmpty) ...[
+          const SizedBox(height: 11),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final chip in chips.take(8)) _ContextChip(label: chip),
+            ],
+          ),
+        ],
+        if (notes != null) ...[
+          const SizedBox(height: 11),
+          _ContextNote(
+            icon: FeatherIcons.messageCircle,
+            label: 'Creator note',
+            value: notes,
+          ),
+        ],
+        if (evidence != null) ...[
+          const SizedBox(height: 8),
+          _ContextNote(
+            icon: FeatherIcons.eye,
+            label: 'Evidence used',
+            value: evidence,
+          ),
+        ],
+        if (chips.isEmpty && notes == null && evidence == null) ...[
+          const SizedBox(height: 11),
+          const _ContextNote(
+            icon: FeatherIcons.info,
+            label: 'Limited context',
+            value:
+                'No cuisine, dish or vibe details were available, but you can still identify the place below.',
+          ),
+        ],
+      ],
+    );
+  }
+
+  static String _humanize(String value) {
+    return value
+        .split(RegExp(r'[_ ]+'))
+        .where((word) => word.isNotEmpty)
+        .map((word) => '${word[0].toUpperCase()}${word.substring(1)}')
+        .join(' ');
+  }
+
+  static String? _evidenceLabel(Map<String, dynamic> flags) {
+    final evidence = <String>[];
+    for (final entry in flags.entries) {
+      if (entry.value != true) continue;
+      final label = switch (entry.key.toLowerCase()) {
+        'caption' => 'caption',
+        'ocr' || 'frame_ocr' || 'thumbnail_ocr' => 'on-screen text',
+        'audio' || 'transcript' => 'spoken audio',
+        'metadata' => 'post metadata',
+        _ => null,
+      };
+      if (label != null && !evidence.contains(label)) evidence.add(label);
+    }
+    if (evidence.isEmpty) return null;
+    if (evidence.length == 1) return 'Based on the ${evidence.single}.';
+    final last = evidence.removeLast();
+    return 'Based on the ${evidence.join(', ')} and $last.';
+  }
+}
+
+class _SectionHeading extends StatelessWidget {
+  const _SectionHeading({required this.title, required this.subtitle});
+
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: AppTypography.brand(
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            color: pinit.PinitColors.aubergine,
+            letterSpacing: .25,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          subtitle,
+          style: AppTypography.sans(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: pinit.PinitColors.mute,
+            height: 1.35,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ContextChip extends StatelessWidget {
+  const _ContextChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: pinit.PinitColors.creamSunk,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: pinit.PinitColors.creamDeep),
+      ),
+      child: Text(
+        label,
+        style: AppTypography.sans(
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          color: pinit.PinitColors.aubergineSoft,
+        ),
+      ),
+    );
+  }
+}
+
+class _ContextNote extends StatelessWidget {
+  const _ContextNote({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: pinit.PinitColors.creamSunk,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 15, color: pinit.PinitColors.aubergineSoft),
+          const SizedBox(width: 9),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: AppTypography.sans(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: pinit.PinitColors.aubergineSoft,
+                  height: 1.4,
+                ),
+                children: [
+                  TextSpan(
+                    text: '$label · ',
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  TextSpan(text: value),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CandidateCard extends StatefulWidget {
+  const _CandidateCard({
+    required this.place,
+    required this.selected,
+    required this.readOnly,
+    required this.onTap,
+  });
+
+  final SocialPostPlace place;
+  final bool selected;
+  final bool readOnly;
+  final VoidCallback onTap;
+
+  @override
+  State<_CandidateCard> createState() => _CandidateCardState();
+}
+
+class _CandidateCardState extends State<_CandidateCard> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final place = widget.place;
+    final detail = place.address?.trim().isNotEmpty == true
+        ? place.address!.trim()
+        : place.candidateArea?.trim();
+    final reasoning = place.extractedContext['reasoning']?.toString().trim();
+    return AnimatedScale(
+      scale: _pressed ? .985 : 1,
+      duration: const Duration(milliseconds: 130),
+      child: Material(
+        color:
+            widget.selected ? const Color(0xFFF5EAF3) : pinit.PinitColors.cream,
+        borderRadius: BorderRadius.circular(17),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(17),
+          onTap: widget.readOnly ? null : widget.onTap,
+          onHighlightChanged: (value) => setState(() => _pressed = value),
+          child: Container(
+            padding: const EdgeInsets.all(13),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(17),
+              border: Border.all(
+                color: widget.selected
+                    ? pinit.PinitColors.aubergineSoft
+                    : pinit.PinitColors.creamDeep,
+                width: widget.selected ? 1.5 : 1,
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (!widget.readOnly) ...[
+                  Container(
+                    width: 21,
+                    height: 21,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: widget.selected
+                          ? pinit.PinitColors.aubergine
+                          : Colors.transparent,
+                      border: Border.all(
+                        color: widget.selected
+                            ? pinit.PinitColors.aubergine
+                            : pinit.PinitColors.mute,
+                        width: 1.4,
+                      ),
+                    ),
+                    child: widget.selected
+                        ? const Icon(
+                            FeatherIcons.check,
+                            size: 12,
+                            color: pinit.PinitColors.cream,
+                          )
+                        : null,
+                  ),
+                  const SizedBox(width: 11),
+                ] else ...[
+                  const Icon(
+                    FeatherIcons.mapPin,
+                    size: 18,
+                    color: pinit.PinitColors.aubergineSoft,
+                  ),
+                  const SizedBox(width: 10),
+                ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              place.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.sans(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
+                                color: pinit.PinitColors.aubergine,
+                              ),
+                            ),
+                          ),
+                          if (place.confidenceScore != null)
+                            _ConfidencePill(score: place.confidenceScore!),
+                        ],
+                      ),
+                      if (detail != null && detail.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          detail,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.sans(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: pinit.PinitColors.mute,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
+                      if (reasoning != null && reasoning.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          reasoning,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.sans(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: pinit.PinitColors.aubergineSoft,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
+                      if (place.keyDishNames.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            for (final dish in place.keyDishNames.take(3))
+                              _MicroChip(label: dish),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ConfidencePill extends StatelessWidget {
+  const _ConfidencePill({required this.score});
+
+  final double score;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(left: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: pinit.PinitColors.creamSunk,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        '${(score * 100).round()}% match',
+        style: AppTypography.sans(
+          fontSize: 9,
+          fontWeight: FontWeight.w900,
+          color: pinit.PinitColors.aubergineSoft,
+        ),
+      ),
+    );
+  }
+}
+
+class _MicroChip extends StatelessWidget {
+  const _MicroChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
       decoration: BoxDecoration(
         color: pinit.PinitColors.creamSunk,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         label,
-        style: AppTypography.bodySmall.copyWith(
-          color: pinit.PinitColors.aubergine,
-          fontWeight: FontWeight.w600,
+        style: AppTypography.sans(
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          color: pinit.PinitColors.aubergineSoft,
         ),
       ),
     );
   }
 }
 
-class _PrimaryButton extends StatelessWidget {
-  final String label;
-  final IconData? icon;
-  final VoidCallback onTap;
-  const _PrimaryButton({required this.label, this.icon, required this.onTap});
+class _SelectedSearchPlace extends StatelessWidget {
+  const _SelectedSearchPlace({required this.place, required this.onClear});
 
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: pinit.PinitColors.aubergine,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (icon != null) ...[
-                Icon(icon, size: 16, color: pinit.PinitColors.cream),
-                const SizedBox(width: 8),
-              ],
-              Text(
-                label,
-                style: AppTypography.bodyMedium.copyWith(
-                  color: pinit.PinitColors.cream,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
+  final LocationModel place;
+  final VoidCallback onClear;
 
-class _OutlinedButton extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-  const _OutlinedButton({required this.label, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: pinit.PinitColors.error, width: 1.4),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: AppTypography.bodyMedium.copyWith(
-              color: pinit.PinitColors.error,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PlaceCard extends StatelessWidget {
-  final SocialPostPlace place;
-  final SocialPlaceAction? action;
-  final VoidCallback onTap;
-
-  const _PlaceCard({
-    required this.place,
-    required this.action,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final card = Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: pinit.PinitColors.creamDeep, width: 1),
-          ),
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: pinit.PinitColors.creamSunk,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                alignment: Alignment.center,
-                child: const Icon(FeatherIcons.mapPin,
-                    size: 18, color: pinit.PinitColors.aubergineSoft),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      place.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.bodyLarge.copyWith(
-                        color: pinit.PinitColors.textPrimary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    if ((place.address ?? '').isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Text(
-                          place.address!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTypography.bodySmall.copyWith(
-                              color: pinit.PinitColors.textSecondary),
-                        ),
-                      ),
-                    if (place.isLowConfidence)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: _AmberChip(),
-                      ),
-                    if (place.keyDishNames.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Text(
-                          '🍽 ${place.keyDishNames.take(2).join(' · ')}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTypography.bodySmall.copyWith(
-                              color: pinit.PinitColors.textMuted),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              if (action != null) ...[
-                const SizedBox(width: 8),
-                _StatusChip(action: action!),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-
-    // Only dim fully-resolved rows — a "saved" row is still swipeable and
-    // should read as active content, not a completed/faded one.
-    if (action == null || action == SocialPlaceAction.saved) return card;
-    return Opacity(opacity: 0.6, child: card);
-  }
-}
-
-class _AmberChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: pinit.PinitColors.warning.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(999),
+        color: const Color(0xFFE4F4F1),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFB9DDD7)),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(FeatherIcons.alertCircle,
-              size: 12, color: pinit.PinitColors.warning),
-          const SizedBox(width: 4),
-          Text(
-            'Not sure — tap to check',
-            style: AppTypography.bodySmall.copyWith(
-              color: pinit.PinitColors.warning,
-              fontWeight: FontWeight.w600,
-              fontSize: 11,
+          const Icon(
+            FeatherIcons.checkCircle,
+            size: 18,
+            color: Color(0xFF176F66),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Use ${place.name}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.sans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    color: pinit.PinitColors.aubergine,
+                  ),
+                ),
+                if (place.vicinity?.trim().isNotEmpty == true)
+                  Text(
+                    place.vicinity!.trim(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.sans(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: pinit.PinitColors.mute,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Clear selected place',
+            onPressed: onClear,
+            icon: const Icon(
+              FeatherIcons.x,
+              size: 17,
+              color: pinit.PinitColors.aubergineSoft,
             ),
           ),
         ],
@@ -883,323 +1097,128 @@ class _AmberChip extends StatelessWidget {
   }
 }
 
-class _StatusChip extends StatelessWidget {
-  final SocialPlaceAction action;
-  const _StatusChip({required this.action});
-
-  @override
-  Widget build(BuildContext context) {
-    late final String label;
-    late final Color color;
-    switch (action) {
-      case SocialPlaceAction.saved:
-        label = 'Saved';
-        color = pinit.PinitColors.teal;
-        break;
-      case SocialPlaceAction.discarded:
-        label = 'Discarded';
-        color = pinit.PinitColors.mute;
-        break;
-      case SocialPlaceAction.corrected:
-        label = 'Corrected';
-        color = pinit.PinitColors.aubergine;
-        break;
-      case SocialPlaceAction.manualAdded:
-        label = 'Added';
-        color = pinit.PinitColors.teal;
-        break;
-    }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: AppTypography.bodySmall.copyWith(
-          color: color,
-          fontWeight: FontWeight.w700,
-          fontSize: 11,
-        ),
-      ),
-    );
-  }
-}
-
-class _PlaceDetailSheet extends StatelessWidget {
-  final SocialPostReviewItem item;
-  final SocialPostPlace place;
-  final Future<void> Function() onSave;
-  final Future<void> Function() onDiscard;
-  final Future<void> Function() onViewOnMap;
-  final Future<void> Function() onCorrect;
-
-  const _PlaceDetailSheet({
-    required this.item,
-    required this.place,
-    required this.onSave,
-    required this.onDiscard,
-    required this.onViewOnMap,
-    required this.onCorrect,
+class _ReviewActionBar extends StatelessWidget {
+  const _ReviewActionBar({
+    required this.submitting,
+    required this.confirmEnabled,
+    required this.onConfirm,
+    required this.onDismiss,
   });
 
-  String get _confidenceLabel {
-    switch (place.confidenceTier) {
-      case 'high':
-        return 'High confidence match';
-      case 'medium':
-        return 'Medium confidence match';
-      case 'low':
-        return 'Low confidence match';
-      default:
-        return 'Match';
-    }
-  }
-
-  List<Map<String, dynamic>> get _keyDishes {
-    final dishes = place.extractedContext['key_dishes'];
-    if (dishes is! List) return const [];
-    return dishes.whereType<Map<String, dynamic>>().toList();
-  }
-
-  List<String> get _specialOffers {
-    final offers = place.extractedContext['special_offers'];
-    if (offers is! List) return const [];
-    return offers
-        .whereType<Map<String, dynamic>>()
-        .map((o) => o['offer']?.toString() ?? '')
-        .where((o) => o.isNotEmpty)
-        .toList();
-  }
-
-  List<String> get _vibeSignals {
-    final signals = place.extractedContext['vibe_signals'];
-    if (signals is! Map) return const [];
-    return signals.keys
-        .map((k) => k.toString().replaceAll('_', ' '))
-        .where((k) => k.isNotEmpty)
-        .toList();
-  }
-
-  bool get _hasAnyContext =>
-      _keyDishes.isNotEmpty ||
-      (place.creatorNotes != null) ||
-      _specialOffers.isNotEmpty ||
-      _vibeSignals.isNotEmpty;
+  final bool submitting;
+  final bool confirmEnabled;
+  final VoidCallback onConfirm;
+  final VoidCallback onDismiss;
 
   @override
   Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-    return Padding(
-      padding: EdgeInsets.only(bottom: bottomInset),
-      child: Container(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.82,
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 11, 16, 12),
+      decoration: BoxDecoration(
+        color: pinit.PinitColors.cream,
+        border: const Border(
+          top: BorderSide(color: pinit.PinitColors.creamDeep),
         ),
-        decoration: const BoxDecoration(
-          color: pinit.PinitColors.cream,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        boxShadow: pinit.PinitColors.elevatedShadow,
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
           children: [
-            const SizedBox(height: 10),
-            Container(
-              width: 44,
-              height: 4,
-              decoration: BoxDecoration(
-                color: pinit.PinitColors.mute.withValues(alpha: 0.4),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            Flexible(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      place.name,
-                      style: AppTypography.headingSmall
-                          .copyWith(color: pinit.PinitColors.textPrimary),
-                    ),
-                    if ((place.address ?? '').isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        place.address!,
-                        style: AppTypography.bodyMedium.copyWith(
-                            color: pinit.PinitColors.textSecondary),
-                      ),
-                    ],
-                    const SizedBox(height: 8),
-                    Text(
-                      _confidenceLabel,
-                      style: AppTypography.bodySmall.copyWith(
-                        color: place.isLowConfidence
-                            ? pinit.PinitColors.warning
-                            : pinit.PinitColors.textMuted,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    if (!_hasAnyContext)
-                      Text(
-                        'No extra context from the post',
-                        style: AppTypography.bodyMedium.copyWith(
-                            color: pinit.PinitColors.textMuted),
-                      )
-                    else ...[
-                      if (_keyDishes.isNotEmpty) ...[
-                        _sectionHeader('Key dishes'),
-                        const SizedBox(height: 8),
-                        for (final dish in _keyDishes)
-                          _buildDish(dish),
-                        const SizedBox(height: 8),
-                      ],
-                      if (place.creatorNotes != null) ...[
-                        _sectionHeader('Creator notes'),
-                        const SizedBox(height: 8),
-                        Text(
-                          place.creatorNotes!,
-                          style: AppTypography.bodyMedium.copyWith(
-                              color: pinit.PinitColors.textSecondary),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-                      if (_specialOffers.isNotEmpty) ...[
-                        _sectionHeader('Special offers'),
-                        const SizedBox(height: 8),
-                        for (final offer in _specialOffers)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 4),
-                            child: Text(
-                              '• $offer',
-                              style: AppTypography.bodyMedium.copyWith(
-                                  color: pinit.PinitColors.textSecondary),
-                            ),
-                          ),
-                        const SizedBox(height: 12),
-                      ],
-                      if (_vibeSignals.isNotEmpty) ...[
-                        _sectionHeader('Vibes'),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            for (final vibe in _vibeSignals)
-                              _VibeChip(label: vibe),
-                          ],
-                        ),
-                      ],
-                    ],
-                  ],
+            TextButton(
+              onPressed: submitting ? null : onDismiss,
+              style: TextButton.styleFrom(
+                foregroundColor: pinit.PinitColors.mute,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 13),
+                textStyle: AppTypography.sans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
+              child: const Text('Dismiss post'),
             ),
-            _buildActions(context),
-            SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
+            const SizedBox(width: 8),
+            Expanded(
+              child: FilledButton(
+                onPressed: !submitting && confirmEnabled ? onConfirm : null,
+                style: FilledButton.styleFrom(
+                  backgroundColor: pinit.PinitColors.aubergine,
+                  foregroundColor: pinit.PinitColors.cream,
+                  disabledBackgroundColor: pinit.PinitColors.creamDeep,
+                  disabledForegroundColor: pinit.PinitColors.mute,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  textStyle: AppTypography.sans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                child: submitting
+                    ? const SizedBox(
+                        width: 17,
+                        height: 17,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: pinit.PinitColors.cream,
+                        ),
+                      )
+                    : const Text('Confirm restaurant'),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _sectionHeader(String title) {
-    return Text(
-      title,
-      style: AppTypography.titleSmall
-          .copyWith(color: pinit.PinitColors.textPrimary),
-    );
-  }
+class _MissingOrLoading extends StatelessWidget {
+  const _MissingOrLoading({required this.loading, required this.onBack});
 
-  Widget _buildDish(Map<String, dynamic> dish) {
-    final name = dish['name']?.toString() ?? '';
-    final description = dish['description']?.toString().trim();
-    if (name.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '🍽 $name',
-            style: AppTypography.bodyMedium.copyWith(
-              color: pinit.PinitColors.textPrimary,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          if (description != null && description.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 2, left: 20),
-              child: Text(
-                description,
-                style: AppTypography.bodySmall.copyWith(
-                    color: pinit.PinitColors.textSecondary),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
+  final bool loading;
+  final VoidCallback onBack;
 
-  Widget _buildActions(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: _PrimaryButton(
-                  label: 'Save place',
-                  icon: FeatherIcons.bookmark,
-                  onTap: () async {
-                    Navigator.of(context).pop();
-                    await onSave();
-                  },
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _OutlinedButton(
-                  label: 'Discard',
-                  onTap: () async {
-                    Navigator.of(context).pop();
-                    await onDiscard();
-                  },
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          if (place.locationId != null)
-            TextButton.icon(
-              onPressed: () => onViewOnMap(),
-              icon: const Icon(FeatherIcons.map,
-                  size: 16, color: pinit.PinitColors.aubergine),
-              label: Text(
-                'View on map',
-                style: AppTypography.bodyMedium.copyWith(
-                  color: pinit.PinitColors.aubergine,
-                  fontWeight: FontWeight.w700,
-                ),
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return const Center(
+        child: CircularProgressIndicator(color: pinit.PinitColors.aubergine),
+      );
+    }
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              FeatherIcons.inbox,
+              size: 42,
+              color: pinit.PinitColors.mute,
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'This shared post is no longer available',
+              textAlign: TextAlign.center,
+              style: AppTypography.sans(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: pinit.PinitColors.aubergine,
               ),
             ),
-          TextButton(
-            onPressed: () async {
-              Navigator.of(context).pop();
-              await onCorrect();
-            },
-            child: Text(
-              'Wrong place? Correct it',
-              style: AppTypography.bodyMedium
-                  .copyWith(color: pinit.PinitColors.textSecondary),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: onBack,
+              style: FilledButton.styleFrom(
+                backgroundColor: pinit.PinitColors.aubergine,
+              ),
+              child: const Text('Back'),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
