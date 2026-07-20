@@ -126,6 +126,7 @@ def process_url(url: str, openai_client: OpenAI, gmaps_key: str) -> PipelineResu
     """
     platform = _platform(url)
     evidence = EvidenceFlags()
+    meta: URLMetadata | None = None
 
     try:
         # ── Stage 0: Resolve short links to the canonical post URL ─────────
@@ -136,7 +137,7 @@ def process_url(url: str, openai_client: OpenAI, gmaps_key: str) -> PipelineResu
             logger.info("Canonical URL: %s", work_url)
 
         # ── Stage 1: Cheap URL metadata ────────────────────────────────────
-        meta: URLMetadata = fetch_url_metadata(work_url)
+        meta = fetch_url_metadata(work_url)
         logger.info(
             "URL metadata: title=%r hashtags=%d has_thumbnail=%s",
             meta.title[:60] if meta.title else "",
@@ -203,7 +204,11 @@ def process_url(url: str, openai_client: OpenAI, gmaps_key: str) -> PipelineResu
                 meta.transcript = transcript
                 evidence.subtitles = True
 
-                candidates = extract_candidates(openai_client, meta, cheap_ocr)
+                candidates = extract_candidates(
+                    openai_client,
+                    meta,
+                    thumb_ocr_text,
+                )
                 logger.info("Candidates with transcript: %d", len(candidates))
                 if candidates:
                     resolved = resolve_candidates(candidates, gmaps_key)
@@ -232,7 +237,9 @@ def process_url(url: str, openai_client: OpenAI, gmaps_key: str) -> PipelineResu
 
         # ── Stage 7+8: Re-extract and re-score, only if new signal arrived ─
         if frame_ocr_text:
-            combined_ocr = " ".join(filter(None, [cheap_ocr, frame_ocr_text]))
+            combined_ocr = " ".join(
+                filter(None, [thumb_ocr_text, frame_ocr_text])
+            )
             candidates = extract_candidates(openai_client, meta, combined_ocr)
             logger.info("Candidates after frame OCR: %d", len(candidates))
 
@@ -267,5 +274,7 @@ def process_url(url: str, openai_client: OpenAI, gmaps_key: str) -> PipelineResu
             status="failed",
             source_url=url,
             platform=platform,
+            evidence_flags=evidence,
+            meta=meta,
             error=str(exc),
         )

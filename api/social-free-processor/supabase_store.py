@@ -19,7 +19,26 @@ from datetime import datetime, timezone
 import httpx
 from supabase import Client
 
+from models import URLMetadata
+
 logger = logging.getLogger(__name__)
+
+
+def post_metadata_fields(meta: URLMetadata | None) -> dict:
+    """Serializable post context that is safe and useful in the review UI."""
+    if meta is None:
+        return {}
+    return {
+        "creator_handle": meta.creator_handle or None,
+        "title": meta.title or None,
+        "caption": meta.description or meta.title or None,
+        "thumbnail_url": meta.thumbnail_url or None,
+    }
+
+
+def should_auto_save_place(place: dict) -> bool:
+    """Only confident, catalogued places should save without user review."""
+    return bool(place.get("location_id")) and place.get("confidence_tier") == "high"
 
 
 def is_processing_lease_stale(post: dict, lease_seconds: int) -> bool:
@@ -211,6 +230,7 @@ def record_place_review(
     place_id: str,
     action: str,
     location_id: int | None = None,
+    confirmed_by_user: bool = False,
 ):
     """Upsert a user's action on a place candidate (auto-save, manual, etc.)."""
     try:
@@ -220,6 +240,7 @@ def record_place_review(
                 "social_post_place_id": place_id,
                 "action": action,
                 "location_id": location_id,
+                "confirmed_by_user": confirmed_by_user,
             },
             on_conflict="user_id,social_post_place_id",
         ).execute()

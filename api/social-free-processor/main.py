@@ -138,9 +138,9 @@ def _auto_save_places(post_id: str, user_id: str, platform: str, source_url: str
     """
     saved = 0
     for place in store.get_post_places(supabase, post_id):
-        location_id = place.get("location_id")
-        if not location_id or place.get("confidence_tier") not in ("high", "medium"):
+        if not store.should_auto_save_place(place):
             continue
+        location_id = place["location_id"]
         result = save_location_for_user(
             supabase, user_id=user_id, location_id=location_id,
             platform=platform, source_url=source_url,
@@ -153,7 +153,7 @@ def _auto_save_places(post_id: str, user_id: str, platform: str, source_url: str
             continue
         store.record_place_review(
             supabase, user_id=user_id, place_id=place["id"],
-            action="saved", location_id=location_id,
+            action="saved", location_id=location_id, confirmed_by_user=False,
         )
         saved += 1
     return saved
@@ -272,8 +272,8 @@ def _process_share(url: str, user_id: str):
             store.update_post(supabase, post_id, {
                 "status": "failed",
                 "error": result.error or "pipeline failed",
-                "creator_handle": meta.creator_handle if meta else None,
-                "title": meta.title if meta else None,
+                "evidence_flags": result.evidence_flags.to_dict(),
+                **store.post_metadata_fields(meta),
             })
             store.touch_reviews_for_post(supabase, post_id)
             _notify_reviewers(post_id, platform, failed=True)
@@ -325,8 +325,7 @@ def _process_share(url: str, user_id: str):
 
         store.update_post(supabase, post_id, {
             "status": "processed",
-            "creator_handle": meta.creator_handle if meta else None,
-            "title": meta.title if meta else None,
+            **store.post_metadata_fields(meta),
             "vibes": post_insights.get("vibe_signals") or {},
             "sentiment": post_insights.get("sentiment"),
             "evidence_flags": result.evidence_flags.to_dict(),
