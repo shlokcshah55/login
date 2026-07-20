@@ -77,6 +77,10 @@ void main() {
                 extractedContext: {
                   'creator_notes': 'Order the chilli oil on the side.',
                   'reasoning': 'Name and Soho location were both mentioned.',
+                  'vibe_signals': {'casual': .9},
+                  'special_offers': [
+                    {'offer': 'Lunch menu for £12'},
+                  ],
                   'key_dishes': [
                     {'name': 'Chilli noodles'},
                   ],
@@ -129,14 +133,22 @@ void main() {
     expect(find.text('Open original'), findsOneWidget);
     expect(find.text('What Pinit found'), findsOneWidget);
     expect(find.text('Chilli noodles'), findsWidgets);
+    expect(find.text('Casual'), findsOneWidget);
 
     await tester.scrollUntilVisible(
       find.text('Suggested restaurants'),
       250,
       scrollable: find.byType(Scrollable).first,
     );
+    expect(find.text('Lunch menu for £12'), findsWidgets);
     expect(find.text('Noodle Yard'), findsOneWidget);
     expect(find.text('72% match'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
+      find.text('Xi’an Corner'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Xi’an Corner'), findsOneWidget);
     expect(find.text('41% match'), findsOneWidget);
 

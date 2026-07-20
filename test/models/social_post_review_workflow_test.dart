@@ -49,6 +49,28 @@ void main() {
     );
   }
 
+  test('exposes ranked vibe and offer insights from candidate context', () {
+    const place = SocialPostPlace(
+      id: 'place-context',
+      name: 'Monkey & Me Thai Cuisine',
+      extractedContext: {
+        'source': 'thumbnail_ocr',
+        'reasoning': 'Name and neighbourhood appeared on screen.',
+        'sentiment': 'positive',
+        'vibe_signals': {'takeout_friendly': .8, 'casual': .9},
+        'special_offers': [
+          {'offer': 'Affordable lunch for £12'},
+        ],
+      },
+    );
+
+    expect(place.vibeSignalNames, ['casual', 'takeout friendly']);
+    expect(place.specialOfferLabels, ['Affordable lunch for £12']);
+    expect(place.reasoning, 'Name and neighbourhood appeared on screen.');
+    expect(place.sentiment, 'positive');
+    expect(place.sourceLabel, 'Thumbnail OCR');
+  });
+
   test('parses all persisted post context fields', () {
     final parsed = SocialPostReviewItem.fromJson({
       'id': 'review-1',

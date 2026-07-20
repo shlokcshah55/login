@@ -99,6 +99,58 @@ class SocialPostPlace {
     final notes = extractedContext['creator_notes']?.toString().trim();
     return (notes == null || notes.isEmpty) ? null : notes;
   }
+
+  String? get reasoning {
+    final value = extractedContext['reasoning']?.toString().trim();
+    return (value == null || value.isEmpty) ? null : value;
+  }
+
+  String? get sentiment {
+    final value = extractedContext['sentiment']?.toString().trim();
+    return (value == null || value.isEmpty) ? null : value;
+  }
+
+  String? get sourceLabel {
+    final source = extractedContext['source']?.toString().trim().toLowerCase();
+    if (source == null || source.isEmpty) return null;
+    return switch (source) {
+      'thumbnail_ocr' => 'Thumbnail OCR',
+      'slideshow_ocr' || 'slideshow_vision' => 'Slideshow',
+      'frame_ocr' => 'Video text',
+      'location_tag' => 'Location tag',
+      'caption' => 'Caption',
+      'transcript' => 'Spoken audio',
+      _ => source
+          .split('_')
+          .where((word) => word.isNotEmpty)
+          .map((word) => '${word[0].toUpperCase()}${word.substring(1)}')
+          .join(' '),
+    };
+  }
+
+  List<String> get vibeSignalNames {
+    final signals = extractedContext['vibe_signals'];
+    if (signals is! Map) return const [];
+    final entries =
+        signals.entries.where((entry) => entry.value is num).toList()
+          ..sort(
+            (a, b) => (b.value as num).compareTo(a.value as num),
+          );
+    return entries
+        .map((entry) => entry.key.toString().replaceAll('_', ' ').trim())
+        .where((value) => value.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  List<String> get specialOfferLabels {
+    final offers = extractedContext['special_offers'];
+    if (offers is! List) return const [];
+    return offers
+        .whereType<Map>()
+        .map((offer) => offer['offer']?.toString().trim() ?? '')
+        .where((offer) => offer.isNotEmpty)
+        .toList(growable: false);
+  }
 }
 
 /// One social post the user shared, together with their review state.

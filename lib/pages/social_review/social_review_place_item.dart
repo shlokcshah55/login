@@ -115,6 +115,9 @@ class SocialReviewPostItem {
       for (final dish in place.keyDishNames) {
         add(dish);
       }
+      for (final vibe in place.vibeSignalNames) {
+        add(vibe);
+      }
     }
     for (final location in locations) {
       final level = location.priceLevel;

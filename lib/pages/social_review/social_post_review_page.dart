@@ -623,6 +623,9 @@ class _InsightsSection extends StatelessWidget {
       for (final dish in place.keyDishNames) {
         add(dish);
       }
+      for (final vibe in place.vibeSignalNames) {
+        add(_humanize(vibe));
+      }
       add(place.candidateArea);
       final id = item.savedLocationIds[place.id] ?? place.locationId;
       final location = id == null ? null : locationsById[id];
@@ -635,6 +638,8 @@ class _InsightsSection extends StatelessWidget {
         .map((place) => place.creatorNotes)
         .whereType<String>()
         .firstOrNull;
+    final offer =
+        item.places.expand((place) => place.specialOfferLabels).firstOrNull;
     final evidence = _evidenceLabel(item.evidenceFlags);
 
     return Column(
@@ -662,6 +667,14 @@ class _InsightsSection extends StatelessWidget {
             value: notes,
           ),
         ],
+        if (offer != null) ...[
+          const SizedBox(height: 8),
+          _ContextNote(
+            icon: FeatherIcons.tag,
+            label: 'Offer mentioned',
+            value: offer,
+          ),
+        ],
         if (evidence != null) ...[
           const SizedBox(height: 8),
           _ContextNote(
@@ -670,7 +683,10 @@ class _InsightsSection extends StatelessWidget {
             value: evidence,
           ),
         ],
-        if (chips.isEmpty && notes == null && evidence == null) ...[
+        if (chips.isEmpty &&
+            notes == null &&
+            offer == null &&
+            evidence == null) ...[
           const SizedBox(height: 11),
           const _ContextNote(
             icon: FeatherIcons.info,
@@ -848,7 +864,7 @@ class _CandidateCardState extends State<_CandidateCard> {
     final detail = place.address?.trim().isNotEmpty == true
         ? place.address!.trim()
         : place.candidateArea?.trim();
-    final reasoning = place.extractedContext['reasoning']?.toString().trim();
+    final reasoning = place.reasoning;
     return AnimatedScale(
       scale: _pressed ? .985 : 1,
       duration: const Duration(milliseconds: 130),
@@ -965,6 +981,31 @@ class _CandidateCardState extends State<_CandidateCard> {
                           children: [
                             for (final dish in place.keyDishNames.take(3))
                               _MicroChip(label: dish),
+                          ],
+                        ),
+                      ],
+                      if (place.specialOfferLabels.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(
+                              FeatherIcons.tag,
+                              size: 12,
+                              color: pinit.PinitColors.aubergineSoft,
+                            ),
+                            const SizedBox(width: 5),
+                            Expanded(
+                              child: Text(
+                                place.specialOfferLabels.first,
+                                style: AppTypography.sans(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: pinit.PinitColors.aubergineSoft,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ],
