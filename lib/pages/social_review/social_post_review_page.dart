@@ -39,7 +39,7 @@ class _SocialPostReviewPageState extends State<SocialPostReviewPage> {
   bool _requestedRefresh = false;
   bool _trackedShown = false;
   bool _submitting = false;
-  String? _selectedCandidateId;
+  final Set<String> _selectedCandidateIds = <String>{};
   LocationModel? _searchedPlace;
 
   @override
@@ -67,14 +67,15 @@ class _SocialPostReviewPageState extends State<SocialPostReviewPage> {
   }
 
   void _seedSelection(SocialPostReviewItem item) {
-    if (_selectedCandidateId != null || item.places.isEmpty) return;
+    if (_selectedCandidateIds.isNotEmpty || item.places.isEmpty) return;
     final candidates = _rankedCandidates(item);
     final preferred = candidates.where(
       (place) =>
           item.pendingReviewPlaces.any((pending) => pending.id == place.id),
     );
-    _selectedCandidateId =
-        (preferred.isNotEmpty ? preferred.first : candidates.first).id;
+    _selectedCandidateIds.add(
+      (preferred.isNotEmpty ? preferred.first : candidates.first).id,
+    );
   }
 
   List<SocialPostPlace> _rankedCandidates(SocialPostReviewItem item) {
@@ -98,25 +99,27 @@ class _SocialPostReviewPageState extends State<SocialPostReviewPage> {
 
   Future<void> _confirm(SocialPostReviewItem item) async {
     if (_submitting) return;
-    final selected = item.places
-        .where((place) => place.id == _selectedCandidateId)
-        .firstOrNull;
-    if (selected == null && _searchedPlace == null) return;
+    final selected = _rankedCandidates(item)
+        .where((place) => _selectedCandidateIds.contains(place.id))
+        .toList(growable: false);
+    final selectionCount = selected.length + (_searchedPlace == null ? 0 : 1);
+    if (selectionCount == 0) return;
 
     setState(() => _submitting = true);
     final provider = context.read<SocialReviewProvider>();
-    final bool ok;
-    if (_searchedPlace case final searched?) {
-      ok = selected == null
-          ? await provider.addManualPlace(item, searched)
-          : await provider.correctPlace(item, selected, searched);
-    } else {
-      ok = await provider.confirmPlace(item, selected!);
-    }
+    final ok = await provider.confirmPlaces(
+      item,
+      selectedPlaces: selected,
+      additionalPlace: _searchedPlace,
+    );
     if (!mounted) return;
     setState(() => _submitting = false);
     _showMessage(
-      ok ? 'Restaurant confirmed' : 'Couldn’t save that restaurant',
+      ok
+          ? selectionCount == 1
+              ? 'Restaurant confirmed'
+              : '$selectionCount restaurants confirmed'
+          : 'Couldn’t save every restaurant',
       isError: !ok,
     );
   }
@@ -209,14 +212,14 @@ class _SocialPostReviewPageState extends State<SocialPostReviewPage> {
                 for (final candidate in _rankedCandidates(item)) ...[
                   _CandidateCard(
                     place: candidate,
-                    selected: candidate.id == _selectedCandidateId &&
-                        _searchedPlace == null,
+                    selected: _selectedCandidateIds.contains(candidate.id),
                     readOnly: !actionable,
                     onTap: () {
                       if (!actionable) return;
                       setState(() {
-                        _selectedCandidateId = candidate.id;
-                        _searchedPlace = null;
+                        if (!_selectedCandidateIds.add(candidate.id)) {
+                          _selectedCandidateIds.remove(candidate.id);
+                        }
                       });
                     },
                   ),
@@ -249,8 +252,8 @@ class _SocialPostReviewPageState extends State<SocialPostReviewPage> {
         if (actionable)
           _ReviewActionBar(
             submitting: _submitting,
-            confirmEnabled:
-                _selectedCandidateId != null || _searchedPlace != null,
+            selectionCount:
+                _selectedCandidateIds.length + (_searchedPlace == null ? 0 : 1),
             onConfirm: () => unawaited(_confirm(item)),
             onDismiss: () => unawaited(_dismiss(item)),
           ),
@@ -1141,13 +1144,13 @@ class _SelectedSearchPlace extends StatelessWidget {
 class _ReviewActionBar extends StatelessWidget {
   const _ReviewActionBar({
     required this.submitting,
-    required this.confirmEnabled,
+    required this.selectionCount,
     required this.onConfirm,
     required this.onDismiss,
   });
 
   final bool submitting;
-  final bool confirmEnabled;
+  final int selectionCount;
   final VoidCallback onConfirm;
   final VoidCallback onDismiss;
 
@@ -1182,7 +1185,7 @@ class _ReviewActionBar extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: FilledButton(
-                onPressed: !submitting && confirmEnabled ? onConfirm : null,
+                onPressed: !submitting && selectionCount > 0 ? onConfirm : null,
                 style: FilledButton.styleFrom(
                   backgroundColor: pinit.PinitColors.aubergine,
                   foregroundColor: pinit.PinitColors.cream,
@@ -1206,7 +1209,11 @@ class _ReviewActionBar extends StatelessWidget {
                           color: pinit.PinitColors.cream,
                         ),
                       )
-                    : const Text('Confirm restaurant'),
+                    : Text(
+                        selectionCount > 1
+                            ? 'Confirm $selectionCount restaurants'
+                            : 'Confirm restaurant',
+                      ),
               ),
             ),
           ],

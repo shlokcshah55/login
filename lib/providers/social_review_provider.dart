@@ -23,7 +23,8 @@ class SocialReviewProvider extends ChangeNotifier {
     _reviewLoader = reviewLoader ?? () => _reviews.fetchReviewItems();
     _locationBatchLoader =
         locationBatchLoader ?? (ids) => _locations.getLocationsByIds(ids);
-    _reviewStatusUpdater = reviewStatusUpdater ?? _reviews.updateReviewStatus;
+    _reviewStatusUpdater = reviewStatusUpdater ??
+        (reviewId, status) => _reviews.updateReviewStatus(reviewId, status);
   }
 
   SocialReviewsHelper? _helper;

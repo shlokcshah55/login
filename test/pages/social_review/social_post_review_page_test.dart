@@ -14,6 +14,7 @@ class _RecordingProvider extends SocialReviewProvider {
         );
 
   String? confirmedCandidateId;
+  List<String> confirmedCandidateIds = [];
   LocationModel? correctedPlace;
   bool dismissed = false;
 
@@ -23,6 +24,17 @@ class _RecordingProvider extends SocialReviewProvider {
     SocialPostPlace place,
   ) async {
     confirmedCandidateId = place.id;
+    return true;
+  }
+
+  @override
+  Future<bool> confirmPlaces(
+    SocialPostReviewItem item, {
+    required List<SocialPostPlace> selectedPlaces,
+    LocationModel? additionalPlace,
+  }) async {
+    confirmedCandidateIds = selectedPlaces.map((place) => place.id).toList();
+    correctedPlace = additionalPlace;
     return true;
   }
 
@@ -165,7 +177,8 @@ void main() {
     expect(find.text('Dismiss post'), findsOneWidget);
   });
 
-  testWidgets('confirms the selected ranked candidate', (tester) async {
+  testWidgets('keeps multiple ranked candidates selected and confirms both',
+      (tester) async {
     final provider = _RecordingProvider([review()]);
     await provider.refresh();
 
@@ -189,10 +202,14 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     await tester.tap(find.text('Xi’an Corner'));
-    await tester.tap(find.text('Confirm restaurant'));
     await tester.pump();
 
-    expect(provider.confirmedCandidateId, 'candidate-2');
+    expect(find.text('Confirm 2 restaurants'), findsOneWidget);
+
+    await tester.tap(find.text('Confirm 2 restaurants'));
+    await tester.pump();
+
+    expect(provider.confirmedCandidateIds, ['candidate-1', 'candidate-2']);
   });
 
   testWidgets('processing state keeps context without review actions',
