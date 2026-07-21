@@ -18,10 +18,12 @@ class SocialReviewProvider extends ChangeNotifier {
   SocialReviewProvider({
     Future<List<SocialPostReviewItem>> Function()? reviewLoader,
     Future<List<LocationModel>> Function(List<int> ids)? locationBatchLoader,
+    Future<void> Function(String reviewId, String status)? reviewStatusUpdater,
   }) {
     _reviewLoader = reviewLoader ?? () => _reviews.fetchReviewItems();
     _locationBatchLoader =
         locationBatchLoader ?? (ids) => _locations.getLocationsByIds(ids);
+    _reviewStatusUpdater = reviewStatusUpdater ?? _reviews.updateReviewStatus;
   }
 
   SocialReviewsHelper? _helper;
@@ -31,6 +33,8 @@ class SocialReviewProvider extends ChangeNotifier {
   late final Future<List<SocialPostReviewItem>> Function() _reviewLoader;
   late final Future<List<LocationModel>> Function(List<int> ids)
       _locationBatchLoader;
+  late final Future<void> Function(String reviewId, String status)
+      _reviewStatusUpdater;
 
   SocialReviewsHelper get _reviews => _helper ??= SocialReviewsHelper();
   LocationHelper get _locations => _locationHelper ??= LocationHelper();
@@ -206,6 +210,41 @@ class SocialReviewProvider extends ChangeNotifier {
     return true;
   }
 
+  /// Confirm every candidate selected for one post. Each row is independent,
+  /// even when multiple candidates share the same extracted restaurant name.
+  Future<bool> confirmPlaces(
+    SocialPostReviewItem item, {
+    required List<SocialPostPlace> selectedPlaces,
+    LocationModel? additionalPlace,
+  }) async {
+    if (selectedPlaces.isEmpty && additionalPlace == null) return false;
+
+    if (additionalPlace != null &&
+        !await _persistManualPlace(
+          item,
+          additionalPlace,
+          completeReview: false,
+        )) {
+      return false;
+    }
+
+    final selectedIds = selectedPlaces.map((place) => place.id).toSet();
+    for (final place in selectedPlaces) {
+      if (!await savePlace(itemByPostId(item.postId) ?? item, place)) {
+        return false;
+      }
+    }
+    for (final place in item.places) {
+      if (selectedIds.contains(place.id)) continue;
+      if (!await discardPlace(itemByPostId(item.postId) ?? item, place)) {
+        return false;
+      }
+    }
+
+    await _completeReview(itemByPostId(item.postId) ?? item, 'reviewed');
+    return true;
+  }
+
   /// Swipe left: discard one place candidate. Most candidates are already
   /// auto-saved by the time the user reviews them, so this also removes the
   /// place from the user's Eat List if one was saved for it.
@@ -306,7 +345,14 @@ class SocialReviewProvider extends ChangeNotifier {
   Future<bool> addManualPlace(
     SocialPostReviewItem item,
     LocationModel pickedPlace,
-  ) async {
+  ) =>
+      _persistManualPlace(item, pickedPlace, completeReview: true);
+
+  Future<bool> _persistManualPlace(
+    SocialPostReviewItem item,
+    LocationModel pickedPlace, {
+    required bool completeReview,
+  }) async {
     try {
       final googlePlaceId = pickedPlace.googlePlaceId;
       if (googlePlaceId == null || googlePlaceId.isEmpty) return false;
@@ -345,8 +391,10 @@ class SocialReviewProvider extends ChangeNotifier {
         registerTap: true,
         interactionKey: 'social_place_manually_added',
       );
-      await _reviews.updateReviewStatus(item.reviewId, 'reviewed');
-      await refresh();
+      if (completeReview) {
+        await _reviews.updateReviewStatus(item.reviewId, 'reviewed');
+        await refresh();
+      }
       return true;
     } catch (e) {
       debugPrint('[SocialReviewProvider] addManualPlace failed: $e');
@@ -474,7 +522,7 @@ class SocialReviewProvider extends ChangeNotifier {
     String status,
   ) async {
     try {
-      await _reviews.updateReviewStatus(item.reviewId, status);
+      await _reviewStatusUpdater(item.reviewId, status);
     } catch (e) {
       debugPrint('[SocialReviewProvider] updateReviewStatus failed: $e');
     }
