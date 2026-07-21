@@ -143,6 +143,57 @@ void main() {
     expect(opened?.postId, 'post-check');
   });
 
+  testWidgets('uses DM Sans for inbox copy while retaining the Rova heading',
+      (tester) async {
+    final provider = await providerWithPosts();
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: provider,
+        child: const MaterialApp(home: SocialReviewInboxPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final heading = tester.widget<Text>(find.text('Shared saves'));
+    expect(heading.style?.fontFamily, 'Rova');
+
+    for (final label in [
+      'See what Pinit found and finish anything uncertain.',
+      'Needs checking',
+      '@foodwithmaya',
+      'The chilli noodles were worth crossing London for.',
+      'Noodle Yard',
+      '72% match',
+      'Chinese',
+    ]) {
+      final matches = tester.widgetList<Text>(find.text(label));
+      expect(matches, isNotEmpty, reason: 'Expected to find "$label"');
+      for (final text in matches) {
+        expect(
+          text.style?.fontFamily,
+          anyOf('DM Sans', startsWith('DMSans_')),
+          reason: 'Expected "$label" to use DM Sans',
+        );
+      }
+    }
+
+    final search = tester.widget<TextField>(find.byType(TextField));
+    expect(search.style?.fontFamily, anyOf('DM Sans', startsWith('DMSans_')));
+    expect(
+      search.decoration?.hintStyle?.fontFamily,
+      anyOf('DM Sans', startsWith('DMSans_')),
+    );
+
+    final reviewButton = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Review match'),
+    );
+    expect(
+      reviewButton.style?.textStyle?.resolve({})?.fontFamily,
+      anyOf('DM Sans', startsWith('DMSans_')),
+    );
+  });
+
   testWidgets('filters processing and resolved posts, then searches context',
       (tester) async {
     final provider = await providerWithPosts();

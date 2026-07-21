@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/social_review_models.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
 import 'package:login/pages/social_review/social_post_review_page.dart';
@@ -241,7 +242,7 @@ class _Header extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   'See what Pinit found and finish anything uncertain.',
-                  style: AppTypography.sans(
+                  style: GoogleFonts.dmSans(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: pinit.PinitColors.mute,
@@ -318,14 +319,14 @@ class _SearchField extends StatelessWidget {
         onChanged: onChanged,
         textInputAction: TextInputAction.search,
         cursorColor: pinit.PinitColors.aubergine,
-        style: AppTypography.sans(
+        style: GoogleFonts.dmSans(
           fontSize: 14,
           fontWeight: FontWeight.w700,
           color: pinit.PinitColors.aubergine,
         ),
         decoration: InputDecoration(
           hintText: 'Search posts, creators or places',
-          hintStyle: AppTypography.sans(
+          hintStyle: GoogleFonts.dmSans(
             fontSize: 14,
             fontWeight: FontWeight.w600,
             color: pinit.PinitColors.mute,
@@ -461,7 +462,7 @@ class _FilterChip extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: AppTypography.sans(
+                style: GoogleFonts.dmSans(
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
                   color: selected
@@ -482,7 +483,7 @@ class _FilterChip extends StatelessWidget {
                   ),
                   child: Text(
                     '$count',
-                    style: AppTypography.sans(
+                    style: GoogleFonts.dmSans(
                       fontSize: 10,
                       fontWeight: FontWeight.w900,
                       color: selected
@@ -587,7 +588,7 @@ class _SharedPostCardState extends State<_SharedPostCard> {
                                   : '${item.review.platformLabel} creator',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: AppTypography.sans(
+                              style: GoogleFonts.dmSans(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w800,
                                 color: pinit.PinitColors.aubergineSoft,
@@ -598,7 +599,7 @@ class _SharedPostCardState extends State<_SharedPostCard> {
                               item.summary,
                               maxLines: 3,
                               overflow: TextOverflow.ellipsis,
-                              style: AppTypography.sans(
+                              style: GoogleFonts.dmSans(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w800,
                                 color: pinit.PinitColors.aubergine,
@@ -758,7 +759,7 @@ class _PlatformLabel extends StatelessWidget {
         const SizedBox(width: 5),
         Text(
           review.platformLabel,
-          style: AppTypography.sans(
+          style: GoogleFonts.dmSans(
             fontSize: 10,
             fontWeight: FontWeight.w800,
             color: pinit.PinitColors.aubergineSoft,
@@ -822,7 +823,7 @@ class _StatusBadge extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             label,
-            style: AppTypography.sans(
+            style: GoogleFonts.dmSans(
               fontSize: 9,
               fontWeight: FontWeight.w900,
               color: foreground,
@@ -866,7 +867,7 @@ class _WhyRow extends StatelessWidget {
           Expanded(
             child: Text(
               item.statusExplanation,
-              style: AppTypography.sans(
+              style: GoogleFonts.dmSans(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
                 color: pinit.PinitColors.aubergineSoft,
@@ -930,7 +931,7 @@ class _CandidateSummary extends StatelessWidget {
                   name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AppTypography.sans(
+                  style: GoogleFonts.dmSans(
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
                     color: pinit.PinitColors.aubergine,
@@ -942,7 +943,7 @@ class _CandidateSummary extends StatelessWidget {
                     area,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: AppTypography.sans(
+                    style: GoogleFonts.dmSans(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
                       color: pinit.PinitColors.mute,
@@ -961,7 +962,7 @@ class _CandidateSummary extends StatelessWidget {
               ),
               child: Text(
                 '${(confidence * 100).round()}% match',
-                style: AppTypography.sans(
+                style: GoogleFonts.dmSans(
                   fontSize: 9,
                   fontWeight: FontWeight.w900,
                   color: pinit.PinitColors.aubergineSoft,
@@ -989,7 +990,7 @@ class _InsightChip extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: AppTypography.sans(
+        style: GoogleFonts.dmSans(
           fontSize: 10,
           fontWeight: FontWeight.w700,
           color: pinit.PinitColors.aubergineSoft,
@@ -1021,7 +1022,7 @@ class _SecondaryAction extends StatelessWidget {
         side: const BorderSide(color: pinit.PinitColors.creamDeep),
         padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 11),
         visualDensity: VisualDensity.compact,
-        textStyle: AppTypography.sans(
+        textStyle: GoogleFonts.dmSans(
           fontSize: 10,
           fontWeight: FontWeight.w800,
         ),
@@ -1048,7 +1049,7 @@ class _PrimaryAction extends StatelessWidget {
         foregroundColor: pinit.PinitColors.cream,
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
         visualDensity: VisualDensity.compact,
-        textStyle: AppTypography.sans(
+        textStyle: GoogleFonts.dmSans(
           fontSize: 11,
           fontWeight: FontWeight.w900,
         ),
@@ -1113,7 +1114,7 @@ class _EmptyView extends StatelessWidget {
             Text(
               title,
               textAlign: TextAlign.center,
-              style: AppTypography.sans(
+              style: GoogleFonts.dmSans(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
                 color: pinit.PinitColors.aubergine,
@@ -1145,7 +1146,7 @@ class _ErrorView extends StatelessWidget {
           const SizedBox(height: 14),
           Text(
             'Couldn’t load shared posts',
-            style: AppTypography.sans(
+            style: GoogleFonts.dmSans(
               fontSize: 15,
               fontWeight: FontWeight.w800,
               color: pinit.PinitColors.aubergine,
