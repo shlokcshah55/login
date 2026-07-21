@@ -46,7 +46,7 @@ class HomeChipRow extends StatefulWidget {
     this.activeCollectionId,
     this.activeBubbleName,
     this.rowSpotlightKey,
-    this.footballAction,
+    this.trailingAction,
   });
 
   final HomeMode currentMode;
@@ -59,7 +59,7 @@ class HomeChipRow extends StatefulWidget {
   final String? activeCollectionId;
   final String? activeBubbleName;
   final Key? rowSpotlightKey;
-  final Widget? footballAction;
+  final Widget? trailingAction;
 
   @override
   State<HomeChipRow> createState() => _HomeChipRowState();
@@ -169,12 +169,12 @@ class _HomeChipRowState extends State<HomeChipRow> {
             ),
           ),
         ),
-        if (!bubbleActive && widget.footballAction != null)
+        if (!bubbleActive && widget.trailingAction != null)
           Align(
             alignment: Alignment.centerRight,
             child: Padding(
               padding: const EdgeInsets.only(top: 8, right: 2),
-              child: widget.footballAction!,
+              child: widget.trailingAction!,
             ),
           ),
         AnimatedSwitcher(

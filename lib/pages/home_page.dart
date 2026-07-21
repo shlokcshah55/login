@@ -5,19 +5,19 @@ import 'package:flutter/services.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
-import 'package:login/pages/home/football_discovery_view_model.dart';
 import 'package:login/pages/home/home_view_model.dart';
 import 'package:login/pages/home/search/header_search_location_hydrator.dart';
 import 'package:login/pages/home/search/header_search_readiness.dart';
 import 'package:login/pages/home/search/header_search_types.dart';
-import 'package:login/pages/home/widgets/football_discovery_overlay.dart';
 import 'package:login/pages/home/widgets/home_carousel.dart';
 import 'package:login/pages/home/widgets/home_filter_sheet.dart';
 import 'package:login/pages/home/widgets/home_header_search_shell.dart';
 import 'package:login/pages/home/widgets/home_map_layer.dart';
+import 'package:login/pages/home/widgets/home_social_inbox_button.dart';
 import 'package:login/pages/home/widgets/magic_search_suggestions.dart';
 import 'package:login/pages/home/widgets/profile_completion_carousel_card.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
+import 'package:login/pages/social_review/social_review_inbox_page.dart';
 import 'package:login/themes/app_typography.dart';
 import 'package:login/themes/pinit_colors.dart';
 import 'package:login/pages/home/widgets/mode_toggle.dart';
@@ -33,8 +33,6 @@ import 'package:login/providers/user_data_provider.dart';
 import 'package:login/providers/bubble_mode_provider.dart';
 import 'package:login/providers/navigation_provider.dart';
 import 'package:login/services/notes_import_submitted_service.dart';
-import 'package:login/services/football_fixtures_service.dart';
-import 'package:login/services/natural_language_search_service.dart';
 import 'package:login/services/profile_completion_card_preferences_service.dart';
 import 'package:login/services/referral_prompt_service.dart';
 import 'package:login/services/what_we_do_wizard_service.dart';
@@ -53,7 +51,6 @@ import 'package:login/widgets/swipe_card_stack.dart';
 import 'package:login/widgets/wizard_completion_popover.dart';
 import 'package:login/supabase/helpers/collections.dart';
 import 'package:login/pages/profile/widgets/collections_grid.dart';
-import 'package:login/utils/geo_types.dart';
 import 'package:provider/provider.dart';
 
 class HomePage extends StatefulWidget {
@@ -166,66 +163,11 @@ class _HomePageState extends State<HomePage> {
     setState(() => _notesImportWasSubmitted = submitted);
   }
 
-  Future<List<LocationModel>> _runFootballMagicSearch(String query) async {
-    final userId = SupabaseClientManager().currentUser?.id;
-    if (userId == null) {
-      throw StateError('User not logged in');
-    }
-
-    final viewData = await _mapStateProvider.getVisibleCenterAndRadius();
-    final center = viewData == null ? null : viewData['center'] as LatLng?;
-    final radiusKm = viewData == null ? 4.0 : viewData['radius'] as double;
-    final currentLocation = center ??
-        _locationListManager.cameraPosition?.target ??
-        _locationListManager.currentPosition ??
-        await _locationListManager.getCurrentLocation();
-
-    if (currentLocation == null) {
-      throw StateError('Location permission required for football search');
-    }
-
-    return NaturalLanguageSearchService().search(
-      userId: userId,
-      query: query,
-      currentLocation: currentLocation,
-      radiusKm: radiusKm.clamp(1.5, 6.0).toDouble(),
-      maxResults: 12,
-    );
-  }
-
-  Future<void> _openFootballDiscoveryOverlay() async {
-    final viewModel = FootballDiscoveryViewModel(
-      loadFixtures: FootballFixturesService().fetchActiveFixtures,
-      magicSearch: _runFootballMagicSearch,
-    );
-
-    await showGeneralDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-      barrierColor: Colors.black.withValues(alpha: 0.36),
-      transitionDuration: const Duration(milliseconds: 260),
-      pageBuilder: (dialogContext, _, __) {
-        return ChangeNotifierProvider.value(
-          value: viewModel,
-          child: FootballDiscoveryOverlay(
-            onClose: () => Navigator.of(dialogContext).pop(),
-          ),
-        );
-      },
-      transitionBuilder: (context, animation, _, child) {
-        return FadeTransition(
-          opacity: CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOutCubic,
-          ),
-          child: child,
-        );
-      },
-    );
-
-    viewModel.dispose();
-  }
+  Future<void> _openSocialReviewInbox() => Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => const SocialReviewInboxPage(),
+        ),
+      );
 
   @override
   void didUpdateWidget(HomePage oldWidget) {
@@ -873,8 +815,8 @@ class _HomePageState extends State<HomePage> {
                         searchSpotlightKey: null,
                         magicSearchSpotlightKey: null,
                         modeRowSpotlightKey: null,
-                        onFootballDiscoveryTap: () =>
-                            unawaited(_openFootballDiscoveryOverlay()),
+                        onSocialInboxTap: () =>
+                            unawaited(_openSocialReviewInbox()),
                       ),
                     )
                   else
@@ -889,8 +831,8 @@ class _HomePageState extends State<HomePage> {
                         searchSpotlightKey: _searchSpotlightKey,
                         magicSearchSpotlightKey: _magicSearchSpotlightKey,
                         modeRowSpotlightKey: _modeRowSpotlightKey,
-                        onFootballDiscoveryTap: () =>
-                            unawaited(_openFootballDiscoveryOverlay()),
+                        onSocialInboxTap: () =>
+                            unawaited(_openSocialReviewInbox()),
                       ),
                     ),
 
@@ -1664,47 +1606,6 @@ class _HomeActionPill extends StatelessWidget {
   }
 }
 
-class _FootballDiscoveryButton extends StatelessWidget {
-  const _FootballDiscoveryButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: 'Find pubs to watch the football',
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: pinit.PinitColors.warning,
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: pinit.PinitColors.aubergine,
-              width: 1.6,
-            ),
-            boxShadow: const [
-              BoxShadow(
-                color: pinit.PinitColors.aubergine,
-                blurRadius: 0,
-                offset: Offset(3, 3),
-              ),
-            ],
-          ),
-          child: const Icon(
-            Icons.sports_soccer_rounded,
-            color: pinit.PinitColors.aubergine,
-            size: 24,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _TopPanel extends StatelessWidget {
   final double topPadding;
   final HomeViewModel viewModel;
@@ -1712,7 +1613,7 @@ class _TopPanel extends StatelessWidget {
   final Key? searchSpotlightKey;
   final Key? magicSearchSpotlightKey;
   final Key? modeRowSpotlightKey;
-  final VoidCallback onFootballDiscoveryTap;
+  final VoidCallback onSocialInboxTap;
 
   const _TopPanel({
     required this.topPadding,
@@ -1721,7 +1622,7 @@ class _TopPanel extends StatelessWidget {
     required this.searchSpotlightKey,
     required this.magicSearchSpotlightKey,
     required this.modeRowSpotlightKey,
-    required this.onFootballDiscoveryTap,
+    required this.onSocialInboxTap,
   });
 
   Future<void> _openExpandedSearchLocation(
@@ -2030,8 +1931,12 @@ class _TopPanel extends StatelessWidget {
                                 ),
                               );
                             },
-                            footballAction: _FootballDiscoveryButton(
-                              onTap: onFootballDiscoveryTap,
+                            trailingAction: Consumer<SocialReviewProvider>(
+                              builder: (context, socialReview, _) =>
+                                  HomeSocialInboxButton(
+                                count: socialReview.needsCheckingCount,
+                                onTap: onSocialInboxTap,
+                              ),
                             ),
                           ),
               ),
