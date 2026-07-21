@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/models/social_review_models.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
@@ -182,10 +183,7 @@ class _SocialPostReviewPageState extends State<SocialPostReviewPage> {
 
     return Column(
       children: [
-        _PageHeader(
-          onBack: () => Navigator.of(context).pop(),
-          state: projection.state,
-        ),
+        _PageHeader(onBack: () => Navigator.of(context).pop()),
         Expanded(
           child: ListView(
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -193,8 +191,10 @@ class _SocialPostReviewPageState extends State<SocialPostReviewPage> {
             padding: EdgeInsets.fromLTRB(16, 6, 16, actionable ? 28 : 36),
             children: [
               _PostHero(item: item, onOpen: () => unawaited(_openPost(item))),
-              const SizedBox(height: 14),
-              _StatusPanel(item: projection),
+              if (!actionable) ...[
+                const SizedBox(height: 14),
+                _StatusPanel(item: projection),
+              ],
               const SizedBox(height: 22),
               _InsightsSection(
                 item: item,
@@ -202,12 +202,7 @@ class _SocialPostReviewPageState extends State<SocialPostReviewPage> {
               ),
               if (item.places.isNotEmpty) ...[
                 const SizedBox(height: 24),
-                _SectionHeading(
-                  title: 'Suggested restaurants',
-                  subtitle: actionable
-                      ? 'Ranked by how closely each place matches the post.'
-                      : 'Places extracted from this post.',
-                ),
+                const _SectionHeading(title: 'Suggested restaurants'),
                 const SizedBox(height: 11),
                 for (final candidate in _rankedCandidates(item)) ...[
                   _CandidateCard(
@@ -228,11 +223,7 @@ class _SocialPostReviewPageState extends State<SocialPostReviewPage> {
               ],
               if (actionable) ...[
                 const SizedBox(height: 16),
-                const _SectionHeading(
-                  title: 'Search for a different place',
-                  subtitle:
-                      'Pick an existing result to correct the match or add the place manually.',
-                ),
+                const _SectionHeading(title: 'Search for a different place'),
                 const SizedBox(height: 11),
                 SocialPlaceSearchPanel(
                   searcher: widget.placeSearcher,
@@ -263,10 +254,9 @@ class _SocialPostReviewPageState extends State<SocialPostReviewPage> {
 }
 
 class _PageHeader extends StatelessWidget {
-  const _PageHeader({required this.onBack, required this.state});
+  const _PageHeader({required this.onBack});
 
   final VoidCallback onBack;
-  final SocialPostWorkflowState state;
 
   @override
   Widget build(BuildContext context) {
@@ -289,64 +279,11 @@ class _PageHeader extends StatelessWidget {
                 fontSize: 25,
                 fontWeight: FontWeight.w800,
                 color: pinit.PinitColors.aubergine,
-                letterSpacing: .4,
+                letterSpacing: .9,
               ),
             ),
           ),
-          _CompactStatus(state: state),
         ],
-      ),
-    );
-  }
-}
-
-class _CompactStatus extends StatelessWidget {
-  const _CompactStatus({required this.state});
-
-  final SocialPostWorkflowState state;
-
-  @override
-  Widget build(BuildContext context) {
-    final (label, background, foreground) = switch (state) {
-      SocialPostWorkflowState.processing => (
-          'Processing',
-          const Color(0xFFF0E7EF),
-          pinit.PinitColors.aubergineSoft,
-        ),
-      SocialPostWorkflowState.needsChecking => (
-          'Check',
-          const Color(0xFFFFF0CC),
-          const Color(0xFF805A08),
-        ),
-      SocialPostWorkflowState.failed => (
-          'Failed',
-          const Color(0xFFFBE6E2),
-          const Color(0xFF9A3025),
-        ),
-      SocialPostWorkflowState.resolved => (
-          'Resolved',
-          const Color(0xFFDFF3EF),
-          const Color(0xFF176F66),
-        ),
-      SocialPostWorkflowState.dismissed => (
-          'Dismissed',
-          pinit.PinitColors.creamSunk,
-          pinit.PinitColors.mute,
-        ),
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: AppTypography.sans(
-          fontSize: 9,
-          fontWeight: FontWeight.w900,
-          color: foreground,
-        ),
       ),
     );
   }
@@ -388,7 +325,7 @@ class _PostHero extends StatelessWidget {
                     const SizedBox(width: 6),
                     Text(
                       item.platformLabel,
-                      style: AppTypography.sans(
+                      style: GoogleFonts.dmSans(
                         fontSize: 10,
                         fontWeight: FontWeight.w900,
                         color: pinit.PinitColors.aubergineSoft,
@@ -404,7 +341,7 @@ class _PostHero extends StatelessWidget {
                       : '${item.platformLabel} creator',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AppTypography.sans(
+                  style: GoogleFonts.dmSans(
                     fontSize: 13,
                     fontWeight: FontWeight.w900,
                     color: pinit.PinitColors.aubergine,
@@ -419,7 +356,7 @@ class _PostHero extends StatelessWidget {
                           : 'Shared post',
                   maxLines: 4,
                   overflow: TextOverflow.ellipsis,
-                  style: AppTypography.sans(
+                  style: GoogleFonts.dmSans(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: pinit.PinitColors.aubergineSoft,
@@ -442,7 +379,7 @@ class _PostHero extends StatelessWidget {
                       horizontal: 11,
                       vertical: 9,
                     ),
-                    textStyle: AppTypography.sans(
+                    textStyle: GoogleFonts.dmSans(
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
                     ),
@@ -571,7 +508,7 @@ class _StatusPanel extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: AppTypography.sans(
+                  style: GoogleFonts.dmSans(
                     fontSize: 13,
                     fontWeight: FontWeight.w900,
                     color: foreground,
@@ -580,7 +517,7 @@ class _StatusPanel extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   item.statusExplanation,
-                  style: AppTypography.sans(
+                  style: GoogleFonts.dmSans(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                     color: pinit.PinitColors.aubergineSoft,
@@ -641,24 +578,18 @@ class _InsightsSection extends StatelessWidget {
         .map((place) => place.creatorNotes)
         .whereType<String>()
         .firstOrNull;
-    final offer =
-        item.places.expand((place) => place.specialOfferLabels).firstOrNull;
-    final evidence = _evidenceLabel(item.evidenceFlags);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _SectionHeading(
-          title: 'What Pinit found',
-          subtitle: 'Useful details extracted from the post are kept here.',
-        ),
+        const _SectionHeading(title: 'What Pinit found'),
         if (chips.isNotEmpty) ...[
           const SizedBox(height: 11),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
-              for (final chip in chips.take(8)) _ContextChip(label: chip),
+              for (final chip in chips.take(6)) _ContextChip(label: chip),
             ],
           ),
         ],
@@ -670,26 +601,7 @@ class _InsightsSection extends StatelessWidget {
             value: notes,
           ),
         ],
-        if (offer != null) ...[
-          const SizedBox(height: 8),
-          _ContextNote(
-            icon: FeatherIcons.tag,
-            label: 'Offer mentioned',
-            value: offer,
-          ),
-        ],
-        if (evidence != null) ...[
-          const SizedBox(height: 8),
-          _ContextNote(
-            icon: FeatherIcons.eye,
-            label: 'Evidence used',
-            value: evidence,
-          ),
-        ],
-        if (chips.isEmpty &&
-            notes == null &&
-            offer == null &&
-            evidence == null) ...[
+        if (chips.isEmpty && notes == null) ...[
           const SizedBox(height: 11),
           const _ContextNote(
             icon: FeatherIcons.info,
@@ -709,58 +621,23 @@ class _InsightsSection extends StatelessWidget {
         .map((word) => '${word[0].toUpperCase()}${word.substring(1)}')
         .join(' ');
   }
-
-  static String? _evidenceLabel(Map<String, dynamic> flags) {
-    final evidence = <String>[];
-    for (final entry in flags.entries) {
-      if (entry.value != true) continue;
-      final label = switch (entry.key.toLowerCase()) {
-        'caption' => 'caption',
-        'ocr' || 'frame_ocr' || 'thumbnail_ocr' => 'on-screen text',
-        'audio' || 'transcript' => 'spoken audio',
-        'metadata' => 'post metadata',
-        _ => null,
-      };
-      if (label != null && !evidence.contains(label)) evidence.add(label);
-    }
-    if (evidence.isEmpty) return null;
-    if (evidence.length == 1) return 'Based on the ${evidence.single}.';
-    final last = evidence.removeLast();
-    return 'Based on the ${evidence.join(', ')} and $last.';
-  }
 }
 
 class _SectionHeading extends StatelessWidget {
-  const _SectionHeading({required this.title, required this.subtitle});
+  const _SectionHeading({required this.title});
 
   final String title;
-  final String subtitle;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: AppTypography.brand(
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
-            color: pinit.PinitColors.aubergine,
-            letterSpacing: .25,
-          ),
-        ),
-        const SizedBox(height: 3),
-        Text(
-          subtitle,
-          style: AppTypography.sans(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: pinit.PinitColors.mute,
-            height: 1.35,
-          ),
-        ),
-      ],
+    return Text(
+      title,
+      style: AppTypography.brand(
+        fontSize: 20,
+        fontWeight: FontWeight.w800,
+        color: pinit.PinitColors.aubergine,
+        letterSpacing: .7,
+      ),
     );
   }
 }
@@ -781,7 +658,7 @@ class _ContextChip extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: AppTypography.sans(
+        style: GoogleFonts.dmSans(
           fontSize: 10,
           fontWeight: FontWeight.w800,
           color: pinit.PinitColors.aubergineSoft,
@@ -819,7 +696,7 @@ class _ContextNote extends StatelessWidget {
           Expanded(
             child: RichText(
               text: TextSpan(
-                style: AppTypography.sans(
+                style: GoogleFonts.dmSans(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                   color: pinit.PinitColors.aubergineSoft,
@@ -867,7 +744,6 @@ class _CandidateCardState extends State<_CandidateCard> {
     final detail = place.address?.trim().isNotEmpty == true
         ? place.address!.trim()
         : place.candidateArea?.trim();
-    final reasoning = place.reasoning;
     return AnimatedScale(
       scale: _pressed ? .985 : 1,
       duration: const Duration(milliseconds: 130),
@@ -937,7 +813,7 @@ class _CandidateCardState extends State<_CandidateCard> {
                               place.name,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: AppTypography.sans(
+                              style: GoogleFonts.dmSans(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w900,
                                 color: pinit.PinitColors.aubergine,
@@ -954,24 +830,10 @@ class _CandidateCardState extends State<_CandidateCard> {
                           detail,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: AppTypography.sans(
+                          style: GoogleFonts.dmSans(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
                             color: pinit.PinitColors.mute,
-                            height: 1.35,
-                          ),
-                        ),
-                      ],
-                      if (reasoning != null && reasoning.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          reasoning,
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTypography.sans(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: pinit.PinitColors.aubergineSoft,
                             height: 1.35,
                           ),
                         ),
@@ -1001,7 +863,7 @@ class _CandidateCardState extends State<_CandidateCard> {
                             Expanded(
                               child: Text(
                                 place.specialOfferLabels.first,
-                                style: AppTypography.sans(
+                                style: GoogleFonts.dmSans(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w700,
                                   color: pinit.PinitColors.aubergineSoft,
@@ -1040,7 +902,7 @@ class _ConfidencePill extends StatelessWidget {
       ),
       child: Text(
         '${(score * 100).round()}% match',
-        style: AppTypography.sans(
+        style: GoogleFonts.dmSans(
           fontSize: 9,
           fontWeight: FontWeight.w900,
           color: pinit.PinitColors.aubergineSoft,
@@ -1065,7 +927,7 @@ class _MicroChip extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: AppTypography.sans(
+        style: GoogleFonts.dmSans(
           fontSize: 9,
           fontWeight: FontWeight.w700,
           color: pinit.PinitColors.aubergineSoft,
@@ -1106,7 +968,7 @@ class _SelectedSearchPlace extends StatelessWidget {
                   'Use ${place.name}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AppTypography.sans(
+                  style: GoogleFonts.dmSans(
                     fontSize: 13,
                     fontWeight: FontWeight.w900,
                     color: pinit.PinitColors.aubergine,
@@ -1117,7 +979,7 @@ class _SelectedSearchPlace extends StatelessWidget {
                     place.vicinity!.trim(),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: AppTypography.sans(
+                    style: GoogleFonts.dmSans(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
                       color: pinit.PinitColors.mute,
@@ -1175,7 +1037,7 @@ class _ReviewActionBar extends StatelessWidget {
                 foregroundColor: pinit.PinitColors.mute,
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 13),
-                textStyle: AppTypography.sans(
+                textStyle: GoogleFonts.dmSans(
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
                 ),
@@ -1192,7 +1054,7 @@ class _ReviewActionBar extends StatelessWidget {
                   disabledBackgroundColor: pinit.PinitColors.creamDeep,
                   disabledForegroundColor: pinit.PinitColors.mute,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  textStyle: AppTypography.sans(
+                  textStyle: GoogleFonts.dmSans(
                     fontSize: 13,
                     fontWeight: FontWeight.w900,
                   ),
@@ -1251,7 +1113,7 @@ class _MissingOrLoading extends StatelessWidget {
             Text(
               'This shared post is no longer available',
               textAlign: TextAlign.center,
-              style: AppTypography.sans(
+              style: GoogleFonts.dmSans(
                 fontSize: 15,
                 fontWeight: FontWeight.w800,
                 color: pinit.PinitColors.aubergine,

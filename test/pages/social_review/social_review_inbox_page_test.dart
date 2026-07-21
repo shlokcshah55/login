@@ -109,7 +109,8 @@ void main() {
     return provider;
   }
 
-  testWidgets('renders one contextual card per shared post', (tester) async {
+  testWidgets('renders a full-screen snap-scrolling page for the shared post',
+      (tester) async {
     final provider = await providerWithPosts();
     SocialPostReviewItem? opened;
 
@@ -123,10 +124,15 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Shared saves'), findsOneWidget);
-    expect(find.text('Needs checking'), findsWidgets);
-    expect(find.text('Processing'), findsOneWidget);
-    expect(find.text('Recently saved'), findsOneWidget);
+    // The busy header/search chrome is gone in the immersive feed.
+    expect(find.text('Shared saves'), findsNothing);
+    expect(find.byType(TextField), findsNothing);
+
+    // One vertical, snapping page per post — TikTok-style.
+    final pageView = tester.widget<PageView>(find.byType(PageView));
+    expect(pageView.scrollDirection, Axis.vertical);
+    expect(pageView.pageSnapping, isTrue);
+
     expect(find.text('@foodwithmaya'), findsOneWidget);
     expect(
       find.text('The chilli noodles were worth crossing London for.'),
@@ -137,14 +143,12 @@ void main() {
     expect(find.text('Chinese'), findsOneWidget);
     expect(find.text('Chilli noodles'), findsOneWidget);
     expect(find.text('££'), findsOneWidget);
-    expect(find.text('Restaurant not identified'), findsNothing);
 
     await tester.tap(find.text('Review match'));
     expect(opened?.postId, 'post-check');
   });
 
-  testWidgets('uses DM Sans for inbox copy while retaining the Rova heading',
-      (tester) async {
+  testWidgets('uses DM Sans across the feed copy', (tester) async {
     final provider = await providerWithPosts();
 
     await tester.pumpWidget(
@@ -155,16 +159,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final heading = tester.widget<Text>(find.text('Shared saves'));
-    expect(heading.style?.fontFamily, 'Rova');
-
     for (final label in [
-      'See what Pinit found and finish anything uncertain.',
-      'Needs checking',
       '@foodwithmaya',
       'The chilli noodles were worth crossing London for.',
       'Noodle Yard',
-      '72% match',
       'Chinese',
     ]) {
       final matches = tester.widgetList<Text>(find.text(label));
@@ -178,13 +176,6 @@ void main() {
       }
     }
 
-    final search = tester.widget<TextField>(find.byType(TextField));
-    expect(search.style?.fontFamily, anyOf('DM Sans', startsWith('DMSans_')));
-    expect(
-      search.decoration?.hintStyle?.fontFamily,
-      anyOf('DM Sans', startsWith('DMSans_')),
-    );
-
     final reviewButton = tester.widget<FilledButton>(
       find.widgetWithText(FilledButton, 'Review match'),
     );
@@ -194,8 +185,7 @@ void main() {
     );
   });
 
-  testWidgets('filters processing and resolved posts, then searches context',
-      (tester) async {
+  testWidgets('switching filters swaps the visible post', (tester) async {
     final provider = await providerWithPosts();
     await tester.pumpWidget(
       ChangeNotifierProvider.value(
@@ -209,21 +199,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('@eastlondoneats'), findsOneWidget);
     expect(find.text('A new East London opening'), findsOneWidget);
+    expect(find.text('@foodwithmaya'), findsNothing);
 
     await tester.tap(find.text('Recently saved'));
     await tester.pumpAndSettle();
     expect(find.text('@brunchclub'), findsOneWidget);
     expect(find.text('Sunday brunch at Lila'), findsOneWidget);
-
-    await tester.tap(find.text('All'));
-    await tester.pumpAndSettle();
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Search posts, creators or places'),
-      'chilli',
-    );
-    await tester.pump();
-    expect(find.text('@foodwithmaya'), findsOneWidget);
-    expect(find.text('@eastlondoneats'), findsNothing);
   });
 
   testWidgets('explicit filter still overrides the attention-first default',

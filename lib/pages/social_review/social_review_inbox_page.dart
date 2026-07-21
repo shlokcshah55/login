@@ -8,12 +8,12 @@ import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
 import 'package:login/pages/social_review/social_post_review_page.dart';
 import 'package:login/pages/social_review/social_review_place_item.dart';
 import 'package:login/providers/social_review_provider.dart';
-import 'package:login/themes/app_typography.dart';
 import 'package:login/utils/social_video_link.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-/// Post-first history and recovery surface for shared TikToks and Reels.
+/// Full-screen, snap-scrolling feed of shared TikToks and Reels — one post per
+/// screen, TikTok-style.
 class SocialReviewInboxPage extends StatefulWidget {
   const SocialReviewInboxPage({
     super.key,
@@ -30,20 +30,12 @@ class SocialReviewInboxPage extends StatefulWidget {
 }
 
 class _SocialReviewInboxPageState extends State<SocialReviewInboxPage> {
-  final TextEditingController _searchController = TextEditingController();
-  String _query = '';
   SocialReviewInboxFilter? _selectedFilter;
 
   @override
   void initState() {
     super.initState();
     _selectedFilter = widget.initialFilter;
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
   }
 
   SocialReviewInboxFilter _effectiveFilter(
@@ -67,63 +59,62 @@ class _SocialReviewInboxPageState extends State<SocialReviewInboxPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: pinit.PinitColors.cream,
-      body: SafeArea(
-        child: Consumer<SocialReviewProvider>(
-          builder: (context, provider, _) {
-            final items = provider.items
-                .map(
-                  (review) => SocialReviewPostItem(
-                    review: review,
-                    locationsById: provider.locationsById,
+      backgroundColor: pinit.PinitColors.aubergine,
+      body: Consumer<SocialReviewProvider>(
+        builder: (context, provider, _) {
+          final items = provider.items
+              .map(
+                (review) => SocialReviewPostItem(
+                  review: review,
+                  locationsById: provider.locationsById,
+                ),
+              )
+              .toList(growable: false);
+          final filter = _effectiveFilter(items);
+          return Stack(
+            children: [
+              Positioned.fill(child: _buildFeed(provider, items, filter)),
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: SafeArea(
+                  bottom: false,
+                  child: _TopControls(
+                    selected: filter,
+                    attentionCount: items
+                        .where((item) =>
+                            item.state ==
+                                SocialPostWorkflowState.needsChecking ||
+                            item.state == SocialPostWorkflowState.failed)
+                        .length,
+                    processingCount: items
+                        .where((item) =>
+                            item.state == SocialPostWorkflowState.processing)
+                        .length,
+                    onBack: () => Navigator.of(context).pop(),
+                    onRefresh: () => unawaited(provider.refresh()),
+                    onSelected: (value) =>
+                        setState(() => _selectedFilter = value),
                   ),
-                )
-                .toList(growable: false);
-            final filter = _effectiveFilter(items);
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _Header(onBack: () => Navigator.of(context).pop()),
-                _SearchField(
-                  controller: _searchController,
-                  query: _query,
-                  onChanged: (value) => setState(() => _query = value),
-                  onClear: () {
-                    _searchController.clear();
-                    setState(() => _query = '');
-                  },
                 ),
-                _FilterBar(
-                  selected: filter,
-                  attentionCount: items
-                      .where((item) =>
-                          item.state == SocialPostWorkflowState.needsChecking ||
-                          item.state == SocialPostWorkflowState.failed)
-                      .length,
-                  processingCount: items
-                      .where((item) =>
-                          item.state == SocialPostWorkflowState.processing)
-                      .length,
-                  onSelected: (value) =>
-                      setState(() => _selectedFilter = value),
-                ),
-                const SizedBox(height: 10),
-                Expanded(child: _buildBody(provider, items, filter)),
-              ],
-            );
-          },
-        ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  Widget _buildBody(
+  Widget _buildFeed(
     SocialReviewProvider provider,
     List<SocialReviewPostItem> items,
     SocialReviewInboxFilter filter,
   ) {
     if (provider.isLoading && !provider.hasLoaded) {
-      return const _LoadingList();
+      return const Center(
+        child: CircularProgressIndicator(color: pinit.PinitColors.cream),
+      );
     }
     if (provider.error != null && items.isEmpty) {
       return _ErrorView(onRetry: provider.refresh);
@@ -132,39 +123,32 @@ class _SocialReviewInboxPageState extends State<SocialReviewInboxPage> {
     final visible = visibleSocialReviewPosts(
       items,
       filter: filter,
-      query: _query,
+      query: '',
     );
     if (visible.isEmpty) {
-      return _EmptyView(filter: filter, hasQuery: _query.trim().isNotEmpty);
+      return _EmptyView(filter: filter);
     }
 
-    return RefreshIndicator(
-      color: pinit.PinitColors.aubergine,
-      backgroundColor: pinit.PinitColors.cream,
-      onRefresh: provider.refresh,
-      child: ListView.builder(
-        key: ValueKey('${filter.name}:${_query.trim().toLowerCase()}'),
-        physics: const AlwaysScrollableScrollPhysics(
-          parent: BouncingScrollPhysics(),
-        ),
-        padding: const EdgeInsets.fromLTRB(16, 2, 16, 32),
-        itemCount: visible.length,
-        itemBuilder: (context, index) {
-          final item = visible[index];
-          return _SharedPostCard(
-            key: ValueKey('social-post:${item.id}'),
-            item: item,
-            onOpen: () => _openReview(item.review),
-            onOpenOriginal: item.review.openUrl.trim().isEmpty
-                ? null
-                : () => unawaited(_openOriginal(item.review)),
-            onDismiss: item.state == SocialPostWorkflowState.needsChecking ||
-                    item.state == SocialPostWorkflowState.failed
-                ? () => unawaited(_dismiss(item.review))
-                : null,
-          );
-        },
-      ),
+    return PageView.builder(
+      key: ValueKey('feed:${filter.name}'),
+      scrollDirection: Axis.vertical,
+      physics: const _SnappyPagePhysics(),
+      itemCount: visible.length,
+      itemBuilder: (context, index) {
+        final item = visible[index];
+        return _SharedPostPage(
+          key: ValueKey('social-post:${item.id}'),
+          item: item,
+          onOpen: () => _openReview(item.review),
+          onOpenOriginal: item.review.openUrl.trim().isEmpty
+              ? null
+              : () => unawaited(_openOriginal(item.review)),
+          onDismiss: item.state == SocialPostWorkflowState.needsChecking ||
+                  item.state == SocialPostWorkflowState.failed
+              ? () => unawaited(_dismiss(item.review))
+              : null,
+        );
+      },
     );
   }
 
@@ -206,48 +190,94 @@ class _SocialReviewInboxPageState extends State<SocialReviewInboxPage> {
   }
 }
 
-class _Header extends StatelessWidget {
-  const _Header({required this.onBack});
+/// Firmer snap than the default so a short flick still lands on one post.
+class _SnappyPagePhysics extends ScrollPhysics {
+  const _SnappyPagePhysics({super.parent});
 
+  @override
+  _SnappyPagePhysics applyTo(ScrollPhysics? ancestor) {
+    return _SnappyPagePhysics(parent: buildParent(ancestor));
+  }
+
+  @override
+  SpringDescription get spring => const SpringDescription(
+        mass: 80,
+        stiffness: 100,
+        damping: 1,
+      );
+}
+
+class _TopControls extends StatelessWidget {
+  const _TopControls({
+    required this.selected,
+    required this.attentionCount,
+    required this.processingCount,
+    required this.onBack,
+    required this.onRefresh,
+    required this.onSelected,
+  });
+
+  final SocialReviewInboxFilter selected;
+  final int attentionCount;
+  final int processingCount;
   final VoidCallback onBack;
+  final VoidCallback onRefresh;
+  final ValueChanged<SocialReviewInboxFilter> onSelected;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 20, 8),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _RoundIconButton(
-            icon: FeatherIcons.chevronLeft,
-            semanticLabel: 'Back',
-            onTap: onBack,
+          Row(
+            children: [
+              _GlassIconButton(
+                icon: FeatherIcons.chevronLeft,
+                semanticLabel: 'Back',
+                onTap: onBack,
+              ),
+              const Spacer(),
+              _GlassIconButton(
+                icon: FeatherIcons.refreshCw,
+                semanticLabel: 'Refresh',
+                onTap: onRefresh,
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(height: 10),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Row(
               children: [
-                Text(
-                  'Shared saves',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.brand(
-                    fontSize: 29,
-                    fontWeight: FontWeight.w800,
-                    color: pinit.PinitColors.aubergine,
-                    letterSpacing: .6,
-                  ),
+                _FilterChip(
+                  label: 'Needs checking',
+                  count: attentionCount,
+                  selected: selected == SocialReviewInboxFilter.needsChecking,
+                  onTap: () =>
+                      onSelected(SocialReviewInboxFilter.needsChecking),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  'See what Pinit found and finish anything uncertain.',
-                  style: GoogleFonts.dmSans(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: pinit.PinitColors.mute,
-                    height: 1.35,
-                  ),
+                const SizedBox(width: 8),
+                _FilterChip(
+                  label: 'Processing',
+                  count: processingCount,
+                  selected: selected == SocialReviewInboxFilter.processing,
+                  onTap: () => onSelected(SocialReviewInboxFilter.processing),
+                ),
+                const SizedBox(width: 8),
+                _FilterChip(
+                  label: 'Recently saved',
+                  selected: selected == SocialReviewInboxFilter.recentlySaved,
+                  onTap: () =>
+                      onSelected(SocialReviewInboxFilter.recentlySaved),
+                ),
+                const SizedBox(width: 8),
+                _FilterChip(
+                  label: 'All',
+                  selected: selected == SocialReviewInboxFilter.all,
+                  onTap: () => onSelected(SocialReviewInboxFilter.all),
                 ),
               ],
             ),
@@ -258,8 +288,8 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _RoundIconButton extends StatelessWidget {
-  const _RoundIconButton({
+class _GlassIconButton extends StatelessWidget {
+  const _GlassIconButton({
     required this.icon,
     required this.semanticLabel,
     required this.onTap,
@@ -275,148 +305,17 @@ class _RoundIconButton extends StatelessWidget {
       button: true,
       label: semanticLabel,
       child: Material(
-        color: pinit.PinitColors.creamSunk,
-        shape: CircleBorder(
-          side: BorderSide(color: pinit.PinitColors.creamDeep),
-        ),
+        color: Colors.black.withValues(alpha: .28),
+        shape: const CircleBorder(),
         child: InkWell(
           customBorder: const CircleBorder(),
           onTap: onTap,
           child: SizedBox(
-            width: 42,
-            height: 42,
-            child: Icon(
-              icon,
-              size: 19,
-              color: pinit.PinitColors.aubergine,
-            ),
+            width: 40,
+            height: 40,
+            child: Icon(icon, size: 19, color: pinit.PinitColors.cream),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _SearchField extends StatelessWidget {
-  const _SearchField({
-    required this.controller,
-    required this.query,
-    required this.onChanged,
-    required this.onClear,
-  });
-
-  final TextEditingController controller;
-  final String query;
-  final ValueChanged<String> onChanged;
-  final VoidCallback onClear;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-      child: TextField(
-        controller: controller,
-        onChanged: onChanged,
-        textInputAction: TextInputAction.search,
-        cursorColor: pinit.PinitColors.aubergine,
-        style: GoogleFonts.dmSans(
-          fontSize: 14,
-          fontWeight: FontWeight.w700,
-          color: pinit.PinitColors.aubergine,
-        ),
-        decoration: InputDecoration(
-          hintText: 'Search posts, creators or places',
-          hintStyle: GoogleFonts.dmSans(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: pinit.PinitColors.mute,
-          ),
-          prefixIcon: const Icon(
-            FeatherIcons.search,
-            size: 19,
-            color: pinit.PinitColors.aubergineSoft,
-          ),
-          suffixIcon: query.trim().isEmpty
-              ? null
-              : IconButton(
-                  tooltip: 'Clear search',
-                  onPressed: onClear,
-                  icon: const Icon(
-                    FeatherIcons.x,
-                    size: 18,
-                    color: pinit.PinitColors.aubergineSoft,
-                  ),
-                ),
-          filled: true,
-          fillColor: pinit.PinitColors.creamSunk,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
-            borderSide: const BorderSide(
-              color: pinit.PinitColors.creamDeep,
-              width: 1.3,
-            ),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
-            borderSide: const BorderSide(
-              color: pinit.PinitColors.aubergine,
-              width: 1.5,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _FilterBar extends StatelessWidget {
-  const _FilterBar({
-    required this.selected,
-    required this.attentionCount,
-    required this.processingCount,
-    required this.onSelected,
-  });
-
-  final SocialReviewInboxFilter selected;
-  final int attentionCount;
-  final int processingCount;
-  final ValueChanged<SocialReviewInboxFilter> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          _FilterChip(
-            label: 'Needs checking',
-            count: attentionCount,
-            selected: selected == SocialReviewInboxFilter.needsChecking,
-            onTap: () => onSelected(SocialReviewInboxFilter.needsChecking),
-          ),
-          const SizedBox(width: 8),
-          _FilterChip(
-            label: 'Processing',
-            count: processingCount,
-            selected: selected == SocialReviewInboxFilter.processing,
-            onTap: () => onSelected(SocialReviewInboxFilter.processing),
-          ),
-          const SizedBox(width: 8),
-          _FilterChip(
-            label: 'Recently saved',
-            selected: selected == SocialReviewInboxFilter.recentlySaved,
-            onTap: () => onSelected(SocialReviewInboxFilter.recentlySaved),
-          ),
-          const SizedBox(width: 8),
-          _FilterChip(
-            label: 'All',
-            selected: selected == SocialReviewInboxFilter.all,
-            onTap: () => onSelected(SocialReviewInboxFilter.all),
-          ),
-        ],
       ),
     );
   }
@@ -445,17 +344,12 @@ class _FilterChip extends StatelessWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
           decoration: BoxDecoration(
             color: selected
-                ? pinit.PinitColors.aubergine
-                : pinit.PinitColors.creamSunk,
+                ? pinit.PinitColors.cream
+                : Colors.black.withValues(alpha: .28),
             borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: selected
-                  ? pinit.PinitColors.aubergine
-                  : pinit.PinitColors.creamDeep,
-            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -466,8 +360,8 @@ class _FilterChip extends StatelessWidget {
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
                   color: selected
-                      ? pinit.PinitColors.cream
-                      : pinit.PinitColors.aubergine,
+                      ? pinit.PinitColors.aubergine
+                      : pinit.PinitColors.cream,
                 ),
               ),
               if (count != null && count! > 0) ...[
@@ -477,8 +371,8 @@ class _FilterChip extends StatelessWidget {
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: selected
-                        ? pinit.PinitColors.cream.withValues(alpha: .18)
-                        : pinit.PinitColors.cream,
+                        ? pinit.PinitColors.aubergine.withValues(alpha: .12)
+                        : pinit.PinitColors.cream.withValues(alpha: .22),
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
@@ -487,8 +381,8 @@ class _FilterChip extends StatelessWidget {
                       fontSize: 10,
                       fontWeight: FontWeight.w900,
                       color: selected
-                          ? pinit.PinitColors.cream
-                          : pinit.PinitColors.aubergine,
+                          ? pinit.PinitColors.aubergine
+                          : pinit.PinitColors.cream,
                     ),
                   ),
                 ),
@@ -501,8 +395,8 @@ class _FilterChip extends StatelessWidget {
   }
 }
 
-class _SharedPostCard extends StatefulWidget {
-  const _SharedPostCard({
+class _SharedPostPage extends StatelessWidget {
+  const _SharedPostPage({
     super.key,
     required this.item,
     required this.onOpen,
@@ -516,225 +410,165 @@ class _SharedPostCard extends StatefulWidget {
   final VoidCallback? onDismiss;
 
   @override
-  State<_SharedPostCard> createState() => _SharedPostCardState();
-}
-
-class _SharedPostCardState extends State<_SharedPostCard> {
-  bool _pressed = false;
-
-  @override
   Widget build(BuildContext context) {
-    final item = widget.item;
+    final review = item.review;
     final candidate = item.bestCandidate;
     final resolvedId = candidate == null
         ? null
-        : item.review.savedLocationIds[candidate.id] ?? candidate.locationId;
+        : review.savedLocationIds[candidate.id] ?? candidate.locationId;
     final location = resolvedId == null ? null : item.locationsById[resolvedId];
-    final artwork = item.review.thumbnailUrl?.trim().isNotEmpty == true
-        ? item.review.thumbnailUrl
+    final artwork = review.thumbnailUrl?.trim().isNotEmpty == true
+        ? review.thumbnailUrl
         : location?.imageUrl;
+    final candidateName = location?.name.trim().isNotEmpty == true
+        ? location!.name.trim()
+        : candidate?.name;
 
-    return AnimatedScale(
-      scale: _pressed ? .985 : 1,
-      duration: const Duration(milliseconds: 140),
-      curve: Curves.easeOutCubic,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 14),
-        decoration: BoxDecoration(
-          color: pinit.PinitColors.cream,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(
-            color: pinit.PinitColors.creamDeep,
-            width: 1.2,
-          ),
-          boxShadow: pinit.PinitColors.cardShadow,
-        ),
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(22),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: widget.onOpen,
-            onHighlightChanged: (value) => setState(() => _pressed = value),
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _PostArtwork(
-                        imageUrl: artwork,
-                        platform: item.review.platformType,
-                      ),
-                      const SizedBox(width: 13),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                _PlatformLabel(review: item.review),
-                                const Spacer(),
-                                _StatusBadge(state: item.state),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              item.review.creatorHandle?.trim().isNotEmpty ==
-                                      true
-                                  ? '@${item.review.creatorHandle!.trim()}'
-                                  : '${item.review.platformLabel} creator',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.dmSans(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                color: pinit.PinitColors.aubergineSoft,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              item.summary,
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.dmSans(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w800,
-                                color: pinit.PinitColors.aubergine,
-                                height: 1.28,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 13),
-                  _WhyRow(item: item),
-                  if (candidate != null) ...[
-                    const SizedBox(height: 12),
-                    _CandidateSummary(
-                      candidate: candidate,
-                      locationName: location?.name,
-                    ),
-                  ],
-                  if (item.insightChips.isNotEmpty) ...[
-                    const SizedBox(height: 11),
-                    Wrap(
-                      spacing: 7,
-                      runSpacing: 7,
-                      children: [
-                        for (final chip in item.insightChips)
-                          _InsightChip(label: chip),
-                      ],
-                    ),
-                  ],
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      if (widget.onOpenOriginal != null)
-                        _SecondaryAction(
-                          icon: FeatherIcons.externalLink,
-                          label: 'Open post',
-                          onTap: widget.onOpenOriginal!,
-                        ),
-                      if (widget.onOpenOriginal != null &&
-                          item.primaryActionLabel != null)
-                        const SizedBox(width: 8),
-                      if (item.primaryActionLabel != null)
-                        Expanded(
-                          child: _PrimaryAction(
-                            label: item.primaryActionLabel!,
-                            onTap: widget.onOpen,
-                          ),
-                        ),
-                      if (widget.onDismiss != null) ...[
-                        const SizedBox(width: 4),
-                        IconButton(
-                          tooltip: 'Dismiss post',
-                          onPressed: widget.onDismiss,
-                          icon: const Icon(
-                            FeatherIcons.x,
-                            size: 18,
-                            color: pinit.PinitColors.mute,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
+    return GestureDetector(
+      onTap: onOpen,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          _Backdrop(imageUrl: artwork, platform: review.platformType),
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                stops: [0, .35, 1],
+                colors: [
+                  Color(0x00000000),
+                  Color(0x40000000),
+                  Color(0xE6000000),
                 ],
               ),
             ),
           ),
-        ),
+          Align(
+            alignment: Alignment.bottomLeft,
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 22),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        _PlatformLabel(review: review),
+                        const Spacer(),
+                        _StatusBadge(state: item.state),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      review.creatorHandle?.trim().isNotEmpty == true
+                          ? '@${review.creatorHandle!.trim()}'
+                          : '${review.platformLabel} creator',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.dmSans(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: pinit.PinitColors.cream.withValues(alpha: .82),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      item.summary,
+                      maxLines: 4,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.dmSans(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: pinit.PinitColors.cream,
+                        height: 1.24,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      item.statusExplanation,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.dmSans(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: pinit.PinitColors.cream.withValues(alpha: .78),
+                        height: 1.35,
+                      ),
+                    ),
+                    if (candidateName != null && candidateName.isNotEmpty) ...[
+                      const SizedBox(height: 14),
+                      _CandidateLine(
+                        name: candidateName,
+                        confidence: candidate?.confidenceScore,
+                      ),
+                    ],
+                    if (item.insightChips.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 7,
+                        runSpacing: 7,
+                        children: [
+                          for (final chip in item.insightChips)
+                            _InsightChip(label: chip),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 20),
+                    _ActionRow(
+                      primaryLabel: item.primaryActionLabel,
+                      onPrimary: onOpen,
+                      onOpenOriginal: onOpenOriginal,
+                      onDismiss: onDismiss,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _PostArtwork extends StatelessWidget {
-  const _PostArtwork({required this.imageUrl, required this.platform});
+class _Backdrop extends StatelessWidget {
+  const _Backdrop({required this.imageUrl, required this.platform});
 
   final String? imageUrl;
   final SocialVideoPlatform platform;
 
   @override
   Widget build(BuildContext context) {
-    final fallback = _ArtworkFallback(platform: platform);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(15),
-      child: SizedBox(
-        width: 78,
-        height: 96,
-        child: imageUrl == null || imageUrl!.trim().isEmpty
-            ? fallback
-            : Image.network(
-                imageUrl!,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => fallback,
-              ),
-      ),
-    );
-  }
-}
-
-class _ArtworkFallback extends StatelessWidget {
-  const _ArtworkFallback({required this.platform});
-
-  final SocialVideoPlatform platform;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
+    final fallback = DecoratedBox(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            pinit.PinitColors.creamSunk,
-            pinit.PinitColors.creamDeep,
+            pinit.PinitColors.aubergineSoft,
+            pinit.PinitColors.aubergine,
           ],
         ),
       ),
       child: Center(
-        child: Container(
-          width: 42,
-          height: 42,
-          decoration: const BoxDecoration(
-            color: pinit.PinitColors.aubergine,
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            platform == SocialVideoPlatform.instagram
-                ? FeatherIcons.instagram
-                : FeatherIcons.music,
-            color: pinit.PinitColors.cream,
-            size: 19,
-          ),
+        child: Icon(
+          platform == SocialVideoPlatform.instagram
+              ? FeatherIcons.instagram
+              : FeatherIcons.music,
+          color: pinit.PinitColors.cream.withValues(alpha: .28),
+          size: 72,
         ),
       ),
+    );
+    final url = imageUrl?.trim();
+    if (url == null || url.isEmpty) return fallback;
+    return Image.network(
+      url,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => fallback,
     );
   }
 }
@@ -746,27 +580,34 @@ class _PlatformLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          review.platformType == SocialVideoPlatform.instagram
-              ? FeatherIcons.instagram
-              : FeatherIcons.music,
-          size: 12,
-          color: pinit.PinitColors.aubergineSoft,
-        ),
-        const SizedBox(width: 5),
-        Text(
-          review.platformLabel,
-          style: GoogleFonts.dmSans(
-            fontSize: 10,
-            fontWeight: FontWeight.w800,
-            color: pinit.PinitColors.aubergineSoft,
-            letterSpacing: .4,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: .3),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            review.platformType == SocialVideoPlatform.instagram
+                ? FeatherIcons.instagram
+                : FeatherIcons.music,
+            size: 12,
+            color: pinit.PinitColors.cream,
           ),
-        ),
-      ],
+          const SizedBox(width: 6),
+          Text(
+            review.platformLabel,
+            style: GoogleFonts.dmSans(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              color: pinit.PinitColors.cream,
+              letterSpacing: .4,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -811,7 +652,7 @@ class _StatusBadge extends StatelessWidget {
         ),
     };
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(999),
@@ -819,12 +660,12 @@ class _StatusBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 11, color: foreground),
-          const SizedBox(width: 4),
+          Icon(icon, size: 12, color: foreground),
+          const SizedBox(width: 5),
           Text(
             label,
             style: GoogleFonts.dmSans(
-              fontSize: 9,
+              fontSize: 10,
               fontWeight: FontWeight.w900,
               color: foreground,
             ),
@@ -835,140 +676,51 @@ class _StatusBadge extends StatelessWidget {
   }
 }
 
-class _WhyRow extends StatelessWidget {
-  const _WhyRow({required this.item});
+class _CandidateLine extends StatelessWidget {
+  const _CandidateLine({required this.name, required this.confidence});
 
-  final SocialReviewPostItem item;
+  final String name;
+  final double? confidence;
 
   @override
   Widget build(BuildContext context) {
-    final isActionable = item.state == SocialPostWorkflowState.needsChecking ||
-        item.state == SocialPostWorkflowState.failed;
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: isActionable
-            ? const Color(0xFFFFF8E8)
-            : pinit.PinitColors.creamSunk,
-        borderRadius: BorderRadius.circular(12),
+        color: Colors.white.withValues(alpha: .12),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            isActionable ? FeatherIcons.info : FeatherIcons.activity,
-            size: 14,
-            color: isActionable
-                ? const Color(0xFF805A08)
-                : pinit.PinitColors.aubergineSoft,
+          const Icon(
+            FeatherIcons.mapPin,
+            size: 15,
+            color: pinit.PinitColors.cream,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 9),
           Expanded(
             child: Text(
-              item.statusExplanation,
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: GoogleFonts.dmSans(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: pinit.PinitColors.aubergineSoft,
-                height: 1.35,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CandidateSummary extends StatelessWidget {
-  const _CandidateSummary({
-    required this.candidate,
-    required this.locationName,
-  });
-
-  final SocialPostPlace candidate;
-  final String? locationName;
-
-  @override
-  Widget build(BuildContext context) {
-    final name = locationName?.trim().isNotEmpty == true
-        ? locationName!.trim()
-        : candidate.name;
-    final area = candidate.address?.trim().isNotEmpty == true
-        ? candidate.address!.trim()
-        : candidate.candidateArea?.trim();
-    final confidence = candidate.confidenceScore;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(11),
-      decoration: BoxDecoration(
-        color: pinit.PinitColors.creamSunk,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: pinit.PinitColors.creamDeep),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: const BoxDecoration(
-              color: pinit.PinitColors.cream,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              FeatherIcons.mapPin,
-              size: 15,
-              color: pinit.PinitColors.aubergine,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.dmSans(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: pinit.PinitColors.aubergine,
-                  ),
-                ),
-                if (area != null && area.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    area,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.dmSans(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: pinit.PinitColors.mute,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          if (confidence != null)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-              decoration: BoxDecoration(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
                 color: pinit.PinitColors.cream,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text(
-                '${(confidence * 100).round()}% match',
-                style: GoogleFonts.dmSans(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w900,
-                  color: pinit.PinitColors.aubergineSoft,
-                ),
               ),
             ),
+          ),
+          if (confidence != null) ...[
+            const SizedBox(width: 10),
+            Text(
+              '${(confidence! * 100).round()}% match',
+              style: GoogleFonts.dmSans(
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+                color: pinit.PinitColors.cream.withValues(alpha: .85),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -983,9 +735,9 @@ class _InsightChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: pinit.PinitColors.creamSunk,
+        color: Colors.white.withValues(alpha: .14),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
@@ -993,122 +745,93 @@ class _InsightChip extends StatelessWidget {
         style: GoogleFonts.dmSans(
           fontSize: 10,
           fontWeight: FontWeight.w700,
-          color: pinit.PinitColors.aubergineSoft,
+          color: pinit.PinitColors.cream,
         ),
       ),
     );
   }
 }
 
-class _SecondaryAction extends StatelessWidget {
-  const _SecondaryAction({
-    required this.icon,
-    required this.label,
-    required this.onTap,
+class _ActionRow extends StatelessWidget {
+  const _ActionRow({
+    required this.primaryLabel,
+    required this.onPrimary,
+    required this.onOpenOriginal,
+    required this.onDismiss,
   });
 
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
+  final String? primaryLabel;
+  final VoidCallback onPrimary;
+  final VoidCallback? onOpenOriginal;
+  final VoidCallback? onDismiss;
 
   @override
   Widget build(BuildContext context) {
-    return OutlinedButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon, size: 14),
-      label: Text(label),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: pinit.PinitColors.aubergine,
-        side: const BorderSide(color: pinit.PinitColors.creamDeep),
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 11),
-        visualDensity: VisualDensity.compact,
-        textStyle: GoogleFonts.dmSans(
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
-        ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(999),
-        ),
-      ),
-    );
-  }
-}
-
-class _PrimaryAction extends StatelessWidget {
-  const _PrimaryAction({required this.label, required this.onTap});
-
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return FilledButton(
-      onPressed: onTap,
-      style: FilledButton.styleFrom(
-        backgroundColor: pinit.PinitColors.aubergine,
-        foregroundColor: pinit.PinitColors.cream,
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
-        visualDensity: VisualDensity.compact,
-        textStyle: GoogleFonts.dmSans(
-          fontSize: 11,
-          fontWeight: FontWeight.w900,
-        ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(999),
-        ),
-      ),
-      child: Text(label),
-    );
-  }
-}
-
-class _LoadingList extends StatelessWidget {
-  const _LoadingList();
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView.builder(
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 2, 16, 28),
-      itemCount: 3,
-      itemBuilder: (_, __) => Container(
-        height: 260,
-        margin: const EdgeInsets.only(bottom: 14),
-        decoration: BoxDecoration(
-          color: pinit.PinitColors.creamSunk,
-          borderRadius: BorderRadius.circular(22),
-        ),
-      ),
+    return Row(
+      children: [
+        if (primaryLabel != null)
+          Expanded(
+            child: FilledButton(
+              onPressed: onPrimary,
+              style: FilledButton.styleFrom(
+                backgroundColor: pinit.PinitColors.cream,
+                foregroundColor: pinit.PinitColors.aubergine,
+                padding: const EdgeInsets.symmetric(vertical: 15),
+                textStyle: GoogleFonts.dmSans(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              child: Text(primaryLabel!),
+            ),
+          ),
+        if (onOpenOriginal != null) ...[
+          const SizedBox(width: 10),
+          _GlassIconButton(
+            icon: FeatherIcons.externalLink,
+            semanticLabel: 'Open post',
+            onTap: onOpenOriginal!,
+          ),
+        ],
+        if (onDismiss != null) ...[
+          const SizedBox(width: 10),
+          _GlassIconButton(
+            icon: FeatherIcons.x,
+            semanticLabel: 'Dismiss post',
+            onTap: onDismiss!,
+          ),
+        ],
+      ],
     );
   }
 }
 
 class _EmptyView extends StatelessWidget {
-  const _EmptyView({required this.filter, required this.hasQuery});
+  const _EmptyView({required this.filter});
 
   final SocialReviewInboxFilter filter;
-  final bool hasQuery;
 
   @override
   Widget build(BuildContext context) {
-    final title = hasQuery
-        ? 'No matching shared posts'
-        : switch (filter) {
-            SocialReviewInboxFilter.needsChecking => 'Nothing needs checking',
-            SocialReviewInboxFilter.processing => 'Nothing is processing',
-            SocialReviewInboxFilter.recentlySaved => 'No recent social saves',
-            SocialReviewInboxFilter.all => 'No shared posts yet',
-          };
+    final title = switch (filter) {
+      SocialReviewInboxFilter.needsChecking => 'Nothing needs checking',
+      SocialReviewInboxFilter.processing => 'Nothing is processing',
+      SocialReviewInboxFilter.recentlySaved => 'No recent social saves',
+      SocialReviewInboxFilter.all => 'No shared posts yet',
+    };
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
+            Icon(
               FeatherIcons.inbox,
-              size: 38,
-              color: pinit.PinitColors.mute,
+              size: 40,
+              color: pinit.PinitColors.cream.withValues(alpha: .7),
             ),
             const SizedBox(height: 14),
             Text(
@@ -1117,7 +840,7 @@ class _EmptyView extends StatelessWidget {
               style: GoogleFonts.dmSans(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
-                color: pinit.PinitColors.aubergine,
+                color: pinit.PinitColors.cream,
               ),
             ),
           ],
@@ -1138,10 +861,10 @@ class _ErrorView extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
+          Icon(
             FeatherIcons.alertCircle,
-            size: 38,
-            color: pinit.PinitColors.mute,
+            size: 40,
+            color: pinit.PinitColors.cream.withValues(alpha: .7),
           ),
           const SizedBox(height: 14),
           Text(
@@ -1149,13 +872,25 @@ class _ErrorView extends StatelessWidget {
             style: GoogleFonts.dmSans(
               fontSize: 15,
               fontWeight: FontWeight.w800,
-              color: pinit.PinitColors.aubergine,
+              color: pinit.PinitColors.cream,
             ),
           ),
-          const SizedBox(height: 12),
-          _PrimaryAction(
-            label: 'Retry',
-            onTap: () => unawaited(onRetry()),
+          const SizedBox(height: 14),
+          FilledButton(
+            onPressed: () => unawaited(onRetry()),
+            style: FilledButton.styleFrom(
+              backgroundColor: pinit.PinitColors.cream,
+              foregroundColor: pinit.PinitColors.aubergine,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              textStyle: GoogleFonts.dmSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            child: const Text('Retry'),
           ),
         ],
       ),
