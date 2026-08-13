@@ -4,10 +4,11 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Singleton class that provides a centralized access point to the Supabase client.
 class SupabaseClientManager {
-  static final SupabaseClientManager _instance = SupabaseClientManager._internal();
-  
+  static final SupabaseClientManager _instance =
+      SupabaseClientManager._internal();
+
   factory SupabaseClientManager() => _instance;
-  
+
   SupabaseClientManager._internal();
 
   /// Initializes the Supabase client with the provided URL and key.
@@ -34,29 +35,9 @@ class SupabaseClientManager {
         ),
       );
 
-      // Listen for auth errors and handle token refresh failures
-      Supabase.instance.client.auth.onAuthStateChange.listen(
-        (data) {
-          final event = data.event;
-          if (event == AuthChangeEvent.tokenRefreshed) {
-            if (kDebugMode) {
-              print('Token refreshed successfully');
-            }
-          }
-        },
-        onError: (error) {
-          // Catch token refresh failures at the SDK level
-          if (kDebugMode) {
-            print('SupabaseClientManager: Auth error: $error');
-
-            // Check for specific oauth_client_id error
-            if (error.toString().contains('oauth_client_id') ||
-                error.toString().contains('AuthRetryableFetchException')) {
-              print('SupabaseClientManager: Token refresh failed - session may be invalid');
-            }
-          }
-        },
-      );
+      // Session policy lives in SupabaseService; MyApp owns the analytics and
+      // app-group side of auth changes. This class deliberately keeps no
+      // subscription of its own.
 
       if (kDebugMode) {
         print('Supabase client initialized successfully with OAuth support');
@@ -71,13 +52,13 @@ class SupabaseClientManager {
 
   /// Returns the Supabase client instance.
   SupabaseClient get client => Supabase.instance.client;
-  
+
   /// Returns the current authenticated user, or null if not authenticated.
   User? get currentUser => client.auth.currentUser;
-  
+
   /// Returns true if a user is currently authenticated.
   bool get isAuthenticated => currentUser != null;
-  
+
   /// Returns the current session, or null if not authenticated.
   Session? get currentSession => client.auth.currentSession;
 }
