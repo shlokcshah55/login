@@ -17,6 +17,7 @@ import 'package:login/services/fcm_service.dart';
 import 'package:login/services/analytics_service.dart';
 import 'package:login/supabase/auth_signout_reason.dart';
 import 'package:login/supabase/auth_stream_error_policy.dart';
+import 'package:login/supabase/helpers/auth_failure.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -131,18 +132,20 @@ class SupabaseService extends ChangeNotifier {
           print('SupabaseService: Found existing session, validating...');
         }
 
-        final isValid = await _authService.validateSession();
-        print('isValid: $isValid');
+        final validity = await _authService.checkSession();
 
-        if (isValid) {
-          // Note: ensureUserRecordExists is called only in auth listener
-          _hasValidSession = true;
-        } else {
+        if (validity == SessionValidity.invalid) {
           if (kDebugMode) {
             print('SupabaseService: Restored session is invalid, signing out');
           }
           await signOut(reason: AuthSignOutReason.startupSessionInvalid);
           _hasValidSession = false;
+        } else {
+          // Optimistic on `unknown`: proceed into the app. Requests may 401
+          // while offline, but the SDK retries refresh in the background and
+          // the user keeps their session.
+          // Note: ensureUserRecordExists is called only in auth listener
+          _hasValidSession = true;
         }
       }
     } catch (e) {
@@ -360,7 +363,8 @@ class SupabaseService extends ChangeNotifier {
     return await _authService.searchUsers(query);
   }
 
-  /// Validate current session and sign out if invalid
+  /// Validate the current session, signing out only if it is definitively
+  /// invalid. An unreachable server leaves the session intact.
   Future<bool> validateAndRefreshSession() async {
     if (!_authService.isAuthenticated) {
       _hasValidSession = false;
@@ -371,17 +375,18 @@ class SupabaseService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final isValid = await _authService.validateSession();
+      final validity = await _authService.checkSession();
 
-      if (!isValid) {
+      if (validity == SessionValidity.invalid) {
         if (kDebugMode) {
-          print('SupabaseService: Session validation failed, signing out user');
+          print('SupabaseService: Session definitively invalid, signing out');
         }
         await signOut(reason: AuthSignOutReason.authEventSessionInvalid);
         _hasValidSession = false;
         return false;
       }
 
+      // valid or unknown: keep the session usable.
       _hasValidSession = true;
       return true;
     } finally {
@@ -486,19 +491,29 @@ class SupabaseService extends ChangeNotifier {
             notifyListeners();
             break;
 
+          case AuthChangeEvent.initialSession:
+            // The SDK has already restored and, where necessary, refreshed
+            // this session. Trust it and let auto-refresh own the token
+            // lifecycle rather than forcing a network call during launch.
+            _hasValidSession = state.session != null;
+            if (!_isHandlingSignedIn) notifyListeners();
+            break;
+
           default:
             // For other events, validate the session — but skip if the
             // signedIn handler is still running to avoid a premature notify.
             if (_authService.isAuthenticated && !_isHandlingSignedIn) {
-              final isValid = await _authService.validateSession();
-              if (!isValid) {
+              final validity = await _authService.checkSession();
+              if (validity == SessionValidity.invalid) {
                 if (kDebugMode) {
                   print(
-                      'SupabaseService: Session validation failed after auth event, signing out');
+                      'SupabaseService: Session definitively invalid after auth event, signing out');
                 }
                 await signOut(
                     reason: AuthSignOutReason.authEventSessionInvalid);
               } else {
+                // valid or unknown: an unreachable server is not grounds for
+                // ending the session.
                 _hasValidSession = true;
                 notifyListeners();
               }
