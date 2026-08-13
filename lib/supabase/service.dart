@@ -16,6 +16,7 @@ import 'package:login/services/referral_prompt_service.dart';
 import 'package:login/services/fcm_service.dart';
 import 'package:login/services/analytics_service.dart';
 import 'package:login/supabase/auth_signout_reason.dart';
+import 'package:login/supabase/auth_stream_error_policy.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -504,15 +505,29 @@ class SupabaseService extends ChangeNotifier {
             }
         }
       },
-      onError: (error) {
-        // Handle auth stream errors (e.g., token refresh failures)
-        if (kDebugMode) {
-          print('SupabaseService: Auth state error: $error');
+      onError: (Object error) {
+        if (!shouldEndSessionForAuthStreamError(error)) {
+          // Transient: the SDK keeps retrying with backoff and will emit
+          // tokenRefreshed on success. Discarding the session here would throw
+          // away a still-valid refresh token.
+          if (kDebugMode) {
+            print(
+                'SupabaseService: Transient auth error, keeping session: $error');
+          }
+          AnalyticsService().recordError(
+            key: 'auth_refresh_transient',
+            properties: <String, dynamic>{
+              'error': error.runtimeType.toString(),
+            },
+          );
+          return;
         }
 
-        // If we get an error in the auth stream, sign out the user
+        if (kDebugMode) {
+          print('SupabaseService: Fatal auth error, ending session: $error');
+        }
         _hasValidSession = false;
-        signOut();
+        signOut(reason: AuthSignOutReason.authStreamFatalError);
       },
     );
   }
