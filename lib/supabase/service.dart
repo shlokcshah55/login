@@ -14,6 +14,8 @@ import 'package:login/supabase/helpers/rewards.dart';
 import 'package:login/supabase/helpers/tags.dart';
 import 'package:login/services/referral_prompt_service.dart';
 import 'package:login/services/fcm_service.dart';
+import 'package:login/services/analytics_service.dart';
+import 'package:login/supabase/auth_signout_reason.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -138,7 +140,7 @@ class SupabaseService extends ChangeNotifier {
           if (kDebugMode) {
             print('SupabaseService: Restored session is invalid, signing out');
           }
-          await _authService.signOut();
+          await signOut(reason: AuthSignOutReason.startupSessionInvalid);
           _hasValidSession = false;
         }
       }
@@ -218,9 +220,17 @@ class SupabaseService extends ChangeNotifier {
     }
   }
 
-  Future<void> signOut() async {
+  Future<void> signOut({
+    AuthSignOutReason reason = AuthSignOutReason.userInitiated,
+  }) async {
     _setLoading(true);
     try {
+      AnalyticsService().track(
+        eventName: 'auth_session_ended',
+        eventCategory: 'auth',
+        properties: <String, dynamic>{'reason': reason.wireName},
+      );
+
       // Clear the FCM token BEFORE tearing down the session. The
       // `update_fcm_token` RPC runs under the current user's RLS context, so
       // it has to happen while we're still authenticated. If we defer this
@@ -248,6 +258,15 @@ class SupabaseService extends ChangeNotifier {
     try {
       await FCMService().clearFCMToken();
       await _authService.deleteMyAccount();
+      // The RPC path signs out inside AuthHelper, so record the reason here
+      // rather than routing account deletion through signOut().
+      AnalyticsService().track(
+        eventName: 'auth_session_ended',
+        eventCategory: 'auth',
+        properties: <String, dynamic>{
+          'reason': AuthSignOutReason.accountDeleted.wireName,
+        },
+      );
       _setError(null);
     } catch (e) {
       if (_authService.isAuthenticated) {
@@ -357,7 +376,7 @@ class SupabaseService extends ChangeNotifier {
         if (kDebugMode) {
           print('SupabaseService: Session validation failed, signing out user');
         }
-        await signOut();
+        await signOut(reason: AuthSignOutReason.authEventSessionInvalid);
         _hasValidSession = false;
         return false;
       }
@@ -476,7 +495,8 @@ class SupabaseService extends ChangeNotifier {
                   print(
                       'SupabaseService: Session validation failed after auth event, signing out');
                 }
-                await signOut();
+                await signOut(
+                    reason: AuthSignOutReason.authEventSessionInvalid);
               } else {
                 _hasValidSession = true;
                 notifyListeners();
