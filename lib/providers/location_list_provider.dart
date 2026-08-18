@@ -96,6 +96,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
   bool _isLoadingPopular = false;
   bool _isLoadingHiddenGems = false;
   Set<int> _beenToLocationIds = <int>{};
+  bool _excludeSavedFilter = false;
   final bool _startBackgroundUserServices;
   final SavedLocationMarkerBuilder? _savedMarkerBuilder;
   final SavedLocationsLoader? _savedLocationsLoader;
@@ -154,10 +155,12 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
   List<String> get cuisineTagIds => List.unmodifiable(_cuisineTagIds);
   AvailabilityFilter get availabilityFilter => _availabilityFilter;
   int get filterMaxResults => _filterMaxResults;
+  bool get excludeSavedFilter => _excludeSavedFilter;
   bool get hasActiveFilters =>
       _vibeTagIds.isNotEmpty ||
       _cuisineTagIds.isNotEmpty ||
-      _availabilityFilter != AvailabilityFilter.any;
+      _availabilityFilter != AvailabilityFilter.any ||
+      _excludeSavedFilter;
   bool get isLoadingSaved => _isLoadingSaved;
   bool get hasLoadedSavedLocations => _savedLocationsLoaded;
   bool get isSavedDataStale => _isSavedDataStale;
@@ -261,6 +264,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
     _vibeTagNames = [];
     _cuisineTagNames = [];
     _availabilityFilter = AvailabilityFilter.any;
+    _excludeSavedFilter = false;
 
     _currentViewportBounds = null;
     _lastSelectedIds = null;
@@ -1494,6 +1498,9 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       AvailabilityFilter.openNow => 'open now',
       AvailabilityFilter.closedNow => 'closed now',
     };
+    final savedLocationIds = _excludeSavedFilter
+        ? _savedLocations.keys.map((l) => l.locationId).toSet()
+        : const <int>{};
 
     print("🔍 [Filter] ────────────────────────────────────");
     print("🔍 [Filter] Applying filters to $type");
@@ -1503,6 +1510,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
     print("🔍 [Filter]   cuisine tags (${cuisineLower.length}): "
         "${cuisineLower.isEmpty ? '(none)' : cuisineLower.join(', ')}");
     print("🔍 [Filter]   availability: $availabilityLabel");
+    print("🔍 [Filter]   exclude saved: $_excludeSavedFilter");
 
     // Score every location and record per-criterion match counts for
     // observability — lets us tell at a glance whether the cuisine filter
@@ -1514,6 +1522,10 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
     final scored = <MapEntry<LocationModel, double>>[];
 
     for (final loc in source) {
+      if (_excludeSavedFilter && savedLocationIds.contains(loc.locationId)) {
+        continue;
+      }
+
       final isOpenNow = loc.openNow;
       final matchesAvailability = switch (_availabilityFilter) {
         AvailabilityFilter.any => true,
@@ -1689,6 +1701,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
     required List<String> vibeTagIds,
     required List<String> cuisineTagIds,
     AvailabilityFilter availabilityFilter = AvailabilityFilter.any,
+    bool excludeSaved = false,
     List<String> vibeTagNames = const [],
     List<String> cuisineTagNames = const [],
     int maxResults = 30,
@@ -1697,6 +1710,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
     _vibeTagIds = List.from(vibeTagIds);
     _cuisineTagIds = List.from(cuisineTagIds);
     _availabilityFilter = availabilityFilter;
+    _excludeSavedFilter = excludeSaved;
     _vibeTagNames = List.from(vibeTagNames);
     _cuisineTagNames = List.from(cuisineTagNames);
     _filterMaxResults = maxResults;

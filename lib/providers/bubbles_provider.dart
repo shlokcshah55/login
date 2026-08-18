@@ -30,6 +30,8 @@ class BubblesProvider with ChangeNotifier {
   List<Bubble> get bubbles => _bubbles;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  int get totalUnreadCount =>
+      _bubbles.fold(0, (sum, bubble) => sum + bubble.unreadCount);
 
   // Override notifyListeners to prevent calling after dispose
   @override

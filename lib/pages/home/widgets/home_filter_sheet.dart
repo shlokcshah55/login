@@ -12,6 +12,7 @@ class HomeFilterSheetResult {
     required this.vibeTagIds,
     required this.cuisineTagIds,
     this.availabilityFilter = AvailabilityFilter.any,
+    this.excludeSaved = false,
     this.vibeTagNames = const [],
     this.cuisineTagNames = const [],
     this.launchSweetTreat = false,
@@ -21,6 +22,7 @@ class HomeFilterSheetResult {
   final Set<String> vibeTagIds;
   final Set<String> cuisineTagIds;
   final AvailabilityFilter availabilityFilter;
+  final bool excludeSaved;
   final List<String> vibeTagNames;
   final List<String> cuisineTagNames;
   final bool launchSweetTreat;
@@ -29,7 +31,8 @@ class HomeFilterSheetResult {
   int get totalSelectedCount =>
       vibeTagIds.length +
       cuisineTagIds.length +
-      (availabilityFilter == AvailabilityFilter.any ? 0 : 1);
+      (availabilityFilter == AvailabilityFilter.any ? 0 : 1) +
+      (excludeSaved ? 1 : 0);
 }
 
 enum _HomeFilterCategory {
@@ -69,6 +72,7 @@ class HomeFilterSheet extends StatefulWidget {
     required this.initialVibeTagIds,
     required this.initialCuisineTagIds,
     this.initialAvailabilityFilter = AvailabilityFilter.any,
+    this.initialExcludeSaved = false,
     this.showMaxResults = false,
     this.initialMaxResults = 30,
   });
@@ -76,6 +80,7 @@ class HomeFilterSheet extends StatefulWidget {
   final Set<String> initialVibeTagIds;
   final Set<String> initialCuisineTagIds;
   final AvailabilityFilter initialAvailabilityFilter;
+  final bool initialExcludeSaved;
   final bool showMaxResults;
   final int initialMaxResults;
 
@@ -84,6 +89,7 @@ class HomeFilterSheet extends StatefulWidget {
     required Set<String> initialVibeTagIds,
     required Set<String> initialCuisineTagIds,
     AvailabilityFilter initialAvailabilityFilter = AvailabilityFilter.any,
+    bool initialExcludeSaved = false,
     bool showMaxResults = false,
     int initialMaxResults = 30,
   }) {
@@ -96,6 +102,7 @@ class HomeFilterSheet extends StatefulWidget {
         initialVibeTagIds: initialVibeTagIds,
         initialCuisineTagIds: initialCuisineTagIds,
         initialAvailabilityFilter: initialAvailabilityFilter,
+        initialExcludeSaved: initialExcludeSaved,
         showMaxResults: showMaxResults,
         initialMaxResults: initialMaxResults,
       ),
@@ -138,6 +145,7 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
   late Set<String> _selectedVibeTagIds;
   late Set<String> _selectedCuisineTagIds;
   late AvailabilityFilter _selectedAvailabilityFilter;
+  late bool _excludeSaved;
   late double _maxResults;
 
   List<Map<String, dynamic>> _vibeTags = const [];
@@ -156,6 +164,7 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
         widget.initialAvailabilityFilter == AvailabilityFilter.closedNow
             ? AvailabilityFilter.any
             : widget.initialAvailabilityFilter;
+    _excludeSaved = widget.initialExcludeSaved;
     _loadTags();
   }
 
@@ -204,6 +213,7 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
       _selectedVibeTagIds.clear();
       _selectedCuisineTagIds.clear();
       _selectedAvailabilityFilter = AvailabilityFilter.any;
+      _excludeSaved = false;
     });
   }
 
@@ -221,11 +231,18 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
   }
 
   int get _availabilitySelectionCount =>
-      _selectedAvailabilityFilter == AvailabilityFilter.any ? 0 : 1;
+      (_selectedAvailabilityFilter == AvailabilityFilter.any ? 0 : 1) +
+      (_excludeSaved ? 1 : 0);
 
   void _setAvailabilityFilter(AvailabilityFilter filter) {
     setState(() {
       _selectedAvailabilityFilter = filter;
+    });
+  }
+
+  void _setExcludeSaved(bool value) {
+    setState(() {
+      _excludeSaved = value;
     });
   }
 
@@ -243,6 +260,7 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
       vibeTagIds: Set<String>.from(_selectedVibeTagIds),
       cuisineTagIds: Set<String>.from(_selectedCuisineTagIds),
       availabilityFilter: _selectedAvailabilityFilter,
+      excludeSaved: _excludeSaved,
       vibeTagNames: vibeNames,
       cuisineTagNames: cuisineNames,
       launchSweetTreat: launchSweetTreat,
@@ -592,6 +610,15 @@ class _HomeFilterSheetState extends State<HomeFilterSheet> {
                               : AvailabilityFilter.openNow,
                         );
                       },
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _AvailabilityOptionPill(
+                      label: 'Been to',
+                      icon: FeatherIcons.checkCircle,
+                      isSelected: _excludeSaved,
+                      onTap: () => _setExcludeSaved(!_excludeSaved),
                     ),
                   ),
                 ],

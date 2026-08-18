@@ -20,11 +20,13 @@ class DetailsSection extends StatelessWidget {
     required this.location,
     required this.onOpenInMaps,
     required this.onOpenWebsite,
+    required this.onShowOnMap,
   });
 
   final LocationModel location;
   final VoidCallback onOpenInMaps;
   final VoidCallback onOpenWebsite;
+  final VoidCallback onShowOnMap;
 
   @override
   Widget build(BuildContext context) {
@@ -140,7 +142,14 @@ class DetailsSection extends StatelessWidget {
       ));
     }
 
-    if (items.isEmpty) return const SizedBox.shrink();
+    // Show on map — always available, kept last so the essentials list
+    // ends on the in-app action rather than an external link.
+    items.add(_DetailItem(
+      icon: Icons.map_rounded,
+      label: 'Show on map',
+      value: 'Minimise and locate on the map',
+      onTap: onShowOnMap,
+    ));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

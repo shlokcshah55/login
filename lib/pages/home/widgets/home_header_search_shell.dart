@@ -7,6 +7,7 @@ import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/pages/home/search/header_search_types.dart';
+import 'package:login/pages/home/widgets/magic_search_suggestions.dart';
 import 'package:login/pages/profile/widgets/trending_now_section.dart';
 import 'package:login/pages/home/widgets/search_result_action_sheet.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
@@ -21,7 +22,6 @@ class HomeHeaderSearchShell extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final VoidCallback onEntryTap;
-  final VoidCallback onMagicSearchTap;
   final VoidCallback onDismiss;
   final ValueChanged<String> onQueryChanged;
   final ValueChanged<SearchSuggestionItem> onSuggestionSelected;
@@ -29,10 +29,16 @@ class HomeHeaderSearchShell extends StatelessWidget {
   final ValueChanged<LocationModel> onPreviewStart;
   final VoidCallback onPreviewEnd;
   final Widget? footer;
-  final bool isMagicSearchActive;
   final VoidCallback? onSearchSubmitted;
   final Key? searchEntrySpotlightKey;
-  final Key? magicSearchSpotlightKey;
+  final bool showSuggestionsPanel;
+  final VoidCallback onToggleSuggestionsPanel;
+  final ValueChanged<String> onMagicSuggestionSelected;
+  final VoidCallback onOpenBubbles;
+  final bool isMagicSearchActive;
+  final VoidCallback onSubmitMagicSearch;
+  final VoidCallback onDismissMagicResults;
+  final int unreadBubbleCount;
 
   const HomeHeaderSearchShell({
     super.key,
@@ -40,7 +46,6 @@ class HomeHeaderSearchShell extends StatelessWidget {
     required this.controller,
     required this.focusNode,
     required this.onEntryTap,
-    required this.onMagicSearchTap,
     required this.onDismiss,
     required this.onQueryChanged,
     required this.onSuggestionSelected,
@@ -48,10 +53,16 @@ class HomeHeaderSearchShell extends StatelessWidget {
     required this.onPreviewStart,
     required this.onPreviewEnd,
     this.footer,
-    this.isMagicSearchActive = false,
     this.onSearchSubmitted,
     this.searchEntrySpotlightKey,
-    this.magicSearchSpotlightKey,
+    required this.showSuggestionsPanel,
+    required this.onToggleSuggestionsPanel,
+    required this.onMagicSuggestionSelected,
+    required this.onOpenBubbles,
+    required this.isMagicSearchActive,
+    required this.onSubmitMagicSearch,
+    required this.onDismissMagicResults,
+    this.unreadBubbleCount = 0,
   });
 
   @override
@@ -68,16 +79,18 @@ class HomeHeaderSearchShell extends StatelessWidget {
                   controller: controller,
                   focusNode: focusNode,
                   onTap: onEntryTap,
-                  isMagicSearchActive: isMagicSearchActive,
                   onChanged: onQueryChanged,
                   onSubmitted: onSearchSubmitted,
                 ),
               ),
               const SizedBox(width: 10),
-              _MagicSearchButton(
-                spotlightKey: magicSearchSpotlightKey,
-                onTap: onMagicSearchTap,
+              _SearchHeaderActionButton(
+                showSuggestionsPanel: !isMagicSearchActive,
                 isMagicSearchActive: isMagicSearchActive,
+                onSubmitMagicSearch: onEntryTap,
+                onDismissMagicResults: onDismissMagicResults,
+                onOpenBubbles: onEntryTap,
+                unreadBubbleCount: unreadBubbleCount,
               ),
             ],
           ),
@@ -100,8 +113,14 @@ class HomeHeaderSearchShell extends StatelessWidget {
       onPreviewStart: onPreviewStart,
       onPreviewEnd: onPreviewEnd,
       onSearchSubmitted: onSearchSubmitted,
-      onMagicSearchTap: onMagicSearchTap,
+      showSuggestionsPanel: showSuggestionsPanel,
+      onToggleSuggestionsPanel: onToggleSuggestionsPanel,
+      onMagicSuggestionSelected: onMagicSuggestionSelected,
+      onOpenBubbles: onOpenBubbles,
       isMagicSearchActive: isMagicSearchActive,
+      onSubmitMagicSearch: onSubmitMagicSearch,
+      onDismissMagicResults: onDismissMagicResults,
+      unreadBubbleCount: unreadBubbleCount,
     );
   }
 }
@@ -112,7 +131,6 @@ class _CollapsedSearchEntry extends StatelessWidget {
     required this.controller,
     required this.focusNode,
     required this.onTap,
-    required this.isMagicSearchActive,
     required this.onChanged,
     required this.onSubmitted,
   });
@@ -121,83 +139,11 @@ class _CollapsedSearchEntry extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final VoidCallback onTap;
-  final bool isMagicSearchActive;
   final ValueChanged<String> onChanged;
   final VoidCallback? onSubmitted;
 
   @override
   Widget build(BuildContext context) {
-    if (isMagicSearchActive) {
-      return AnimatedBuilder(
-        animation: Listenable.merge([controller, focusNode]),
-        builder: (context, _) {
-          return Listener(
-            behavior: HitTestBehavior.translucent,
-            onPointerDown: (_) =>
-                context.read<BottomNavVisibilityProvider>().setLocked(true),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-              decoration: BoxDecoration(
-                color: pinit.PinitColors.accent,
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(
-                  color: pinit.PinitColors.aubergine,
-                  width: 1.5,
-                ),
-                boxShadow: const [
-                  BoxShadow(
-                    color: pinit.PinitColors.aubergine,
-                    blurRadius: 0,
-                    offset: Offset(3, 3),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    FeatherIcons.zap,
-                    color: pinit.PinitColors.cream,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      key: const Key('home_header_magic_search_field'),
-                      controller: controller,
-                      focusNode: focusNode,
-                      cursorColor: pinit.PinitColors.cream,
-                      scrollPadding: EdgeInsets.zero,
-                      textInputAction: TextInputAction.search,
-                      textCapitalization: TextCapitalization.sentences,
-                      style: AppTypography.sans(
-                        fontSize: 15,
-                        color: pinit.PinitColors.cream,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      decoration: InputDecoration(
-                        isCollapsed: true,
-                        hintText: 'E.g "COZY BRUNCH IN THE SUN"',
-                        hintStyle: GoogleFonts.dmSans(
-                          fontSize: 11,
-                          color:
-                              pinit.PinitColors.cream.withValues(alpha: 0.74),
-                          fontWeight: FontWeight.w500,
-                        ),
-                        border: InputBorder.none,
-                      ),
-                      onChanged: onChanged,
-                      onSubmitted:
-                          onSubmitted != null ? (_) => onSubmitted!() : null,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      );
-    }
-
     return Listener(
       behavior: HitTestBehavior.translucent,
       onPointerDown: (_) =>
@@ -210,7 +156,7 @@ class _CollapsedSearchEntry extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
             decoration: BoxDecoration(
-              color: pinit.PinitColors.cream,
+              color: pinit.PinitColors.accent,
               borderRadius: BorderRadius.circular(999),
               border: Border.all(
                 color: pinit.PinitColors.aubergine,
@@ -228,16 +174,16 @@ class _CollapsedSearchEntry extends StatelessWidget {
               children: [
                 const Icon(
                   FeatherIcons.search,
-                  color: pinit.PinitColors.aubergine,
+                  color: pinit.PinitColors.cream,
                   size: 16,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'SEARCH FOR A PLACE',
+                    'SEARCH FOR A VIBE, DISH OR SOMETHING YOU ARE FEELING',
                     style: GoogleFonts.dmSans(
                       fontSize: 11,
-                      color: pinit.PinitColors.aubergineSoft,
+                      color: pinit.PinitColors.cream,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1.0,
                       height: 1.0,
@@ -287,8 +233,14 @@ class _InlineActiveSearchView extends StatefulWidget {
   final ValueChanged<LocationModel> onPreviewStart;
   final VoidCallback onPreviewEnd;
   final VoidCallback? onSearchSubmitted;
-  final VoidCallback onMagicSearchTap;
+  final bool showSuggestionsPanel;
+  final VoidCallback onToggleSuggestionsPanel;
+  final ValueChanged<String> onMagicSuggestionSelected;
+  final VoidCallback onOpenBubbles;
   final bool isMagicSearchActive;
+  final VoidCallback onSubmitMagicSearch;
+  final VoidCallback onDismissMagicResults;
+  final int unreadBubbleCount;
 
   const _InlineActiveSearchView({
     required this.state,
@@ -301,8 +253,14 @@ class _InlineActiveSearchView extends StatefulWidget {
     required this.onPreviewStart,
     required this.onPreviewEnd,
     required this.onSearchSubmitted,
-    required this.onMagicSearchTap,
+    required this.showSuggestionsPanel,
+    required this.onToggleSuggestionsPanel,
+    required this.onMagicSuggestionSelected,
+    required this.onOpenBubbles,
     required this.isMagicSearchActive,
+    required this.onSubmitMagicSearch,
+    required this.onDismissMagicResults,
+    required this.unreadBubbleCount,
   });
 
   @override
@@ -372,13 +330,21 @@ class _InlineActiveSearchViewState extends State<_InlineActiveSearchView>
                     onChanged: widget.onQueryChanged,
                     onDismiss: widget.onDismiss,
                     onSubmitted: widget.onSearchSubmitted,
+                    isMagicMode: widget.showSuggestionsPanel ||
+                        widget.isMagicSearchActive,
                   ),
                 ),
                 const SizedBox(width: 10),
-                _MagicSearchButton(
-                  spotlightKey: null,
-                  onTap: widget.onMagicSearchTap,
+                _SearchHeaderActionButton(
+                  showSuggestionsPanel: widget.showSuggestionsPanel,
                   isMagicSearchActive: widget.isMagicSearchActive,
+                  // Tapping this button while it shows the search icon must
+                  // do exactly what pressing "search" on the keyboard does —
+                  // both submit through the same onSearchSubmitted callback.
+                  onSubmitMagicSearch: () => widget.onSearchSubmitted?.call(),
+                  onDismissMagicResults: widget.onDismissMagicResults,
+                  onOpenBubbles: widget.onOpenBubbles,
+                  unreadBubbleCount: widget.unreadBubbleCount,
                 ),
               ],
             ),
@@ -387,22 +353,24 @@ class _InlineActiveSearchViewState extends State<_InlineActiveSearchView>
               _SearchErrorBanner(message: widget.state.result.errorMessage!),
             ],
             const SizedBox(height: 14),
-            if (!widget.isMagicSearchActive) ...[
-              const _MagicSearchHintPopover(),
-              const SizedBox(height: 12),
-            ],
-            Expanded(
-              child: _PlaceResultsList(
-                items: widget.state.result.placeItems,
-                isLoading: widget.state.result.isLoading,
-                query: widget.state.result.query,
-                pulse: pulse,
-                onSuggestionSelected: widget.onSuggestionSelected,
-                onPlaceActionTriggered: widget.onPlaceActionTriggered,
-                onPreviewStart: widget.onPreviewStart,
-                onPreviewEnd: widget.onPreviewEnd,
+            if (widget.showSuggestionsPanel)
+              MagicSearchSuggestions(
+                onSelected: widget.onMagicSuggestionSelected,
+                onDismiss: widget.onToggleSuggestionsPanel,
+              )
+            else
+              Expanded(
+                child: _PlaceResultsList(
+                  items: widget.state.result.placeItems,
+                  isLoading: widget.state.result.isLoading,
+                  query: widget.state.result.query,
+                  pulse: pulse,
+                  onSuggestionSelected: widget.onSuggestionSelected,
+                  onPlaceActionTriggered: widget.onPlaceActionTriggered,
+                  onPreviewStart: widget.onPreviewStart,
+                  onPreviewEnd: widget.onPreviewEnd,
+                ),
               ),
-            ),
           ],
         );
       },
@@ -416,6 +384,7 @@ class _InlineActiveSearchEntry extends StatelessWidget {
   final ValueChanged<String> onChanged;
   final VoidCallback onDismiss;
   final VoidCallback? onSubmitted;
+  final bool isMagicMode;
 
   const _InlineActiveSearchEntry({
     required this.controller,
@@ -423,10 +392,25 @@ class _InlineActiveSearchEntry extends StatelessWidget {
     required this.onChanged,
     required this.onDismiss,
     required this.onSubmitted,
+    required this.isMagicMode,
   });
 
   @override
   Widget build(BuildContext context) {
+    final backgroundColor =
+        isMagicMode ? pinit.PinitColors.accent : pinit.PinitColors.cream;
+    final foregroundColor =
+        isMagicMode ? pinit.PinitColors.cream : pinit.PinitColors.aubergine;
+    final hintColor = isMagicMode
+        ? pinit.PinitColors.cream.withValues(alpha: 0.78)
+        : pinit.PinitColors.aubergineSoft;
+    final dismissBackgroundColor = isMagicMode
+        ? pinit.PinitColors.cream.withValues(alpha: 0.22)
+        : pinit.PinitColors.creamSunk;
+    final dismissBorderColor = isMagicMode
+        ? pinit.PinitColors.cream.withValues(alpha: 0.5)
+        : pinit.PinitColors.creamDeep;
+
     return Listener(
       behavior: HitTestBehavior.translucent,
       onPointerDown: (_) =>
@@ -434,7 +418,7 @@ class _InlineActiveSearchEntry extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
         decoration: BoxDecoration(
-          color: pinit.PinitColors.cream,
+          color: backgroundColor,
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
             color: pinit.PinitColors.aubergine,
@@ -450,9 +434,9 @@ class _InlineActiveSearchEntry extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Icon(
+            Icon(
               FeatherIcons.search,
-              color: pinit.PinitColors.aubergine,
+              color: foregroundColor,
               size: 16,
             ),
             const SizedBox(width: 12),
@@ -461,22 +445,24 @@ class _InlineActiveSearchEntry extends StatelessWidget {
                 key: const Key('home_header_search_text_field'),
                 controller: controller,
                 focusNode: focusNode,
-                cursorColor: pinit.PinitColors.aubergine,
+                cursorColor: foregroundColor,
                 textInputAction: TextInputAction.search,
                 textCapitalization: TextCapitalization.words,
                 style: GoogleFonts.dmSans(
                   fontSize: 12,
-                  color: pinit.PinitColors.aubergine,
+                  color: foregroundColor,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.6,
                   height: 1.0,
                 ),
                 decoration: InputDecoration(
                   isCollapsed: true,
-                  hintText: 'SEARCH FOR A SPECIFC RESTAURANT',
+                  hintText: isMagicMode
+                      ? 'SEARCH FOR A VIBE, DISH OR SOMETHING YOU ARE FEELING'
+                      : 'SEARCH FOR A SPECIFC RESTAURANT',
                   hintStyle: GoogleFonts.dmSans(
                     fontSize: 11,
-                    color: pinit.PinitColors.aubergineSoft,
+                    color: hintColor,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 1.0,
                     height: 1.0,
@@ -493,17 +479,17 @@ class _InlineActiveSearchEntry extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                 decoration: BoxDecoration(
-                  color: pinit.PinitColors.creamSunk,
+                  color: dismissBackgroundColor,
                   borderRadius: BorderRadius.circular(999),
                   border: Border.all(
-                    color: pinit.PinitColors.creamDeep,
+                    color: dismissBorderColor,
                     width: 1,
                   ),
                 ),
-                child: const Icon(
+                child: Icon(
                   CupertinoIcons.xmark,
                   size: 14,
-                  color: pinit.PinitColors.aubergineSoft,
+                  color: foregroundColor,
                 ),
               ),
             ),
@@ -514,64 +500,119 @@ class _InlineActiveSearchEntry extends StatelessWidget {
   }
 }
 
-class _MagicSearchButton extends StatelessWidget {
-  const _MagicSearchButton({
-    required this.spotlightKey,
-    required this.onTap,
+class _SearchHeaderActionButton extends StatelessWidget {
+  const _SearchHeaderActionButton({
+    required this.showSuggestionsPanel,
     required this.isMagicSearchActive,
+    required this.onSubmitMagicSearch,
+    required this.onDismissMagicResults,
+    required this.onOpenBubbles,
+    this.unreadBubbleCount = 0,
   });
 
-  final Key? spotlightKey;
-  final VoidCallback onTap;
+  final bool showSuggestionsPanel;
   final bool isMagicSearchActive;
+  final VoidCallback onSubmitMagicSearch;
+  final VoidCallback onDismissMagicResults;
+  final VoidCallback onOpenBubbles;
+  final int unreadBubbleCount;
 
   @override
   Widget build(BuildContext context) {
+    final IconData icon;
+    final VoidCallback onTap;
+    final bool isMagicMode = showSuggestionsPanel || isMagicSearchActive;
+    final bool isBubblesIcon = !showSuggestionsPanel && !isMagicSearchActive;
+    if (showSuggestionsPanel) {
+      icon = FeatherIcons.search;
+      onTap = onSubmitMagicSearch;
+    } else if (isMagicSearchActive) {
+      icon = CupertinoIcons.xmark;
+      onTap = onDismissMagicResults;
+    } else {
+      icon = FeatherIcons.messageCircle;
+      onTap = onOpenBubbles;
+    }
+
+    final backgroundColor =
+        isMagicMode ? pinit.PinitColors.accent : pinit.PinitColors.cream;
+    final borderColor =
+        isMagicMode ? pinit.PinitColors.aubergine : pinit.PinitColors.accent;
+    final iconColor =
+        isMagicMode ? pinit.PinitColors.cream : pinit.PinitColors.accent;
+    final showUnreadBadge = isBubblesIcon && unreadBubbleCount > 0;
+    final unreadLabel =
+        unreadBubbleCount > 10 ? '10+' : '$unreadBubbleCount';
+
     return Listener(
       behavior: HitTestBehavior.translucent,
       onPointerDown: (_) =>
           context.read<BottomNavVisibilityProvider>().setLocked(true),
-      child: RepaintBoundary(
-        key: spotlightKey,
-        child: GestureDetector(
-          onTap: onTap,
-          child: Container(
-            width: 54,
-            height: 54,
-            decoration: BoxDecoration(
-              color: isMagicSearchActive
-                  ? pinit.PinitColors.accent
-                  : pinit.PinitColors.cream,
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: isMagicSearchActive
-                    ? pinit.PinitColors.aubergine
-                    : pinit.PinitColors.accent,
-                width: 1.5,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: isMagicSearchActive
-                      ? pinit.PinitColors.aubergine
-                      : pinit.PinitColors.accent,
-                  blurRadius: 0,
-                  offset: Offset(3, 3),
+      child: GestureDetector(
+        onTap: onTap,
+        child: SizedBox(
+          width: 60,
+          height: 60,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                left: 0,
+                bottom: 0,
+                child: Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    color: backgroundColor,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: borderColor,
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: borderColor,
+                        blurRadius: 0,
+                        offset: const Offset(3, 3),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    icon,
+                    color: iconColor,
+                    size: 20,
+                  ),
                 ),
-              ],
-            ),
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 160),
-              switchInCurve: Curves.easeOutCubic,
-              switchOutCurve: Curves.easeOutCubic,
-              child: Icon(
-                isMagicSearchActive ? CupertinoIcons.xmark : FeatherIcons.zap,
-                key: ValueKey<bool>(isMagicSearchActive),
-                color: isMagicSearchActive
-                    ? pinit.PinitColors.cream
-                    : pinit.PinitColors.accent,
-                size: isMagicSearchActive ? 20 : 22,
               ),
-            ),
+              if (showUnreadBadge)
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: Container(
+                    constraints: const BoxConstraints(minWidth: 19),
+                    height: 19,
+                    padding: const EdgeInsets.symmetric(horizontal: 5),
+                    decoration: BoxDecoration(
+                      color: pinit.PinitColors.aubergine,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: pinit.PinitColors.cream,
+                        width: 1.5,
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      unreadLabel,
+                      style: GoogleFonts.dmSans(
+                        color: pinit.PinitColors.cream,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        height: 1,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ),
@@ -1877,93 +1918,3 @@ class _SearchResultSaveTick extends StatelessWidget {
   }
 }
 
-class _MagicSearchHintPopover extends StatelessWidget {
-  const _MagicSearchHintPopover();
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: const _PopoverBubblePainter(),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 21, 14, 12),
-        child: Text(
-          'Switch to magic search to satisfy a specific vibe, craving or dish you are after!',
-          style: AppTypography.sans(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: pinit.PinitColors.cream,
-              height: 1.3,
-              letterSpacing: 1.2),
-        ),
-      ),
-    );
-  }
-}
-
-class _PopoverBubblePainter extends CustomPainter {
-  const _PopoverBubblePainter();
-
-  static const double _arrowWidth = 16.0;
-  static const double _arrowHeight = 10.0;
-  static const double _radius = 12.0;
-  static const double _borderWidth = 1.5;
-
-  Path _buildPath(Size size, double arrowTipX) {
-    const r = _radius;
-    const ah = _arrowHeight;
-    final w = size.width;
-    final h = size.height;
-
-    return Path()
-      ..moveTo(r, ah)
-      ..lineTo(arrowTipX - _arrowWidth / 2, ah)
-      ..lineTo(arrowTipX, 0)
-      ..lineTo(arrowTipX + _arrowWidth / 2, ah)
-      ..lineTo(w - r, ah)
-      ..arcToPoint(Offset(w, ah + r), radius: const Radius.circular(r))
-      ..lineTo(w, h - r)
-      ..arcToPoint(Offset(w - r, h), radius: const Radius.circular(r))
-      ..lineTo(r, h)
-      ..arcToPoint(Offset(0, h - r), radius: const Radius.circular(r))
-      ..lineTo(0, ah + r)
-      ..arcToPoint(Offset(r, ah), radius: const Radius.circular(r))
-      ..close();
-  }
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final arrowTipX = size.width - 27.0;
-    final path = _buildPath(size, arrowTipX);
-
-    // Hard aubergine shadow (offset 3,3 — matches app style)
-    canvas.save();
-    canvas.translate(3, 3);
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = pinit.PinitColors.aubergine
-        ..style = PaintingStyle.fill,
-    );
-    canvas.restore();
-
-    // Accent (orange) fill
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = pinit.PinitColors.accent
-        ..style = PaintingStyle.fill,
-    );
-
-    // Aubergine border
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = pinit.PinitColors.aubergine
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = _borderWidth,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}

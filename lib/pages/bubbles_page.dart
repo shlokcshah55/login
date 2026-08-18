@@ -17,6 +17,8 @@ import 'package:login/providers/bubble_mode_provider.dart';
 import 'package:login/providers/navigation_provider.dart';
 import 'package:login/pages/bubble_messaging_page.dart';
 import 'package:login/pages/profile/other_user_profile_page.dart';
+import 'package:login/pages/profile/widgets/trending_now_section.dart';
+import 'package:login/providers/location_list_provider.dart';
 import 'package:login/services/spotlight_wizard_seen_service.dart';
 import 'package:login/utils/route_open_guard.dart';
 import 'package:login/widgets/chat/bubble_discover_view.dart';
@@ -59,6 +61,15 @@ class _BubblesPageState extends State<BubblesPage>
   bool _spotlightWizardScheduled = false;
   bool _isSpotlightWizardVisible = false;
   bool _spotlightWizardEligibilityChecked = false;
+  bool _showLegacyBubblesHome = false;
+
+  final GlobalKey _manualSearchSpotlightKey = GlobalKey();
+  final GlobalKey _bubblesEntrySpotlightKey = GlobalKey();
+  final SpotlightWizardSeenService _discoverySpotlightWizardService =
+      SpotlightWizardSeenService('search_discovery');
+  bool _discoverySpotlightWizardScheduled = false;
+  bool _isDiscoverySpotlightWizardVisible = false;
+  bool _discoverySpotlightWizardEligibilityChecked = false;
 
   @override
   void initState() {
@@ -76,9 +87,20 @@ class _BubblesPageState extends State<BubblesPage>
         userId: currentUser.id,
         bubbleHelper: supabaseProvider.bubbles,
       );
+      _bubblesProvider.addListener(_publishUnreadCount);
       _bubblesProvider.initialize();
       _fetchSuggestedUsers();
     }
+  }
+
+  /// Mirrors the unread bubble-message total onto [NavigationProvider] so
+  /// other tabs (e.g. the home page's messages icon) can show a badge
+  /// without needing direct access to this page's [BubblesProvider].
+  void _publishUnreadCount() {
+    if (!mounted) return;
+    context
+        .read<NavigationProvider>()
+        .setUnreadBubbleCount(_bubblesProvider.totalUnreadCount);
   }
 
   void _initializeAnimations() {
@@ -112,6 +134,7 @@ class _BubblesPageState extends State<BubblesPage>
     _searchController.dispose();
     _searchFocusNode.dispose();
     _debounceTimer?.cancel();
+    _bubblesProvider.removeListener(_publishUnreadCount);
     _bubblesProvider.dispose();
     super.dispose();
   }
@@ -121,11 +144,13 @@ class _BubblesPageState extends State<BubblesPage>
     super.didUpdateWidget(oldWidget);
     if (!oldWidget.isActive && widget.isActive) {
       _scheduleSpotlightWizardIfNeeded();
+      _scheduleDiscoverySpotlightWizardIfNeeded();
     }
   }
 
   void _scheduleSpotlightWizardIfNeeded() {
     if (!widget.isActive ||
+        !_showLegacyBubblesHome ||
         _spotlightWizardScheduled ||
         _isSpotlightWizardVisible ||
         _spotlightWizardEligibilityChecked ||
@@ -185,6 +210,65 @@ class _BubblesPageState extends State<BubblesPage>
     ];
   }
 
+  void _scheduleDiscoverySpotlightWizardIfNeeded() {
+    if (!widget.isActive ||
+        _showLegacyBubblesHome ||
+        _discoverySpotlightWizardScheduled ||
+        _isDiscoverySpotlightWizardVisible ||
+        _discoverySpotlightWizardEligibilityChecked) {
+      return;
+    }
+
+    _discoverySpotlightWizardScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_showDiscoverySpotlightWizardIfNeeded());
+    });
+  }
+
+  Future<void> _showDiscoverySpotlightWizardIfNeeded() async {
+    final shouldShow = await _discoverySpotlightWizardService.shouldShowNow();
+    _discoverySpotlightWizardEligibilityChecked = true;
+    if (!shouldShow || !mounted || !widget.isActive || _showLegacyBubblesHome) {
+      _discoverySpotlightWizardScheduled = false;
+      return;
+    }
+    setState(() {
+      _isDiscoverySpotlightWizardVisible = true;
+      _discoverySpotlightWizardScheduled = false;
+    });
+  }
+
+  Future<void> _finishDiscoverySpotlightWizard() async {
+    await _discoverySpotlightWizardService.markCompleted();
+    if (!mounted) return;
+    setState(() => _isDiscoverySpotlightWizardVisible = false);
+  }
+
+  List<SpotlightWizardStep> _buildDiscoverySpotlightWizardSteps() {
+    return [
+      SpotlightWizardStep(
+        targetKey: _manualSearchSpotlightKey,
+        title: 'Know exactly where?',
+        description:
+            'Search for a specific restaurant by name and jump straight to it.',
+        placement: SpotlightBubblePlacement.below,
+        highlightShape: SpotlightHighlightShape.pill,
+        badgeIcon: FeatherIcons.search,
+      ),
+      SpotlightWizardStep(
+        targetKey: _bubblesEntrySpotlightKey,
+        title: 'Access Bubbles.',
+        description:
+            'Tap here to chat with friends, share pins and get recommendations together in a bubble.',
+        placement: SpotlightBubblePlacement.below,
+        highlightShape: SpotlightHighlightShape.circle,
+        showHighlightShadow: false,
+        badgeIcon: FeatherIcons.messageCircle,
+      ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -196,32 +280,45 @@ class _BubblesPageState extends State<BubblesPage>
       child: Consumer<BubblesProvider>(
         builder: (context, bubblesProvider, child) {
           _scheduleSpotlightWizardIfNeeded();
+          _scheduleDiscoverySpotlightWizardIfNeeded();
           return Scaffold(
             backgroundColor: PinitColors.cream,
             body: Stack(
               children: [
-                SafeArea(
-                  bottom: false,
-                  child: Column(
-                    children: [
-                      if (!showingSearch) _buildModernHeader(theme),
-                      _buildSearchField(theme),
-                      Expanded(
-                        child: showingSearch
-                            ? _buildSearchResults(
-                                theme, bubblesProvider.bubbles)
-                            : bubblesProvider.isLoading
-                                ? _buildLoadingState(theme)
-                                : _buildBubblesList(theme, bubblesProvider),
-                      ),
-                    ],
+                if (!_showLegacyBubblesHome)
+                  _buildDiscoveryDefault(context)
+                else
+                  SafeArea(
+                    bottom: false,
+                    child: Column(
+                      children: [
+                        if (!showingSearch) _buildModernHeader(theme),
+                        _buildSearchField(theme),
+                        Expanded(
+                          child: showingSearch
+                              ? _buildSearchResults(
+                                  theme, bubblesProvider.bubbles)
+                              : bubblesProvider.isLoading
+                                  ? _buildLoadingState(theme)
+                                  : _buildBubblesList(theme, bubblesProvider),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                if (_isSpotlightWizardVisible)
+                if (_showLegacyBubblesHome && _isSpotlightWizardVisible)
                   SpotlightWizardOverlay(
                     steps: _buildSpotlightWizardSteps(),
                     onCompleted: () => unawaited(_finishSpotlightWizard()),
                     onSkipped: () => unawaited(_finishSpotlightWizard()),
+                  ),
+                if (!_showLegacyBubblesHome &&
+                    _isDiscoverySpotlightWizardVisible)
+                  SpotlightWizardOverlay(
+                    steps: _buildDiscoverySpotlightWizardSteps(),
+                    onCompleted: () =>
+                        unawaited(_finishDiscoverySpotlightWizard()),
+                    onSkipped: () =>
+                        unawaited(_finishDiscoverySpotlightWizard()),
                   ),
               ],
             ),
@@ -237,6 +334,22 @@ class _BubblesPageState extends State<BubblesPage>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => setState(() => _showLegacyBubblesHome = false),
+              borderRadius: BorderRadius.circular(999),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                child: Icon(
+                  Icons.arrow_back_rounded,
+                  color: PinitColors.aubergine,
+                  size: 22,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
           // Animated bubble icon
           Container(
             width: 44,
@@ -332,6 +445,135 @@ class _BubblesPageState extends State<BubblesPage>
                 ),
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDiscoveryDefault(BuildContext context) {
+    final trending =
+        context.watch<LocationListManager>().popularLocations.take(9).toList();
+
+    return SafeArea(
+      bottom: false,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: RepaintBoundary(
+                    key: _manualSearchSpotlightKey,
+                    child: GestureDetector(
+                      onTap: () => context
+                          .read<NavigationProvider>()
+                          .navigateToHomeSearch(),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 18, vertical: 16),
+                        decoration: BoxDecoration(
+                          color: PinitColors.cream,
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: PinitColors.aubergine,
+                            width: 1.5,
+                          ),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: PinitColors.aubergine,
+                              blurRadius: 0,
+                              offset: Offset(3, 3),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              FeatherIcons.search,
+                              color: PinitColors.aubergine,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'SEARCH FOR A PLACE',
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 11,
+                                  color: PinitColors.aubergineSoft,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 1.0,
+                                  height: 1.0,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Material(
+                  color: Colors.transparent,
+                  child: RepaintBoundary(
+                    key: _bubblesEntrySpotlightKey,
+                    child: InkWell(
+                      onTap: () =>
+                          setState(() => _showLegacyBubblesHome = true),
+                      customBorder: const CircleBorder(),
+                      child: Container(
+                        width: 54,
+                        height: 54,
+                        decoration: BoxDecoration(
+                          color: PinitColors.cream,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: PinitColors.accent,
+                            width: 1.5,
+                          ),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: PinitColors.accent,
+                              blurRadius: 0,
+                              offset: Offset(3, 3),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          FeatherIcons.messageCircle,
+                          color: PinitColors.accent,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: trending.isEmpty
+                ? Center(
+                    child: Text(
+                      'Nothing trending yet.',
+                      style: GoogleFonts.dmSans(color: PinitColors.mute),
+                    ),
+                  )
+                : ListView(
+                    padding: const EdgeInsets.only(bottom: 32),
+                    children: [
+                      TrendingNowSection(
+                        locations: trending,
+                        headerPadding:
+                            const EdgeInsets.fromLTRB(20, 12, 20, 14),
+                        gridPadding: const EdgeInsets.symmetric(horizontal: 20),
+                      ),
+                    ],
+                  ),
           ),
         ],
       ),

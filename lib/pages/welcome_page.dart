@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'login_page.dart';
@@ -184,14 +186,13 @@ class _WelcomePageState extends State<WelcomePage> {
                           borderRadius: BorderRadius.circular(16),
                         ),
                       ),
-                      child: const Text(
+                      child:  Text(
                         'Login',
-                        style: TextStyle(
-                          fontFamily: 'Lato',
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.0,
-                        ),
+                           style: GoogleFonts.dmSans(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w900,
+                                    color: PinitColors.cream,
+                                  ),
                       ),
                     ),
                   ),
@@ -219,14 +220,14 @@ class _WelcomePageState extends State<WelcomePage> {
                           borderRadius: BorderRadius.circular(16),
                         ),
                       ),
-                      child: const Text(
+                      child: Text(
                         'Sign Up',
-                        style: TextStyle(
-                          fontFamily: 'Lato',
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
-                        ),
+                           style: GoogleFonts.dmSans(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w900,
+                                    color: PinitColors.black,
+                                    // letterSpacing: 0.12 * 11,
+                                  ),
                       ),
                     ),
                   ),
@@ -273,14 +274,14 @@ class _WelcomePageState extends State<WelcomePage> {
                             child: ElevatedButton.icon(
                               onPressed: () => _signInWithGoogle(context),
                               icon: const Icon(Icons.g_mobiledata, size: 30),
-                              label: const Text(
+                              label: Text(
                                 'Google',
-                                style: TextStyle(
-                                  fontFamily: 'Lato',
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.5,
-                                ),
+                                style: GoogleFonts.dmSans(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w900,
+                                    color: PinitColors.black,
+                                    // letterSpacing: 0.12 * 11,
+                                  ),
                               ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.white,
@@ -370,12 +371,12 @@ class _SocialAuthButton extends StatelessWidget {
       icon: Icon(icon, size: 22),
       label: Text(
         label,
-        style: const TextStyle(
-          fontFamily: 'Lato',
-          fontSize: 16,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.5,
-        ),
+           style: GoogleFonts.dmSans(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w900,
+                                    color: PinitColors.black,
+                                    // letterSpacing: 0.12 * 11,
+                                  ),
       ),
       style: ElevatedButton.styleFrom(
         backgroundColor: Colors.white,
