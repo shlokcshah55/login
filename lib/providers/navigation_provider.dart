@@ -7,6 +7,7 @@ class NavigationProvider with ChangeNotifier {
   bool _pendingOpenHomeSearch = false;
   String? _pendingShowCollectionId;
   bool _pendingOpenCollectionList = false;
+  int _unreadBubbleCount = 0;
 
   int get pendingTabIndex => _pendingTabIndex;
   bool get hasPendingNavigation => _pendingTabIndex >= 0;
@@ -14,6 +15,13 @@ class NavigationProvider with ChangeNotifier {
   bool get pendingOpenHomeSearch => _pendingOpenHomeSearch;
   String? get pendingShowCollectionId => _pendingShowCollectionId;
   bool get pendingOpenCollectionList => _pendingOpenCollectionList;
+  int get unreadBubbleCount => _unreadBubbleCount;
+
+  void setUnreadBubbleCount(int count) {
+    if (_unreadBubbleCount == count) return;
+    _unreadBubbleCount = count;
+    notifyListeners();
+  }
 
   void navigateToTab(int tabIndex) {
     if (tabIndex < 0 || tabIndex > 2) {

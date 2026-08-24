@@ -160,8 +160,6 @@ class HomeViewModel extends ChangeNotifier {
   HeaderSearchState get headerSearchState => _headerSearchCoordinator.state;
   bool get isHeaderSearchActive => headerSearchState.isActive;
   bool get isHeaderSearchPreviewing => headerSearchState.isPreviewingMap;
-  bool get isMagicSearchFieldFocused =>
-      _isMagicSearchActive && headerSearchFocusNode.hasFocus;
 
   // ── Mode toggle ───────────────────────────────────────────────
   HomeMode get homeMode {
@@ -589,7 +587,7 @@ class HomeViewModel extends ChangeNotifier {
 
   // ── Header search surface ─────────────────────────────────────
 
-  Future<void> openHeaderSearch() async {
+  Future<void> openHeaderSearch({bool showMagicSuggestions = true}) async {
     _analyticsService.trackFeature(
       'search_opened',
       featureName: 'header_search',
@@ -597,8 +595,17 @@ class HomeViewModel extends ChangeNotifier {
       registerTap: true,
       interactionKey: 'search_opened',
     );
+    if (showMagicSuggestions) {
+      _showMagicSearchSuggestions = true;
+    } else {
+      // Guarantee a genuinely normal search — clear any magic-mode residue
+      // left over from an earlier magic search elsewhere in the app.
+      _clearMagicSearchState();
+    }
+    notifyListeners();
     await _headerSearchCoordinator.open();
     _syncBottomNavVisibilityForSearch();
+    notifyListeners();
   }
 
   void closeHeaderSearch({bool clearQuery = true}) {
@@ -607,10 +614,16 @@ class HomeViewModel extends ChangeNotifier {
       headerSearchController.clear();
     }
     _headerSearchCoordinator.close();
+    _showMagicSearchSuggestions = true;
     _syncBottomNavVisibilityForSearch();
+    notifyListeners();
   }
 
   void updateHeaderSearchQuery(String query) {
+    if (_isMagicSearchActive) {
+      _isMagicSearchActive = false;
+      notifyListeners();
+    }
     _headerSearchCoordinator.updateQuery(query);
   }
 
@@ -629,6 +642,22 @@ class HomeViewModel extends ChangeNotifier {
   }
 
   Future<void> submitHeaderSearch() async {
+    // The round search button submits through this exact method too, so
+    // whichever kind of search a query runs, both stay in lockstep.
+    if (_showMagicSearchSuggestions) {
+      final query = headerSearchController.text.trim();
+      if (query.isEmpty) return;
+      // Magic search on the home entry point never uses the in-overlay
+      // place list (that list is the normal-search surface, which only
+      // belongs on the second tab). Instead, close the overlay so the
+      // home screen is visible again, and let the results land in the
+      // home carousel via `locationListManager` — mirrors what tapping a
+      // magic suggestion pill already does.
+      dismissMagicSearchSuggestions();
+      closeHeaderSearch(clearQuery: false);
+      await submitMagicSearch(query);
+      return;
+    }
     await _headerSearchCoordinator.submitQuery();
   }
 
@@ -688,18 +717,11 @@ class HomeViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void toggleMagicSearch() {
+  void toggleMagicSearchSuggestions() {
     _analyticsService.registerUserInteraction(
-      interactionKey: 'toggle_magic_search',
+      interactionKey: 'toggle_magic_search_suggestions',
     );
-    _isMagicSearchActive = !_isMagicSearchActive;
-    if (_isMagicSearchActive) {
-      _showMagicSearchSuggestions = true;
-    } else {
-      _showMagicSearchSuggestions = false;
-      setHomeMode(HomeMode.you);
-    }
-    _syncBottomNavVisibilityForSearch();
+    _showMagicSearchSuggestions = !_showMagicSearchSuggestions;
     notifyListeners();
   }
 
@@ -709,13 +731,44 @@ class HomeViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Leaves magic search mode (suggestions panel or magic results) and
+  /// drops the user into the normal, type-to-search place view without
+  /// closing the header search surface itself.
+  void exitMagicSearchMode() {
+    _analyticsService.registerUserInteraction(
+      interactionKey: 'exit_magic_search_mode',
+    );
+    headerSearchController.clear();
+    _headerSearchCoordinator.updateQuery('', debounce: Duration.zero);
+    _clearMagicSearchState();
+    notifyListeners();
+  }
+
+  /// Resets every bit of magic-search state — the suggestions panel flag,
+  /// the "results are live" flag, and (if it's the reason the underlying
+  /// list is on `search`) the home list type — so nothing lingers from a
+  /// prior magic search once we want a genuinely normal search view.
+  void _clearMagicSearchState() {
+    _isMagicSearchActive = false;
+    _showMagicSearchSuggestions = false;
+
+    // Magic search results live on `locationListManager`, not the header
+    // search sheet — restore whatever list the home screen was showing
+    // before the magic search took over (Saved/Explore/Bubble, etc).
+    final restoredType = switch (_homeMode) {
+      HomeMode.you => LocationListType.saved,
+      HomeMode.explore => LocationListType.recommended,
+      HomeMode.bubble => LocationListType.bubble,
+      HomeMode.bubbleSaved => LocationListType.bubbleSaved,
+    };
+    if (locationListManager.currentListType == LocationListType.search) {
+      unawaited(locationListManager.setCurrentListType(restoredType));
+    }
+  }
+
   Future<void> submitMagicSearch(String query) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return;
-
-    // Once the user submits a query we move into “results mode” — the
-    // suggestion panel should collapse so the header stays compact.
-    dismissMagicSearchSuggestions();
 
     log("HomeViewModel: Triggering magic search for: $trimmed");
     _analyticsService.trackFeature(
@@ -744,6 +797,12 @@ class HomeViewModel extends ChangeNotifier {
         radiusKm,
       );
     }
+
+    // Only flip into "results mode" once the search has actually finished —
+    // this is what turns the header search button into a cross, so it
+    // shouldn't happen the instant the query is submitted.
+    _isMagicSearchActive = true;
+    dismissMagicSearchSuggestions();
 
     if (locationListManager.error != null) {
       log("HomeViewModel: Magic search error: ${locationListManager.error}");

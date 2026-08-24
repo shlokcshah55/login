@@ -10,6 +10,7 @@ import 'package:login/models/proximal_models.dart';
 import 'package:login/models/video_insights.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/providers/location_list_provider.dart';
+import 'package:login/providers/navigation_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:login/services/analytics_service.dart';
 import 'package:login/services/location_processing_trigger.dart';
@@ -476,6 +477,14 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     _sheetController.reverse().then((_) => widget.onClose());
   }
 
+  /// Minimises the card and surfaces this location on the home map,
+  /// selecting its marker and the matching carousel item.
+  void _showOnMap() {
+    final navProvider = Provider.of<NavigationProvider>(context, listen: false);
+    _handleClose();
+    navProvider.navigateToLocationOnMap(widget.location);
+  }
+
   Future<void> _openSimilarPlace(SimilarPlace similar) async {
     if (_isOpeningSimilarPlace) return;
     _isOpeningSimilarPlace = true;
@@ -656,14 +665,32 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     }
 
     if (_videoInsight != null) return;
-    if (!shouldResolveExpandedCardSocialVideoUrl(
+    if (shouldResolveExpandedCardSocialVideoUrl(
       widget.location,
       forceResolveOnOpen: widget.resolveSharedVideoUrlOnOpen,
     )) {
-      return;
+      await _resolveSharedVideoUrl();
     }
 
-    await _resolveSharedVideoUrl();
+    if (_videoInsight != null) return;
+
+    // Fallback: some entry points (search, map, saved lists) don't carry a
+    // pre-resolved source video URL, so the exact-match lookups above never
+    // fire. Grab the most recent extracted insight for this location
+    // directly, matching the location-scoped query that already powers the
+    // "Seen on TikTok" section.
+    await _fetchLatestVideoInsightForLocation();
+  }
+
+  Future<void> _fetchLatestVideoInsightForLocation() async {
+    if (_videoInsight != null) return;
+
+    final insights = await _videoInsightsHelper.getInsightsForLocation(
+      widget.location.locationId,
+    );
+    if (!mounted || _videoInsight != null || insights.isEmpty) return;
+
+    setState(() => _videoInsight = insights.first);
   }
 
   Future<void> _fetchVideoInsightFor(String sourceUrl) async {
@@ -1077,6 +1104,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                 location: location,
                 onOpenInMaps: _openInGoogleMaps,
                 onOpenWebsite: _openWebsite,
+                onShowOnMap: _showOnMap,
               ),
               const SizedBox(height: 32),
 

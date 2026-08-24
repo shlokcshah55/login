@@ -1,9 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:login/services/apple_auth_service.dart';
 import 'package:login/supabase/constants.dart';
 import 'package:login/supabase/helpers/auth.dart';
+import 'package:login/supabase/helpers/auth_failure.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -175,5 +178,116 @@ SUPABASE_ANON_KEY=test-anon-key
       ),
     );
     verifyNever(() => authClient.signOut(scope: SignOutScope.local));
+  });
+
+  group('checkSession', () {
+    String segment(Map<String, dynamic> claims) =>
+        base64Url.encode(utf8.encode(jsonEncode(claims))).replaceAll('=', '');
+
+    /// Builds an unsigned JWT whose `exp` claim sits [delta] from now.
+    ///
+    /// `Session.expiresAt` is derived by decoding this token, so the expiry has
+    /// to be carried in the access token rather than passed to the
+    /// constructor.
+    String accessTokenExpiringIn(Duration delta) {
+      final header = segment({'alg': 'HS256', 'typ': 'JWT'});
+      final payload = segment({
+        'sub': 'user-123',
+        'exp': DateTime.now().add(delta).millisecondsSinceEpoch ~/ 1000,
+      });
+      return '$header.$payload.test-signature';
+    }
+
+    Session sessionExpiringIn(Duration delta) => Session(
+          accessToken: accessTokenExpiringIn(delta),
+          tokenType: 'bearer',
+          expiresIn: delta.inSeconds,
+          refreshToken: 'test-refresh-token',
+          user: const User(
+            id: 'user-123',
+            appMetadata: {},
+            userMetadata: {},
+            aud: 'authenticated',
+            createdAt: '2026-05-06T00:00:00.000Z',
+          ),
+        );
+
+    test('returns invalid when no session exists', () async {
+      when(() => authClient.currentSession).thenReturn(null);
+      final helper =
+          AuthHelper(client: client, appleAuthService: appleAuthService);
+
+      expect(await helper.checkSession(), SessionValidity.invalid);
+    });
+
+    test('returns valid without a network call when comfortably unexpired',
+        () async {
+      when(() => authClient.currentSession)
+          .thenReturn(sessionExpiringIn(const Duration(minutes: 30)));
+      final helper =
+          AuthHelper(client: client, appleAuthService: appleAuthService);
+
+      expect(await helper.checkSession(), SessionValidity.valid);
+      verifyNever(() => authClient.refreshSession());
+    });
+
+    test('refreshes inside the expiry leeway window', () async {
+      when(() => authClient.currentSession)
+          .thenReturn(sessionExpiringIn(const Duration(seconds: 20)));
+      when(() => authClient.refreshSession()).thenAnswer(
+        (_) async =>
+            AuthResponse(session: sessionExpiringIn(const Duration(hours: 1))),
+      );
+      final helper =
+          AuthHelper(client: client, appleAuthService: appleAuthService);
+
+      expect(await helper.checkSession(), SessionValidity.valid);
+      verify(() => authClient.refreshSession()).called(1);
+    });
+
+    test('returns unknown when refresh fails transiently', () async {
+      when(() => authClient.currentSession)
+          .thenReturn(sessionExpiringIn(const Duration(seconds: -10)));
+      when(() => authClient.refreshSession())
+          .thenThrow(AuthRetryableFetchException());
+      final helper =
+          AuthHelper(client: client, appleAuthService: appleAuthService);
+
+      expect(await helper.checkSession(), SessionValidity.unknown);
+    });
+
+    test('returns invalid when the refresh token is definitively rejected',
+        () async {
+      when(() => authClient.currentSession)
+          .thenReturn(sessionExpiringIn(const Duration(seconds: -10)));
+      when(() => authClient.refreshSession()).thenThrow(
+        AuthApiException('Invalid Refresh Token: Already Used',
+            statusCode: '400'),
+      );
+      final helper =
+          AuthHelper(client: client, appleAuthService: appleAuthService);
+
+      expect(await helper.checkSession(), SessionValidity.invalid);
+    });
+
+    test('single-flights concurrent checks', () async {
+      when(() => authClient.currentSession)
+          .thenReturn(sessionExpiringIn(const Duration(seconds: -10)));
+      when(() => authClient.refreshSession()).thenAnswer((_) async {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        return AuthResponse(
+            session: sessionExpiringIn(const Duration(hours: 1)));
+      });
+      final helper =
+          AuthHelper(client: client, appleAuthService: appleAuthService);
+
+      await Future.wait<SessionValidity>([
+        helper.checkSession(),
+        helper.checkSession(),
+        helper.checkSession(),
+      ]);
+
+      verify(() => authClient.refreshSession()).called(1);
+    });
   });
 }

@@ -13,6 +13,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../supabase_client.dart';
 import '../../models/users.dart';
 import '../constants.dart';
+import 'auth_failure.dart';
 
 typedef HttpPost = Future<http.Response> Function(
   Uri url, {
@@ -467,55 +468,57 @@ class AuthHelper {
     }
   }
 
-  /// Validates the current session and attempts to refresh if needed
-  /// Returns true if session is valid, false otherwise
-  Future<bool> validateSession() async {
+  /// Refresh this far ahead of expiry so a slightly fast device clock never
+  /// makes a live session look dead.
+  static const Duration sessionExpiryLeeway = Duration(seconds: 60);
+
+  Future<SessionValidity>? _inFlightSessionCheck;
+
+  /// Checks whether the stored session is usable, refreshing if needed.
+  ///
+  /// Returns [SessionValidity.unknown] when the server could not be reached —
+  /// callers must keep the session and retry, never sign out.
+  Future<SessionValidity> checkSession() {
+    return _inFlightSessionCheck ??= _checkSession().whenComplete(() {
+      _inFlightSessionCheck = null;
+    });
+  }
+
+  Future<SessionValidity> _checkSession() async {
+    final session = _client.auth.currentSession;
+    if (session == null) {
+      if (kDebugMode) {
+        print('AuthHelper.checkSession: No session exists');
+      }
+      return SessionValidity.invalid;
+    }
+
+    final expiresAtSeconds = session.expiresAt;
+    if (expiresAtSeconds == null) {
+      // No expiry recorded: trust the SDK's own refresh scheduling.
+      return SessionValidity.valid;
+    }
+
+    final expiresAt =
+        DateTime.fromMillisecondsSinceEpoch(expiresAtSeconds * 1000);
+    if (DateTime.now().isBefore(expiresAt.subtract(sessionExpiryLeeway))) {
+      return SessionValidity.valid;
+    }
+
     try {
-      final session = await getSession();
-
-      if (session == null) {
-        if (kDebugMode) {
-          print('AuthHelper.validateSession: No session exists');
-        }
-        return false;
-      }
-
-      // Check if token is expired
-      final expiresAt =
-          DateTime.fromMillisecondsSinceEpoch(session.expiresAt! * 1000);
-      final now = DateTime.now();
-
-      if (expiresAt.isBefore(now)) {
-        if (kDebugMode) {
-          print(
-              'AuthHelper.validateSession: Session expired, attempting refresh');
-        }
-
-        // Try to refresh the session
-        final response = await _client.auth.refreshSession();
-
-        if (response.session == null) {
-          if (kDebugMode) {
-            print('AuthHelper.validateSession: Token refresh failed');
-          }
-          return false;
-        }
-
-        if (kDebugMode) {
-          print('AuthHelper.validateSession: Token refreshed successfully');
-        }
-        return true;
-      }
-
-      if (kDebugMode) {
-        print('AuthHelper.validateSession: Session is valid');
-      }
-      return true;
+      final response = await _client.auth.refreshSession();
+      // A null session here is an incomplete response, not a rejection.
+      return response.session == null
+          ? SessionValidity.unknown
+          : SessionValidity.valid;
     } catch (e) {
+      final kind = classifyAuthFailure(e);
       if (kDebugMode) {
-        print('AuthHelper.validateSession: Validation failed with error: $e');
+        print('AuthHelper.checkSession: Refresh failed ($kind): $e');
       }
-      return false;
+      return kind == AuthFailureKind.fatal
+          ? SessionValidity.invalid
+          : SessionValidity.unknown;
     }
   }
 

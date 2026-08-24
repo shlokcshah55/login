@@ -3,7 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:login/pages/home/widgets/magic_search_suggestions.dart';
 
 void main() {
-  testWidgets('shows Naria wheel entry below magic suggestions',
+  testWidgets(
+      'shows Naria wheel entry below magic suggestions',
+      skip: true, // ARCHIVED: "Try it Kaian's way" entry point is hidden; re-enable when restored.
       (tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -32,7 +34,10 @@ void main() {
     );
   });
 
-  testWidgets('Naria wheel submits a country-led magic search', (tester) async {
+  testWidgets(
+      'Naria wheel submits a country-led magic search',
+      skip: true, // ARCHIVED: "Try it Kaian's way" entry point is hidden; re-enable when restored.
+      (tester) async {
     String? submittedQuery;
 
     await tester.pumpWidget(

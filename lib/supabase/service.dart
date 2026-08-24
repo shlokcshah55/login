@@ -14,6 +14,10 @@ import 'package:login/supabase/helpers/rewards.dart';
 import 'package:login/supabase/helpers/tags.dart';
 import 'package:login/services/referral_prompt_service.dart';
 import 'package:login/services/fcm_service.dart';
+import 'package:login/services/analytics_service.dart';
+import 'package:login/supabase/auth_signout_reason.dart';
+import 'package:login/supabase/auth_stream_error_policy.dart';
+import 'package:login/supabase/helpers/auth_failure.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -128,18 +132,20 @@ class SupabaseService extends ChangeNotifier {
           print('SupabaseService: Found existing session, validating...');
         }
 
-        final isValid = await _authService.validateSession();
-        print('isValid: $isValid');
+        final validity = await _authService.checkSession();
 
-        if (isValid) {
-          // Note: ensureUserRecordExists is called only in auth listener
-          _hasValidSession = true;
-        } else {
+        if (validity == SessionValidity.invalid) {
           if (kDebugMode) {
             print('SupabaseService: Restored session is invalid, signing out');
           }
-          await _authService.signOut();
+          await signOut(reason: AuthSignOutReason.startupSessionInvalid);
           _hasValidSession = false;
+        } else {
+          // Optimistic on `unknown`: proceed into the app. Requests may 401
+          // while offline, but the SDK retries refresh in the background and
+          // the user keeps their session.
+          // Note: ensureUserRecordExists is called only in auth listener
+          _hasValidSession = true;
         }
       }
     } catch (e) {
@@ -218,9 +224,17 @@ class SupabaseService extends ChangeNotifier {
     }
   }
 
-  Future<void> signOut() async {
+  Future<void> signOut({
+    AuthSignOutReason reason = AuthSignOutReason.userInitiated,
+  }) async {
     _setLoading(true);
     try {
+      AnalyticsService().track(
+        eventName: 'auth_session_ended',
+        eventCategory: 'auth',
+        properties: <String, dynamic>{'reason': reason.wireName},
+      );
+
       // Clear the FCM token BEFORE tearing down the session. The
       // `update_fcm_token` RPC runs under the current user's RLS context, so
       // it has to happen while we're still authenticated. If we defer this
@@ -248,6 +262,15 @@ class SupabaseService extends ChangeNotifier {
     try {
       await FCMService().clearFCMToken();
       await _authService.deleteMyAccount();
+      // The RPC path signs out inside AuthHelper, so record the reason here
+      // rather than routing account deletion through signOut().
+      AnalyticsService().track(
+        eventName: 'auth_session_ended',
+        eventCategory: 'auth',
+        properties: <String, dynamic>{
+          'reason': AuthSignOutReason.accountDeleted.wireName,
+        },
+      );
       _setError(null);
     } catch (e) {
       if (_authService.isAuthenticated) {
@@ -340,7 +363,8 @@ class SupabaseService extends ChangeNotifier {
     return await _authService.searchUsers(query);
   }
 
-  /// Validate current session and sign out if invalid
+  /// Validate the current session, signing out only if it is definitively
+  /// invalid. An unreachable server leaves the session intact.
   Future<bool> validateAndRefreshSession() async {
     if (!_authService.isAuthenticated) {
       _hasValidSession = false;
@@ -351,17 +375,18 @@ class SupabaseService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final isValid = await _authService.validateSession();
+      final validity = await _authService.checkSession();
 
-      if (!isValid) {
+      if (validity == SessionValidity.invalid) {
         if (kDebugMode) {
-          print('SupabaseService: Session validation failed, signing out user');
+          print('SupabaseService: Session definitively invalid, signing out');
         }
-        await signOut();
+        await signOut(reason: AuthSignOutReason.authEventSessionInvalid);
         _hasValidSession = false;
         return false;
       }
 
+      // valid or unknown: keep the session usable.
       _hasValidSession = true;
       return true;
     } finally {
@@ -466,33 +491,58 @@ class SupabaseService extends ChangeNotifier {
             notifyListeners();
             break;
 
+          case AuthChangeEvent.initialSession:
+            // The SDK has already restored and, where necessary, refreshed
+            // this session. Trust it and let auto-refresh own the token
+            // lifecycle rather than forcing a network call during launch.
+            _hasValidSession = state.session != null;
+            if (!_isHandlingSignedIn) notifyListeners();
+            break;
+
           default:
             // For other events, validate the session — but skip if the
             // signedIn handler is still running to avoid a premature notify.
             if (_authService.isAuthenticated && !_isHandlingSignedIn) {
-              final isValid = await _authService.validateSession();
-              if (!isValid) {
+              final validity = await _authService.checkSession();
+              if (validity == SessionValidity.invalid) {
                 if (kDebugMode) {
                   print(
-                      'SupabaseService: Session validation failed after auth event, signing out');
+                      'SupabaseService: Session definitively invalid after auth event, signing out');
                 }
-                await signOut();
+                await signOut(
+                    reason: AuthSignOutReason.authEventSessionInvalid);
               } else {
+                // valid or unknown: an unreachable server is not grounds for
+                // ending the session.
                 _hasValidSession = true;
                 notifyListeners();
               }
             }
         }
       },
-      onError: (error) {
-        // Handle auth stream errors (e.g., token refresh failures)
-        if (kDebugMode) {
-          print('SupabaseService: Auth state error: $error');
+      onError: (Object error) {
+        if (!shouldEndSessionForAuthStreamError(error)) {
+          // Transient: the SDK keeps retrying with backoff and will emit
+          // tokenRefreshed on success. Discarding the session here would throw
+          // away a still-valid refresh token.
+          if (kDebugMode) {
+            print(
+                'SupabaseService: Transient auth error, keeping session: $error');
+          }
+          AnalyticsService().recordError(
+            key: 'auth_refresh_transient',
+            properties: <String, dynamic>{
+              'error': error.runtimeType.toString(),
+            },
+          );
+          return;
         }
 
-        // If we get an error in the auth stream, sign out the user
+        if (kDebugMode) {
+          print('SupabaseService: Fatal auth error, ending session: $error');
+        }
         _hasValidSession = false;
-        signOut();
+        signOut(reason: AuthSignOutReason.authStreamFatalError);
       },
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
+import '../supabase/auth_signout_reason.dart';
 import '../supabase/service.dart';
 import 'profile/widgets/pinit_colors.dart';
 
@@ -57,7 +58,9 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
 
       // Sign out so the user is forced to log in with the new password.
       // This also clears the recovery session cleanly.
-      await supabaseService.signOut();
+      await supabaseService.signOut(
+        reason: AuthSignOutReason.passwordRecoveryCompleted,
+      );
 
       if (!mounted) return;
 

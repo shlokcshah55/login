@@ -13,8 +13,7 @@ import 'package:login/pages/home/widgets/home_carousel.dart';
 import 'package:login/pages/home/widgets/home_filter_sheet.dart';
 import 'package:login/pages/home/widgets/home_header_search_shell.dart';
 import 'package:login/pages/home/widgets/home_map_layer.dart';
-import 'package:login/pages/home/widgets/home_social_inbox_button.dart';
-import 'package:login/pages/home/widgets/magic_search_suggestions.dart';
+// ARCHIVED: import 'package:login/pages/home/widgets/home_social_inbox_button.dart';
 import 'package:login/pages/home/widgets/profile_completion_carousel_card.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
 import 'package:login/pages/social_review/social_review_inbox_page.dart';
@@ -109,9 +108,14 @@ class _HomePageState extends State<HomePage> {
   String? _profileChecklistCollapsedUserId;
   String? _autoOpenedCollectionDetailId;
   final GlobalKey _searchSpotlightKey = GlobalKey();
-  final GlobalKey _magicSearchSpotlightKey = GlobalKey();
   final GlobalKey _modeRowSpotlightKey = GlobalKey();
   final GlobalKey _dealADeckSpotlightKey = GlobalKey();
+  // True for the single frame between a pending "open normal search" request
+  // landing and the search actually opening. Without this, that frame briefly
+  // paints the home page's own collapsed search entry — which is always
+  // styled/labelled for magic search — producing a visible flash into magic
+  // styling before the real (normal) search view appears.
+  bool _isOpeningPendingSearch = false;
 
   @override
   void initState() {
@@ -213,9 +217,13 @@ class _HomePageState extends State<HomePage> {
 
     if (shouldOpenSearch) {
       navProvider.clearPendingHomeSearch();
+      _isOpeningPendingSearch = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        unawaited(_viewModel.openHeaderSearch());
+        unawaited(
+          _viewModel.openHeaderSearch(showMagicSuggestions: false),
+        );
+        setState(() => _isOpeningPendingSearch = false);
       });
     }
   }
@@ -484,7 +492,6 @@ class _HomePageState extends State<HomePage> {
       return;
     }
     if (viewModel.isHeaderSearchActive ||
-        viewModel.isMagicSearchFieldFocused ||
         viewModel.isEatListsOpen ||
         viewModel.showJustDecideSwipeMode ||
         _isWizardPopoverVisible ||
@@ -592,23 +599,12 @@ class _HomePageState extends State<HomePage> {
       ),
       SpotlightWizardStep(
         targetKey: _searchSpotlightKey,
-        title: 'Start with a place.',
+        title: 'Search with magic.',
         description:
-            'Search for a restaurant you already know, then open it straight from the map.',
+            'Type a vibe, a dish, or something you are craving, we will find the best matches and drop them straight into your carousel.',
         placement: SpotlightBubblePlacement.below,
         highlightShape: SpotlightHighlightShape.pill,
         badgeIcon: FeatherIcons.search,
-      ),
-      SpotlightWizardStep(
-        targetKey: _magicSearchSpotlightKey,
-        title: 'Or describe the mood.',
-        description:
-            'Toggle for magic search and search for specific dishes, vibes or places you want to eat at! ',
-        placement: SpotlightBubblePlacement.below,
-        highlightShape: SpotlightHighlightShape.circle,
-        shadowColor: pinit.PinitColors.accent,
-        badgeIcon: FeatherIcons.zap,
-        badgeColor: pinit.PinitColors.accent,
       ),
       SpotlightWizardStep(
         targetKey: _modeRowSpotlightKey,
@@ -732,6 +728,7 @@ class _HomePageState extends State<HomePage> {
       initialVibeTagIds: _selectedVibeTagIds,
       initialCuisineTagIds: _selectedCuisineTagIds,
       initialAvailabilityFilter: _locationListManager.availabilityFilter,
+      initialExcludeSaved: _locationListManager.excludeSavedFilter,
       showMaxResults:
           _locationListManager.currentListType == LocationListType.recommended,
       initialMaxResults: _maxResults,
@@ -750,6 +747,7 @@ class _HomePageState extends State<HomePage> {
       vibeTagIds: result.vibeTagIds.toList(),
       cuisineTagIds: result.cuisineTagIds.toList(),
       availabilityFilter: result.availabilityFilter,
+      excludeSaved: result.excludeSaved,
       vibeTagNames: result.vibeTagNames,
       cuisineTagNames: result.cuisineTagNames,
       maxResults: result.maxResults,
@@ -784,8 +782,7 @@ class _HomePageState extends State<HomePage> {
               unawaited(_syncProfileChecklistCollapsed());
             });
           }
-          final isInlineHeaderSearch =
-              viewModel.isHeaderSearchActive && !viewModel.isMagicSearchActive;
+          final isInlineHeaderSearch = viewModel.isHeaderSearchActive;
           final carouselBottom = viewModel.bottomNavVisible ? 110.0 : 20.0;
           final topPadding = MediaQuery.of(context).padding.top;
 
@@ -813,13 +810,12 @@ class _HomePageState extends State<HomePage> {
                         viewModel: viewModel,
                         isExpandedForSearch: true,
                         searchSpotlightKey: null,
-                        magicSearchSpotlightKey: null,
                         modeRowSpotlightKey: null,
                         onSocialInboxTap: () =>
                             unawaited(_openSocialReviewInbox()),
                       ),
                     )
-                  else
+                  else if (!_isOpeningPendingSearch)
                     Positioned(
                       top: 0,
                       left: 0,
@@ -829,7 +825,6 @@ class _HomePageState extends State<HomePage> {
                         viewModel: viewModel,
                         isExpandedForSearch: false,
                         searchSpotlightKey: _searchSpotlightKey,
-                        magicSearchSpotlightKey: _magicSearchSpotlightKey,
                         modeRowSpotlightKey: _modeRowSpotlightKey,
                         onSocialInboxTap: () =>
                             unawaited(_openSocialReviewInbox()),
@@ -838,8 +833,8 @@ class _HomePageState extends State<HomePage> {
 
                   // ─── Layer 5: Carousel + See All button ─────────
                   if (!viewModel.isHeaderSearchActive &&
-                      !viewModel.isMagicSearchFieldFocused &&
-                      !viewModel.isEatListsOpen)
+                      !viewModel.isEatListsOpen &&
+                      !_isOpeningPendingSearch)
                     AnimatedPositioned(
                       duration: const Duration(milliseconds: 300),
                       curve: Curves.easeOutQuint,
@@ -1611,7 +1606,6 @@ class _TopPanel extends StatelessWidget {
   final HomeViewModel viewModel;
   final bool isExpandedForSearch;
   final Key? searchSpotlightKey;
-  final Key? magicSearchSpotlightKey;
   final Key? modeRowSpotlightKey;
   final VoidCallback onSocialInboxTap;
 
@@ -1620,10 +1614,21 @@ class _TopPanel extends StatelessWidget {
     required this.viewModel,
     required this.isExpandedForSearch,
     required this.searchSpotlightKey,
-    required this.magicSearchSpotlightKey,
     required this.modeRowSpotlightKey,
     required this.onSocialInboxTap,
   });
+
+  void _dismissHeaderSearch(BuildContext context) {
+    // Normal (non-magic) search is only ever entered via the bubbles page's
+    // search shortcut, so dismissing it should return there rather than
+    // stranding the user on the home tab.
+    final wasMagicMode =
+        viewModel.showMagicSearchSuggestions || viewModel.isMagicSearchActive;
+    viewModel.closeHeaderSearch();
+    if (!wasMagicMode) {
+      context.read<NavigationProvider>().navigateToTab(1);
+    }
+  }
 
   Future<void> _openExpandedSearchLocation(
     BuildContext context,
@@ -1721,44 +1726,48 @@ class _TopPanel extends StatelessWidget {
               Expanded(
                 child: HomeHeaderSearchShell(
                   searchEntrySpotlightKey: null,
-                  magicSearchSpotlightKey: null,
                   state: viewModel.headerSearchState,
                   controller: viewModel.headerSearchController,
                   focusNode: viewModel.headerSearchFocusNode,
                   onEntryTap: () {
                     viewModel.openHeaderSearch();
                   },
-                  onMagicSearchTap: () {
-                    // Magic search uses the inline "zap" search pill; keep the
-                    // full header-search surface closed.
-                    viewModel.closeHeaderSearch(clearQuery: false);
-
-                    final wasMagicSearchActive = viewModel.isMagicSearchActive;
-                    viewModel.toggleMagicSearch();
-
-                    if (!wasMagicSearchActive &&
-                        viewModel.isMagicSearchActive) {
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        viewModel.headerSearchFocusNode.requestFocus();
-                      });
-                    } else {
-                      viewModel.headerSearchFocusNode.unfocus();
-                    }
+                  onSearchSubmitted: () {
+                    unawaited(viewModel.submitHeaderSearch());
+                  },
+                  onDismiss: () => _dismissHeaderSearch(context),
+                  onQueryChanged: viewModel.updateHeaderSearchQuery,
+                  showSuggestionsPanel: viewModel.showMagicSearchSuggestions,
+                  onToggleSuggestionsPanel:
+                      viewModel.toggleMagicSearchSuggestions,
+                  onOpenBubbles: () {
+                    viewModel.closeHeaderSearch();
+                    context.read<NavigationProvider>().navigateToTab(1);
                   },
                   isMagicSearchActive: viewModel.isMagicSearchActive,
-                  onSearchSubmitted: viewModel.isMagicSearchActive
-                      ? () {
-                          final query = viewModel.headerSearchController.text;
-                          viewModel.closeHeaderSearch(clearQuery: false);
-                          unawaited(viewModel.submitMagicSearch(query));
-                        }
-                      : () {
-                          unawaited(viewModel.submitHeaderSearch());
-                        },
-                  onDismiss: viewModel.closeHeaderSearch,
-                  onQueryChanged: viewModel.isMagicSearchActive
-                      ? (_) {}
-                      : viewModel.updateHeaderSearchQuery,
+                  onSubmitMagicSearch: () {
+                    unawaited(
+                      viewModel.submitMagicSearch(
+                        viewModel.headerSearchController.text,
+                      ),
+                    );
+                  },
+                  onDismissMagicResults: viewModel.exitMagicSearchMode,
+                  unreadBubbleCount:
+                      context.watch<NavigationProvider>().unreadBubbleCount,
+                  onMagicSuggestionSelected: (query) {
+                    viewModel.dismissMagicSearchSuggestions();
+                    viewModel.headerSearchController.value =
+                        viewModel.headerSearchController.value.copyWith(
+                      text: query,
+                      selection: TextSelection.collapsed(
+                        offset: query.length,
+                      ),
+                      composing: TextRange.empty,
+                    );
+                    viewModel.closeHeaderSearch(clearQuery: false);
+                    unawaited(viewModel.submitMagicSearch(query));
+                  },
                   onPlaceActionTriggered: (item) {
                     unawaited(
                       viewModel.rememberHeaderSearchQuery(
@@ -1801,45 +1810,49 @@ class _TopPanel extends StatelessWidget {
               )
             else
               HomeHeaderSearchShell(
-                searchEntrySpotlightKey:
-                    viewModel.isMagicSearchActive ? null : searchSpotlightKey,
-                magicSearchSpotlightKey: magicSearchSpotlightKey,
+                searchEntrySpotlightKey: searchSpotlightKey,
                 state: viewModel.headerSearchState,
                 controller: viewModel.headerSearchController,
                 focusNode: viewModel.headerSearchFocusNode,
                 onEntryTap: () {
                   viewModel.openHeaderSearch();
                 },
-                onMagicSearchTap: () {
-                  // Magic search uses the inline "zap" search pill; keep the
-                  // full header-search surface closed.
-                  viewModel.closeHeaderSearch(clearQuery: false);
-
-                  final wasMagicSearchActive = viewModel.isMagicSearchActive;
-                  viewModel.toggleMagicSearch();
-
-                  if (!wasMagicSearchActive && viewModel.isMagicSearchActive) {
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      viewModel.headerSearchFocusNode.requestFocus();
-                    });
-                  } else {
-                    viewModel.headerSearchFocusNode.unfocus();
-                  }
+                onSearchSubmitted: () {
+                  unawaited(viewModel.submitHeaderSearch());
+                },
+                onDismiss: () => _dismissHeaderSearch(context),
+                onQueryChanged: viewModel.updateHeaderSearchQuery,
+                showSuggestionsPanel: viewModel.showMagicSearchSuggestions,
+                onToggleSuggestionsPanel:
+                    viewModel.toggleMagicSearchSuggestions,
+                onOpenBubbles: () {
+                  viewModel.closeHeaderSearch();
+                  context.read<NavigationProvider>().navigateToTab(1);
                 },
                 isMagicSearchActive: viewModel.isMagicSearchActive,
-                onSearchSubmitted: viewModel.isMagicSearchActive
-                    ? () {
-                        final query = viewModel.headerSearchController.text;
-                        viewModel.closeHeaderSearch(clearQuery: false);
-                        unawaited(viewModel.submitMagicSearch(query));
-                      }
-                    : () {
-                        unawaited(viewModel.submitHeaderSearch());
-                      },
-                onDismiss: viewModel.closeHeaderSearch,
-                onQueryChanged: viewModel.isMagicSearchActive
-                    ? (_) {}
-                    : viewModel.updateHeaderSearchQuery,
+                onSubmitMagicSearch: () {
+                  unawaited(
+                    viewModel.submitMagicSearch(
+                      viewModel.headerSearchController.text,
+                    ),
+                  );
+                },
+                onDismissMagicResults: viewModel.exitMagicSearchMode,
+                unreadBubbleCount:
+                    context.watch<NavigationProvider>().unreadBubbleCount,
+                onMagicSuggestionSelected: (query) {
+                  viewModel.dismissMagicSearchSuggestions();
+                  viewModel.headerSearchController.value =
+                      viewModel.headerSearchController.value.copyWith(
+                    text: query,
+                    selection: TextSelection.collapsed(
+                      offset: query.length,
+                    ),
+                    composing: TextRange.empty,
+                  );
+                  viewModel.closeHeaderSearch(clearQuery: false);
+                  unawaited(viewModel.submitMagicSearch(query));
+                },
                 onPlaceActionTriggered: (item) {
                   unawaited(
                     viewModel.rememberHeaderSearchQuery(
@@ -1886,26 +1899,7 @@ class _TopPanel extends StatelessWidget {
                           });
                         },
                       )
-                    : viewModel.isMagicSearchActive &&
-                            viewModel.showMagicSearchSuggestions
-                        ? MagicSearchSuggestions(
-                            onSelected: (query) {
-                              viewModel.dismissMagicSearchSuggestions();
-                              viewModel.headerSearchController.value = viewModel
-                                  .headerSearchController.value
-                                  .copyWith(
-                                text: query,
-                                selection: TextSelection.collapsed(
-                                  offset: query.length,
-                                ),
-                                composing: TextRange.empty,
-                              );
-                              viewModel.closeHeaderSearch(clearQuery: false);
-                              unawaited(viewModel.submitMagicSearch(query));
-                            },
-                            onDismiss: viewModel.dismissMagicSearchSuggestions,
-                          )
-                        : HomeChipRow(
+                    : HomeChipRow(
                             rowSpotlightKey: modeRowSpotlightKey,
                             currentMode: viewModel.homeMode,
                             onModeChanged: viewModel.setHomeMode,
@@ -1931,13 +1925,17 @@ class _TopPanel extends StatelessWidget {
                                 ),
                               );
                             },
-                            trailingAction: Consumer<SocialReviewProvider>(
-                              builder: (context, socialReview, _) =>
-                                  HomeSocialInboxButton(
-                                count: socialReview.needsCheckingCount,
-                                onTap: onSocialInboxTap,
-                              ),
-                            ),
+                            // ARCHIVED: social inbox button hidden from the
+                            // front end. Backend logic (SocialReviewProvider,
+                            // _openSocialReviewInbox, SocialReviewInboxPage)
+                            // is untouched. To restore, put back:
+                            // trailingAction: Consumer<SocialReviewProvider>(
+                            //   builder: (context, socialReview, _) =>
+                            //       HomeSocialInboxButton(
+                            //     count: socialReview.needsCheckingCount,
+                            //     onTap: onSocialInboxTap,
+                            //   ),
+                            // ),
                           ),
               ),
           ],

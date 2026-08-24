@@ -348,15 +348,18 @@ class _MagicSearchSuggestionContent extends StatelessWidget {
           suggestions: suggestions,
           onSelected: onSelected,
         ),
-        const SizedBox(height: 11),
-        const _NariaDivider(),
-        const SizedBox(height: 9),
-        _NariaWayButton(onTap: onNariaTap),
+        // ARCHIVED: "Try it Kaian's way" entry point. To restore, uncomment
+        // the block below (widget classes/state left intact, untouched).
+        // const SizedBox(height: 11),
+        // const _NariaDivider(),
+        // const SizedBox(height: 9),
+        // _NariaWayButton(onTap: onNariaTap),
       ],
     );
   }
 }
 
+// ignore: unused_element
 class _NariaDivider extends StatelessWidget {
   const _NariaDivider();
 

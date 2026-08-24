@@ -237,7 +237,13 @@ class _HeaderSearchHarnessState extends State<_HeaderSearchHarness> {
                 _state = _state.copyWith(isActive: true);
               });
             },
-            onMagicSearchTap: () {},
+            showSuggestionsPanel: false,
+            onToggleSuggestionsPanel: () {},
+            onMagicSuggestionSelected: (_) {},
+            onOpenBubbles: () {},
+            isMagicSearchActive: false,
+            onSubmitMagicSearch: () {},
+            onDismissMagicResults: () {},
             onDismiss: () {
               setState(() {
                 _state = _state.copyWith(isActive: false);
