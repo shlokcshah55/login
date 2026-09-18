@@ -104,19 +104,20 @@ class MatchBannerSection extends StatelessWidget {
                     ],
                   ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  match.label,
-                  style: const TextStyle(
-                    fontFamily: 'Rova',
-                    fontFamilyFallback: ['Naria'],
-                    fontSize: 20,
-                    fontWeight: FontWeight.w100,
-                    color: PinitColors.aubergine,
-                    letterSpacing: 1.2,
-                    height: 1.05,
-                  ),
-                ),
+                // TODO: re-enable once we're happy with the label copy again.
+                // const SizedBox(height: 4),
+                // Text(
+                //   match.label,
+                //   style: const TextStyle(
+                //     fontFamily: 'Rova',
+                //     fontFamilyFallback: ['Naria'],
+                //     fontSize: 20,
+                //     fontWeight: FontWeight.w100,
+                //     color: PinitColors.aubergine,
+                //     letterSpacing: 1.2,
+                //     height: 1.05,
+                //   ),
+                // ),
                 const SizedBox(height: 4),
                 Text(
                   match.topContributors.isNotEmpty

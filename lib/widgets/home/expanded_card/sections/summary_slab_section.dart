@@ -63,8 +63,6 @@ class SummarySlabSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasMatch = match.score > 0;
-    final hasVicinity = location.vicinity != null;
     final hasSourceUrl = (location.savedFrom ?? '').trim().isNotEmpty;
 
     return Column(
@@ -176,50 +174,52 @@ class SummarySlabSection extends StatelessWidget {
             ),
           ],
         ),
-        if (hasVicinity) ...[
-          const SizedBox(height: 10),
-          GestureDetector(
-            onTap: onAddressTap,
-            child: Row(
-              children: [
-                const Icon(Icons.location_on_rounded,
-                    size: 16, color: PinitColors.aubergineSoft),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    location.vicinity!,
-                    style: GoogleFonts.dmSans(
-                      fontSize: 14,
-                      color: PinitColors.aubergineSoft,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                const Icon(Icons.open_in_new_rounded,
-                    size: 13, color: PinitColors.mute),
-              ],
-            ),
-          ),
-        ],
-
-        const SizedBox(height: 18),
-
-        // Compact key-fact cluster.
-        _KeyFactsCluster(
-          location: location,
-          formatCount: _formatCount,
-          pinitAvgRating: pinitAvgRating,
-          pinitReviewCount: pinitReviewCount,
-        ),
+        // TODO: temporarily hidden, don't like how this reads — revisit.
+        // if (hasVicinity) ...[
+        //   const SizedBox(height: 10),
+        //   GestureDetector(
+        //     onTap: onAddressTap,
+        //     child: Row(
+        //       children: [
+        //         const Icon(Icons.location_on_rounded,
+        //             size: 16, color: PinitColors.aubergineSoft),
+        //         const SizedBox(width: 6),
+        //         Expanded(
+        //           child: Text(
+        //             location.vicinity!,
+        //             style: GoogleFonts.dmSans(
+        //               fontSize: 14,
+        //               color: PinitColors.aubergineSoft,
+        //               fontWeight: FontWeight.w500,
+        //             ),
+        //           ),
+        //         ),
+        //         const SizedBox(width: 4),
+        //         const Icon(Icons.open_in_new_rounded,
+        //             size: 13, color: PinitColors.mute),
+        //       ],
+        //     ),
+        //   ),
+        // ],
+        //
+        // const SizedBox(height: 18),
+        //
+        // // Compact key-fact cluster.
+        // _KeyFactsCluster(
+        //   location: location,
+        //   formatCount: _formatCount,
+        //   pinitAvgRating: pinitAvgRating,
+        //   pinitReviewCount: pinitReviewCount,
+        // ),
 
         // Match copy — supporting block, not a floating overlap card.
         // If there is no match data the slab still works with identity
         // and key facts only (per spec degraded-state requirement).
-        if (hasMatch) ...[
-          const SizedBox(height: 18),
-          _MatchCopyBlock(match: match, matchAnim: matchAnim),
-        ],
+        // TODO: temporarily hidden, don't like how this reads — revisit.
+        // if (hasMatch) ...[
+        //   const SizedBox(height: 18),
+        //   _MatchCopyBlock(match: match, matchAnim: matchAnim),
+        // ],
       ],
     );
   }

@@ -179,17 +179,25 @@ class _CollapsedSearchEntry extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    'SEARCH FOR A VIBE, DISH OR SOMETHING YOU ARE FEELING',
-                    style: GoogleFonts.dmSans(
-                      fontSize: 11,
-                      color: pinit.PinitColors.cream,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.0,
-                      height: 1.0,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  child: ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: controller,
+                    builder: (context, value, _) {
+                      final query = value.text.trim();
+                      return Text(
+                        query.isNotEmpty
+                            ? query
+                            : 'SEARCH FOR A VIBE, DISH OR SOMETHING YOU ARE FEELING',
+                        style: GoogleFonts.dmSans(
+                          fontSize: 11,
+                          color: pinit.PinitColors.cream,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: query.isNotEmpty ? 0.6 : 1.0,
+                          height: 1.0,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      );
+                    },
                   ),
                 ),
                 const SizedBox(width: 10),
