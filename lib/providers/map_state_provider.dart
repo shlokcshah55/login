@@ -357,6 +357,7 @@ class MapStateProvider with ChangeNotifier {
   Future<void> focusOnLocations(
     List<LocationModel> locations, {
     double padding = 84.0,
+    double? topPadding,
   }) async {
     final points = locations
         .map((location) => location.position)
@@ -390,7 +391,7 @@ class MapStateProvider with ChangeNotifier {
         northeast: LatLng(maxLat, maxLng),
       ).toCoordinateBounds(),
       mapbox.MbxEdgeInsets(
-        top: padding,
+        top: topPadding ?? padding,
         left: padding,
         bottom: padding + 180,
         right: padding,

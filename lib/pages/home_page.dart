@@ -10,6 +10,8 @@ import 'package:login/pages/home/search/header_search_location_hydrator.dart';
 import 'package:login/pages/home/search/header_search_readiness.dart';
 import 'package:login/pages/home/search/header_search_types.dart';
 import 'package:login/pages/home/widgets/category_carousel.dart';
+import 'package:login/pages/home/categories/category_glyph.dart';
+import 'package:login/pages/home/categories/home_category.dart';
 import 'package:login/pages/home/widgets/floating_location_card.dart';
 import 'package:login/pages/home/widgets/home_carousel.dart';
 import 'package:login/pages/home/widgets/home_filter_sheet.dart';
@@ -723,6 +725,40 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  void _openSeeAll(HomeViewModel viewModel) {
+    final collectionId = viewModel.activeCollectionId;
+    if (collectionId != null && collectionId.isNotEmpty) {
+      unawaited(
+        _openCollectionListView(
+          collectionId: collectionId,
+          locations: viewModel.locations,
+        ),
+      );
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CarouselListPage(
+          locations: viewModel.locations,
+          title: switch (viewModel.homeMode) {
+            HomeMode.you => 'Your Saves',
+            HomeMode.explore => 'Top Picks',
+            HomeMode.bubble => 'Bubble Picks',
+            HomeMode.bubbleSaved => 'Bubble Saves',
+          },
+          listType: switch (viewModel.homeMode) {
+            HomeMode.you => LocationListType.saved,
+            HomeMode.explore => LocationListType.recommended,
+            HomeMode.bubble => LocationListType.bubble,
+            HomeMode.bubbleSaved => LocationListType.bubbleSaved,
+          },
+          homeViewModel:
+              viewModel.homeMode == HomeMode.explore ? viewModel : null,
+        ),
+      ),
+    );
+  }
+
   Future<void> _openHomeFilters() async {
     final result = await HomeFilterSheet.show(
       context,
@@ -1060,61 +1096,13 @@ class _HomePageState extends State<HomePage> {
                                           ),
                                           const SizedBox(width: 10),
                                         ],
-                                        if (viewModel.locations.isNotEmpty)
+                                        // On the category stage See All
+                                        // lives at the end of the chip rail.
+                                        if (viewModel.locations.isNotEmpty &&
+                                            viewModel.homeBrowseStage !=
+                                                HomeBrowseStage.categories)
                                           GestureDetector(
-                                            onTap: () {
-                                              final collectionId =
-                                                  viewModel.activeCollectionId;
-                                              if (collectionId != null &&
-                                                  collectionId.isNotEmpty) {
-                                                unawaited(
-                                                  _openCollectionListView(
-                                                    collectionId: collectionId,
-                                                    locations:
-                                                        viewModel.locations,
-                                                  ),
-                                                );
-                                                return;
-                                              }
-                                              Navigator.of(context).push(
-                                                MaterialPageRoute(
-                                                  builder: (_) =>
-                                                      CarouselListPage(
-                                                    locations:
-                                                        viewModel.locations,
-                                                    title: switch (
-                                                        viewModel.homeMode) {
-                                                      HomeMode.you =>
-                                                        'Your Saves',
-                                                      HomeMode.explore =>
-                                                        'Top Picks',
-                                                      HomeMode.bubble =>
-                                                        'Bubble Picks',
-                                                      HomeMode.bubbleSaved =>
-                                                        'Bubble Saves',
-                                                    },
-                                                    listType: switch (
-                                                        viewModel.homeMode) {
-                                                      HomeMode.you =>
-                                                        LocationListType.saved,
-                                                      HomeMode.explore =>
-                                                        LocationListType
-                                                            .recommended,
-                                                      HomeMode.bubble =>
-                                                        LocationListType.bubble,
-                                                      HomeMode.bubbleSaved =>
-                                                        LocationListType
-                                                            .bubbleSaved,
-                                                    },
-                                                    homeViewModel:
-                                                        viewModel.homeMode ==
-                                                                HomeMode.explore
-                                                            ? viewModel
-                                                            : null,
-                                                  ),
-                                                ),
-                                              );
-                                            },
+                                            onTap: () => _openSeeAll(viewModel),
                                             child: Container(
                                               padding:
                                                   const EdgeInsets.symmetric(
@@ -1202,13 +1190,16 @@ class _HomePageState extends State<HomePage> {
                               onCategorySelected: (category) {
                                 unawaited(viewModel.openCategory(category));
                               },
+                              onSeeAll: viewModel.locations.isNotEmpty
+                                  ? () => _openSeeAll(viewModel)
+                                  : null,
                             )
                           else
                             Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 _FocusedCategoryHeader(
-                                  label: viewModel.activeCategory?.label ?? '',
+                                  category: viewModel.activeCategory,
                                   onBack: viewModel.closeCategory,
                                 ),
                                 HomeCarousel(
@@ -1935,14 +1926,14 @@ class _TopPanel extends StatelessWidget {
 /// Slim bar shown above the focused location carousel. Tapping the chevron or
 /// swiping vertically on the bar returns to the category carousel.
 class _FocusedCategoryHeader extends StatelessWidget {
-  const _FocusedCategoryHeader({required this.label, required this.onBack});
+  const _FocusedCategoryHeader({required this.category, required this.onBack});
 
-  final String label;
+  final HomeCategory? category;
   final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
-    final pc = Theme.of(context).extension<PinitColors>()!;
+    final category = this.category;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onVerticalDragEnd: (details) {
@@ -1951,41 +1942,53 @@ class _FocusedCategoryHeader extends StatelessWidget {
       },
       onTap: onBack,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
         child: Align(
           alignment: Alignment.centerLeft,
+          // Same chip language as the category rail, so drilling in reads as
+          // the tapped chip pinning itself above the cards.
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            height: 40,
+            padding: const EdgeInsets.only(left: 12, right: 5),
             decoration: BoxDecoration(
-              color: pc.surfaceBg,
+              color: pinit.PinitColors.cream,
               borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: pc.textPrimary, width: 1.5),
-              boxShadow: [
+              border:
+                  Border.all(color: pinit.PinitColors.creamDeep, width: 1.5),
+              boxShadow: const [
                 BoxShadow(
-                  color: pc.textPrimary,
-                  blurRadius: 0,
-                  offset: const Offset(2, 2),
+                  color: Color(0x1441133D),
+                  blurRadius: 16,
+                  offset: Offset(0, 4),
                 ),
               ],
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(FeatherIcons.chevronLeft, size: 14, color: pc.textPrimary),
-                const SizedBox(width: 6),
+                const Icon(
+                  Icons.arrow_back_rounded,
+                  size: 16,
+                  color: pinit.PinitColors.aubergine,
+                ),
+                const SizedBox(width: 8),
                 Flexible(
                   child: Text(
-                    label.isEmpty ? 'All categories' : label,
+                    category?.label ?? 'All categories',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.dmSans(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      color: pc.textPrimary,
-                      letterSpacing: 0.6,
+                    style: AppTypography.brand(
+                      fontSize: 15,
+                      color: pinit.PinitColors.aubergine,
+                      height: 1.0,
                     ),
                   ),
                 ),
+                if (category != null) ...[
+                  const SizedBox(width: 8),
+                  CategoryGlyph(category: category, size: 28),
+                ] else
+                  const SizedBox(width: 9),
               ],
             ),
           ),

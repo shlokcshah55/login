@@ -65,6 +65,8 @@ class HomeViewModel extends ChangeNotifier {
   // ── Category browse state ─────────────────────────────────────
   HomeBrowseStage _browseStage = HomeBrowseStage.categories;
   HomeCategory? _activeCategory;
+  bool _overviewFramed = false;
+  static const int _overviewFramePlaceCount = 8;
   List<HomeCategory>? _cachedCategories;
 
   // ── Mode toggle state ─────────────────────────────────────────
@@ -314,6 +316,37 @@ class HomeViewModel extends ChangeNotifier {
     _overviewSavedCount = savedCount;
     _overviewRecCount = recCount;
     await locationListManager.buildOverviewOnMap();
+    if (!_overviewFramed) {
+      _overviewFramed = await _frameNearestOverviewPlaces();
+    }
+  }
+
+  /// Frames the camera on the overview places closest to the user, so the
+  /// landing map opens on pins instead of an empty street-level view when
+  /// the mix is spread across the city. Runs once per session so it never
+  /// yanks the camera away from somewhere the user has panned to.
+  Future<bool> _frameNearestOverviewPlaces() async {
+    if (_disposed || _browseStage != HomeBrowseStage.categories) return false;
+    final origin = locationListManager.currentPosition;
+    final places = locationListManager.overviewLocations.keys
+        .where((l) => l.lat != null && l.lng != null)
+        .toList();
+    if (origin == null || places.isEmpty) return false;
+
+    final lngScale = math.cos(origin.latitude * math.pi / 180);
+    double distanceSq(LocationModel l) {
+      final dLat = l.lat! - origin.latitude;
+      final dLng = (l.lng! - origin.longitude) * lngScale;
+      return dLat * dLat + dLng * dLng;
+    }
+
+    places.sort((a, b) => distanceSq(a).compareTo(distanceSq(b)));
+    await mapStateProvider.focusOnLocations(
+      places.take(_overviewFramePlaceCount).toList(),
+      // Clear the search header; pins also rise above their point.
+      topPadding: 190,
+    );
+    return true;
   }
 
   /// The location whose pin is currently selected on the category stage, if any
