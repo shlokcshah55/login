@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-**Pinit** — a consumer mobile app for place discovery, recommendations, maps, saving, and social context. The Flutter package is named `login` (legacy name), so all internal imports are `package:login/...`. The repo is a monorepo: a Flutter client (`lib/`), Python backend services (`api/`, `ai/`), and a Supabase project (`supabase/`).
+**Pinit** — a consumer mobile app for place discovery, recommendations, maps, saving, and social context. The Flutter package is named `login` (legacy name), so all internal imports are `package:login/...`. The repo is a monorepo: a Flutter client (`lib/`), Python backend services (`api/`), and a Supabase project (`supabase/`).
 
 ## Commands
 
@@ -20,7 +20,7 @@ flutter test integration_test/recommendations_test.dart -d iPhone
 ```
 Requires a `.env` file at the repo root — copy `.env.template` and fill in keys (`GOOGLE_PLACE_API_KEY`, `MAPBOX_ACCESS_TOKEN`, Firebase keys, `API_SECRET_KEY`, etc.). It is loaded at startup via `flutter_dotenv`.
 
-### Python backend (`api/*`, `ai/*`)
+### Python backend (`api/*`)
 Each service is self-contained with its own `venv/`, `requirements.txt`, `Dockerfile`, and `deploy.sh`. They deploy to **GCP Cloud Run** (project `pinit-10b36`, region `europe-west1`) using `functions-framework` / `gunicorn`.
 ```bash
 cd api/<service> && ./deploy.sh          # build + deploy that service
@@ -29,10 +29,17 @@ cd api/<service> && python -m pytest     # tests live alongside code (test_*.py)
 
 ### Supabase
 ```bash
-supabase start                           # local stack (project_id "login")
-supabase db push                         # apply migrations in supabase/migrations/
+supabase start                           # local stack (project_id "login", Postgres 15 like prod)
+supabase db reset                        # rebuild local DB from migrations + seed.sql
+supabase migration new <name>            # create a migration file
+supabase db diff --linked --schema public,rewards   # compare prod with local migrations (expect only pg_net noise)
+supabase migration list                  # local vs remote history must match
+supabase db push                         # apply pending migrations to production
 ```
-`supabase/rpcs/` holds Postgres stored-procedure definitions; `supabase/migrations_applied_remote/` tracks what has shipped to production.
+- **`supabase/migrations/` is the single source of truth for the production schema, including SQL the recommender repo needs.** It starts at `20261001000000_baseline.sql`, a dump of production, plus storage policies, pg_cron jobs and privilege revokes. Older history is archived in `supabase/_archive/migrations/`, which is not replayed.
+- Never change production schema through the SQL editor. MCP `apply_migration` is only for urgent fixes, and only if you commit the same SQL as a file named with the version the MCP returns (check `supabase migration list`).
+- `seed.sql` holds the curated Pinit collections (stable UUIDs the onboarding wizard uses).
+- CI (`supabase-replay` job) runs `supabase db reset` on every PR.
 
 ## Client architecture
 
@@ -56,7 +63,7 @@ The bulk of the recommendation layer lives in /Users/sriharshavitta/Projects/pin
 - **Service:** `pinit-recommendations-api` on Cloud Run (`europe-west2`), a FastAPI app (`start_api.py`, `src/pinit/api/routers/proximal.py`) plus a Pub/Sub worker (`src/pinit/worker/main.py`). The client calls it through `lib/services/recommendations_api.dart` (`/recommendations/proximal`, `/recommendations/bubble`, location processing).
 - **Pipeline:** see its `recommedation.md`. The flow is Redis grid cache → `get_locations_with_pillars` (PostGIS KNN over `location_popularity_app` + `locations`) with `get_fill_locations` as the top-up → per-user scoring in `src/pinit/core/recommendation/`.
 - **DB access:** always the **service role** (`src/pinit/integrations/supabase.py` rejects non-service keys), so RLS doesn't apply to it. It reads and writes `locations`, `location_popularity_app`, `user_location_actions`, `users`, `user_friends`, `bubble_locations`, `video_insights`, `location_similarities` (collaborative scoring plus its nightly builder), `user_recommendations` (recently-seen decay), `recommendation_candidates`, `tags` / `user_tag_affinities` (legacy pipeline) and `location_photos`. It also calls `refresh_location_quality_scores`.
-- **It has its own `supabase/migrations/`, which targets the same production DB.** Schema changes to shared objects (the RPCs above, location processing claim/cooldown, the vibe processing lock) may have been shipped from that repo. **Before dropping or changing any table, column or RPC here, grep that repo too.**
+- **Schema changes it needs go in this repo's `supabase/migrations/`.** Its old migrations are archived in `supabase/_archive/` in that repo. **Before dropping or changing any table, column or RPC here, grep that repo too.**
 
 ### Startup cache
 `lib/services/startup_cache/` — `StartupCacheCoordinator` persists a per-user snapshot (`JsonStartupSnapshotStore`) so the home screen can paint from cache before the network resolves. It is cleared on user switch. `startup_timing.dart` records launch milestones.
