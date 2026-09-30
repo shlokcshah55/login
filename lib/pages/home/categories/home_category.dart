@@ -3,7 +3,7 @@ import 'package:login/models/locations.dart';
 
 /// The kind of slice a [HomeCategory] represents. Drives the tile's icon
 /// treatment and how its focused list is resolved.
-enum HomeCategoryKind { source, cuisine, vibe, eatList }
+enum HomeCategoryKind { source, cuisine, vibe, eatList, bubble }
 
 /// A single tile in the home category carousel. Tapping it drills into a
 /// focused carousel of the locations returned by [resolve].
@@ -14,8 +14,9 @@ class HomeCategory {
   final HomeCategoryKind kind;
 
   /// Stable identifier within a kind — e.g. 'instagram' / 'tiktok' for
-  /// sources, a cuisine key like 'indian', a vibe key like 'cozy', or a
-  /// collectionId for eat-lists. Used for equality / carousel keys.
+  /// sources, a cuisine key like 'indian', a vibe key like 'cozy', a
+  /// collectionId for eat-lists, or a bubbleId. Used for equality / carousel
+  /// keys.
   final String id;
 
   /// Human-readable label shown on the tile.
@@ -34,6 +35,13 @@ class HomeCategory {
   /// Lazily produces the focused location list when the tile is tapped.
   final Future<List<LocationModel>> Function() resolve;
 
+  /// Area the tile is known for (e.g. 'Islington' on an area-lifted cuisine),
+  /// shown in the chip's meta line. Null for tiles that aren't area-specific.
+  final String? areaLabel;
+
+  /// Member avatar URLs for bubble tiles (first few are shown).
+  final List<String> avatarUrls;
+
   const HomeCategory({
     required this.kind,
     required this.id,
@@ -42,6 +50,8 @@ class HomeCategory {
     required this.resolve,
     this.icon,
     this.emoji,
+    this.areaLabel,
+    this.avatarUrls = const [],
   });
 
   @override

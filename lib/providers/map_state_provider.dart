@@ -48,6 +48,8 @@ class MapStateProvider with ChangeNotifier {
   double get currentZoom => _currentZoom;
   LatLng? get currentVisibleCenter => _currentVisibleCenter;
   LatLng? get lastFocusedUserLocation => _lastFocusedUserLocation;
+  LatLng? get lastSearchedCenter => _lastSearchedCenter;
+  double? get lastSearchedRadius => _lastSearchedRadius;
   bool get isAwayFromUserArea => _isAwayFromUserArea;
 
   void setCarouselPageController(PageController controller) {

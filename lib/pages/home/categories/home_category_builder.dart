@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
+import 'package:login/models/home_rail_candidate.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/pages/home/categories/home_category.dart';
 import 'package:login/pages/home/categories/vibe_styles.dart';
@@ -11,10 +12,17 @@ import 'package:login/supabase/helpers/collections.dart';
 /// [resolve] closures, which defer to [loadCollectionLocations].
 ///
 /// Tile order: Instagram, TikTok (source), then cuisines, eat-lists, vibes.
+///
+/// With [railCandidates] from `get_home_rail` (server rail enabled), cuisine
+/// tiles come from the server's area lift + taste ranking, bubble tiles are
+/// added, and the order becomes cuisines, bubbles, eat-lists, vibes, sources,
+/// capped at [maxTiles].
 class HomeCategoryBuilder {
   // ── Tunables ──────────────────────────────────────────────────
   static const int maxCuisineTiles = 4;
   static const int maxVibeTiles = 4;
+  static const int maxBubbleTiles = 3;
+  static const int maxTiles = 10;
 
   /// A location "has" a vibe when its normalised score clears this bar.
   static const double vibePresenceThreshold = 0.35;
@@ -50,8 +58,25 @@ class HomeCategoryBuilder {
     'bakery': '🥐',
     'coffee': '☕',
     'burger': '🍔',
+    'burgers': '🍔',
     'pizza': '🍕',
     'sushi': '🍣',
+    'chicken': '🍗',
+    'barbecue': '🍖',
+    'lebanese': '🧆',
+    'persian': '🍢',
+    'pakistani': '🍛',
+    'bangladeshi': '🍛',
+    'sri_lankan': '🍛',
+    'african': '🍲',
+    'caribbean': '🍗',
+    'brazilian': '🥩',
+    'peruvian': '🐟',
+    'portuguese': '🐓',
+    'mediterranean': '🫒',
+    'malaysian': '🍜',
+    'indonesian': '🍛',
+    'taiwanese': '🧋',
   };
 
   const HomeCategoryBuilder._();
@@ -63,7 +88,26 @@ class HomeCategoryBuilder {
     required List<CollectionItem> collections,
     required Future<List<LocationModel>> Function(String collectionId)
         loadCollectionLocations,
+    List<HomeRailCandidate>? railCandidates,
+    Future<List<LocationModel>> Function(List<int> locationIds)?
+        loadLocationsByIds,
+    String? areaLabel,
+    Map<String, List<String>> bubbleAvatars = const {},
   }) {
+    if (railCandidates != null && loadLocationsByIds != null) {
+      return _buildWithServerRail(
+        savedLocations: savedLocations,
+        areaRecommendations: areaRecommendations,
+        vibeTagAffinity: vibeTagAffinity,
+        collections: collections,
+        loadCollectionLocations: loadCollectionLocations,
+        railCandidates: railCandidates,
+        loadLocationsByIds: loadLocationsByIds,
+        areaLabel: areaLabel,
+        bubbleAvatars: bubbleAvatars,
+      );
+    }
+
     final categories = <HomeCategory>[];
 
     // ── 1. Source tiles (Instagram, TikTok) — always first, if non-empty ──
@@ -83,6 +127,62 @@ class HomeCategoryBuilder {
     categories.addAll(_vibeCategories(pool, vibeTagAffinity));
 
     return categories;
+  }
+
+  static List<HomeCategory> _buildWithServerRail({
+    required List<LocationModel> savedLocations,
+    required List<LocationModel> areaRecommendations,
+    required List<double>? vibeTagAffinity,
+    required List<CollectionItem> collections,
+    required Future<List<LocationModel>> Function(String) loadCollectionLocations,
+    required List<HomeRailCandidate> railCandidates,
+    required Future<List<LocationModel>> Function(List<int>) loadLocationsByIds,
+    required String? areaLabel,
+    required Map<String, List<String>> bubbleAvatars,
+  }) {
+    final pool = _dedupeById([...areaRecommendations, ...savedLocations]);
+
+    // Server cuisines first (area lift + taste); client cuisines only fill
+    // the remaining slots with keys the server didn't return.
+    final serverCuisines = railCandidates
+        .where((c) => c.isCuisine && c.locationIds.isNotEmpty)
+        .take(maxCuisineTiles)
+        .map((c) => HomeCategory(
+              kind: HomeCategoryKind.cuisine,
+              id: c.id,
+              label: c.label,
+              emoji: _cuisineEmoji[c.id] ?? '🍽️',
+              count: c.placeCount,
+              areaLabel: c.isAreaLifted ? areaLabel : null,
+              resolve: () => loadLocationsByIds(c.locationIds),
+            ))
+        .toList();
+    final serverCuisineIds = serverCuisines.map((c) => c.id).toSet();
+    final clientCuisines = _cuisineCategories(pool)
+        .where((c) => !serverCuisineIds.contains(c.id))
+        .take(maxCuisineTiles - serverCuisines.length);
+
+    final bubbles = railCandidates
+        .where((c) => c.isBubble && c.locationIds.length >= 2)
+        .take(maxBubbleTiles)
+        .map((c) => HomeCategory(
+              kind: HomeCategoryKind.bubble,
+              id: c.id,
+              label: c.label,
+              icon: FeatherIcons.users,
+              count: c.placeCount,
+              avatarUrls: bubbleAvatars[c.id] ?? const [],
+              resolve: () => loadLocationsByIds(c.locationIds),
+            ));
+
+    return [
+      ...serverCuisines,
+      ...clientCuisines,
+      ...bubbles,
+      ..._eatListCategories(collections, loadCollectionLocations),
+      ..._vibeCategories(pool, vibeTagAffinity),
+      ..._sourceCategories(savedLocations),
+    ].take(maxTiles).toList();
   }
 
   // ────────────────────────────────────────────────────────────────

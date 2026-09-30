@@ -10,6 +10,7 @@ HomeCategory _category(
   String label, {
   int count = 3,
   String? emoji,
+  String? areaLabel,
 }) {
   return HomeCategory(
     kind: kind,
@@ -17,6 +18,7 @@ HomeCategory _category(
     label: label,
     count: count,
     emoji: emoji,
+    areaLabel: areaLabel,
     resolve: () async => const [],
   );
 }
@@ -51,6 +53,13 @@ void main() {
       );
       expect(mark.icon, isNull);
       expect(mark.emoji, '🔥');
+    });
+
+    test('bubbles always get the group mark, whatever their name', () {
+      final mark = CategoryMark.resolve(
+        _category(HomeCategoryKind.bubble, 'b1', 'Date night crew'),
+      );
+      expect(mark.icon, Icons.groups_rounded);
     });
 
     test('falls back to a monogram when nothing fits', () {
@@ -96,5 +105,39 @@ void main() {
     await tester.tap(find.text('SEE ALL'));
     await tester.pumpAndSettle();
     expect(seeAllTapped, isTrue);
+  });
+
+  testWidgets('area cuisine and bubble chips show their meta lines',
+      (tester) async {
+    final semantics = tester.ensureSemantics();
+    final categories = [
+      _category(HomeCategoryKind.cuisine, 'korean', 'Korean',
+          count: 16, areaLabel: 'Islington'),
+      _category(HomeCategoryKind.bubble, 'b1', 'Sunday Crew', count: 6),
+    ];
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Align(
+          alignment: Alignment.bottomCenter,
+          child: CategoryCarousel(
+            categories: categories,
+            bottomNavVisible: true,
+            onCategorySelected: (_) {},
+          ),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('ISLINGTON · 16'), findsOneWidget);
+    expect(find.text('BUBBLE · 6'), findsOneWidget);
+    // No member photos → the generated glyph stands in.
+    expect(find.byType(CategoryGlyph), findsNWidgets(2));
+    expect(
+      find.bySemanticsLabel(RegExp('Korean in Islington, 16 places')),
+      findsOneWidget,
+    );
+    semantics.dispose();
   });
 }

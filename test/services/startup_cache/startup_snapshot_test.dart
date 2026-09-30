@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:login/models/home_rail_candidate.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/models/users.dart';
 import 'package:login/models/video_extras.dart';
@@ -98,5 +99,49 @@ void main() {
     expect(snapshot.profile, isNull);
     expect(snapshot.savedLocations.map((location) => location.locationId),
         <int>[9]);
+  });
+
+  test('round trip preserves the cached home rail', () {
+    final snapshot = StartupSnapshot(
+      schemaVersion: StartupSnapshot.currentSchemaVersion,
+      userId: 'user-1',
+      writtenAt: DateTime.utc(2026, 9, 30),
+      savedLocations: const <LocationModel>[],
+      homeRail: HomeRailSnapshot(
+        latitude: 51.536,
+        longitude: -0.103,
+        fetchedAt: DateTime.utc(2026, 9, 30, 12),
+        areaLabel: 'Islington',
+        candidates: const [
+          HomeRailCandidate(
+            kind: 'cuisine',
+            id: 'korean',
+            label: 'Korean',
+            score: 14.6,
+            placeCount: 16,
+            locationIds: [1, 2, 3],
+            reason: 'area',
+          ),
+        ],
+      ),
+    );
+
+    final decoded = StartupSnapshot.fromJson(snapshot.toJson());
+    final rail = decoded.homeRail!;
+    expect(rail.areaLabel, 'Islington');
+    expect(rail.latitude, 51.536);
+    expect(rail.candidates.single.id, 'korean');
+    expect(rail.candidates.single.locationIds, [1, 2, 3]);
+  });
+
+  test('v1 snapshots (before the home rail) still load', () {
+    final decoded = StartupSnapshot.fromJson({
+      'schema_version': 1,
+      'user_id': 'user-1',
+      'written_at': '2026-09-01T00:00:00Z',
+      'saved_locations': const [],
+    });
+    expect(decoded.homeRail, isNull);
+    expect(decoded.userId, 'user-1');
   });
 }

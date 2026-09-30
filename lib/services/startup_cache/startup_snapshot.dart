@@ -1,3 +1,4 @@
+import 'package:login/models/home_rail_candidate.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/models/users.dart';
 import 'package:login/models/video_extras.dart';
@@ -25,9 +26,12 @@ class StartupSnapshot {
     required this.savedLocations,
     this.profile,
     this.acceptedConsentVersion,
+    this.homeRail,
   });
 
-  static const int currentSchemaVersion = 1;
+  /// v2 added [homeRail]. v1 snapshots still load (without a rail).
+  static const int currentSchemaVersion = 2;
+  static const Set<int> readableSchemaVersions = {1, 2};
 
   final int schemaVersion;
   final String userId;
@@ -35,6 +39,17 @@ class StartupSnapshot {
   final UserModel? profile;
   final List<LocationModel> savedLocations;
   final String? acceptedConsentVersion;
+  final HomeRailSnapshot? homeRail;
+
+  StartupSnapshot withHomeRail(HomeRailSnapshot? rail) => StartupSnapshot(
+        schemaVersion: currentSchemaVersion,
+        userId: userId,
+        writtenAt: writtenAt,
+        savedLocations: savedLocations,
+        profile: profile,
+        acceptedConsentVersion: acceptedConsentVersion,
+        homeRail: rail,
+      );
 
   Map<String, dynamic> toJson() => <String, dynamic>{
         'schema_version': schemaVersion,
@@ -43,11 +58,12 @@ class StartupSnapshot {
         'accepted_consent_version': acceptedConsentVersion,
         'profile': profile?.toJson(),
         'saved_locations': savedLocations.map(_encodeLocation).toList(),
+        'home_rail': homeRail?.toJson(),
       };
 
   factory StartupSnapshot.fromJson(Map<String, dynamic> json) {
     final schemaVersion = json['schema_version'];
-    if (schemaVersion != currentSchemaVersion) {
+    if (!readableSchemaVersions.contains(schemaVersion)) {
       throw StartupSnapshotUnsupportedSchemaException(
         'Unsupported schema: $schemaVersion',
       );
@@ -74,6 +90,7 @@ class StartupSnapshot {
               .toList(growable: false)
           : const <LocationModel>[],
       acceptedConsentVersion: json['accepted_consent_version'] as String?,
+      homeRail: HomeRailSnapshot.tryParse(json['home_rail']),
     );
   }
 
@@ -143,5 +160,52 @@ class StartupSnapshot {
           )
           .toList(growable: false),
     };
+  }
+}
+
+/// The last server home rail and where it was fetched, so the rail can paint
+/// on launch before the network resolves.
+class HomeRailSnapshot {
+  const HomeRailSnapshot({
+    required this.latitude,
+    required this.longitude,
+    required this.fetchedAt,
+    required this.candidates,
+    this.areaLabel,
+  });
+
+  final double latitude;
+  final double longitude;
+  final DateTime fetchedAt;
+  final List<HomeRailCandidate> candidates;
+  final String? areaLabel;
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'lat': latitude,
+        'lng': longitude,
+        'fetched_at': fetchedAt.toUtc().toIso8601String(),
+        'area_label': areaLabel,
+        'candidates': candidates.map((c) => c.toJson()).toList(),
+      };
+
+  static HomeRailSnapshot? tryParse(Object? raw) {
+    if (raw is! Map) return null;
+    final lat = raw['lat'];
+    final lng = raw['lng'];
+    final fetchedAt = DateTime.tryParse(raw['fetched_at']?.toString() ?? '');
+    final candidates = raw['candidates'];
+    if (lat is! num || lng is! num || fetchedAt == null || candidates is! List) {
+      return null;
+    }
+    return HomeRailSnapshot(
+      latitude: lat.toDouble(),
+      longitude: lng.toDouble(),
+      fetchedAt: fetchedAt.toUtc(),
+      areaLabel: raw['area_label'] as String?,
+      candidates: candidates
+          .map(HomeRailCandidate.tryParse)
+          .whereType<HomeRailCandidate>()
+          .toList(growable: false),
+    );
   }
 }

@@ -4,8 +4,10 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:login/utils/geo_types.dart';
 import 'package:login/models/bubble.dart';
+import 'package:login/models/home_rail_candidate.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/pages/home/categories/home_category.dart';
 import 'package:login/pages/home/categories/home_category_builder.dart';
@@ -19,8 +21,11 @@ import 'package:login/providers/nav_bar/visibility_provider.dart';
 import 'package:login/providers/shortlist_provider.dart';
 import 'package:login/providers/user_data_provider.dart';
 import 'package:login/services/analytics_service.dart';
+import 'package:login/services/area_name_service.dart';
 import 'package:login/services/collections_library_events.dart';
 import 'package:login/services/profile_completion_checklist_service.dart';
+import 'package:login/services/startup_cache/startup_cache_coordinator.dart';
+import 'package:login/services/startup_cache/startup_snapshot.dart';
 import 'package:login/supabase/helpers/collections.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/supabase/supabase_client.dart';
@@ -37,6 +42,8 @@ class HomeViewModel extends ChangeNotifier {
   final ShortlistProvider shortlistProvider;
   final SupabaseService supabaseService;
   final UserDataProvider userDataProvider;
+  final StartupCacheCoordinator? _startupCache;
+  final AreaNameService _areaNameService;
   late final HeaderSearchCoordinator _headerSearchCoordinator;
   final CollectionsHelper _collectionsHelper = CollectionsHelper();
   final AnalyticsService _analyticsService = AnalyticsService();
@@ -68,6 +75,31 @@ class HomeViewModel extends ChangeNotifier {
   bool _overviewFramed = false;
   static const int _overviewFramePlaceCount = 8;
   List<HomeCategory>? _cachedCategories;
+  List<double>? _lastVibeAffinity;
+
+  // ── Server home rail (get_home_rail) ──────────────────────────
+  /// Refetch once the point we'd rank for is this far from the last fetch.
+  static const double _railRefetchDistanceM = 750;
+  List<HomeRailCandidate>? _railCandidates;
+  LatLng? _railCenter;
+  LatLng? _railGpsAnchor;
+  LatLng? _lastSeenSearchCenter;
+  LatLng? _railQueuedCenter;
+  String? _railAreaLabel;
+  bool _railFetchInFlight = false;
+  bool _railLiveFetched = false;
+  Map<String, List<String>> _bubbleAvatars = const {};
+  bool _bubbleAvatarsRequested = false;
+
+  /// Rollout flag (B4): `HOME_RAIL_SERVER=true` in `.env` switches the rail to
+  /// server-ranked cuisines + bubbles. Off means the client-only rail.
+  static bool get serverRailEnabled {
+    try {
+      return dotenv.env['HOME_RAIL_SERVER']?.toLowerCase() == 'true';
+    } catch (_) {
+      return false; // dotenv not loaded (tests)
+    }
+  }
 
   // ── Mode toggle state ─────────────────────────────────────────
   HomeMode _homeMode = HomeMode.you;
@@ -106,7 +138,10 @@ class HomeViewModel extends ChangeNotifier {
     required this.shortlistProvider,
     required this.supabaseService,
     required this.userDataProvider,
-  }) {
+    StartupCacheCoordinator? startupCache,
+    AreaNameService? areaNameService,
+  })  : _startupCache = startupCache,
+        _areaNameService = areaNameService ?? AreaNameService.instance {
     _headerSearchCoordinator = HeaderSearchCoordinator(
       repository: LiveHeaderSearchRepository(
         locationListManager: locationListManager,
@@ -248,6 +283,7 @@ class HomeViewModel extends ChangeNotifier {
   /// when the underlying data (saved spots, area recommendations, collections)
   /// changes — [_onExternalStateChanged] clears the cache.
   List<HomeCategory> get homeCategories {
+    final useServerRail = serverRailEnabled && _railCandidates != null;
     return _cachedCategories ??= HomeCategoryBuilder.build(
       savedLocations: locationListManager.savedLocations.keys.toList(),
       areaRecommendations:
@@ -256,12 +292,33 @@ class HomeViewModel extends ChangeNotifier {
       collections: _collections,
       loadCollectionLocations: (collectionId) =>
           _collectionsHelper.getLocationsForCollection(collectionId),
+      railCandidates: useServerRail ? _railCandidates : null,
+      loadLocationsByIds: useServerRail
+          ? locationListManager.fetchLocationsByIdsInOrder
+          : null,
+      areaLabel: _railAreaLabel,
+      bubbleAvatars: _bubbleAvatars,
     );
   }
+
+  /// Area name for the point the rail was ranked for (e.g. 'Islington').
+  String? get homeRailAreaLabel => _railAreaLabel;
 
   /// Drill into [category]: load its spots, drop them on the map + carousel,
   /// and switch to the focused stage.
   Future<void> openCategory(HomeCategory category) async {
+    _analyticsService.track(
+      eventName: 'home_category_tap',
+      eventCategory: 'home',
+      screenName: 'home',
+      properties: {
+        'kind': category.kind.name,
+        'id': category.id,
+        'rank': homeCategories.indexOf(category),
+        'area': category.areaLabel ?? _railAreaLabel,
+        'server_rail': serverRailEnabled && _railCandidates != null,
+      },
+    );
     _activeCategory = category;
     _browseStage = HomeBrowseStage.focused;
     // Focused stage shows richer emoji pins + the swipeable carousel.
@@ -514,6 +571,10 @@ class HomeViewModel extends ChangeNotifier {
     unawaited(_refreshProfileChecklistIfNeeded(force: true));
     mapStateProvider.setCarouselPageController(pageController);
     mapStateProvider.addListener(_onSelectedMarkerChanged);
+    mapStateProvider.addListener(_onMapSearchAreaChanged);
+    userDataProvider.addListener(_onUserDataChanged);
+    _lastVibeAffinity = userDataProvider.vibeTagAffinity;
+    _hydrateHomeRailFromCache();
     locationListManager.addListener(_onExternalStateChanged);
     bottomNavVisibilityProvider.addListener(_onExternalStateChanged);
     shortlistProvider.addListener(_onExternalStateChanged);
@@ -532,6 +593,7 @@ class HomeViewModel extends ChangeNotifier {
     unawaited(_prefetchInitialRecommendationsIfReady());
     unawaited(_resolveInitialDefaultListIfReady());
     unawaited(loadCollections());
+    unawaited(_refreshHomeRailForGps());
   }
 
   void _onExternalStateChanged() {
@@ -544,7 +606,154 @@ class HomeViewModel extends ChangeNotifier {
     unawaited(_resolveInitialDefaultListIfReady());
     unawaited(_syncCategoryStageMap());
     unawaited(_refreshProfileChecklistIfNeeded());
+    unawaited(_refreshHomeRailForGps());
     _notifyListenersSafely();
+  }
+
+  /// Taste changes re-rank the client-side vibe tiles.
+  void _onUserDataChanged() {
+    final affinity = userDataProvider.vibeTagAffinity;
+    if (identical(affinity, _lastVibeAffinity)) return;
+    _lastVibeAffinity = affinity;
+    _cachedCategories = null;
+    _notifyListenersSafely();
+  }
+
+  // ── Server home rail ──────────────────────────────────────────
+
+  /// Paint the last rail from the startup snapshot until a live fetch lands.
+  void _hydrateHomeRailFromCache() {
+    if (!serverRailEnabled) return;
+    final cached = _startupCache?.cachedHomeRail;
+    if (cached == null || cached.candidates.isEmpty) return;
+    _railCandidates = cached.candidates;
+    _railCenter = LatLng(cached.latitude, cached.longitude);
+    _railAreaLabel = cached.areaLabel;
+    _cachedCategories = null;
+  }
+
+  /// First position fix, then whenever the device moves > 750 m.
+  Future<void> _refreshHomeRailForGps() async {
+    final gps = locationListManager.currentPosition;
+    if (gps == null) return;
+    final anchor = _railGpsAnchor;
+    if (_railLiveFetched &&
+        anchor != null &&
+        _distanceMeters(gps, anchor) < _railRefetchDistanceM) {
+      return;
+    }
+    _railGpsAnchor = gps;
+    await _fetchHomeRailAt(gps);
+  }
+
+  /// "Search this area" — the rail follows the map, not just the GPS.
+  void _onMapSearchAreaChanged() {
+    final center = mapStateProvider.lastSearchedCenter;
+    if (center == null) return;
+    final seen = _lastSeenSearchCenter;
+    if (seen != null &&
+        seen.latitude == center.latitude &&
+        seen.longitude == center.longitude) {
+      return;
+    }
+    _lastSeenSearchCenter = center;
+    final railCenter = _railCenter;
+    if (_railLiveFetched &&
+        railCenter != null &&
+        _distanceMeters(center, railCenter) < _railRefetchDistanceM) {
+      return;
+    }
+    unawaited(_fetchHomeRailAt(center));
+  }
+
+  Future<void> _fetchHomeRailAt(LatLng center) async {
+    if (_disposed || !serverRailEnabled) return;
+    final userId = SupabaseClientManager().currentUser?.id;
+    if (userId == null) return;
+    if (_railFetchInFlight) {
+      _railQueuedCenter = center; // latest wins
+      return;
+    }
+    _railFetchInFlight = true;
+    try {
+      final results = await Future.wait<Object?>([
+        supabaseService.homeRail.fetch(
+          latitude: center.latitude,
+          longitude: center.longitude,
+        ),
+        _areaNameService.lookup(center.latitude, center.longitude),
+      ]);
+      if (_disposed) return;
+      final candidates = results[0] as List<HomeRailCandidate>;
+      final areaLabel = results[1] as String?;
+
+      _railLiveFetched = true;
+      _railCenter = center;
+      _railAreaLabel = areaLabel;
+      // Nothing ranked here (or the call failed) → client-only rail.
+      _railCandidates = candidates.isEmpty ? null : candidates;
+      _cachedCategories = null;
+      _notifyListenersSafely();
+
+      if (candidates.any((c) => c.isBubble)) {
+        unawaited(_loadBubbleAvatars(userId));
+      }
+      if (candidates.isNotEmpty) {
+        _startupCache?.updateHomeRail(
+          userId: userId,
+          rail: HomeRailSnapshot(
+            latitude: center.latitude,
+            longitude: center.longitude,
+            fetchedAt: DateTime.now().toUtc(),
+            areaLabel: areaLabel,
+            candidates: candidates,
+          ),
+        );
+      }
+    } catch (e) {
+      log('HomeViewModel: home rail fetch failed: $e');
+    } finally {
+      _railFetchInFlight = false;
+      final queued = _railQueuedCenter;
+      _railQueuedCenter = null;
+      if (queued != null && !_disposed) {
+        unawaited(_fetchHomeRailAt(queued));
+      }
+    }
+  }
+
+  /// Member photos for bubble tiles — fetched once, only when a bubble tile
+  /// exists (the summary query is per-bubble).
+  Future<void> _loadBubbleAvatars(String userId) async {
+    if (_bubbleAvatarsRequested) return;
+    _bubbleAvatarsRequested = true;
+    try {
+      final summaries =
+          await supabaseService.bubbles.getUserBubbleSummaries(userId);
+      if (_disposed) return;
+      _bubbleAvatars = {
+        for (final summary in summaries)
+          summary.id: summary.memberAvatars
+              .where((url) => url.isNotEmpty)
+              .toList(growable: false),
+      };
+      _cachedCategories = null;
+      _notifyListenersSafely();
+    } catch (e) {
+      _bubbleAvatarsRequested = false;
+      log('HomeViewModel: bubble avatars failed: $e');
+    }
+  }
+
+  static double _distanceMeters(LatLng a, LatLng b) {
+    const earthRadiusM = 6371000.0;
+    final dLat = (b.latitude - a.latitude) * math.pi / 180;
+    final dLng = (b.longitude - a.longitude) * math.pi / 180;
+    final h = math.pow(math.sin(dLat / 2), 2) +
+        math.cos(a.latitude * math.pi / 180) *
+            math.cos(b.latitude * math.pi / 180) *
+            math.pow(math.sin(dLng / 2), 2);
+    return 2 * earthRadiusM * math.asin(math.sqrt(h));
   }
 
   Future<void> _refreshProfileChecklistIfNeeded({bool force = false}) async {
@@ -1390,6 +1599,8 @@ class HomeViewModel extends ChangeNotifier {
     _disposed = true;
     _headerSearchCoordinator.removeListener(_onHeaderSearchChanged);
     mapStateProvider.removeListener(_onSelectedMarkerChanged);
+    mapStateProvider.removeListener(_onMapSearchAreaChanged);
+    userDataProvider.removeListener(_onUserDataChanged);
     locationListManager.removeListener(_onExternalStateChanged);
     bottomNavVisibilityProvider.removeListener(_onExternalStateChanged);
     shortlistProvider.removeListener(_onExternalStateChanged);

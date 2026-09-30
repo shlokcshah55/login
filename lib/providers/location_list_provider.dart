@@ -2460,6 +2460,12 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
     }
   }
 
+  /// Full [LocationModel]s for [locationIds], in the given order (missing ids
+  /// are skipped). Used to resolve server-ranked tiles (e.g. `get_home_rail`).
+  Future<List<LocationModel>> fetchLocationsByIdsInOrder(
+          List<int> locationIds) =>
+      _fetchLocationsByIdsInOrder(locationIds);
+
   Future<List<LocationModel>> _fetchLocationsByIdsInOrder(
       List<int> locationIds) async {
     if (locationIds.isEmpty) return [];
