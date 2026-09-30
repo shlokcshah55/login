@@ -19,7 +19,7 @@
 	<key>CFBundleName</key>
 	<string>Pinit</string>
 	<key>CFBundlePackageType</key>
-	<string>APPL</string> 
+	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleURLTypes</key>
@@ -74,7 +74,7 @@
 	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>This app needs camera access to take photos of locations you want to share.</string>
-<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>This app needs location access to provide location-based features and background updates.</string>
 	<key>NSLocationAlwaysUsageDescription</key>
 	<string>This app needs location access to provide location-based features even when the app is in the background.</string>
@@ -88,6 +88,27 @@
 	<true/>
 	<key>NSSupportsSuddenTermination</key>
 	<true/>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneClassName</key>
+					<string>UIWindowScene</string>
+					<key>UISceneConfigurationName</key>
+					<string>flutter</string>
+					<key>UISceneDelegateClassName</key>
+					<string>FlutterSceneDelegate</string>
+					<key>UISceneStoryboardFile</key>
+					<string>Main</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>

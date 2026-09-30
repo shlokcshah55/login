@@ -1,0 +1,890 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>Pinit — Somebody had to decide</title>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/audio-data.js"></script>
+    <style>
+      /* ── Pinit design system — source of truth: Style.MD + lib/themes/ ──
+         Cream-first canvas. Aubergine replaces black. Accent is a guest, not a
+         resident (<10% of any frame). Never pure black / white / grey.        */
+      @font-face {
+        font-family: "Rova";
+        src: url("assets/fonts/Rova.ttf") format("truetype");
+        font-weight: 400;
+        font-display: block;
+      }
+      @font-face {
+        font-family: "Naria";
+        src: url("assets/fonts/Naria.otf") format("opentype");
+        font-weight: 400;
+        font-display: block;
+      }
+      @font-face {
+        font-family: "Manrope";
+        src: url("assets/fonts/Manrope.ttf") format("truetype");
+        font-weight: 200 800;
+        font-display: block;
+      }
+
+      :root {
+        --cream: #fbf6f3;
+        --cream-sunk: #f4ede6;
+        --cream-deep: #ece2d8;
+        --aubergine: #41133d;
+        --aubergine-soft: #6b3866;
+        --mute: #8a7a72;
+        --accent: #ec3d2c;
+        /* audio-reactive, written per frame from pre-extracted bands */
+        --a-rms: 0.3;
+        --a-bass: 0.3;
+      }
+
+      body {
+        margin: 0;
+        background: var(--cream);
+        color: var(--aubergine);
+        font-family: "Manrope", sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      #root {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: var(--cream);
+      }
+
+      .clip {
+        position: absolute;
+        inset: 0;
+      }
+
+      /* ── Persistent background layer (untimed → needs its own box) ── */
+      #bg-paper {
+        position: absolute;
+        inset: 0;
+        background-color: var(--cream);
+        background-image: radial-gradient(circle, rgba(65, 19, 61, 0.07) 1px, transparent 1.5px);
+        background-size: 30px 30px;
+      }
+      #bg-warmth {
+        position: absolute;
+        top: -340px;
+        right: -260px;
+        width: 1500px;
+        height: 1500px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(236, 226, 216, 0.95) 0%, rgba(236, 226, 216, 0) 68%);
+      }
+      /* audio-reactive: the accent glow breathes with the bed. No waveform, no bars. */
+      #bg-glow {
+        position: absolute;
+        bottom: -520px;
+        left: -300px;
+        width: 1400px;
+        height: 1400px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(236, 61, 44, 0.15) 0%, rgba(236, 61, 44, 0) 66%);
+        opacity: calc(0.55 + var(--a-rms) * 0.45);
+        transform: scale(calc(0.94 + var(--a-rms) * 0.10));
+      }
+      #bg-rule {
+        position: absolute;
+        left: 160px;
+        top: 214px;
+        width: 92px;
+        height: 4px;
+        background: var(--aubergine-soft);
+        opacity: 0.5;
+        transform-origin: left center;
+      }
+
+      /* ── Type tokens (video scale, per video-composition.md) ── */
+      .label {
+        font-family: "Manrope", sans-serif;
+        font-weight: 700;
+        font-size: 22px;
+        letter-spacing: 2.64px; /* fontSize × 0.12 — the signature move */
+        text-transform: uppercase;
+        color: var(--aubergine-soft);
+      }
+      .micro {
+        font-family: "Manrope", sans-serif;
+        font-weight: 700;
+        font-size: 18px;
+        letter-spacing: 2.16px;
+        text-transform: uppercase;
+        color: var(--aubergine-soft);
+      }
+      .display {
+        font-family: "Rova", "Naria", serif;
+        font-weight: 400;
+        color: var(--aubergine);
+        letter-spacing: -0.02em;
+        line-height: 1.04;
+        margin: 0;
+      }
+      .body {
+        font-family: "Manrope", sans-serif;
+        font-weight: 500;
+        color: var(--aubergine);
+      }
+      .scene-label {
+        position: absolute;
+        left: 160px;
+        top: 160px;
+      }
+      /* card presence breathes on bass — subtle, text stays still */
+      .sunk {
+        background: var(--cream-sunk);
+        border: 3px solid var(--cream-deep);
+        box-shadow: 0 calc(16px + var(--a-bass) * 8px) calc(38px + var(--a-bass) * 16px)
+          rgba(65, 19, 61, calc(0.08 + var(--a-bass) * 0.04));
+      }
+
+      /* ── Scene 1 — the group chat ── */
+      #s1-wrap { position: absolute; inset: 0; }
+      .bubble {
+        display: inline-block;
+        border-radius: 999px;
+        padding: 26px 46px;
+        font-family: "Manrope", sans-serif;
+        font-weight: 500;
+        font-size: 46px;
+        color: var(--aubergine);
+        white-space: nowrap;
+      }
+      #s1-b1 { position: absolute; left: 160px; top: 320px; }
+      #s1-b2 { position: absolute; left: 208px; top: 470px; }
+      #s1-b3 { position: absolute; left: 256px; top: 620px; }
+      #s1-ghost {
+        position: absolute;
+        left: 1210px;
+        top: 372px;
+        font-family: "Rova", "Naria", serif;
+        font-size: 300px;
+        line-height: 1;
+        color: var(--aubergine);
+        opacity: 0.13;
+        letter-spacing: 0.02em;
+      }
+
+      /* ── Scene 2 — a reel becomes real places ── */
+      #s2-wrap { position: absolute; inset: 0; }
+      #s2-reel {
+        position: absolute;
+        left: 180px;
+        top: 200px;
+        width: 400px;
+        height: 680px;
+        border-radius: 46px;
+        background: var(--cream-deep);
+        border: 3px solid var(--aubergine);
+        overflow: hidden;
+      }
+      #s2-play {
+        position: absolute;
+        left: 158px;
+        top: 268px;
+        width: 0;
+        height: 0;
+        border-left: 74px solid var(--aubergine);
+        border-top: 46px solid transparent;
+        border-bottom: 46px solid transparent;
+      }
+      .reel-cap {
+        position: absolute;
+        height: 15px;
+        border-radius: 8px;
+        background: rgba(65, 19, 61, 0.19);
+      }
+      .reel-track {
+        position: absolute;
+        left: 28px;
+        top: 548px;
+        width: 338px;
+        height: 7px;
+        border-radius: 4px;
+        background: rgba(65, 19, 61, 0.15);
+      }
+      .reel-fill {
+        position: absolute;
+        left: 28px;
+        top: 548px;
+        width: 126px;
+        height: 7px;
+        border-radius: 4px;
+        background: var(--aubergine-soft);
+      }
+      #s2-reel-strip {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 92px;
+        background: var(--cream-sunk);
+        border-top: 3px solid var(--cream-deep);
+      }
+      #s2-reel-url {
+        position: absolute;
+        left: 28px;
+        top: 34px;
+        font-family: "Manrope", sans-serif;
+        font-weight: 600;
+        font-size: 21px;
+        letter-spacing: 0.6px;
+        color: var(--aubergine-soft);
+      }
+      #s2-label { position: absolute; left: 700px; top: 250px; }
+      #s2-dot {
+        position: absolute;
+        left: 950px;
+        top: 253px;
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        background: var(--accent);
+      }
+      #s2-status { position: absolute; left: 700px; top: 316px; width: 1050px; height: 200px; }
+      .status-line {
+        position: absolute;
+        left: 0;
+        font-family: "Manrope", sans-serif;
+        font-weight: 500;
+        font-size: 42px;
+        color: var(--aubergine-soft);
+        white-space: nowrap;
+      }
+      #s2-st1 { top: 0; }
+      #s2-st2 { top: 66px; }
+      #s2-st3 { top: 132px; }
+      #s2-found {
+        position: absolute;
+        left: 700px;
+        top: 552px;
+        width: 1060px;
+        font-size: 96px;
+      }
+      #s2-chips { position: absolute; left: 700px; top: 712px; width: 1080px; }
+      .chip {
+        display: inline-block;
+        border-radius: 999px;
+        padding: 18px 34px;
+        margin: 0 18px 18px 0;
+        font-family: "Manrope", sans-serif;
+        font-weight: 600;
+        font-size: 28px;
+        color: var(--aubergine);
+        white-space: nowrap;
+      }
+
+      /* ── Scene 3 — your map fills up ── */
+      #s3-wrap { position: absolute; inset: 0; }
+      .street {
+        position: absolute;
+        background: rgba(65, 19, 61, 0.10);
+        border-radius: 5px;
+      }
+      .block {
+        position: absolute;
+        background: var(--cream-sunk);
+        border: 3px solid rgba(65, 19, 61, 0.11);
+        border-radius: 26px;
+      }
+      #s3-shortlist {
+        position: absolute;
+        right: 160px;
+        top: 148px;
+        border-radius: 999px;
+        padding: 20px 40px;
+        font-family: "Manrope", sans-serif;
+        font-weight: 700;
+        font-size: 28px;
+        letter-spacing: 0.4px;
+        color: var(--aubergine);
+        white-space: nowrap;
+      }
+      .pin-group { position: absolute; }
+      .pin {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 38px;
+        height: 38px;
+        background: var(--accent);
+        border: 5px solid var(--cream);
+        border-radius: 50% 50% 50% 0;
+        transform: rotate(-45deg);
+        box-shadow: 0 10px 22px rgba(236, 61, 44, 0.3);
+      }
+      .pin-card {
+        position: absolute;
+        left: 74px;
+        top: -12px;
+        border-radius: 24px;
+        padding: 18px 32px;
+        white-space: nowrap;
+      }
+      .pin-name {
+        font-family: "Rova", "Naria", serif;
+        font-weight: 400;
+        font-size: 38px;
+        color: var(--aubergine);
+        letter-spacing: -0.01em;
+        display: block;
+      }
+      .pin-tag { display: block; margin-top: 6px; }
+
+      /* ── Scene 4 — the bubble ── */
+      #s4-wrap { position: absolute; inset: 0; }
+      #s4-rings { position: absolute; left: 1402px; top: 306px; width: 480px; height: 480px; }
+      .ring {
+        position: absolute;
+        border-radius: 50%;
+        border: 4px solid var(--aubergine);
+      }
+      .bubble-row {
+        position: absolute;
+        left: 160px;
+        width: 1180px;
+        height: 152px;
+        border-radius: 40px;
+        box-sizing: border-box;
+        padding: 0 52px;
+        display: flex;
+        align-items: center;
+      }
+      .row-emoji { font-size: 62px; line-height: 1; }
+      .row-name {
+        font-family: "Rova", "Naria", serif;
+        font-weight: 400;
+        font-size: 54px;
+        color: var(--aubergine);
+        letter-spacing: -0.01em;
+        margin-left: 34px;
+      }
+      .row-meta { margin-left: auto; }
+
+      /* ── Scene 5 — GAVEL ── */
+      #s5-wrap { position: absolute; inset: 0; }
+      #s5-justdecide {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 178px;
+        text-align: center;
+        font-size: 60px;
+      }
+      .sl-card {
+        position: absolute;
+        top: 318px;
+        width: 340px;
+        height: 214px;
+        border-radius: 34px;
+        box-sizing: border-box;
+        padding: 40px 34px;
+      }
+      .sl-name {
+        font-family: "Rova", "Naria", serif;
+        font-weight: 400;
+        font-size: 40px;
+        color: var(--aubergine);
+        letter-spacing: -0.01em;
+        display: block;
+      }
+      .sl-tag { display: block; margin-top: 16px; }
+      #s5-gavel {
+        position: absolute;
+        left: 782px;
+        top: 706px;
+        width: 356px;
+        box-sizing: border-box;
+        border-radius: 999px;
+        padding: 30px 0;
+        text-align: center;
+        background: var(--accent);
+        color: var(--cream);
+        font-family: "Manrope", sans-serif;
+        font-weight: 800;
+        font-size: 36px;
+        letter-spacing: 4.32px;
+        box-shadow: 0 18px 40px rgba(236, 61, 44, 0.32);
+      }
+      #s5-ripple {
+        position: absolute;
+        left: 782px;
+        top: 706px;
+        width: 356px;
+        height: 106px;
+        border-radius: 999px;
+        border: 5px solid var(--accent);
+        opacity: 0;
+      }
+      #s5-cursor {
+        position: absolute;
+        left: 1400px;
+        top: 880px;
+        width: 58px;
+        height: 58px;
+        border-radius: 50%;
+        background: rgba(65, 19, 61, 0.16);
+        border: 4px solid var(--aubergine);
+      }
+      #s5-decided {
+        position: absolute;
+        left: 550px;
+        top: 322px;
+        width: 820px;
+        height: 286px;
+        border-radius: 44px;
+        box-sizing: border-box;
+        padding: 58px 62px;
+        background: var(--aubergine);
+        opacity: 0;
+        box-shadow: 0 26px 60px rgba(65, 19, 61, 0.28);
+      }
+      #s5-decided-name {
+        font-family: "Rova", "Naria", serif;
+        font-weight: 400;
+        font-size: 84px;
+        color: var(--cream);
+        letter-spacing: -0.01em;
+        display: block;
+      }
+      #s5-decided-tag {
+        display: block;
+        margin-top: 18px;
+        font-family: "Manrope", sans-serif;
+        font-weight: 700;
+        font-size: 20px;
+        letter-spacing: 2.4px;
+        text-transform: uppercase;
+        color: rgba(251, 246, 243, 0.72);
+      }
+
+      /* ── Scene 6 — end card ── */
+      #s6-wrap { position: absolute; inset: 0; }
+      #s6-dot {
+        position: absolute;
+        left: 954px;
+        top: 318px;
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        background: var(--accent);
+      }
+      /* white-on-transparent wordmark → repainted aubergine via alpha mask */
+      #s6-logo {
+        position: absolute;
+        left: 650px;
+        top: 400px;
+        width: 620px;
+        height: 291px;
+        background-color: var(--aubergine);
+        -webkit-mask-image: url("assets/img/logo.png");
+        mask-image: url("assets/img/logo.png");
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+      }
+      #s6-line {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 768px;
+        text-align: center;
+        font-size: 64px;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-width="1920"
+      data-height="1080"
+      data-fps="30"
+      data-duration="21"
+    >
+      <!-- Persistent background: shared across every scene (house-style) -->
+      <div id="bg-paper"></div>
+      <div id="bg-warmth"></div>
+      <div id="bg-glow"></div>
+
+      <!-- ══ Scene 1 — the group chat — 0 → 3.5 ══ -->
+      <section id="s1" class="clip" data-start="0" data-duration="3.5" data-track-index="0">
+        <div id="s1-wrap">
+          <div id="s1-ghost">idm</div>
+          <div class="label scene-label">The group chat</div>
+          <div id="s1-rule" style="position:absolute;left:160px;top:214px;width:92px;height:4px;background:var(--aubergine-soft);opacity:.5;transform-origin:left center"></div>
+          <div id="s1-b1" class="bubble sunk">where we eating?</div>
+          <div id="s1-b2" class="bubble sunk">idm</div>
+          <div id="s1-b3" class="bubble sunk">idm 🤷</div>
+        </div>
+      </section>
+
+      <!-- ══ Scene 2 — a reel becomes real places — 3.5 → 8.0 ══ -->
+      <section id="s2" class="clip" data-start="3.5" data-duration="4.5" data-track-index="1">
+        <div id="s2-wrap">
+          <div id="s2-reel">
+            <div id="s2-play"></div>
+            <div class="reel-cap" style="left:28px;top:466px;width:252px"></div>
+            <div class="reel-cap" style="left:28px;top:496px;width:168px"></div>
+            <div class="reel-track"></div>
+            <div class="reel-fill"></div>
+            <div id="s2-reel-strip"></div>
+            <div id="s2-reel-url">tiktok.com/@sablesway</div>
+          </div>
+          <div id="s2-label" class="label">Processing URL</div>
+          <div id="s2-dot"></div>
+          <div id="s2-status">
+            <div id="s2-st1" class="status-line">Connecting to TikTok...</div>
+            <div id="s2-st2" class="status-line">Analyzing video content...</div>
+            <div id="s2-st3" class="status-line">Finding locations...</div>
+          </div>
+          <h1 id="s2-found" class="display">Found 3 Locations</h1>
+          <div id="s2-chips">
+            <span id="s2-c1" class="chip sunk">Sable</span>
+            <span id="s2-c2" class="chip sunk">Casa Nero</span>
+            <span id="s2-c3" class="chip sunk">Kin Cafe</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ Scene 3 — your map fills up — 8.0 → 12.0 ══ -->
+      <section id="s3" class="clip" data-start="8" data-duration="4" data-track-index="2">
+        <div id="s3-wrap">
+          <div class="street" data-layout-allow-overflow="true" style="left:-60px;top:300px;width:2100px;height:19px;transform:rotate(-6deg)"></div>
+          <div class="street" data-layout-allow-overflow="true" style="left:-60px;top:760px;width:2100px;height:19px;transform:rotate(4deg)"></div>
+          <div class="street" data-layout-allow-overflow="true" style="left:520px;top:-40px;width:19px;height:1200px;transform:rotate(9deg)"></div>
+          <div class="street" data-layout-allow-overflow="true" style="left:1420px;top:-40px;width:19px;height:1200px;transform:rotate(-7deg)"></div>
+          <div class="block" style="left:700px;top:170px;width:320px;height:180px"></div>
+          <div class="block" style="left:1080px;top:820px;width:400px;height:190px"></div>
+          <div class="block" style="left:190px;top:560px;width:250px;height:230px"></div>
+          <div class="label scene-label">Nearby</div>
+          <div id="s3-shortlist" class="sunk">Shortlist (0)</div>
+          <div id="s3-p1" class="pin-group" style="left:600px;top:520px">
+            <div class="pin"></div>
+            <div class="pin-card sunk">
+              <span class="pin-name">Sable</span>
+              <span class="pin-tag micro">Late-night</span>
+            </div>
+          </div>
+          <div id="s3-p2" class="pin-group" style="left:1010px;top:372px">
+            <div class="pin"></div>
+            <div class="pin-card sunk">
+              <span class="pin-name">Casa Nero</span>
+              <span class="pin-tag micro">Wavy</span>
+            </div>
+          </div>
+          <div id="s3-p3" class="pin-group" style="left:1240px;top:672px">
+            <div class="pin"></div>
+            <div class="pin-card sunk">
+              <span class="pin-name">Kin Cafe</span>
+              <span class="pin-tag micro">Cosy</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ Scene 4 — the bubble — 12.0 → 15.8 ══ -->
+      <section id="s4" class="clip" data-start="12" data-duration="3.8" data-track-index="3">
+        <div id="s4-wrap">
+          <div id="s4-rings">
+            <div class="ring" style="left:0;top:0;width:470px;height:470px;opacity:.10"></div>
+            <div class="ring" style="left:95px;top:95px;width:280px;height:280px;opacity:.14"></div>
+            <div class="ring" style="left:175px;top:175px;width:120px;height:120px;background:var(--cream-deep);opacity:.55"></div>
+          </div>
+          <div class="label scene-label">Your bubbles</div>
+          <div id="s4-r1" class="bubble-row sunk" style="top:308px">
+            <span class="row-emoji">🌙</span>
+            <span class="row-name">Midnight Munchies</span>
+            <span class="row-meta micro">6 people</span>
+          </div>
+          <div id="s4-r2" class="bubble-row sunk" style="top:490px">
+            <span class="row-emoji">🌹</span>
+            <span class="row-name">Date Night</span>
+            <span class="row-meta micro">2 people</span>
+          </div>
+          <div id="s4-r3" class="bubble-row sunk" style="top:672px">
+            <span class="row-emoji">🍻</span>
+            <span class="row-name">Drinks Up</span>
+            <span class="row-meta micro">11 people</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ Scene 5 — GAVEL — 15.8 → 19.0 ══ -->
+      <section id="s5" class="clip" data-start="15.8" data-duration="3.2" data-track-index="4">
+        <div id="s5-wrap">
+          <h2 id="s5-justdecide" class="display">Just decide</h2>
+          <div id="s5-sl1" class="sl-card sunk" style="left:310px">
+            <span class="sl-name">Sable</span>
+            <span class="sl-tag micro">Late-night</span>
+          </div>
+          <div id="s5-sl2" class="sl-card sunk" style="left:790px">
+            <span class="sl-name">Casa Nero</span>
+            <span class="sl-tag micro">Wavy</span>
+          </div>
+          <div id="s5-sl3" class="sl-card sunk" style="left:1270px">
+            <span class="sl-name">Kin Cafe</span>
+            <span class="sl-tag micro">Cosy</span>
+          </div>
+          <div id="s5-decided">
+            <span id="s5-decided-name">Casa Nero</span>
+            <span id="s5-decided-tag">Decided</span>
+          </div>
+          <div id="s5-ripple"></div>
+          <div id="s5-gavel">GAVEL</div>
+          <div id="s5-cursor"></div>
+        </div>
+      </section>
+
+      <!-- ══ Scene 6 — end card — 19.0 → 21.0 ══ -->
+      <section id="s6" class="clip" data-start="19" data-duration="2" data-track-index="5">
+        <div id="s6-wrap">
+          <div id="s6-dot"></div>
+          <div id="s6-logo"></div>
+          <div id="s6-line" class="display">Somebody had to decide.</div>
+        </div>
+      </section>
+
+      <!-- ══ Audio ══
+           Music bed with a declarative volume envelope: quiet under the hook,
+           lift on the reveal, ducked hard under the gavel, faded on the logo. -->
+      <audio
+        id="music"
+        src="assets/music/music.mp3"
+        data-start="0"
+        data-duration="21"
+        data-track-index="10"
+        data-automation='{"version":1,"lanes":[{"target":"volume","points":[
+          {"t":0,"v":0.30},{"t":3.30,"v":0.34},{"t":3.95,"v":0.62},
+          {"t":8.00,"v":0.72},{"t":17.10,"v":0.72},
+          {"t":17.30,"v":0.15},{"t":17.80,"v":0.16},{"t":18.40,"v":0.66},
+          {"t":20.20,"v":0.62},{"t":21.00,"v":0}]}]}'
+      ></audio>
+
+      <!-- chat bubbles — soft warm accent, low HF risk -->
+      <audio id="sfx-b1" src="assets/sfx/interface/bong_001.ogg" data-start="0.30" data-duration="0.123" data-track-index="11" data-volume="0.30"></audio>
+      <audio id="sfx-b2" src="assets/sfx/interface/bong_001.ogg" data-start="1.075" data-duration="0.123" data-track-index="11" data-volume="0.34"></audio>
+      <audio id="sfx-b3" src="assets/sfx/interface/bong_001.ogg" data-start="2.12" data-duration="0.123" data-track-index="11" data-volume="0.38"></audio>
+      <!-- status chain ticks -->
+      <audio id="sfx-s1" src="assets/sfx/ui/click2.ogg" data-start="3.70" data-duration="0.056" data-track-index="12" data-volume="0.40"></audio>
+      <audio id="sfx-s2" src="assets/sfx/ui/click2.ogg" data-start="4.75" data-duration="0.056" data-track-index="12" data-volume="0.40"></audio>
+      <audio id="sfx-s3" src="assets/sfx/ui/click2.ogg" data-start="5.80" data-duration="0.056" data-track-index="12" data-volume="0.40"></audio>
+      <!-- "Found 3 Locations" payoff -->
+      <audio id="sfx-found" src="assets/sfx/impact/impactBell_heavy_000.ogg" data-start="6.86" data-duration="1.48" data-track-index="13" data-volume="0.46"></audio>
+      <!-- pin drops -->
+      <audio id="sfx-pin1" src="assets/sfx/impact/impactSoft_medium_000.ogg" data-start="8.96" data-duration="0.118" data-track-index="14" data-volume="0.44"></audio>
+      <audio id="sfx-pin2" src="assets/sfx/impact/impactSoft_medium_000.ogg" data-start="10.01" data-duration="0.118" data-track-index="14" data-volume="0.44"></audio>
+      <audio id="sfx-pin3" src="assets/sfx/impact/impactSoft_medium_000.ogg" data-start="11.06" data-duration="0.118" data-track-index="14" data-volume="0.44"></audio>
+      <!-- bubble rows sliding in -->
+      <audio id="sfx-row1" src="assets/sfx/casino/card-slide-1.ogg" data-start="12.65" data-duration="0.601" data-track-index="15" data-volume="0.38"></audio>
+      <audio id="sfx-row2" src="assets/sfx/casino/card-slide-1.ogg" data-start="13.70" data-duration="0.601" data-track-index="15" data-volume="0.38"></audio>
+      <audio id="sfx-row3" src="assets/sfx/casino/card-slide-1.ogg" data-start="14.76" data-duration="0.601" data-track-index="15" data-volume="0.38"></audio>
+      <!-- THE GAVEL: the only loud moment in the video -->
+      <audio id="sfx-gavel" src="assets/sfx/impact/impactWood_medium_003.ogg" data-start="17.39" data-duration="0.333" data-track-index="16" data-volume="1"></audio>
+    </div>
+
+    <script>
+      (function () {
+        var tl = gsap.timeline({ paused: true });
+        var root = document.getElementById("root");
+
+        // Finite repeat count for an ambient yoyo loop (never repeat:-1).
+        function rep(total, half) {
+          return Math.max(0, Math.floor(total / (half * 2)) - 1);
+        }
+
+        /* ── Audio-reactive: pre-extracted bands → CSS custom properties.
+           Driven by one proxy tween's onUpdate so it stays seek-safe, and
+           written to CSS vars so it never fights a GSAP property tween.
+           Targets background glow warmth + card shadow presence only.     ── */
+        var AD = window.AUDIO_DATA;
+        if (AD && AD.rms && AD.rms.length) {
+          var last = AD.rms.length - 1;
+          var prox = { f: 0 };
+          tl.to(
+            prox,
+            {
+              f: last,
+              duration: 21,
+              ease: "none",
+              onUpdate: function () {
+                var i = prox.f | 0;
+                if (i < 0) i = 0;
+                if (i > last) i = last;
+                root.style.setProperty("--a-rms", AD.rms[i].toFixed(3));
+                root.style.setProperty("--a-bass", AD.bass[i].toFixed(3));
+              },
+            },
+            0
+          );
+        }
+
+        // Ambient background drift — slow, continuous, never static.
+        tl.to("#bg-warmth", { x: -70, y: 46, duration: 10.5, ease: "sine.inOut", yoyo: true, repeat: rep(21, 10.5) }, 0);
+
+        /* ══ Scene 1 — the group chat (0 → 3.5) ══
+           Bubbles accumulate and the full set holds 1.38s, so every line has
+           well over its read floor. Gaps sit on the beat grid. */
+        tl.fromTo("#s1-wrap", { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power2.out" }, 0);
+        tl.fromTo("#s1-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.5, ease: "power3.out" }, 0.12);
+        tl.fromTo(".scene-label", { y: 16, opacity: 0 }, { y: 0, opacity: 1, duration: 0.45, ease: "power2.out" }, 0.06);
+
+        var b = [
+          { el: "#s1-b1", t: 0.30 },   // natural timing — opens immediately, no dead air
+          { el: "#s1-b2", t: 1.075 },  // beat-grid: 1.075s
+          { el: "#s1-b3", t: 2.12 },   // beat-grid: 2.12s (every other beat @114.84 BPM)
+        ];
+        for (var i = 0; i < b.length; i++) {
+          tl.fromTo(
+            b[i].el,
+            { y: 34, scale: 0.94, opacity: 0 },
+            { y: 0, scale: 1, opacity: 1, duration: 0.42, ease: "back.out(1.7)" },
+            b[i].t
+          );
+        }
+        tl.fromTo("#s1-ghost", { opacity: 0, x: 40 }, { opacity: 0.13, x: 0, duration: 0.9, ease: "power2.out" }, 0.2);
+        tl.to("#s1-ghost", { y: -22, duration: 1.6, ease: "sine.inOut", yoyo: true, repeat: rep(3.3, 1.6) }, 1.1);
+
+        /* ══ Scene 2 — a reel becomes real places (3.5 → 8.0) ══ */
+        tl.fromTo("#s2-wrap", { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power2.out" }, 3.5);
+        tl.fromTo("#s2-reel", { y: 56, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6, ease: "power3.out" }, 3.52);
+        tl.fromTo("#s2-play", { scale: 0.7, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.5, ease: "back.out(2)" }, 3.75);
+        tl.fromTo("#s2-label", { x: -22, opacity: 0 }, { x: 0, opacity: 1, duration: 0.45, ease: "power2.out" }, 3.6);
+        // accent status dot pulses while the app works
+        tl.fromTo("#s2-dot", { scale: 0 }, { scale: 1, duration: 0.3, ease: "back.out(3)" }, 3.68);
+        tl.to("#s2-dot", { opacity: 0.25, duration: 0.42, ease: "sine.inOut", yoyo: true, repeat: rep(3.1, 0.42) }, 3.98);
+
+        // Status chain: each line replaces the last, 1.05s apart (every other
+        // beat) so each clears its read floor. Real strings from the app.
+        var st = [
+          { el: "#s2-st1", t: 3.70 }, // beat-locked: 3.70s strong cue
+          { el: "#s2-st2", t: 4.75 }, // beat-grid: 4.75s
+          { el: "#s2-st3", t: 5.80 }, // beat-locked: 5.80s strong cue
+        ];
+        for (var j = 0; j < st.length; j++) {
+          tl.fromTo(st[j].el, { x: -22, opacity: 0 }, { x: 0, opacity: 1, duration: 0.3, ease: "power2.out" }, st[j].t);
+          // completed steps recede but stay readable — the log accumulates
+          if (j > 0) tl.to(st[j - 1].el, { opacity: 0.4, duration: 0.3, ease: "power2.out" }, st[j].t);
+        }
+        tl.to("#s2-st3", { opacity: 0.4, duration: 0.3, ease: "power2.out" }, 6.86);
+
+        // The payoff.
+        tl.fromTo("#s2-found", { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power3.out" }, 6.86); // beat-grid: 6.86s
+        tl.fromTo(
+          ["#s2-c1", "#s2-c2", "#s2-c3"],
+          { y: 26, opacity: 0 },
+          { y: 0, opacity: 1, duration: 0.38, ease: "power2.out", stagger: 0.11 },
+          7.02
+        );
+
+        /* ══ Scene 3 — your map fills up (8.0 → 12.0) ══ */
+        tl.fromTo("#s3-wrap", { opacity: 0 }, { opacity: 1, duration: 0.32, ease: "power2.out" }, 8.0);
+        tl.fromTo(".street", { scaleX: 0.86, opacity: 0 }, { scaleX: 1, opacity: 1, duration: 0.7, ease: "power2.out", stagger: 0.06 }, 8.04);
+        tl.fromTo(".block", { opacity: 0 }, { opacity: 1, duration: 0.6, ease: "power2.out", stagger: 0.08 }, 8.2);
+        tl.fromTo("#s3-shortlist", { y: -22, opacity: 0 }, { y: 0, opacity: 1, duration: 0.45, ease: "power2.out" }, 8.3);
+
+        // 3 pins drop one at a time on the beat grid; counter ticks with each.
+        var pins = [
+          { el: "#s3-p1", t: 8.96 },  // beat-locked: 8.96s strong cue
+          { el: "#s3-p2", t: 10.01 }, // beat-grid: 10.01s
+          { el: "#s3-p3", t: 11.06 }, // beat-grid: 11.06s
+        ];
+        var slEl = document.getElementById("s3-shortlist");
+        for (var k = 0; k < pins.length; k++) {
+          tl.fromTo(
+            pins[k].el + " .pin",
+            { y: -170, scale: 0.5, opacity: 0 },
+            { y: 0, scale: 1, opacity: 1, duration: 0.42, ease: "back.out(2.2)" },
+            pins[k].t
+          );
+          tl.fromTo(
+            pins[k].el + " .pin-card",
+            { x: -26, opacity: 0 },
+            { x: 0, opacity: 1, duration: 0.34, ease: "power2.out" },
+            pins[k].t + 0.16
+          );
+          tl.call(
+            (function (n) {
+              return function () {
+                slEl.textContent = "Shortlist (" + n + ")";
+              };
+            })(k + 1),
+            [],
+            pins[k].t + 0.1
+          );
+          tl.to(slEl, { scale: 1.07, duration: 0.14, ease: "power2.out", yoyo: true, repeat: 1 }, pins[k].t + 0.1);
+        }
+
+        /* ══ Scene 4 — the bubble (12.0 → 15.8) ══ */
+        tl.fromTo("#s4-wrap", { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power2.out" }, 12.0);
+        tl.fromTo("#s4-rings", { opacity: 0, scale: 0.9 }, { opacity: 1, scale: 1, duration: 0.8, ease: "power3.out" }, 12.05);
+        tl.to("#s4-rings", { y: -26, duration: 1.8, ease: "sine.inOut", yoyo: true, repeat: rep(3.6, 1.8) }, 12.1);
+
+        var rows = [
+          { el: "#s4-r1", t: 12.65 }, // beat-locked: 12.65s strong cue
+          { el: "#s4-r2", t: 13.70 }, // beat-grid: 13.70s
+          { el: "#s4-r3", t: 14.76 }, // beat-grid: 14.76s
+        ];
+        for (var m = 0; m < rows.length; m++) {
+          tl.fromTo(
+            rows[m].el,
+            { x: -70, opacity: 0 },
+            { x: 0, opacity: 1, duration: 0.46, ease: "power3.out" },
+            rows[m].t
+          );
+        }
+
+        /* ══ Scene 5 — GAVEL (15.8 → 19.0) ══
+           Simulated tap; on impact the shortlist collapses to one card. */
+        tl.fromTo("#s5-wrap", { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power2.out" }, 15.8);
+        tl.fromTo("#s5-justdecide", { y: 22, opacity: 0 }, { y: 0, opacity: 1, duration: 0.42, ease: "power2.out" }, 15.84);
+        tl.fromTo(
+          ["#s5-sl1", "#s5-sl2", "#s5-sl3"],
+          { y: 34, opacity: 0 },
+          { y: 0, opacity: 1, duration: 0.42, ease: "power3.out", stagger: 0.09 },
+          15.9
+        );
+        tl.fromTo("#s5-gavel", { y: 30, scale: 0.9, opacity: 0 }, { y: 0, scale: 1, opacity: 1, duration: 0.46, ease: "back.out(1.8)" }, 16.34); // beat-grid: 16.34s
+
+        // cursor travels in, then presses on the knock
+        tl.fromTo("#s5-cursor", { x: 0, y: 0, opacity: 0 }, { opacity: 1, duration: 0.22, ease: "power2.out" }, 16.6);
+        tl.to("#s5-cursor", { x: -469, y: -150, duration: 0.72, ease: "power2.inOut" }, 16.62);
+        tl.to("#s5-cursor", { scale: 0.76, duration: 0.1, ease: "power2.out" }, 17.32);
+
+        // ── the knock ──
+        tl.to("#s5-gavel", { scale: 0.93, duration: 0.09, ease: "power2.out" }, 17.32);
+        tl.to("#s5-gavel", { scale: 1, duration: 0.3, ease: "back.out(3)" }, 17.41); // beat-locked: 17.39s grid beat
+        // immediateRender:false — otherwise GSAP applies the visible from-state
+        // (opacity .9) at authoring time and the ring outlines the button from 15.8s.
+        tl.fromTo("#s5-ripple", { scale: 1, opacity: 0.9 }, { scale: 1.55, opacity: 0, duration: 0.62, ease: "power2.out", immediateRender: false }, 17.39);
+        tl.to("#s5-cursor", { scale: 1, opacity: 0, duration: 0.26, ease: "power2.out" }, 17.44);
+
+        // three collapse into one
+        tl.to("#s5-sl1", { x: 550, y: -14, scale: 0.72, opacity: 0, duration: 0.36, ease: "power3.in" }, 17.39);
+        tl.to("#s5-sl2", { y: -14, scale: 0.72, opacity: 0, duration: 0.36, ease: "power3.in" }, 17.39);
+        tl.to("#s5-sl3", { x: -550, y: -14, scale: 0.72, opacity: 0, duration: 0.36, ease: "power3.in" }, 17.39);
+        tl.fromTo("#s5-decided", { scale: 0.86, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.5, ease: "back.out(1.6)" }, 17.62);
+
+        /* ══ Scene 6 — end card (19.0 → 21.0) ══ */
+        tl.fromTo("#s6-wrap", { opacity: 0 }, { opacity: 1, duration: 0.34, ease: "power2.out" }, 19.0);
+        tl.fromTo("#s6-logo", { y: 26, scale: 0.97, opacity: 0 }, { y: 0, scale: 1, opacity: 1, duration: 0.62, ease: "power3.out" }, 19.04);
+        tl.fromTo("#s6-dot", { scale: 0 }, { scale: 1, duration: 0.34, ease: "back.out(3)" }, 19.3);
+        tl.fromTo("#s6-line", { y: 24, opacity: 0 }, { y: 0, opacity: 1, duration: 0.55, ease: "power3.out" }, 19.36);
+
+        window.__timelines["main"] = tl;
+      })();
+    </script>
+  </body>
+</html>

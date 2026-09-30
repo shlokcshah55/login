@@ -5,7 +5,7 @@ import FirebaseMessaging
 import UserNotifications
 
 @main
-@objc class AppDelegate: FlutterAppDelegate {
+@objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   private let CHANNEL = "com.example.srishlok.pinit/share"
   private let GEOFENCE_CHANNEL = "com.example.srishlok.pinit/geofence"
   private let NOTIFICATIONS_CHANNEL = "com.example.srishlok.pinit/notifications"
@@ -18,8 +18,6 @@ import UserNotifications
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    GeneratedPluginRegistrant.register(with: self)
-
     // Firebase will be initialized by Flutter (main.dart) - don't initialize here to avoid blocking
     // This prevents app launch hang while still supporting push notifications
 
@@ -34,11 +32,18 @@ import UserNotifications
 
     application.registerForRemoteNotifications()
 
+    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  // With the UIScene lifecycle the window and root view controller don't exist yet in
+  // didFinishLaunching, so plugins and channels are registered once the engine is ready.
+  func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
+    GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+
+    let messenger = engineBridge.applicationRegistrar.messenger()
+
     // Setup method channel for share extension communication
-    // Access the root view controller through the FlutterPluginRegistry
-    if let controller = window?.rootViewController as? FlutterViewController {
-      shareChannel = FlutterMethodChannel(name: CHANNEL, binaryMessenger: controller.binaryMessenger)
-    }
+    shareChannel = FlutterMethodChannel(name: CHANNEL, binaryMessenger: messenger)
 
     shareChannel?.setMethodCallHandler { (call: FlutterMethodCall, result: @escaping FlutterResult) in
       if call.method == "saveUserId" {
@@ -51,14 +56,10 @@ import UserNotifications
     }
 
     // Setup geofence method channel
-    if let controller = window?.rootViewController as? FlutterViewController {
-      geofenceChannel = FlutterMethodChannel(name: GEOFENCE_CHANNEL, binaryMessenger: controller.binaryMessenger)
-      geofenceManager.setEventChannel(geofenceChannel!)
-    }
+    geofenceChannel = FlutterMethodChannel(name: GEOFENCE_CHANNEL, binaryMessenger: messenger)
+    geofenceManager.setEventChannel(geofenceChannel!)
 
-    if let controller = window?.rootViewController as? FlutterViewController {
-      notificationsChannel = FlutterMethodChannel(name: NOTIFICATIONS_CHANNEL, binaryMessenger: controller.binaryMessenger)
-    }
+    notificationsChannel = FlutterMethodChannel(name: NOTIFICATIONS_CHANNEL, binaryMessenger: messenger)
 
     geofenceChannel?.setMethodCallHandler { (call: FlutterMethodCall, result: @escaping FlutterResult) in
       if call.method == "registerGeofences" {
@@ -83,8 +84,6 @@ import UserNotifications
         result(FlutterMethodNotImplemented)
       }
     }
-
-    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
   // Handle deep links (for OAuth callbacks)

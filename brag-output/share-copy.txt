@@ -1,0 +1,3 @@
+Made Pinit. Send it a food TikTok and it pulls the actual restaurants out of the video, drops them on your group's map, and shortlists them.
+
+Then there's a button called GAVEL. Somebody had to decide.

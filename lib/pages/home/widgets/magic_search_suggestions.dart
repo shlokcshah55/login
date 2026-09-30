@@ -712,7 +712,7 @@ class _NariaSocialButton extends StatelessWidget {
   });
 
   final String label;
-  final IconData icon;
+  final FaIconData icon;
   final VoidCallback onTap;
 
   @override
@@ -733,7 +733,7 @@ class _NariaSocialButton extends StatelessWidget {
               width: 1,
             ),
           ),
-          child: Icon(
+          child: FaIcon(
             icon,
             size: 14,
             color: pinit.PinitColors.aubergine,

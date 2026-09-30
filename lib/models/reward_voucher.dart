@@ -7,6 +7,9 @@ class RewardVoucher {
   final String campaignKey;
   final String merchantName;
   final int discountPercent;
+  final int? locationId;
+  final bool isSingleUse;
+  final int redemptionCount;
   final String status;
   final DateTime issuedAt;
   final DateTime? redeemedAt;
@@ -25,6 +28,9 @@ class RewardVoucher {
     required this.campaignKey,
     required this.merchantName,
     required this.discountPercent,
+    this.locationId,
+    this.isSingleUse = true,
+    this.redemptionCount = 0,
     required this.status,
     required this.issuedAt,
     required this.redeemedAt,
@@ -50,6 +56,9 @@ class RewardVoucher {
       campaignKey: json['campaign_key'] as String? ?? '',
       merchantName: json['merchant_name'] as String? ?? '',
       discountPercent: (json['discount_percent'] as num?)?.toInt() ?? 0,
+      locationId: (json['location_id'] as num?)?.toInt(),
+      isSingleUse: json['is_single_use'] as bool? ?? true,
+      redemptionCount: (json['redemption_count'] as num?)?.toInt() ?? 0,
       status: json['status'] as String? ?? 'available',
       issuedAt: issuedAt,
       redeemedAt: json['redeemed_at'] != null

@@ -63,11 +63,16 @@ void main() {
     await tester.pump();
 
     expect(find.text('Referrals and rewards'), findsOneWidget);
+    expect(find.text('PIN-FRIEND'), findsNothing);
+
+    await tester.tap(find.text('Referrals'));
+    await tester.pumpAndSettle();
+
     expect(find.text('PIN-FRIEND'), findsOneWidget);
     expect(find.text('Successful referrals'), findsOneWidget);
     expect(find.text('2'), findsOneWidget);
     expect(find.text('Available vouchers'), findsOneWidget);
-    expect(find.text('Use voucher'), findsOneWidget);
+    expect(find.text('Slide to use voucher'), findsOneWidget);
 
     await tester.scrollUntilVisible(
       find.text('Used vouchers'),
@@ -77,12 +82,19 @@ void main() {
 
     expect(find.text('Used vouchers'), findsOneWidget);
 
-    await tester.tap(find.text('Use voucher'));
+    // A short drag snaps back without redeeming.
+    await tester.drag(
+        find.byIcon(Icons.arrow_forward_rounded), const Offset(40, 0));
+    await tester.pumpAndSettle();
+    expect(provider.redeemedVoucherIds, isEmpty);
+
+    await tester.drag(
+        find.byIcon(Icons.arrow_forward_rounded), const Offset(1000, 0));
     await tester.pumpAndSettle();
 
     expect(provider.redeemedVoucherIds, ['voucher-1']);
 
-    expect(find.text('Use voucher'), findsNothing);
+    expect(find.text('Slide to use voucher'), findsNothing);
 
     expect(find.text('No available vouchers right now.'), findsNothing);
 
@@ -93,6 +105,51 @@ void main() {
     );
 
     expect(find.text('Used vouchers'), findsOneWidget);
+  });
+
+  testWidgets(
+      'hides the slider for multi-use vouchers and shows terms from the info button',
+      (tester) async {
+    tester.view.physicalSize = const Size(1170, 2532);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final provider = _FakeReferralRewardsProvider(
+      initialDashboard: ReferralDashboard(
+        referralCode: 'PIN-MULTI',
+        acceptedReferralCount: 0,
+        hasEnteredReferralCode: true,
+        availableVouchers: [
+          _voucher(
+            id: 'voucher-1',
+            status: 'available',
+            redeemedAt: null,
+            isSingleUse: false,
+          ),
+        ],
+        usedVouchers: const [],
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ReferralsRewardsPage(provider: provider),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Available vouchers'), findsOneWidget);
+    expect(find.text('Slide to use voucher'), findsNothing);
+
+    await tester.tap(find.byTooltip('Terms and conditions'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Terms and conditions'), findsOneWidget);
+    expect(
+      find.text('Valid at selected stores. Single use.'),
+      findsNWidgets(2),
+    );
   });
 
   testWidgets('shows an empty state when there are no vouchers yet', (
@@ -120,6 +177,9 @@ void main() {
     );
 
     await tester.pump();
+
+    await tester.tap(find.text('Referrals'));
+    await tester.pumpAndSettle();
 
     expect(find.text('PIN-EMPTY'), findsOneWidget);
     expect(find.text('Add a referral code'), findsOneWidget);
@@ -167,6 +227,9 @@ void main() {
     );
 
     await tester.pump();
+
+    await tester.tap(find.text('Referrals'));
+    await tester.pumpAndSettle();
 
     expect(find.text('PIN-USED'), findsOneWidget);
     expect(find.text('Add a referral code'), findsNothing);
@@ -326,6 +389,7 @@ RewardVoucher _voucher({
   required String id,
   required String status,
   required DateTime? redeemedAt,
+  bool isSingleUse = true,
 }) {
   return RewardVoucher(
     id: id,
@@ -336,6 +400,7 @@ RewardVoucher _voucher({
     campaignKey: 'imperial_farmers_market_10pct_selected_stores',
     merchantName: 'Imperial Farmers Market',
     discountPercent: 10,
+    isSingleUse: isSingleUse,
     status: status,
     issuedAt: DateTime(2026, 5, 14, 12),
     redeemedAt: redeemedAt,
