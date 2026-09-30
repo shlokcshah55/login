@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-**Pinit** — a consumer mobile app for place discovery, recommendations, maps, saving, and social context. The Flutter package is named `login` (legacy name), so all internal imports are `package:login/...`. The repo is a monorepo: a Flutter client (`lib/`), Python backend services (`api/`), and a Supabase project (`supabase/`).
+**Pinit** — a consumer mobile app for place discovery, recommendations, maps, saving, and social context. The Flutter package is named `login` (legacy name), so all internal imports are `package:login/...`. The repo is a monorepo: a Flutter client (`lib/`), Python backend services (`api/`, `ai/`), and a Supabase project (`supabase/`).
 
 ## Commands
 
@@ -20,7 +20,7 @@ flutter test integration_test/recommendations_test.dart -d iPhone
 ```
 Requires a `.env` file at the repo root — copy `.env.template` and fill in keys (`GOOGLE_PLACE_API_KEY`, `MAPBOX_ACCESS_TOKEN`, Firebase keys, `API_SECRET_KEY`, etc.). It is loaded at startup via `flutter_dotenv`.
 
-### Python backend (`api/*`)
+### Python backend (`api/*`, `ai/*`)
 Each service is self-contained with its own `venv/`, `requirements.txt`, `Dockerfile`, and `deploy.sh`. They deploy to **GCP Cloud Run** (project `pinit-10b36`, region `europe-west1`) using `functions-framework` / `gunicorn`.
 ```bash
 cd api/<service> && ./deploy.sh          # build + deploy that service
