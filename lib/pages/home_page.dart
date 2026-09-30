@@ -14,7 +14,6 @@ import 'package:login/pages/home/categories/category_glyph.dart';
 import 'package:login/pages/home/categories/home_category.dart';
 import 'package:login/pages/home/widgets/floating_location_card.dart';
 import 'package:login/pages/home/widgets/home_carousel.dart';
-import 'package:login/pages/home/widgets/home_filter_sheet.dart';
 import 'package:login/pages/home/widgets/home_header_search_shell.dart';
 import 'package:login/pages/home/widgets/home_map_layer.dart';
 // ARCHIVED: import 'package:login/pages/home/widgets/home_social_inbox_button.dart';
@@ -86,9 +85,6 @@ class _HomePageState extends State<HomePage> {
   final ProfileCompletionCardPreferencesService
       _profileCompletionCardPreferencesService =
       ProfileCompletionCardPreferencesService();
-  Set<String> _selectedVibeTagIds = <String>{};
-  Set<String> _selectedCuisineTagIds = <String>{};
-  int _maxResults = 30;
   bool _wizardPopoverScheduled = false;
   bool _wizardPopoverShown = false;
   bool _isWizardPopoverVisible = false;
@@ -759,38 +755,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Future<void> _openHomeFilters() async {
-    final result = await HomeFilterSheet.show(
-      context,
-      initialVibeTagIds: _selectedVibeTagIds,
-      initialCuisineTagIds: _selectedCuisineTagIds,
-      initialAvailabilityFilter: _locationListManager.availabilityFilter,
-      initialExcludeSaved: _locationListManager.excludeSavedFilter,
-      showMaxResults:
-          _locationListManager.currentListType == LocationListType.recommended,
-      initialMaxResults: _maxResults,
-    );
-    if (!mounted || result == null) return;
-    if (result.launchSweetTreat) {
-      unawaited(_viewModel.submitDefaultSweetTreatSearch());
-      return;
-    }
-    setState(() {
-      _selectedVibeTagIds = result.vibeTagIds;
-      _selectedCuisineTagIds = result.cuisineTagIds;
-      _maxResults = result.maxResults;
-    });
-    await _locationListManager.applyFilters(
-      vibeTagIds: result.vibeTagIds.toList(),
-      cuisineTagIds: result.cuisineTagIds.toList(),
-      availabilityFilter: result.availabilityFilter,
-      excludeSaved: result.excludeSaved,
-      vibeTagNames: result.vibeTagNames,
-      cuisineTagNames: result.cuisineTagNames,
-      maxResults: result.maxResults,
-    );
-  }
-
   @override
   void dispose() {
     _locationListManager.removeListener(_checkForErrors);
@@ -925,96 +889,6 @@ class _HomePageState extends State<HomePage> {
                                         ),
                                       ),
                                     ),
-                                    if (!(viewModel.isMagicSearchActive &&
-                                        viewModel.currentListType ==
-                                            LocationListType.search)) ...[
-                                      const SizedBox(height: 10),
-                                      GestureDetector(
-                                        onTap: _openHomeFilters,
-                                        child: Stack(
-                                          clipBehavior: Clip.none,
-                                          children: [
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                horizontal: 12,
-                                                vertical: 8,
-                                              ),
-                                              decoration: BoxDecoration(
-                                                color: pinit.PinitColors.cream,
-                                                borderRadius:
-                                                    BorderRadius.circular(999),
-                                                border: Border.all(
-                                                  color: pinit
-                                                      .PinitColors.aubergine,
-                                                  width: 1.5,
-                                                ),
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color: pinit
-                                                        .PinitColors.aubergine,
-                                                    blurRadius: 0,
-                                                    offset: const Offset(3, 3),
-                                                  ),
-                                                ],
-                                              ),
-                                              child: Icon(
-                                                FeatherIcons.sliders,
-                                                size: 15,
-                                                color:
-                                                    pinit.PinitColors.aubergine,
-                                              ),
-                                            ),
-                                            if (_selectedVibeTagIds
-                                                    .isNotEmpty ||
-                                                _selectedCuisineTagIds
-                                                    .isNotEmpty)
-                                              Positioned(
-                                                top: -4,
-                                                right: -2,
-                                                child: Container(
-                                                  constraints:
-                                                      const BoxConstraints(
-                                                    minWidth: 18,
-                                                    minHeight: 18,
-                                                  ),
-                                                  padding: const EdgeInsets
-                                                      .symmetric(
-                                                    horizontal: 5,
-                                                    vertical: 2,
-                                                  ),
-                                                  decoration: BoxDecoration(
-                                                    color: pinit
-                                                        .PinitColors.accent,
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                      999,
-                                                    ),
-                                                    border: Border.all(
-                                                      color: pinit
-                                                          .PinitColors.cream,
-                                                      width: 1.2,
-                                                    ),
-                                                  ),
-                                                  child: Center(
-                                                    child: Text(
-                                                      '${_selectedVibeTagIds.length + _selectedCuisineTagIds.length}',
-                                                      style: AppTypography.sans(
-                                                        fontSize: 10,
-                                                        fontWeight:
-                                                            FontWeight.w800,
-                                                        color: pinit
-                                                            .PinitColors.cream,
-                                                        height: 1.0,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
                                   ],
                                 ),
                                 Column(
