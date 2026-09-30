@@ -22,7 +22,17 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:login/services/fcm_service.dart';
 
 // Enum to represent the different types of location lists
-enum LocationListType { saved, recommended, search, bubble, bubbleSaved }
+enum LocationListType {
+  saved,
+  recommended,
+  search,
+  bubble,
+  bubbleSaved,
+
+  /// Curated landing set shown on the category (Tier 1) stage: a random mix of
+  /// the user's saves and picks. See [LocationListManager.buildOverviewOnMap].
+  overview,
+}
 
 typedef SavedLocationMarkerBuilder = Future<MapMarkerData?> Function(
   LocationModel location,
@@ -124,6 +134,13 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
   Map<LocationModel, MapMarkerData> _searchLocations = {};
   Map<LocationModel, MapMarkerData> _bubbleLocations = {};
   Map<LocationModel, MapMarkerData> _bubbleSavedLocations = {};
+  Map<LocationModel, MapMarkerData> _overviewLocations = {};
+
+  // Cached random ordering for the overview (saves+picks) so the mix stays
+  // stable for the session and only reshuffles when the underlying sets change.
+  final List<LocationModel> _overviewOrder = [];
+  Set<int> _overviewSignature = <int>{};
+  final math.Random _overviewRandom = math.Random();
 
   // Per-collection marker cache. Keyed by collectionId, capped LRU.
   static const int _collectionCacheMaxEntries = 10;
@@ -147,6 +164,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
   Map<LocationModel, MapMarkerData> get bubbleLocations => _bubbleLocations;
   Map<LocationModel, MapMarkerData> get bubbleSavedLocations =>
       _bubbleSavedLocations;
+  Map<LocationModel, MapMarkerData> get overviewLocations => _overviewLocations;
   bool get isLoadingBubbleSaved => _isLoadingBubbleSaved;
   Map<LocationModel, MapMarkerData> get currentItems => _currentItems;
   List<LocationModel> get justDecideLocations => _justDecideLocations;
@@ -862,6 +880,9 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       case LocationListType.bubbleSaved:
         _currentItems = _bubbleSavedLocations;
         break;
+      case LocationListType.overview:
+        _currentItems = _overviewLocations;
+        break;
     }
     print(
         "Set current list type to: $type, item count: ${_currentItems.length}");
@@ -1251,6 +1272,87 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
     await setCurrentListType(LocationListType.search);
   }
 
+  /// Builds the landing "overview" set for the category (Tier 1) stage: a random
+  /// mix of the user's saved spots and their picks (recommendations), deduped by
+  /// locationId (a saved spot wins over the same spot as a pick).
+  ///
+  /// The random order is cached for the session and only reshuffled when the
+  /// underlying saved/recommended sets change, so pins don't jump around on
+  /// every rebuild. Density is handled downstream by the map presentation layer
+  /// (compact dots), so no hard cap is applied here.
+  Future<void> buildOverviewOnMap() async {
+    final saved = _savedLocations.keys
+        .where((l) => l.lat != null && l.lng != null)
+        .toList();
+    final savedIds = saved.map((l) => l.locationId).toSet();
+    final picks = _recommendedLocations.keys
+        .where((l) =>
+            l.lat != null &&
+            l.lng != null &&
+            !savedIds.contains(l.locationId))
+        .toList();
+
+    final signature = <int>{
+      ...savedIds,
+      ...picks.map((l) => l.locationId),
+    };
+    final needsReshuffle = _overviewOrder.isEmpty ||
+        signature.length != _overviewSignature.length ||
+        !signature.containsAll(_overviewSignature);
+
+    if (needsReshuffle) {
+      final combined = <LocationModel>[...saved, ...picks]
+        ..shuffle(_overviewRandom);
+      _overviewOrder
+        ..clear()
+        ..addAll(combined);
+      _overviewSignature = signature;
+    }
+
+    if (_overviewOrder.isEmpty) {
+      _overviewLocations = {};
+      await setCurrentListType(LocationListType.overview);
+      return;
+    }
+
+    // Preference per origin so saved/pick markers keep their own visual identity.
+    final markers = await Future.wait(
+      _overviewOrder.map((location) async {
+        final preference = savedIds.contains(location.locationId)
+            ? LocationPreference.saved
+            : LocationPreference.recommended;
+        final marker = await location
+            .setPreference(preference)
+            .toMarker(_devicePixelRatio, shouldShowName: false);
+
+        return MapEntry(
+          location,
+          marker ??
+              MapMarkerData(
+                id: location.locationId.toString(),
+                position: LatLng(location.lat!, location.lng!),
+                imageBytes: const [],
+                title: location.name,
+                snippet: location.vicinity ?? '',
+              ),
+        );
+      }),
+    );
+
+    _overviewLocations = Map.fromEntries(markers);
+    _error = null;
+    await setCurrentListType(LocationListType.overview);
+  }
+
+  /// Resolves a locationId to its [LocationModel] within the current overview
+  /// set (used by the category-stage floating card).
+  LocationModel? overviewLocationById(int locationId) {
+    for (final location in _overviewLocations.keys) {
+      if (location.locationId == locationId) return location;
+    }
+    return null;
+  }
+
   Future<void> fetchHiddenGems() async {
     if (_isLoadingHiddenGems) return;
     _isLoadingHiddenGems = true;
@@ -1416,6 +1518,9 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       LocationListType.search => _allSearchLocations,
       LocationListType.bubble => _allBubbleLocations,
       LocationListType.bubbleSaved => _allBubbleSavedLocations,
+      // Overview is built ad-hoc from saved + recommended; it keeps no separate
+      // unfiltered cache of its own.
+      LocationListType.overview => _overviewOrder,
     };
   }
 
@@ -1426,6 +1531,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       LocationListType.search => _searchLocations,
       LocationListType.bubble => _bubbleLocations,
       LocationListType.bubbleSaved => _bubbleSavedLocations,
+      LocationListType.overview => _overviewLocations,
     };
   }
 
@@ -1441,6 +1547,9 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
         _allBubbleLocations = list;
       case LocationListType.bubbleSaved:
         _allBubbleSavedLocations = list;
+      case LocationListType.overview:
+        // Overview has no independent unfiltered cache; ignore.
+        break;
     }
   }
 
@@ -1457,6 +1566,8 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
         _bubbleLocations = map;
       case LocationListType.bubbleSaved:
         _bubbleSavedLocations = map;
+      case LocationListType.overview:
+        _overviewLocations = map;
     }
   }
 
@@ -1646,6 +1757,9 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       LocationListType.bubble ||
       LocationListType.bubbleSaved =>
         LocationPreference.bubble,
+      // Overview builds markers with a per-location preference in
+      // buildOverviewOnMap and does not go through this generic path.
+      LocationListType.overview => LocationPreference.saved,
     };
 
     final markers = await Future.wait(

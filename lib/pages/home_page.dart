@@ -9,12 +9,13 @@ import 'package:login/pages/home/home_view_model.dart';
 import 'package:login/pages/home/search/header_search_location_hydrator.dart';
 import 'package:login/pages/home/search/header_search_readiness.dart';
 import 'package:login/pages/home/search/header_search_types.dart';
+import 'package:login/pages/home/widgets/category_carousel.dart';
+import 'package:login/pages/home/widgets/floating_location_card.dart';
 import 'package:login/pages/home/widgets/home_carousel.dart';
 import 'package:login/pages/home/widgets/home_filter_sheet.dart';
 import 'package:login/pages/home/widgets/home_header_search_shell.dart';
 import 'package:login/pages/home/widgets/home_map_layer.dart';
 // ARCHIVED: import 'package:login/pages/home/widgets/home_social_inbox_button.dart';
-import 'package:login/pages/home/widgets/profile_completion_carousel_card.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
 import 'package:login/pages/social_review/social_review_inbox_page.dart';
 import 'package:login/themes/app_typography.dart';
@@ -1179,49 +1180,70 @@ class _HomePageState extends State<HomePage> {
                               eyebrow: 'FILTERING',
                               title: 'Matching your filters...',
                             )
-                          else
-                            HomeCarousel(
-                              pageController: viewModel.pageController,
-                              locations: viewModel.locations,
-                              leadingCard: viewModel
-                                      .shouldShowProfileChecklistCard
-                                  ? ProfileCompletionCarouselCard(
-                                      isCollapsed: _profileChecklistCollapsed,
-                                      state: viewModel.profileChecklistState,
-                                    )
-                                  : null,
-                              heightOverride: viewModel
-                                          .shouldShowProfileChecklistCard &&
-                                      _carouselPageIndex == 0 &&
-                                      _profileChecklistCollapsed
-                                  ? (viewModel.bottomNavVisible ? 140.0 : 160.0)
-                                  : null,
-                              selectedMarkerId: viewModel.selectedMarkerId,
+                          else if (viewModel.homeBrowseStage ==
+                                  HomeBrowseStage.categories &&
+                              viewModel.selectedOverviewLocation != null)
+                            // A tapped pin replaces the category carousel with
+                            // its card until dismissed.
+                            FloatingLocationCard(
+                              key: ValueKey(
+                                viewModel.selectedOverviewLocation!.locationId,
+                              ),
+                              location: viewModel.selectedOverviewLocation!,
                               bottomNavVisible: viewModel.bottomNavVisible,
-                              onPageChanged: (index) {
-                                if (_carouselPageIndex != index) {
-                                  setState(() => _carouselPageIndex = index);
-                                }
-                                viewModel.onCarouselPageChanged(index);
-                              },
-                              showFirstItemSwipeHint:
-                                  _showFirstCarouselSwipeHint &&
-                                      viewModel.locations.isNotEmpty,
-                              onFirstItemSwipeHintCompleted:
-                                  _dismissFirstCarouselSwipeHint,
-                              onScrollStart: () {
-                                _dismissFirstCarouselSwipeHint();
-                                viewModel.onCarouselScrollStart();
-                              },
                               onLocationSelected: viewModel.onLocationSelected,
-                              onSwipeUp: (location) {
-                                _dismissFirstCarouselSwipeHint();
-                                viewModel.onCarouselSwipeUp(location);
+                              onDismiss: viewModel.clearPinSelection,
+                            )
+                          else if (viewModel.homeBrowseStage ==
+                              HomeBrowseStage.categories)
+                            CategoryCarousel(
+                              categories: viewModel.homeCategories,
+                              bottomNavVisible: viewModel.bottomNavVisible,
+                              onCategorySelected: (category) {
+                                unawaited(viewModel.openCategory(category));
                               },
-                              onSwipeDown: (location) {
-                                _dismissFirstCarouselSwipeHint();
-                                viewModel.onCarouselSwipeDown(location);
-                              },
+                            )
+                          else
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _FocusedCategoryHeader(
+                                  label: viewModel.activeCategory?.label ?? '',
+                                  onBack: viewModel.closeCategory,
+                                ),
+                                HomeCarousel(
+                                  pageController: viewModel.pageController,
+                                  locations: viewModel.locations,
+                                  selectedMarkerId: viewModel.selectedMarkerId,
+                                  bottomNavVisible: viewModel.bottomNavVisible,
+                                  onPageChanged: (index) {
+                                    if (_carouselPageIndex != index) {
+                                      setState(
+                                          () => _carouselPageIndex = index);
+                                    }
+                                    viewModel.onCarouselPageChanged(index);
+                                  },
+                                  showFirstItemSwipeHint:
+                                      _showFirstCarouselSwipeHint &&
+                                          viewModel.locations.isNotEmpty,
+                                  onFirstItemSwipeHintCompleted:
+                                      _dismissFirstCarouselSwipeHint,
+                                  onScrollStart: () {
+                                    _dismissFirstCarouselSwipeHint();
+                                    viewModel.onCarouselScrollStart();
+                                  },
+                                  onLocationSelected:
+                                      viewModel.onLocationSelected,
+                                  onSwipeUp: (location) {
+                                    _dismissFirstCarouselSwipeHint();
+                                    viewModel.onCarouselSwipeUp(location);
+                                  },
+                                  onSwipeDown: (location) {
+                                    _dismissFirstCarouselSwipeHint();
+                                    viewModel.onCarouselSwipeDown(location);
+                                  },
+                                ),
+                              ],
                             ),
                         ],
                       ),
@@ -1899,46 +1921,74 @@ class _TopPanel extends StatelessWidget {
                           });
                         },
                       )
-                    : HomeChipRow(
-                            rowSpotlightKey: modeRowSpotlightKey,
-                            currentMode: viewModel.homeMode,
-                            onModeChanged: viewModel.setHomeMode,
-                            activeBubbleName: viewModel.activeBubbleName,
-                            collections: viewModel.collections,
-                            isLoadingCollections:
-                                viewModel.isLoadingCollections,
-                            activeCollectionId: viewModel.activeCollectionId,
-                            onCollectionMenuOpened: () {
-                              unawaited(viewModel.loadCollections());
-                            },
-                            onCollectionsVisibilityChanged:
-                                viewModel.setEatListsOpen,
-                            onCollectionSelected: (collection) {
-                              showModalBottomSheet(
-                                context: context,
-                                isScrollControlled: true,
-                                backgroundColor: Colors.transparent,
-                                builder: (_) => CollectionDetailSheet(
-                                  collection: CollectionModel.fromItem(
-                                    collection,
-                                  ),
-                                ),
-                              );
-                            },
-                            // ARCHIVED: social inbox button hidden from the
-                            // front end. Backend logic (SocialReviewProvider,
-                            // _openSocialReviewInbox, SocialReviewInboxPage)
-                            // is untouched. To restore, put back:
-                            // trailingAction: Consumer<SocialReviewProvider>(
-                            //   builder: (context, socialReview, _) =>
-                            //       HomeSocialInboxButton(
-                            //     count: socialReview.needsCheckingCount,
-                            //     onTap: onSocialInboxTap,
-                            //   ),
-                            // ),
-                          ),
+                    // The SAVED / PICKS / EAT-LISTS chip row has been replaced
+                    // by the category carousel landing (see CategoryCarousel).
+                    : const SizedBox.shrink(),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Slim bar shown above the focused location carousel. Tapping the chevron or
+/// swiping vertically on the bar returns to the category carousel.
+class _FocusedCategoryHeader extends StatelessWidget {
+  const _FocusedCategoryHeader({required this.label, required this.onBack});
+
+  final String label;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    final pc = Theme.of(context).extension<PinitColors>()!;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onVerticalDragEnd: (details) {
+        // Either direction dismisses back to the category tiles.
+        if ((details.primaryVelocity ?? 0).abs() > 80) onBack();
+      },
+      onTap: onBack,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: pc.surfaceBg,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: pc.textPrimary, width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: pc.textPrimary,
+                  blurRadius: 0,
+                  offset: const Offset(2, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(FeatherIcons.chevronLeft, size: 14, color: pc.textPrimary),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    label.isEmpty ? 'All categories' : label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: pc.textPrimary,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

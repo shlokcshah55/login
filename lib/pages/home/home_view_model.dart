@@ -7,6 +7,8 @@ import 'package:flutter/scheduler.dart';
 import 'package:login/utils/geo_types.dart';
 import 'package:login/models/bubble.dart';
 import 'package:login/models/locations.dart';
+import 'package:login/pages/home/categories/home_category.dart';
+import 'package:login/pages/home/categories/home_category_builder.dart';
 import 'package:login/pages/home/widgets/mode_toggle.dart';
 import 'package:login/pages/home/search/header_search_coordinator.dart';
 import 'package:login/pages/home/search/header_search_types.dart';
@@ -22,6 +24,11 @@ import 'package:login/services/profile_completion_checklist_service.dart';
 import 'package:login/supabase/helpers/collections.dart';
 import 'package:login/supabase/service.dart';
 import 'package:login/supabase/supabase_client.dart';
+
+/// Which tier of the home browse flow the carousel is showing.
+/// [categories] → the small category tiles; [focused] → the full-size
+/// location cards for the tapped category.
+enum HomeBrowseStage { categories, focused }
 
 class HomeViewModel extends ChangeNotifier {
   final LocationListManager locationListManager;
@@ -55,6 +62,11 @@ class HomeViewModel extends ChangeNotifier {
   String? _activeCollectionId;
   bool _isEatListsOpen = false;
 
+  // ── Category browse state ─────────────────────────────────────
+  HomeBrowseStage _browseStage = HomeBrowseStage.categories;
+  HomeCategory? _activeCategory;
+  List<HomeCategory>? _cachedCategories;
+
   // ── Mode toggle state ─────────────────────────────────────────
   HomeMode _homeMode = HomeMode.you;
   HomeMode _lastNonBubbleMode = HomeMode.you;
@@ -73,6 +85,11 @@ class HomeViewModel extends ChangeNotifier {
   bool _disposed = false;
   bool _externalNotifyQueued = false;
   bool _prefetchQueued = false;
+
+  // Tracks the saved/pick counts the overview was last built from, so the
+  // category-stage map only rebuilds (and reshuffles) when the data changes.
+  int _overviewSavedCount = -1;
+  int _overviewRecCount = -1;
 
   ProfileCompletionChecklistState? _profileChecklistState;
   String? _profileChecklistUserId;
@@ -167,6 +184,7 @@ class HomeViewModel extends ChangeNotifier {
     // chip row stays in sync after magic search or other list switches.
     switch (locationListManager.currentListType) {
       case LocationListType.saved:
+      case LocationListType.overview:
         return HomeMode.you;
       case LocationListType.recommended:
       case LocationListType.search:
@@ -220,6 +238,101 @@ class HomeViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ── Category browse ───────────────────────────────────────────
+  HomeBrowseStage get homeBrowseStage => _browseStage;
+  HomeCategory? get activeCategory => _activeCategory;
+
+  /// Ordered category tiles for the landing carousel. Memoised and rebuilt
+  /// when the underlying data (saved spots, area recommendations, collections)
+  /// changes — [_onExternalStateChanged] clears the cache.
+  List<HomeCategory> get homeCategories {
+    return _cachedCategories ??= HomeCategoryBuilder.build(
+      savedLocations: locationListManager.savedLocations.keys.toList(),
+      areaRecommendations:
+          locationListManager.recommendedLocations.keys.toList(),
+      vibeTagAffinity: userDataProvider.vibeTagAffinity,
+      collections: _collections,
+      loadCollectionLocations: (collectionId) =>
+          _collectionsHelper.getLocationsForCollection(collectionId),
+    );
+  }
+
+  /// Drill into [category]: load its spots, drop them on the map + carousel,
+  /// and switch to the focused stage.
+  Future<void> openCategory(HomeCategory category) async {
+    _activeCategory = category;
+    _browseStage = HomeBrowseStage.focused;
+    // Focused stage shows richer emoji pins + the swipeable carousel.
+    unawaited(mapStateProvider.setPinsDotsByDefault(false));
+    notifyListeners();
+
+    final locations = await category.resolve();
+    if (_disposed) return;
+    if (_activeCategory != category) return; // superseded by another tap
+
+    await locationListManager.showLocationsOnMap(locations);
+    if (locations.isNotEmpty) {
+      mapStateProvider
+          .setSelectedMarkerId(locations.first.locationId.toString());
+      unawaited(mapStateProvider.focusOnLocations(locations));
+    }
+    bottomNavVisibilityProvider.showTemporarily();
+    notifyListeners();
+  }
+
+  /// Return from the focused carousel to the category tiles.
+  void closeCategory() {
+    if (_browseStage == HomeBrowseStage.categories) return;
+    _browseStage = HomeBrowseStage.categories;
+    _activeCategory = null;
+    mapStateProvider.setSelectedMarkerId(null);
+    unawaited(_syncCategoryStageMap(force: true));
+    notifyListeners();
+  }
+
+  /// Builds/refreshes the category-stage landing map: a curated random mix of
+  /// saves + picks rendered as compact dots. No-ops when off the category stage
+  /// or when the underlying data hasn't changed since the last build (which also
+  /// guards against a rebuild → notify → rebuild loop).
+  Future<void> _syncCategoryStageMap({bool force = false}) async {
+    if (_disposed) return;
+    if (_browseStage != HomeBrowseStage.categories) return;
+    if (_isBubbleModeActive || _activeCollectionId != null) return;
+
+    unawaited(mapStateProvider.setPinsDotsByDefault(true));
+
+    final savedCount = locationListManager.savedLocations.length;
+    final recCount = locationListManager.recommendedLocations.length;
+    final alreadyShowingOverview =
+        locationListManager.currentListType == LocationListType.overview;
+    if (!force &&
+        alreadyShowingOverview &&
+        savedCount == _overviewSavedCount &&
+        recCount == _overviewRecCount) {
+      return;
+    }
+    _overviewSavedCount = savedCount;
+    _overviewRecCount = recCount;
+    await locationListManager.buildOverviewOnMap();
+  }
+
+  /// The location whose pin is currently selected on the category stage, if any
+  /// — drives the floating card shown above the category tiles.
+  LocationModel? get selectedOverviewLocation {
+    if (_browseStage != HomeBrowseStage.categories) return null;
+    final markerId = mapStateProvider.selectedMarkerId;
+    if (markerId == null) return null;
+    final locationId = int.tryParse(markerId);
+    if (locationId == null) return null;
+    return locationListManager.overviewLocationById(locationId);
+  }
+
+  /// Clears the current pin selection (dismisses the category-stage floating
+  /// card and returns the bloomed pin to a compact dot).
+  void clearPinSelection() {
+    mapStateProvider.setSelectedMarkerId(null);
+  }
+
   Future<void> _prefetchInitialRecommendationsIfReady() {
     if (_initialRecommendationsPrefetch != null) {
       return _initialRecommendationsPrefetch!;
@@ -255,6 +368,13 @@ class HomeViewModel extends ChangeNotifier {
   }
 
   Future<void> _resolveInitialDefaultListIfReady() async {
+    // On the category landing stage the map shows the curated overview
+    // (saves + picks), so don't auto-switch the active list to picks here. Keep
+    // recommendations warming so the mix and any drill-in are ready.
+    if (_browseStage == HomeBrowseStage.categories && !_userSelectedHomeMode) {
+      _scheduleRecommendationsPrefetch();
+      return;
+    }
     if (_initialDefaultListResolved ||
         _isResolvingInitialDefaultList ||
         _userSelectedHomeMode ||
@@ -354,9 +474,10 @@ class HomeViewModel extends ChangeNotifier {
     if (_initialized) return;
     _initialized = true;
 
-    unawaited(
-      locationListManager.setCurrentListType(LocationListType.saved),
-    );
+    // Landing shows the curated overview (saves + picks as dots) rather than a
+    // single list. It refreshes as saved/pick data arrives via
+    // _onExternalStateChanged.
+    unawaited(_syncCategoryStageMap(force: true));
     unawaited(_refreshProfileChecklistIfNeeded(force: true));
     mapStateProvider.setCarouselPageController(pageController);
     mapStateProvider.addListener(_onSelectedMarkerChanged);
@@ -381,10 +502,14 @@ class HomeViewModel extends ChangeNotifier {
   }
 
   void _onExternalStateChanged() {
+    // Saved spots / area recommendations may have changed — rebuild the
+    // category tiles on next access.
+    _cachedCategories = null;
     // Always warm recommendations in the background so Explore is ready without
     // an immediate loading state when opened.
     _scheduleRecommendationsPrefetch();
     unawaited(_resolveInitialDefaultListIfReady());
+    unawaited(_syncCategoryStageMap());
     unawaited(_refreshProfileChecklistIfNeeded());
     _notifyListenersSafely();
   }
@@ -525,6 +650,11 @@ class HomeViewModel extends ChangeNotifier {
 
   void onMapTap() {
     bottomNavVisibilityProvider.showTemporarily();
+    // Tapping empty map on the category stage dismisses the floating card.
+    if (_browseStage == HomeBrowseStage.categories &&
+        mapStateProvider.selectedMarkerId != null) {
+      clearPinSelection();
+    }
   }
 
   void onCarouselScrollStart() {
@@ -841,6 +971,7 @@ class HomeViewModel extends ChangeNotifier {
       _collections = [];
     } finally {
       _isLoadingCollections = false;
+      _cachedCategories = null; // eat-list tiles depend on collections
       notifyListeners();
     }
   }

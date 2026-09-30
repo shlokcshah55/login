@@ -1,15 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
-import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:flutter/material.dart' show Color, Curves;
+import 'package:flutter/material.dart' show Color, Curves, debugPrint;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 import 'package:login/models/locations.dart';
 import 'package:login/models/markers.dart';
 import 'package:login/models/proximal_models.dart' show FriendSave;
+import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
 import 'package:login/utils/friend_avatar_loader.dart';
 import 'package:login/utils/geo_types.dart';
 
@@ -24,14 +24,12 @@ class GeoJsonLayerConfig {
   final bool enableClustering;
 
   /// Clustering radius in screen pixels.
-  ///
-  /// Higher values make clustering more eager once the user is zoomed out
-  /// enough for clustering to be active.
   final int clusterRadius;
 
   /// Maximum zoom level at which clustering is applied.
   ///
-  /// Above this zoom, pins always stay individual even if they are close.
+  /// Above this zoom, places are never merged into count bubbles; density is
+  /// handled by pins collapsing into dots instead.
   final int clusterMaxZoom;
 
   /// Base icon size (will be adjusted for devicePixelRatio)
@@ -46,41 +44,43 @@ class GeoJsonLayerConfig {
   /// Whether to allow text overlap (false enables collision detection)
   final bool allowTextOverlap;
 
-  /// Whether to allow icon overlap
-  final bool allowIconOverlap;
-
-  /// Switch visible markers to compact dots once the viewport gets dense.
-  final int denseMarkerThreshold;
-
   const GeoJsonLayerConfig({
     this.sourceId = 'pinit-locations',
     this.enableClustering = true,
-    this.clusterRadius = 34,
+    this.clusterRadius = 50,
     this.clusterMaxZoom = 12,
     this.iconSize = 1.0,
-    this.textSize = 11.0,
+    this.textSize = 12.0,
     this.showTextLabels = true,
     this.allowTextOverlap = false,
-    this.allowIconOverlap = true,
-    this.denseMarkerThreshold = 15,
   });
 }
 
 /// Callback type for location tap events
 typedef OnLocationTapped = void Function(int locationId);
 
-/// Callback type for cluster tap events
-typedef OnClusterTapped = void Function(LatLng center, int pointCount);
+/// Callback type for cluster tap events. [expansionZoom] is the zoom at which
+/// the cluster splits apart, when Mapbox could resolve it.
+typedef OnClusterTapped = void Function(
+  LatLng center,
+  int pointCount,
+  double? expansionZoom,
+);
 
 /// Service for managing GeoJSON-based map layers with native Mapbox clustering.
 ///
-/// This service replaces the manual PNG-rendering + PointAnnotation approach
-/// with Mapbox's native GeoJSON source and Symbol layers, providing:
+/// Every place is drawn in three tiers, all decided by Mapbox itself:
 ///
-/// - **Native clustering**: Mapbox handles clustering automatically
-/// - **Text collision detection**: Labels automatically hide when overlapping
-/// - **Better performance**: No custom bitmap rendering per marker
-/// - **Dynamic styling**: Change colors/sizes without re-rendering
+/// - **Count clusters** (zoomed far out): nearby places merge into a numbered
+///   cream bubble. Tapping one zooms to exactly where it splits.
+/// - **Dots**: every unclustered place always has a small dot. Dots never take
+///   part in collision, so they can't hide anything.
+/// - **Pins + name labels**: drawn above the dots with collision enabled and
+///   ranked by importance. Where a pin doesn't fit, Mapbox hides it (pin and
+///   label together), leaving the dot underneath.
+///
+/// The selected place is drawn in its own top layer so it always shows, with
+/// an enlarged pin and a details line.
 ///
 /// ## Usage
 ///
@@ -89,7 +89,7 @@ typedef OnClusterTapped = void Function(LatLng center, int pointCount);
 ///   mapboxMap: map,
 ///   config: const GeoJsonLayerConfig(),
 ///   onLocationTapped: (id) => print('Location $id tapped'),
-///   onClusterTapped: (center, count) => print('Cluster with $count items'),
+///   onClusterTapped: (center, count, zoom) => print('Cluster with $count'),
 /// );
 ///
 /// await service.initialize();
@@ -106,56 +106,60 @@ class GeoJsonMapLayerService {
   List<LocationModel>? _pendingLocations;
   List<LocationModel> _currentLocations = const [];
   Set<int> _beenToLocationIds = const <int>{};
-  Set<int> _compactLocationIds = const <int>{};
-  Set<int> _presentationVisibleLocationIds = const <int>{};
-  Set<int> _presentationExpandedLocationIds = const <int>{};
-  bool _presentationDefaultsVisibleToCompact = false;
-  ui.Rect? _usableScreenRect;
-  final Map<int, double> _compactFadeByLocationId = {};
-  final Map<int, int> _bouncePhaseByLocationId = {};
+
+  /// When true (category/overview stage), pins get extra collision padding so
+  /// only a sparse set of labelled pins shows and the rest stay as dots.
+  bool _dotsByDefault = false;
   final Map<int, double> _bounceScaleByLocationId = {};
   final Map<int, Timer> _bounceTimersByLocationId = {};
   final Set<int> _pendingRecentSaveIds = {};
-  Timer? _compactFadeTimer;
   bool _sourceUpdateInFlight = false;
   bool _sourceUpdateQueued = false;
 
-  // Layer IDs
+  // Layer IDs (bottom → top)
+  static const String _clusterShadowLayerId = 'pinit-cluster-shadow';
   static const String _clusterCircleLayerId = 'pinit-cluster-circles';
+  static const String _clusterCountLayerId = 'pinit-cluster-count';
   static const String _compactDotLayerId = 'pinit-compact-dots';
   static const String _unclusteredIconLayerId = 'pinit-unclustered-icons';
-  static const String _unclusteredTextLayerId = 'pinit-unclustered-text';
-  static const String _compactDotIconId = '${_iconPrefix}compact-dot';
-  static const String _compactDotBeenToIconId =
-      '${_iconPrefix}compact-dot-been-to';
+  static const String _selectedPinLayerId = 'pinit-selected-pin';
 
   // Track registered emoji icons to avoid re-registering
   final Set<String> _registeredIconIds = {};
 
   // Icon ID prefixes
   static const String _iconPrefix = 'pinit-icon-';
-  static const String _clusterIconPrefix = 'pinit-cluster-';
+  static const String _fallbackIconId = '${_iconPrefix}fallback';
+  static const String _selectedIconSuffix = '-sel';
   static const Duration _bounceDuration = Duration(milliseconds: 1120);
   static const Duration _bounceFrameInterval = Duration(milliseconds: 16);
-  static const Duration _compactFadeDuration = Duration(milliseconds: 220);
-  static const Duration _compactFadeFrameInterval = Duration(milliseconds: 16);
   static const List<double> _bounceScaleStops = [1.0, 1.45, 1.0, 1.18, 1.0];
-  static const List<int> _clusterIconPointCounts = [2, 3, 4, 5];
-  static const int _segmentRows = 2;
-  static const int _segmentColumns = 3;
-  static const int _segmentDenseEnterThreshold = 3;
-  static const int _segmentDenseExitThreshold = 2;
-  static const int _segmentExpandedPinCount = 2;
-  static const int _segmentStickyPinCount = 3;
-  static const double _criticalOverlapEnterRatio = 0.50;
-  static const double _criticalOverlapExitRatio = 0.38;
-  static const double _criticalOverlapStickyRatio = 0.72;
-  static const double _viewportVerticalOverscanFactor = 0.18;
-  static const double _viewportMinVerticalOverscan = 44.0;
-  static const double _densePinWidth = 52.0;
-  static const double _densePinHeight = 58.0;
-  static const double _denseSelectedPinWidth = 82.0;
-  static const double _denseSelectedPinHeight = 90.0;
+
+  /// Extra collision padding around pins (screen px). Bigger padding means
+  /// fewer pins win a spot; the losers render as dots.
+  static const double _focusedPinPadding = 2.0;
+  static const double _overviewPinPadding = 28.0;
+
+  /// Zoom at which unselected pin labels gain the rating/price/open line.
+  static const double _detailLabelZoom = 16.0;
+
+  /// Pin images carry a 3px hard shadow below the tail tip; nudge the icon
+  /// down by that much so the tip lands exactly on the location.
+  static const double _pinTipShadowOffset = 3.0;
+
+  // Label offsets in ems (text-size 12), measured from the tail tip to just
+  // beside the pin bubble. Selected pins are 1.4× larger.
+  static const List<double> _labelOffsetLeft = [2.0, -1.95];
+  static const List<double> _selectedLabelOffsetLeft = [2.6, -2.6];
+
+  static const List<String> _labelFontBold = [
+    'DIN Pro Medium',
+    'Arial Unicode MS Regular',
+  ];
+  static const List<String> _labelFontRegular = [
+    'DIN Pro Regular',
+    'Arial Unicode MS Regular',
+  ];
 
   GeoJsonMapLayerService({
     required mapbox.MapboxMap mapboxMap,
@@ -170,7 +174,7 @@ class GeoJsonMapLayerService {
   /// The currently selected location ID
   String? get selectedLocationId => _selectedLocationId;
 
-  /// Initialize the GeoJSON source and symbol layers.
+  /// Initialize the GeoJSON source and layers.
   ///
   /// Must be called after the map style has loaded.
   /// Any locations that arrived before initialization will be flushed after setup completes.
@@ -181,22 +185,20 @@ class GeoJsonMapLayerService {
     }
 
     try {
-      // 1. Create the GeoJSON source with clustering
       await _createGeoJsonSource();
-
-      // 2. Add fallback assets used by the marker layer
       await _addFallbackIcon();
-      await _addCompactDotIcons();
 
-      // 3. Add layers (order matters - clusters first, then individual points)
+      // Order matters: later layers draw on top and win collision placement.
       await _addClusterLayers();
-      await _addUnclusteredLayers();
-
-      // 4. Set up click handlers
-      await _setupClickHandlers();
+      await _addCompactDotLayer();
+      await _addPinLayer();
+      await _addSelectedPinLayer();
 
       _isInitialized = true;
       log('GeoJsonMapLayerService: Initialized successfully');
+
+      await _applyPinPadding();
+      await _applySelectionFilters();
 
       // Flush any locations that arrived before initialization completed
       if (_pendingLocations != null) {
@@ -209,7 +211,11 @@ class GeoJsonMapLayerService {
         );
       }
     } catch (e, stack) {
-      log('GeoJsonMapLayerService: Initialization failed: $e\n$stack');
+      // `log` doesn't reach the device console; make setup failures visible.
+      debugPrint('GeoJsonMapLayerService: Initialization failed: $e\n$stack');
+      // Undo partial setup so the next location sync can retry from scratch
+      // instead of failing on the already-added source.
+      await _removeStyleObjects();
       rethrow;
     }
   }
@@ -218,7 +224,6 @@ class GeoJsonMapLayerService {
   ///
   /// If initialization hasn't completed yet, locations are buffered and will be
   /// applied once initialize() completes. Otherwise, updates are applied immediately.
-  /// Mapbox will automatically handle clustering.
   Future<void> updateLocations(
     List<LocationModel> locations, {
     Set<int> beenToLocationIds = const <int>{},
@@ -236,10 +241,6 @@ class GeoJsonMapLayerService {
     );
   }
 
-  /// Apply locations to the map immediately.
-  ///
-  /// Registers icons and updates the GeoJSON source with the provided locations.
-  /// Should only be called after initialize() completes.
   Future<void> _applyLocations(
     List<LocationModel> locations, {
     Set<int> beenToLocationIds = const <int>{},
@@ -249,13 +250,8 @@ class GeoJsonMapLayerService {
       _beenToLocationIds = Set<int>.from(beenToLocationIds);
       _pruneBounceStateForCurrentLocations();
 
-      // Register icons for all unique emoji+color combinations (both regular and cluster)
       await _registerEmojiIcons(locations);
-      await _registerClusterIcons(locations);
-      await _refreshViewportPresentation(
-        isInteracting: false,
-        updateSource: false,
-      );
+      await _registerSelectedIcon();
       await _updateSourceData();
       _flushPendingRecentSaveBounces();
 
@@ -268,15 +264,28 @@ class GeoJsonMapLayerService {
 
   /// Set the selected location (for highlighting).
   ///
-  /// Pass null to clear selection.
+  /// Pass null to clear selection. Only the two layer filters change — the
+  /// source data is left alone so the rest of the map doesn't re-place.
   void setSelectedLocation(String? locationId) {
-    if (_selectedLocationId != locationId) {
-      _selectedLocationId = locationId;
-      log('GeoJsonMapLayerService: Selected location: $locationId');
-      if (_isInitialized) {
-        unawaited(_registerEmojiIcons(_currentLocations));
-        unawaited(_updateSourceData());
-      }
+    if (_selectedLocationId == locationId) return;
+    _selectedLocationId = locationId;
+    log('GeoJsonMapLayerService: Selected location: $locationId');
+    if (_isInitialized) {
+      unawaited(() async {
+        await _registerSelectedIcon();
+        await _applySelectionFilters();
+      }());
+    }
+  }
+
+  /// Toggle "dots by default" presentation (category/overview stage). When
+  /// enabled, pins claim a much larger collision area so only a sparse set of
+  /// labelled pins shows; everything else stays a dot.
+  Future<void> setDotsByDefault(bool value) async {
+    if (_dotsByDefault == value) return;
+    _dotsByDefault = value;
+    if (_isInitialized) {
+      await _applyPinPadding();
     }
   }
 
@@ -298,7 +307,6 @@ class GeoJsonMapLayerService {
     _bounceTimersByLocationId[locationId]?.cancel();
 
     final stopwatch = Stopwatch()..start();
-    _bouncePhaseByLocationId[locationId] = 1;
     _bounceScaleByLocationId[locationId] = 1.0;
     unawaited(_updateSourceData());
 
@@ -312,14 +320,11 @@ class GeoJsonMapLayerService {
         if (progress >= 1.0) {
           timer.cancel();
           _bounceTimersByLocationId.remove(locationId);
-          _bouncePhaseByLocationId[locationId] = 0;
           _bounceScaleByLocationId[locationId] = 1.0;
           unawaited(_updateSourceData());
           return;
         }
 
-        _bouncePhaseByLocationId[locationId] =
-            _bouncePhaseForProgress(progress);
         _bounceScaleByLocationId[locationId] =
             _bounceScaleForProgress(progress);
         unawaited(_updateSourceData());
@@ -331,22 +336,6 @@ class GeoJsonMapLayerService {
     markLocationAsRecentlySaved(locationId);
   }
 
-  Future<void> updateViewportPresentation({
-    LatLngBounds? visibleBounds,
-    ui.Rect? usableScreenRect,
-    required bool isInteracting,
-  }) async {
-    if (usableScreenRect != null) {
-      _usableScreenRect = usableScreenRect;
-    }
-    await _refreshViewportPresentation(
-      visibleBounds: visibleBounds,
-      usableScreenRect: usableScreenRect,
-      isInteracting: isInteracting,
-      updateSource: true,
-    );
-  }
-
   /// Clean up resources when the service is no longer needed.
   Future<void> dispose() async {
     if (!_isInitialized) return;
@@ -356,37 +345,11 @@ class GeoJsonMapLayerService {
         timer.cancel();
       }
       _bounceTimersByLocationId.clear();
-      _bouncePhaseByLocationId.clear();
       _bounceScaleByLocationId.clear();
       _pendingRecentSaveIds.clear();
-      _compactFadeTimer?.cancel();
-      _compactFadeTimer = null;
-      _compactFadeByLocationId.clear();
-      _compactLocationIds = const <int>{};
       _beenToLocationIds = const <int>{};
-      _presentationVisibleLocationIds = const <int>{};
-      _presentationExpandedLocationIds = const <int>{};
-      _presentationDefaultsVisibleToCompact = false;
-      _usableScreenRect = null;
 
-      // Remove layers (reverse order of addition)
-      await _safeRemoveLayer(_unclusteredTextLayerId);
-      await _safeRemoveLayer(_unclusteredIconLayerId);
-      await _safeRemoveLayer(_compactDotLayerId);
-      await _safeRemoveLayer(_clusterCircleLayerId);
-
-      // Remove source
-      await _map.style.removeStyleSource(config.sourceId);
-
-      // Remove all registered icons
-      for (final iconId in _registeredIconIds) {
-        try {
-          await _map.style.removeStyleImage(iconId);
-        } catch (_) {
-          // Icon may not exist
-        }
-      }
-      _registeredIconIds.clear();
+      await _removeStyleObjects();
 
       _isInitialized = false;
       log('GeoJsonMapLayerService: Disposed');
@@ -397,16 +360,43 @@ class GeoJsonMapLayerService {
 
   // ============ Private Implementation ============
 
-  /// Create the GeoJSON source with clustering configuration.
-  Future<void> _createGeoJsonSource() async {
-    final emptyGeoJson = jsonEncode({
-      'type': 'FeatureCollection',
-      'features': <Map<String, dynamic>>[],
-    });
+  /// Removes every layer, the source and all icons this service added.
+  Future<void> _removeStyleObjects() async {
+    // Reverse order of addition
+    for (final layerId in const [
+      _selectedPinLayerId,
+      _unclusteredIconLayerId,
+      _compactDotLayerId,
+      _clusterCountLayerId,
+      _clusterCircleLayerId,
+      _clusterShadowLayerId,
+    ]) {
+      await _safeRemoveLayer(layerId);
+    }
 
+    try {
+      await _map.style.removeStyleSource(config.sourceId);
+    } catch (_) {
+      // Source may not exist
+    }
+
+    for (final iconId in _registeredIconIds) {
+      try {
+        await _map.style.removeStyleImage(iconId);
+      } catch (_) {
+        // Icon may not exist
+      }
+    }
+    _registeredIconIds.clear();
+  }
+
+  Future<void> _createGeoJsonSource() async {
     final source = <String, dynamic>{
       'type': 'geojson',
-      'data': jsonDecode(emptyGeoJson),
+      'data': {
+        'type': 'FeatureCollection',
+        'features': <Map<String, dynamic>>[],
+      },
       'cluster': config.enableClustering,
     };
 
@@ -414,32 +404,6 @@ class GeoJsonMapLayerService {
       source.addAll({
         'clusterRadius': config.clusterRadius,
         'clusterMaxZoom': config.clusterMaxZoom,
-        'clusterProperties': {
-          'clusterVisualKey': [
-            [
-              'coalesce',
-              ['accumulated'],
-              ['get', 'markerVisualKey']
-            ],
-            ['get', 'markerVisualKey']
-          ],
-          'clusterColorHex': [
-            [
-              'coalesce',
-              ['accumulated'],
-              ['get', 'colorHex']
-            ],
-            ['get', 'colorHex']
-          ],
-          'clusterBeenToCount': [
-            [
-              '+',
-              ['accumulated'],
-              ['get', 'beenToClusterFlag']
-            ],
-            ['get', 'beenToClusterFlag']
-          ],
-        },
       });
     }
 
@@ -453,8 +417,7 @@ class GeoJsonMapLayerService {
 
   /// Add a fallback icon for locations without a registered emoji icon.
   Future<void> _addFallbackIcon() async {
-    const fallbackIconId = '${_iconPrefix}fallback';
-    if (_registeredIconIds.contains(fallbackIconId)) return;
+    if (_registeredIconIds.contains(_fallbackIconId)) return;
 
     final iconBytes = await PinitMarkers.createPinitMarker(
       name: '',
@@ -462,11 +425,97 @@ class GeoJsonMapLayerService {
       showText: false,
       fallbackSeed: 0,
     );
+    await _addIcon(_fallbackIconId, iconBytes);
+    log('GeoJsonMapLayerService: Fallback icon added');
+  }
 
-    final image = await _createMapboxImage(iconBytes);
+  /// Register pin icons for all unique marker-visual combinations.
+  Future<void> _registerEmojiIcons(List<LocationModel> locations) async {
+    final pending = <String, LocationModel>{};
+    for (final location in locations) {
+      final iconId = '$_iconPrefix${_buildLocationIconKey(location)}';
+      if (!_registeredIconIds.contains(iconId)) {
+        pending.putIfAbsent(iconId, () => location);
+      }
+    }
 
+    if (pending.isEmpty) return;
+
+    log('GeoJsonMapLayerService: Registering ${pending.length} new emoji icons');
+
+    for (final entry in pending.entries) {
+      await _registerPinIcon(entry.key, entry.value, selected: false);
+    }
+  }
+
+  /// Register the enlarged icon variant for the currently selected location.
+  Future<void> _registerSelectedIcon() async {
+    final selectedId = _selectedLocationId;
+    if (selectedId == null) return;
+
+    for (final location in _currentLocations) {
+      if (location.locationId.toString() != selectedId) continue;
+      final iconId =
+          '$_iconPrefix${_buildLocationIconKey(location)}$_selectedIconSuffix';
+      if (!_registeredIconIds.contains(iconId)) {
+        await _registerPinIcon(iconId, location, selected: true);
+      }
+      return;
+    }
+  }
+
+  Future<void> _registerPinIcon(
+    String iconId,
+    LocationModel location, {
+    required bool selected,
+  }) async {
+    try {
+      // Mapbox style images are static bitmaps so friend avatars must be
+      // rasterised into the icon at registration time.
+      final friendSaves = location.friendSaves;
+      List<ui.Image?> friendAvatarImages = const [];
+      List<String> friendInitials = const [];
+      String friendAvatarKey = '';
+      if (friendSaves.isNotEmpty) {
+        final List<FriendSave> shown = friendSaves.take(3).toList();
+        friendAvatarImages = await FriendAvatarLoader.loadAll(
+          shown.map((f) => f.friendProfileImageUrl),
+        );
+        friendInitials = shown.map((f) => f.friendName).toList();
+        friendAvatarKey =
+            shown.map((f) => f.friendProfileImageUrl ?? f.friendId).join('|');
+      }
+
+      final iconBytes = await PinitMarkers.createPinitMarker(
+        emoji: location.emoji,
+        name: '',
+        devicePixelRatio: 3.0,
+        selected: selected,
+        showText: false,
+        wavyScore: location.vibe?.wavyScore ?? 0.0,
+        bossmanScore: location.vibe?.bossmanScore ?? 0.0,
+        savedCount: location.savedCount ?? 0,
+        matchScore: location.matchScore ?? 0.0,
+        badgeType: location.markerBadgeType,
+        rating: location.rating,
+        vibeVector: location.vibeVector,
+        fallbackSeed: location.locationId,
+        friendAvatarImages: friendAvatarImages,
+        friendInitials: friendInitials,
+        friendAvatarCacheKey: friendAvatarKey,
+        totalFriendCount: friendSaves.length,
+      );
+
+      await _addIcon(iconId, iconBytes);
+    } catch (e) {
+      log('GeoJsonMapLayerService: Failed to register icon $iconId: $e');
+    }
+  }
+
+  Future<void> _addIcon(String iconId, Uint8List pngBytes) async {
+    final image = await _createMapboxImage(pngBytes);
     await _map.style.addStyleImage(
-      fallbackIconId,
+      iconId,
       3.0, // devicePixelRatio
       image,
       false, // SDF
@@ -474,363 +523,279 @@ class GeoJsonMapLayerService {
       [], // Stretch Y
       null, // Content
     );
-
-    _registeredIconIds.add(fallbackIconId);
-    log('GeoJsonMapLayerService: Fallback icon added');
+    _registeredIconIds.add(iconId);
   }
 
-  Future<void> _addCompactDotIcons() async {
-    final compactDotIcons = <({String id, bool hasBeenTo})>[
-      (id: _compactDotIconId, hasBeenTo: false),
-      (id: _compactDotBeenToIconId, hasBeenTo: true),
-    ];
-
-    for (final compactDotIcon in compactDotIcons) {
-      if (_registeredIconIds.contains(compactDotIcon.id)) continue;
-
-      final iconBytes = await PinitMarkers.createCompactMapDot(
-        devicePixelRatio: 3.0,
-        hasBeenTo: compactDotIcon.hasBeenTo,
-      );
-      final image = await _createMapboxImage(iconBytes);
-
-      await _map.style.addStyleImage(
-        compactDotIcon.id,
-        3.0,
-        image,
-        false,
-        [],
-        [],
-        null,
-      );
-
-      _registeredIconIds.add(compactDotIcon.id);
-    }
-
-    log('GeoJsonMapLayerService: Compact dot icons added');
-  }
-
-  /// Register icons for all unique marker-visual/color combinations in the locations.
-  Future<void> _registerEmojiIcons(List<LocationModel> locations) async {
-    final iconKeys = <String>{};
-    final iconData = <String,
-        ({
-      String? emoji,
-      double? rating,
-      bool selected,
-      double wavyScore,
-      double bossmanScore,
-      int savedCount,
-      double matchScore,
-      String? badgeType,
-      List<double>? vibeVector,
-      int fallbackSeed,
-      List<FriendSave> friendSaves,
-    })>{};
-
-    for (final location in locations) {
-      final iconId = '$_iconPrefix${_buildLocationIconKey(location)}';
-
-      if (!_registeredIconIds.contains(iconId)) {
-        iconKeys.add(iconId);
-        iconData[iconId] = (
-          emoji: location.emoji,
-          rating: location.rating,
-          selected: _selectedLocationId == location.locationId.toString(),
-          wavyScore: location.vibe?.wavyScore ?? 0.0,
-          bossmanScore: location.vibe?.bossmanScore ?? 0.0,
-          savedCount: location.savedCount ?? 0,
-          matchScore: location.matchScore ?? 0.0,
-          badgeType: location.markerBadgeType,
-          vibeVector: location.vibeVector,
-          fallbackSeed: location.locationId,
-          friendSaves: location.friendSaves,
-        );
-      }
-    }
-
-    if (iconKeys.isEmpty) return;
-
-    log('GeoJsonMapLayerService: Registering ${iconKeys.length} new emoji icons');
-
-    // Register each new icon
-    for (final iconId in iconKeys) {
-      final data = iconData[iconId]!;
-      try {
-        // Pre-load friend avatars when this icon's location has any.
-        // Mapbox style images are static bitmaps so the avatars must be
-        // rasterised into the icon at registration time.
-        List<ui.Image?> friendAvatarImages = const [];
-        List<String> friendInitials = const [];
-        String friendAvatarKey = '';
-        if (data.friendSaves.isNotEmpty) {
-          final shown = data.friendSaves.take(3).toList();
-          friendAvatarImages = await FriendAvatarLoader.loadAll(
-            shown.map((f) => f.friendProfileImageUrl),
-          );
-          friendInitials = shown.map((f) => f.friendName).toList();
-          friendAvatarKey = shown
-              .map((f) => f.friendProfileImageUrl ?? f.friendId)
-              .join('|');
-        }
-
-        final iconBytes = await PinitMarkers.createPinitMarker(
-          emoji: data.emoji,
-          name: '',
-          devicePixelRatio: 3.0,
-          selected: data.selected,
-          showText: false,
-          wavyScore: data.wavyScore,
-          bossmanScore: data.bossmanScore,
-          savedCount: data.savedCount,
-          matchScore: data.matchScore,
-          badgeType: data.badgeType,
-          rating: data.rating,
-          vibeVector: data.vibeVector,
-          fallbackSeed: data.fallbackSeed,
-          friendAvatarImages: friendAvatarImages,
-          friendInitials: friendInitials,
-          friendAvatarCacheKey: friendAvatarKey,
-          totalFriendCount: data.friendSaves.length,
-        );
-
-        final image = await _createMapboxImage(iconBytes);
-
-        await _map.style.addStyleImage(
-          iconId,
-          3.0, // devicePixelRatio
-          image,
-          false, // SDF
-          [], // Stretch X
-          [], // Stretch Y
-          null, // Content
-        );
-
-        _registeredIconIds.add(iconId);
-      } catch (e) {
-        log('GeoJsonMapLayerService: Failed to register icon $iconId: $e');
-      }
-    }
-  }
-
-  /// Register cluster icons for unique marker-visual/color combinations.
-  Future<void> _registerClusterIcons(List<LocationModel> locations) async {
-    if (!config.enableClustering) return;
-
-    // Collect unique visual+color combinations
-    final iconData = <String,
-        ({
-      String visualKey,
-      String? emoji,
-      double? rating,
-      List<double>? vibeVector,
-      int fallbackSeed,
-      String? cuisine,
-      String? types,
-      double wavyScore,
-      double bossmanScore,
-      int savedCount
-    })>{};
-
-    for (final location in locations) {
-      final shadowStyle = PinitMarkers.markerShadowStyle(
-        rating: location.rating,
-        wavyScore: location.vibe?.wavyScore ?? 0.0,
-        bossmanScore: location.vibe?.bossmanScore ?? 0.0,
-        savedCount: location.savedCount ?? 0,
-        cuisine: location.cuisine,
-        types: location.types,
-      );
-      final colorHex = _colorHex(shadowStyle.color);
-      final visualKey = PinitMarkers.markerVisualKey(
-        emoji: location.emoji,
-        vibeVector: location.vibeVector,
-        fallbackSeed: location.locationId,
-      );
-      final baseKey = '$visualKey-$colorHex';
-
-      if (!iconData.containsKey(baseKey)) {
-        iconData[baseKey] = (
-          visualKey: visualKey,
-          emoji: location.emoji,
-          rating: location.rating,
-          vibeVector: location.vibeVector,
-          fallbackSeed: location.locationId,
-          cuisine: location.cuisine,
-          types: location.types,
-          wavyScore: location.vibe?.wavyScore ?? 0.0,
-          bossmanScore: location.vibe?.bossmanScore ?? 0.0,
-          savedCount: location.savedCount ?? 0,
-        );
-      }
-    }
-
-    if (iconData.isEmpty) return;
-
-    int registered = 0;
-    for (final entry in iconData.entries) {
-      final data = entry.value;
-      for (final pointCount in _clusterIconPointCounts) {
-        for (final hasBeenTo in const [false, true]) {
-          final visitedKey = hasBeenTo ? 'been' : 'default';
-          final iconId =
-              '$_clusterIconPrefix${entry.key}-$visitedKey-${_clusterOverflowTierKey(pointCount)}';
-          if (_registeredIconIds.contains(iconId)) continue;
-
-          try {
-            final iconBytes = await PinitMarkers.createClusterPinWithBadge(
-              emoji: data.emoji,
-              pointCount: pointCount,
-              avatarColors: [],
-              rating: data.rating,
-              cuisine: data.cuisine,
-              types: data.types,
-              wavyScore: data.wavyScore,
-              bossmanScore: data.bossmanScore,
-              savedCount: data.savedCount,
-              vibeVector: data.vibeVector,
-              fallbackSeed: data.fallbackSeed,
-              hasBeenTo: hasBeenTo,
-            );
-
-            final image = await _createMapboxImage(iconBytes);
-
-            await _map.style.addStyleImage(
-              iconId,
-              3.0, // devicePixelRatio
-              image,
-              false, // SDF
-              [], // Stretch X
-              [], // Stretch Y
-              null, // Content
-            );
-
-            _registeredIconIds.add(iconId);
-            registered++;
-          } catch (e) {
-            log('GeoJsonMapLayerService: Failed to register cluster icon $iconId: $e');
-          }
-        }
-      }
-    }
-
-    if (registered > 0) {
-      log('GeoJsonMapLayerService: Registered $registered cluster icons');
-    }
-  }
-
-  /// Add the cluster layer.
+  /// Count clusters: a cream bubble with a hard aubergine offset shadow and
+  /// the number of places inside.
   Future<void> _addClusterLayers() async {
     if (!config.enableClustering) return;
 
+    final clusterFilter = ['has', 'point_count'];
+    final radius = [
+      'step',
+      ['get', 'point_count'],
+      15,
+      10,
+      18,
+      50,
+      22,
+    ];
+
     await _map.style.addStyleLayer(
       jsonEncode({
-        'id': _clusterCircleLayerId, // Reusing ID for backward compat
-        'type': 'symbol',
+        'id': _clusterShadowLayerId,
+        'type': 'circle',
         'source': config.sourceId,
-        'filter': ['has', 'point_count'],
-        'layout': {
-          'icon-image': [
-            'concat',
-            '$_clusterIconPrefix',
-            ['get', 'clusterVisualKey'],
-            '-',
-            ['get', 'clusterColorHex'],
-            '-',
-            [
-              'case',
-              [
-                '>',
-                [
-                  'coalesce',
-                  ['get', 'clusterBeenToCount'],
-                  0
-                ],
-                0
-              ],
-              'been',
-              'default',
-            ],
-            '-',
-            [
-              'step',
-              ['get', 'point_count'],
-              'dots0',
-              3,
-              'dots1',
-              4,
-              'dots2',
-              5,
-              'dots3',
-            ],
-          ],
-          'icon-size': config.iconSize,
-          'icon-anchor': 'center',
-          'icon-allow-overlap': true, // Clusters should always show
+        'filter': clusterFilter,
+        'paint': {
+          'circle-color': _hex(pinit.PinitColors.aubergine),
+          'circle-radius': radius,
+          'circle-translate': [2.5, 2.5],
         },
-        'paint': <String, dynamic>{},
       }),
       null,
     );
 
-    log('GeoJsonMapLayerService: Cluster layer added (visited-aware overflow dots)');
+    await _map.style.addStyleLayer(
+      jsonEncode({
+        'id': _clusterCircleLayerId,
+        'type': 'circle',
+        'source': config.sourceId,
+        'filter': clusterFilter,
+        'paint': {
+          'circle-color': _hex(pinit.PinitColors.cream),
+          'circle-radius': radius,
+          'circle-stroke-color': _hex(pinit.PinitColors.aubergine),
+          'circle-stroke-width': 1.5,
+        },
+      }),
+      null,
+    );
+
+    await _map.style.addStyleLayer(
+      jsonEncode({
+        'id': _clusterCountLayerId,
+        'type': 'symbol',
+        'source': config.sourceId,
+        'filter': clusterFilter,
+        'layout': {
+          'text-field': ['get', 'point_count_abbreviated'],
+          'text-font': _labelFontBold,
+          'text-size': 13,
+          'text-allow-overlap': true,
+          'text-ignore-placement': true,
+        },
+        'paint': {
+          'text-color': _hex(pinit.PinitColors.aubergine),
+        },
+      }),
+      null,
+    );
+
+    log('GeoJsonMapLayerService: Cluster layers added');
   }
 
-  /// Add layers for individual (unclustered) points.
-  Future<void> _addUnclusteredLayers() async {
+  /// Dots sit under every unclustered place. Circle layers never take part in
+  /// symbol collision, so a dot always shows wherever its pin was dropped.
+  Future<void> _addCompactDotLayer() async {
+    final isBeenTo = [
+      'coalesce',
+      ['get', 'isBeenTo'],
+      false
+    ];
+    final bounceScale = [
+      'coalesce',
+      ['get', 'bounceScale'],
+      1.0
+    ];
     await _map.style.addStyleLayer(
       jsonEncode({
         'id': _compactDotLayerId,
-        'type': 'symbol',
+        'type': 'circle',
         'source': config.sourceId,
-        'filter': [
-          'all',
-          [
-            '!',
-            ['has', 'point_count']
-          ],
-        ],
-        'layout': {
-          'icon-image': [
-            'case',
-            [
-              'coalesce',
-              ['get', 'isBeenTo'],
-              false
-            ],
-            _compactDotBeenToIconId,
-            _compactDotIconId,
-          ],
-          'icon-size': [
-            '*',
-            config.iconSize,
-            [
-              'coalesce',
-              ['get', 'bounceScale'],
-              1.0,
-            ],
-          ],
-          'icon-anchor': 'center',
-          'icon-allow-overlap': true,
-          'symbol-sort-key': ['get', 'savedCount'],
-        },
+        'filter': _unclusteredFilter,
         'paint': {
-          'icon-opacity': ['get', 'compactOpacity'],
+          'circle-color': [
+            'case',
+            isBeenTo,
+            _hex(pinit.PinitColors.warning),
+            _hex(pinit.PinitColors.aubergine),
+          ],
+          // `zoom` must be the input of a top-level interpolate, so the save
+          // bounce multiplier goes inside each stop.
+          'circle-radius': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            11,
+            ['*', 3.0, bounceScale],
+            16,
+            ['*', 4.5, bounceScale],
+          ],
+          // Soft dots keep dense areas calm; been-to dots stay a touch
+          // stronger so they remain findable.
+          'circle-opacity': [
+            'case',
+            isBeenTo,
+            0.6,
+            0.4,
+          ],
+          'circle-stroke-color': _hex(pinit.PinitColors.cream),
+          'circle-stroke-width': 1.0,
+          'circle-stroke-opacity': 0.5,
         },
       }),
       null,
     );
+  }
 
-    final layoutProps = <String, dynamic>{
-      // Full pins always render in a dedicated upper layer so they sit above dots.
+  /// Full pins with name labels. Collision is on, so Mapbox keeps the most
+  /// important pins (lowest sort key) and hides the rest — pin and label
+  /// together — leaving the dot below visible.
+  Future<void> _addPinLayer() async {
+    final layout = <String, dynamic>{
+      ..._pinIconLayout(),
+      'icon-allow-overlap': false,
+      'icon-ignore-placement': false,
+      'icon-padding': _focusedPinPadding,
+      'symbol-sort-key': ['get', 'priority'],
+    };
+
+    if (config.showTextLabels) {
+      layout.addAll({
+        'text-field': [
+          'step',
+          ['zoom'],
+          _nameLabelExpression(),
+          _detailLabelZoom,
+          _detailLabelExpression(),
+        ],
+        'text-font': _labelFontBold,
+        'text-size': config.textSize,
+        'text-max-width': 9,
+        'text-line-height': 1.1,
+        'text-justify': 'auto',
+        'text-allow-overlap': config.allowTextOverlap,
+        // Pin and label appear or disappear together — never a bare pin.
+        'text-optional': false,
+        'icon-optional': false,
+      });
+    }
+
+    await _addLabelledSymbolLayer(
+      id: _unclusteredIconLayerId,
+      filter: _pinFilterExcluding(null),
+      layout: layout,
+      labelOffsetLeft: _labelOffsetLeft,
+    );
+
+    log('GeoJsonMapLayerService: Pin layer added');
+  }
+
+  /// The selected pin lives in its own top layer: placed first, always shown,
+  /// larger icon and a two-line label with details.
+  Future<void> _addSelectedPinLayer() async {
+    final layout = <String, dynamic>{
+      ..._pinIconLayout(iconSuffix: _selectedIconSuffix),
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': false,
+    };
+
+    if (config.showTextLabels) {
+      layout.addAll({
+        'text-field': _detailLabelExpression(),
+        'text-font': _labelFontBold,
+        'text-size': config.textSize + 1,
+        'text-max-width': 10,
+        'text-line-height': 1.1,
+        'text-justify': 'auto',
+        'text-allow-overlap': true,
+        'text-optional': true,
+      });
+    }
+
+    await _addLabelledSymbolLayer(
+      id: _selectedPinLayerId,
+      filter: _selectedPinFilter(null),
+      layout: layout,
+      labelOffsetLeft: _selectedLabelOffsetLeft,
+    );
+  }
+
+  /// Adds a pin symbol layer whose label sits beside the pin bubble and may
+  /// flip left/right/below before being dropped. Falls back to a fixed
+  /// right-hand label if the SDK rejects `text-variable-anchor-offset`.
+  Future<void> _addLabelledSymbolLayer({
+    required String id,
+    required List<Object> filter,
+    required Map<String, dynamic> layout,
+    required List<double> labelOffsetLeft,
+  }) async {
+    Map<String, dynamic> layerJson(Map<String, dynamic> layout) => {
+          'id': id,
+          'type': 'symbol',
+          'source': config.sourceId,
+          'filter': filter,
+          'layout': layout,
+          'paint': {
+            'text-color': _hex(pinit.PinitColors.aubergine),
+            'text-halo-color': _hex(pinit.PinitColors.cream),
+            'text-halo-width': 1.6,
+            'text-halo-blur': 0.4,
+          },
+        };
+
+    if (!config.showTextLabels) {
+      await _map.style.addStyleLayer(jsonEncode(layerJson(layout)), null);
+      return;
+    }
+
+    final dx = labelOffsetLeft[0];
+    final dy = labelOffsetLeft[1];
+    try {
+      await _map.style.addStyleLayer(
+        jsonEncode(layerJson({
+          ...layout,
+          'text-variable-anchor-offset': [
+            'left',
+            [dx, dy],
+            'right',
+            [-dx, dy],
+            'top',
+            [0, 0.6],
+          ],
+        })),
+        null,
+      );
+    } catch (e) {
+      debugPrint(
+          'GeoJsonMapLayerService: variable label anchors unsupported ($e); using fixed anchor');
+      await _map.style.addStyleLayer(
+        jsonEncode(layerJson({
+          ...layout,
+          'text-anchor': 'left',
+          'text-offset': [dx, dy],
+        })),
+        null,
+      );
+    }
+  }
+
+  Map<String, dynamic> _pinIconLayout({String iconSuffix = ''}) {
+    return {
       'icon-image': [
         'coalesce',
         [
-          'concat',
-          '$_iconPrefix',
-          ['get', 'iconKey']
+          'image',
+          [
+            'concat',
+            _iconPrefix,
+            ['get', 'iconKey'],
+            iconSuffix,
+          ],
         ],
-        '${_iconPrefix}fallback',
+        ['image', _fallbackIconId],
       ],
       'icon-size': [
         '*',
@@ -838,85 +803,71 @@ class GeoJsonMapLayerService {
         [
           'coalesce',
           ['get', 'bounceScale'],
-          [
-            'match',
-            [
-              'coalesce',
-              ['get', 'bouncePhase'],
-              0
-            ],
-            1,
-            1.45,
-            2,
-            1.0,
-            3,
-            1.18,
-            1.0,
-          ],
+          1.0
         ],
       ],
-      'icon-anchor': 'center',
-      'icon-allow-overlap': config.allowIconOverlap,
-      // Focused carousel pin should render above the rest.
-      'symbol-sort-key': ['get', 'symbolSortKey'],
+      // Tail tip on the location (the image carries a hard shadow below it).
+      'icon-anchor': 'bottom',
+      'icon-offset': [0, _pinTipShadowOffset],
     };
-
-    // Add text properties if enabled
-    if (config.showTextLabels) {
-      layoutProps.addAll({
-        'text-field': _buildTextFieldExpression(),
-        'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
-        'text-size': config.textSize,
-        'text-anchor': 'left',
-        'text-offset': [2.1, 0.1],
-        'text-max-width': 10,
-        'text-line-height': 1.05,
-        'text-allow-overlap': config.allowTextOverlap,
-        'text-optional': true, // Hide text on collision, keep icon
-      });
-    }
-
-    await _map.style.addStyleLayer(
-      jsonEncode({
-        'id': _unclusteredIconLayerId,
-        'type': 'symbol',
-        'source': config.sourceId,
-        'filter': [
-          'all',
-          [
-            '!',
-            ['has', 'point_count']
-          ]
-        ],
-        'layout': layoutProps,
-        'paint': config.showTextLabels
-            ? {
-                'icon-opacity': ['get', 'pinOpacity'],
-                'text-opacity': ['get', 'labelOpacity'],
-                'text-color': '#1A1A2E',
-                'text-halo-color': '#ffffff',
-                'text-halo-width': 1.75,
-              }
-            : {
-                'icon-opacity': ['get', 'pinOpacity'],
-              },
-      }),
-      null,
-    );
-
-    log('GeoJsonMapLayerService: Unclustered layers added (dots below pins)');
   }
 
-  /// Set up tap handlers for clusters and individual locations.
-  Future<void> _setupClickHandlers() async {
-    // Note: Click handling for GeoJSON layers requires querying features at tap location.
-    // This is done via the onTapListener in the MapWidget, which calls queryRenderedFeatures.
-    // The actual tap handling is delegated to callbacks passed during construction.
-    //
-    // For now, we rely on the map widget's tap listener to call our query methods.
-    // This service exposes queryFeaturesAtPoint for the map widget to use.
+  static const List<Object> _unclusteredFilter = [
+    '!',
+    ['has', 'point_count']
+  ];
 
-    log('GeoJsonMapLayerService: Click handlers configured (via queryFeaturesAtPoint)');
+  List<Object> _pinFilterExcluding(int? selectedId) => [
+        'all',
+        _unclusteredFilter,
+        [
+          '!=',
+          ['get', 'locationId'],
+          selectedId ?? -1
+        ],
+      ];
+
+  List<Object> _selectedPinFilter(int? selectedId) => [
+        'all',
+        _unclusteredFilter,
+        [
+          '==',
+          ['get', 'locationId'],
+          selectedId ?? -1
+        ],
+      ];
+
+  Future<void> _applySelectionFilters() async {
+    if (!_isInitialized) return;
+    final selectedId = int.tryParse(_selectedLocationId ?? '');
+    try {
+      await _map.style.setStyleLayerProperty(
+        _selectedPinLayerId,
+        'filter',
+        jsonEncode(_selectedPinFilter(selectedId)),
+      );
+      await _map.style.setStyleLayerProperty(
+        _unclusteredIconLayerId,
+        'filter',
+        jsonEncode(_pinFilterExcluding(selectedId)),
+      );
+    } catch (e) {
+      debugPrint(
+          'GeoJsonMapLayerService: Failed to update selection filters: $e');
+    }
+  }
+
+  Future<void> _applyPinPadding() async {
+    if (!_isInitialized) return;
+    try {
+      await _map.style.setStyleLayerProperty(
+        _unclusteredIconLayerId,
+        'icon-padding',
+        _dotsByDefault ? _overviewPinPadding : _focusedPinPadding,
+      );
+    } catch (e) {
+      debugPrint('GeoJsonMapLayerService: Failed to update pin padding: $e');
+    }
   }
 
   /// Query features at a screen point and dispatch to appropriate callback.
@@ -927,98 +878,89 @@ class GeoJsonMapLayerService {
     const double tapTolerance = 22.0;
 
     try {
-      log('GeoJsonMapLayerService: Querying features at ($x, $y)');
-
-      // Create a bounding box around the tap point for better hit detection
       final screenBox = mapbox.ScreenBox(
         min: mapbox.ScreenCoordinate(x: x - tapTolerance, y: y - tapTolerance),
         max: mapbox.ScreenCoordinate(x: x + tapTolerance, y: y + tapTolerance),
       );
 
-      if (config.enableClustering) {
-        // Query for clusters first (they should take priority)
-        final clusterFeatures = await _map.queryRenderedFeatures(
+      Future<List<mapbox.QueriedRenderedFeature?>> query(String layerId) {
+        return _map.queryRenderedFeatures(
           mapbox.RenderedQueryGeometry.fromScreenBox(screenBox),
-          mapbox.RenderedQueryOptions(
-            layerIds: [_clusterCircleLayerId],
-          ),
+          mapbox.RenderedQueryOptions(layerIds: [layerId]),
         );
-
-        log('GeoJsonMapLayerService: Found ${clusterFeatures.length} cluster features');
-
-        if (clusterFeatures.isNotEmpty) {
-          final feature = clusterFeatures.first;
-          if (feature != null) {
-            final featureData = feature.queriedFeature.feature;
-
-            // Convert feature to Map<String, dynamic> (may be Map<String?, Object?>)
-            final Map<String, dynamic> featureJson =
-                _convertToStringDynamicMap(featureData);
-
-            final geometry = featureJson['geometry'];
-            if (geometry is Map) {
-              final geoMap = _convertToStringDynamicMap(geometry);
-              if (geoMap['type'] == 'Point') {
-                final coords = geoMap['coordinates'] as List?;
-                if (coords != null && coords.length >= 2) {
-                  final lng = (coords[0] as num).toDouble();
-                  final lat = (coords[1] as num).toDouble();
-                  final center = LatLng(lat, lng);
-
-                  final properties = featureJson['properties'];
-                  final propsMap = properties is Map
-                      ? _convertToStringDynamicMap(properties)
-                      : <String, dynamic>{};
-                  final pointCount = propsMap['point_count'] as int? ?? 0;
-
-                  log('GeoJsonMapLayerService: Cluster tapped with $pointCount points');
-                  onClusterTapped?.call(center, pointCount);
-                  return;
-                }
-              }
-            }
-          }
-        }
       }
 
-      // Query for individual (unclustered) points
-      final pointFeatures = await _map.queryRenderedFeatures(
-        mapbox.RenderedQueryGeometry.fromScreenBox(screenBox),
-        mapbox.RenderedQueryOptions(
-          layerIds: [_unclusteredIconLayerId, _compactDotLayerId],
-        ),
-      );
-
-      log('GeoJsonMapLayerService: Found ${pointFeatures.length} point features');
-
-      if (pointFeatures.isNotEmpty) {
-        final feature = pointFeatures.first;
-        if (feature != null) {
-          final featureData = feature.queriedFeature.feature;
-
-          // Convert feature to Map<String, dynamic>
-          final Map<String, dynamic> featureJson =
-              _convertToStringDynamicMap(featureData);
-
-          final properties = featureJson['properties'];
-          final propsMap = properties is Map
-              ? _convertToStringDynamicMap(properties)
-              : <String, dynamic>{};
-          log('GeoJsonMapLayerService: Point properties: $propsMap');
-
-          final locationId = propsMap['locationId'];
-          if (locationId != null) {
-            log('GeoJsonMapLayerService: Location tapped: $locationId');
-            onLocationTapped?.call(locationId as int);
-            return;
-          }
-        }
+      // Pins win over clusters, clusters over bare dots.
+      for (final layerId in [_selectedPinLayerId, _unclusteredIconLayerId]) {
+        if (_dispatchLocationTap(await query(layerId))) return;
       }
+
+      if (config.enableClustering &&
+          await _dispatchClusterTap(await query(_clusterCircleLayerId))) {
+        return;
+      }
+
+      if (_dispatchLocationTap(await query(_compactDotLayerId))) return;
 
       log('GeoJsonMapLayerService: No features found at tap location');
     } catch (e, stack) {
       log('GeoJsonMapLayerService: Error querying features: $e\n$stack');
     }
+  }
+
+  bool _dispatchLocationTap(List<mapbox.QueriedRenderedFeature?> features) {
+    for (final feature in features) {
+      if (feature == null) continue;
+      final props = _featureProperties(feature.queriedFeature.feature);
+      final locationId = props['locationId'];
+      if (locationId is num) {
+        log('GeoJsonMapLayerService: Location tapped: $locationId');
+        onLocationTapped?.call(locationId.toInt());
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Future<bool> _dispatchClusterTap(
+    List<mapbox.QueriedRenderedFeature?> features,
+  ) async {
+    for (final feature in features) {
+      if (feature == null) continue;
+      final rawFeature = feature.queriedFeature.feature;
+      final featureJson = _convertToStringDynamicMap(rawFeature);
+      final geometry = _convertToStringDynamicMap(featureJson['geometry']);
+      final coords = geometry['coordinates'];
+      if (coords is! List || coords.length < 2) continue;
+
+      final center = LatLng(
+        (coords[1] as num).toDouble(),
+        (coords[0] as num).toDouble(),
+      );
+      final pointCount =
+          (_featureProperties(rawFeature)['point_count'] as num?)?.toInt() ?? 0;
+
+      double? expansionZoom;
+      try {
+        final result = await _map.getGeoJsonClusterExpansionZoom(
+          config.sourceId,
+          rawFeature,
+        );
+        expansionZoom = double.tryParse(result.value ?? '');
+      } catch (e) {
+        log('GeoJsonMapLayerService: Cluster expansion zoom unavailable: $e');
+      }
+
+      log('GeoJsonMapLayerService: Cluster tapped with $pointCount points');
+      onClusterTapped?.call(center, pointCount, expansionZoom);
+      return true;
+    }
+    return false;
+  }
+
+  Map<String, dynamic> _featureProperties(Map<String?, Object?> feature) {
+    final properties = _convertToStringDynamicMap(feature)['properties'];
+    return _convertToStringDynamicMap(properties);
   }
 
   /// Convert LocationModel list to GeoJSON FeatureCollection.
@@ -1028,66 +970,24 @@ class GeoJsonMapLayerService {
     for (final location in locations) {
       if (location.lat == null || location.lng == null) continue;
 
-      final shadowStyle = PinitMarkers.markerShadowStyle(
-        rating: location.rating,
-        wavyScore: location.vibe?.wavyScore ?? 0.0,
-        bossmanScore: location.vibe?.bossmanScore ?? 0.0,
-        savedCount: location.savedCount ?? 0,
-        matchScore: location.matchScore ?? 0.0,
-        badgeType: location.markerBadgeType,
-        cuisine: location.cuisine,
-        types: location.types,
-      );
-
-      // Store colorHex without '#' for icon lookup
-      final colorHex = _colorHex(shadowStyle.color);
-      final markerVisualKey = PinitMarkers.markerVisualKey(
-        emoji: location.emoji,
-        vibeVector: location.vibeVector,
-        fallbackSeed: location.locationId,
-      );
-      final displayName = _sanitizeMapLabel(location.name);
+      final locationId = location.locationId;
       final infoSubtitle = _buildInfoSubtitle(location);
       final openStatusLabel = _openStatusLabel(location.openNow);
-      final hasInfoLine = infoSubtitle.isNotEmpty || openStatusLabel.isNotEmpty;
-      final locationId = location.locationId;
-      final isBeenTo = _beenToLocationIds.contains(locationId);
-      final isSelected = _selectedLocationId == locationId.toString();
-      final compactBlend = _compactBlendForLocation(
-        locationId,
-        isSelected: isSelected,
-      );
 
       features.add({
         'type': 'Feature',
         'properties': {
           'locationId': locationId,
-          'name': displayName,
-          'emoji': location.emoji,
-          'markerVisualKey': markerVisualKey,
-          'cuisine': location.cuisine,
-          'types': location.types,
-          'rating': location.rating,
+          'name': _sanitizeMapLabel(location.name),
           'savedCount': location.savedCount ?? 0,
-          'isBeenTo': isBeenTo,
-          'beenToClusterFlag': isBeenTo ? 1 : 0,
-          'priceLevel': location.priceLevel,
+          'isBeenTo': _beenToLocationIds.contains(locationId),
           'openNow': location.openNow,
-          'topVibeTag': location.topVibeTagLabel,
-          'badgeType': location.markerBadgeType,
           'infoSubtitle': infoSubtitle,
           'openStatusLabel': openStatusLabel,
-          'hasInfoLine': hasInfoLine,
-          'bouncePhase': _bouncePhaseByLocationId[locationId] ?? 0,
+          'hasInfoLine': infoSubtitle.isNotEmpty || openStatusLabel.isNotEmpty,
           'bounceScale': _bounceScaleByLocationId[locationId] ?? 1.0,
-          'useCompactMarker': compactBlend >= 0.5,
-          'compactOpacity': compactBlend,
-          'pinOpacity': 1.0 - compactBlend,
-          'labelOpacity': 1.0 - compactBlend,
           'iconKey': _buildLocationIconKey(location),
-          'symbolSortKey': isSelected ? 100000 : (location.savedCount ?? 0),
-          // Color as hex string (no '#') for icon-image expression
-          'colorHex': colorHex,
+          'priority': _placementPriority(location),
         },
         'geometry': {
           'type': 'Point',
@@ -1100,6 +1000,16 @@ class GeoJsonMapLayerService {
       'type': 'FeatureCollection',
       'features': features,
     };
+  }
+
+  /// Mapbox places lower `symbol-sort-key` values first, so the most relevant
+  /// places get the most negative key and win label space.
+  double _placementPriority(LocationModel location) {
+    final score = (location.matchScore ?? 0.0) * 1000 +
+        location.friendSaves.length * 200 +
+        (location.savedCount ?? 0).clamp(0, 100) * 10 +
+        (location.rating ?? 0.0);
+    return -score;
   }
 
   /// Safely remove a layer, ignoring errors if it doesn't exist.
@@ -1133,7 +1043,6 @@ class GeoJsonMapLayerService {
 
     for (final locationId in timersToCancel) {
       _bounceTimersByLocationId.remove(locationId)?.cancel();
-      _bouncePhaseByLocationId.remove(locationId);
       _bounceScaleByLocationId.remove(locationId);
     }
   }
@@ -1175,85 +1084,69 @@ class GeoJsonMapLayerService {
     }
   }
 
-  List<Object> _buildTextFieldExpression() {
+  List<Object> _nameLabelExpression() {
+    return [
+      'format',
+      ['get', 'name'],
+      <String, Object>{},
+    ];
+  }
+
+  /// Name, then a muted "★4.5 · $$ · vibe · ● Open" line when there is one.
+  List<Object> _detailLabelExpression() {
+    final muted = _hex(pinit.PinitColors.mute);
+    final detailStyle = {
+      'font-scale': 0.84,
+      'text-font': [
+        'literal',
+        _labelFontRegular,
+      ],
+      'text-color': muted,
+    };
+    final hasSubtitle = [
+      '!=',
+      [
+        'coalesce',
+        ['get', 'infoSubtitle'],
+        ''
+      ],
+      ''
+    ];
+    final hasOpenStatus = [
+      '!=',
+      [
+        'coalesce',
+        ['get', 'openStatusLabel'],
+        ''
+      ],
+      ''
+    ];
+
     return [
       'case',
       ['get', 'hasInfoLine'],
       [
         'format',
         ['get', 'name'],
-        {
-          'font-scale': 1.0,
-          'text-font': [
-            'literal',
-            ['Open Sans Semibold', 'Arial Unicode MS Bold']
-          ],
-        },
+        <String, Object>{},
         '\n',
-        {},
+        <String, Object>{},
         [
           'coalesce',
           ['get', 'infoSubtitle'],
           ''
         ],
-        {
-          'font-scale': 0.82,
-          'text-font': [
-            'literal',
-            ['Open Sans Regular', 'Arial Unicode MS Regular']
-          ],
-          'text-color': '#707785',
-        },
+        detailStyle,
         [
           'case',
-          [
-            'all',
-            [
-              '!=',
-              [
-                'coalesce',
-                ['get', 'infoSubtitle'],
-                ''
-              ],
-              ''
-            ],
-            [
-              '!=',
-              [
-                'coalesce',
-                ['get', 'openStatusLabel'],
-                ''
-              ],
-              ''
-            ],
-          ],
+          ['all', hasSubtitle, hasOpenStatus],
           ' · ',
           '',
         ],
+        detailStyle,
+        ['case', hasOpenStatus, '● ', ''],
         {
-          'font-scale': 0.82,
-          'text-font': [
-            'literal',
-            ['Open Sans Regular', 'Arial Unicode MS Regular']
-          ],
-          'text-color': '#707785',
-        },
-        [
-          'case',
-          [
-            '!=',
-            [
-              'coalesce',
-              ['get', 'openStatusLabel'],
-              ''
-            ],
-            ''
-          ],
-          '●',
-          '',
-        ],
-        {
-          'font-scale': 0.80,
+          'font-scale': 0.7,
           'text-color': [
             'case',
             [
@@ -1261,517 +1154,19 @@ class GeoJsonMapLayerService {
               ['get', 'openNow'],
               true
             ],
-            '#34C759',
-            '#FF3B30',
+            _hex(pinit.PinitColors.teal),
+            _hex(pinit.PinitColors.accent),
           ],
         },
         [
-          'case',
-          [
-            '!=',
-            [
-              'coalesce',
-              ['get', 'openStatusLabel'],
-              ''
-            ],
-            ''
-          ],
-          [
-            'concat',
-            ' ',
-            ['get', 'openStatusLabel']
-          ],
-          '',
+          'coalesce',
+          ['get', 'openStatusLabel'],
+          ''
         ],
-        {
-          'font-scale': 0.82,
-          'text-font': [
-            'literal',
-            ['Open Sans Regular', 'Arial Unicode MS Regular']
-          ],
-          'text-color': '#707785',
-        },
+        detailStyle,
       ],
-      [
-        'format',
-        ['get', 'name'],
-        {
-          'font-scale': 1.0,
-          'text-font': [
-            'literal',
-            ['Open Sans Semibold', 'Arial Unicode MS Bold']
-          ],
-        },
-      ],
+      _nameLabelExpression(),
     ];
-  }
-
-  Future<void> _refreshViewportPresentation({
-    LatLngBounds? visibleBounds,
-    ui.Rect? usableScreenRect,
-    required bool isInteracting,
-    required bool updateSource,
-  }) async {
-    final visibleLocationIds = <int>{};
-    final screenPositionsByLocationId = <int, ui.Offset>{};
-    final effectiveUsableScreenRect = usableScreenRect ?? _usableScreenRect;
-    final evaluationScreenRect = effectiveUsableScreenRect == null
-        ? null
-        : _expandScreenRect(effectiveUsableScreenRect);
-
-    if (evaluationScreenRect != null) {
-      final visibleLocations = _currentLocations
-          .where((location) => location.lat != null && location.lng != null)
-          .toList(growable: false);
-
-      final screenPoints = await Future.wait(
-        visibleLocations.map((location) async {
-          final point = await _map.pixelForCoordinate(
-            mapbox.Point(
-              coordinates: mapbox.Position(location.lng!, location.lat!),
-            ),
-          );
-          return (locationId: location.locationId, point: point);
-        }),
-      );
-
-      for (final item in screenPoints) {
-        final offset = ui.Offset(item.point.x, item.point.y);
-        if (evaluationScreenRect.contains(offset)) {
-          visibleLocationIds.add(item.locationId);
-          screenPositionsByLocationId[item.locationId] = offset;
-        }
-      }
-    } else {
-      final bounds = visibleBounds ?? await _getVisibleBounds();
-      if (bounds == null) return;
-
-      for (final location in _currentLocations) {
-        final lat = location.lat;
-        final lng = location.lng;
-        if (lat == null || lng == null) continue;
-        if (_isLocationInBounds(lat, lng, bounds)) {
-          visibleLocationIds.add(location.locationId);
-        }
-      }
-    }
-
-    final nextCompactLocationIds = <int>{};
-    final nextExpandedLocationIds = <int>{};
-    final locationsBySegment = <int, List<LocationModel>>{};
-    final fallbackBounds = screenPositionsByLocationId.isEmpty
-        ? (visibleBounds ?? await _getVisibleBounds())
-        : null;
-
-    for (final location in _currentLocations) {
-      final lat = location.lat;
-      final lng = location.lng;
-      if (lat == null || lng == null) continue;
-      if (!visibleLocationIds.contains(location.locationId)) continue;
-
-      int segmentIndex;
-      if (screenPositionsByLocationId.isNotEmpty &&
-          evaluationScreenRect != null) {
-        final offset = screenPositionsByLocationId[location.locationId];
-        if (offset == null) continue;
-        segmentIndex = _segmentIndexForScreenOffset(
-          offset: offset,
-          usableScreenRect: evaluationScreenRect,
-        );
-      } else {
-        final bounds = fallbackBounds;
-        if (bounds == null) continue;
-        segmentIndex = _segmentIndexForLocation(
-          lat: lat,
-          lng: lng,
-          bounds: bounds,
-        );
-      }
-
-      locationsBySegment.putIfAbsent(segmentIndex, () => []).add(location);
-    }
-
-    for (final entry in locationsBySegment.entries) {
-      final segmentLocations = entry.value;
-      final hadCompactMarkers = segmentLocations.any(
-        (location) => _compactLocationIds.contains(location.locationId),
-      );
-      final isDenseSegment =
-          segmentLocations.length > _segmentDenseEnterThreshold ||
-              (hadCompactMarkers &&
-                  segmentLocations.length > _segmentDenseExitThreshold);
-      if (!isDenseSegment && screenPositionsByLocationId.isEmpty) {
-        continue;
-      }
-
-      final sortedLocations = List<LocationModel>.from(segmentLocations)
-        ..sort(_compareLocationsForDenseDisplay);
-      final visiblePinIds = <int>{};
-      final keptPinRects = <ui.Rect>[];
-      final stickyLocations = isInteracting
-          ? sortedLocations
-              .where(
-                (location) =>
-                    _selectedLocationId == location.locationId.toString() ||
-                    !_compactLocationIds.contains(location.locationId),
-              )
-              .toList(growable: false)
-          : const <LocationModel>[];
-
-      for (final location in stickyLocations) {
-        _tryKeepExpandedLocation(
-          location: location,
-          isDenseSegment: isDenseSegment,
-          screenPositionsByLocationId: screenPositionsByLocationId,
-          visiblePinIds: visiblePinIds,
-          keptPinRects: keptPinRects,
-          stickyMode: isInteracting,
-        );
-      }
-
-      final shouldPromoteNewPins = !isInteracting || visiblePinIds.isEmpty;
-      if (shouldPromoteNewPins) {
-        for (final location in sortedLocations) {
-          _tryKeepExpandedLocation(
-            location: location,
-            isDenseSegment: isDenseSegment,
-            screenPositionsByLocationId: screenPositionsByLocationId,
-            visiblePinIds: visiblePinIds,
-            keptPinRects: keptPinRects,
-            stickyMode: false,
-          );
-        }
-      }
-
-      for (final location in segmentLocations) {
-        final locationId = location.locationId;
-        if (visiblePinIds.contains(locationId)) {
-          nextExpandedLocationIds.add(locationId);
-        }
-        if (_selectedLocationId == locationId.toString()) continue;
-        if (!visiblePinIds.contains(locationId)) {
-          nextCompactLocationIds.add(locationId);
-        }
-      }
-    }
-
-    final presentationStateChanged =
-        !_setsEqual(_presentationVisibleLocationIds, visibleLocationIds) ||
-            !_setsEqual(
-              _presentationExpandedLocationIds,
-              nextExpandedLocationIds,
-            ) ||
-            _presentationDefaultsVisibleToCompact != isInteracting;
-
-    _presentationVisibleLocationIds = visibleLocationIds;
-    _presentationExpandedLocationIds = nextExpandedLocationIds;
-    _presentationDefaultsVisibleToCompact = isInteracting;
-
-    if (_setsEqual(_compactLocationIds, nextCompactLocationIds)) {
-      if (presentationStateChanged && updateSource) {
-        await _updateSourceData();
-      }
-      return;
-    }
-
-    await _transitionCompactMarkers(
-      nextCompactLocationIds,
-      updateSource: updateSource,
-    );
-  }
-
-  void _tryKeepExpandedLocation({
-    required LocationModel location,
-    required bool isDenseSegment,
-    required Map<int, ui.Offset> screenPositionsByLocationId,
-    required Set<int> visiblePinIds,
-    required List<ui.Rect> keptPinRects,
-    required bool stickyMode,
-  }) {
-    final locationId = location.locationId;
-    if (visiblePinIds.contains(locationId)) {
-      return;
-    }
-
-    final isSelected = _selectedLocationId == locationId.toString();
-    final maxPinsInSegment =
-        stickyMode ? _segmentStickyPinCount : _segmentExpandedPinCount;
-    final canAddAnotherPin =
-        isSelected || visiblePinIds.length < maxPinsInSegment;
-    if (!canAddAnotherPin) {
-      return;
-    }
-
-    final wasCompact = _compactLocationIds.contains(locationId);
-    final screenOffset = screenPositionsByLocationId[locationId];
-    final pinRect = screenOffset == null
-        ? null
-        : _pinScreenRectForLocation(
-            center: screenOffset,
-            isSelected: isSelected,
-          );
-
-    final overlapsExistingPin = pinRect != null &&
-        keptPinRects.any((existingRect) => existingRect.overlaps(pinRect));
-    final maxOverlapRatio = pinRect == null
-        ? 0.0
-        : keptPinRects.fold<double>(
-            0.0,
-            (maxRatio, existingRect) =>
-                math.max(maxRatio, _overlapRatio(existingRect, pinRect)),
-          );
-    final overlapLimit = stickyMode
-        ? _criticalOverlapStickyRatio
-        : (wasCompact ? _criticalOverlapExitRatio : _criticalOverlapEnterRatio);
-    final hasCriticalOverlap = maxOverlapRatio >= overlapLimit;
-    final shouldKeepPin = isSelected ||
-        (stickyMode
-            ? !hasCriticalOverlap
-            : (isDenseSegment ? !overlapsExistingPin : !hasCriticalOverlap));
-
-    if (!shouldKeepPin) {
-      return;
-    }
-
-    visiblePinIds.add(locationId);
-    if (pinRect != null) {
-      keptPinRects.add(pinRect);
-    }
-  }
-
-  Future<void> _transitionCompactMarkers(
-    Set<int> nextCompactLocationIds, {
-    required bool updateSource,
-  }) async {
-    final previousCompactLocationIds = Set<int>.from(_compactLocationIds);
-    if (_setsEqual(previousCompactLocationIds, nextCompactLocationIds)) {
-      return;
-    }
-
-    _compactFadeTimer?.cancel();
-    _compactFadeTimer = null;
-
-    if (!updateSource) {
-      _compactLocationIds = nextCompactLocationIds;
-      _compactFadeByLocationId.clear();
-      return;
-    }
-
-    final affectedLocationIds = <int>{
-      ...previousCompactLocationIds,
-      ...nextCompactLocationIds,
-      ..._compactFadeByLocationId.keys,
-    };
-
-    final startBlendByLocationId = <int, double>{
-      for (final locationId in affectedLocationIds)
-        locationId: _compactFadeByLocationId[locationId] ??
-            (previousCompactLocationIds.contains(locationId) ? 1.0 : 0.0),
-    };
-    final endBlendByLocationId = <int, double>{
-      for (final locationId in affectedLocationIds)
-        locationId: nextCompactLocationIds.contains(locationId) ? 1.0 : 0.0,
-    };
-
-    _compactLocationIds = nextCompactLocationIds;
-
-    final stopwatch = Stopwatch()..start();
-    _compactFadeTimer = Timer.periodic(
-      _compactFadeFrameInterval,
-      (timer) {
-        final progress = (stopwatch.elapsedMilliseconds /
-                _compactFadeDuration.inMilliseconds)
-            .clamp(0.0, 1.0);
-        final easedProgress = Curves.easeOutCubic.transform(progress);
-
-        for (final locationId in affectedLocationIds) {
-          final start = startBlendByLocationId[locationId] ?? 0.0;
-          final end = endBlendByLocationId[locationId] ?? 0.0;
-          final blend = ui.lerpDouble(start, end, easedProgress) ?? end;
-          _compactFadeByLocationId[locationId] = blend;
-        }
-
-        unawaited(_updateSourceData());
-
-        if (progress >= 1.0) {
-          timer.cancel();
-          _compactFadeTimer = null;
-          _compactFadeByLocationId
-            ..removeWhere((locationId, _) {
-              final endBlend = endBlendByLocationId[locationId] ?? 0.0;
-              return endBlend <= 0.0;
-            })
-            ..updateAll(
-                (locationId, _) => endBlendByLocationId[locationId] ?? 0.0);
-          unawaited(_updateSourceData());
-        }
-      },
-    );
-  }
-
-  double _compactBlendForLocation(
-    int locationId, {
-    required bool isSelected,
-  }) {
-    if (isSelected) return 0.0;
-    final isPresentationExpanded =
-        _presentationExpandedLocationIds.contains(locationId);
-    if (isPresentationExpanded) {
-      return _compactFadeByLocationId[locationId] ?? 0.0;
-    }
-    final shouldDefaultToCompact = _presentationDefaultsVisibleToCompact &&
-        _presentationVisibleLocationIds.contains(locationId);
-    if (shouldDefaultToCompact) {
-      return _compactFadeByLocationId[locationId] ?? 1.0;
-    }
-    return _compactFadeByLocationId[locationId] ??
-        (_compactLocationIds.contains(locationId) ? 1.0 : 0.0);
-  }
-
-  Future<LatLngBounds?> _getVisibleBounds() async {
-    try {
-      final state = await _map.getCameraState();
-      final bounds = await _map.coordinateBoundsForCamera(
-        mapbox.CameraOptions(
-          center: state.center,
-          zoom: state.zoom,
-          bearing: state.bearing,
-          pitch: state.pitch,
-        ),
-      );
-      return LatLngBounds.fromCoordinateBounds(bounds);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  bool _isLocationInBounds(double lat, double lng, LatLngBounds bounds) {
-    final inLat =
-        lat >= bounds.southwest.latitude && lat <= bounds.northeast.latitude;
-    final west = bounds.southwest.longitude;
-    final east = bounds.northeast.longitude;
-    final inLng = west <= east
-        ? (lng >= west && lng <= east)
-        : (lng >= west || lng <= east);
-
-    return inLat && inLng;
-  }
-
-  bool _setsEqual(Set<int> a, Set<int> b) {
-    if (identical(a, b)) return true;
-    if (a.length != b.length) return false;
-    for (final value in a) {
-      if (!b.contains(value)) return false;
-    }
-    return true;
-  }
-
-  int _segmentIndexForLocation({
-    required double lat,
-    required double lng,
-    required LatLngBounds bounds,
-  }) {
-    final latSpan = bounds.northeast.latitude - bounds.southwest.latitude;
-    final rowHeight = latSpan <= 0 ? 1.0 : latSpan / _segmentRows;
-    final rawRow = ((lat - bounds.southwest.latitude) / rowHeight)
-        .floor()
-        .clamp(0, _segmentRows - 1);
-
-    final west = bounds.southwest.longitude;
-    final east = bounds.northeast.longitude;
-    final lngSpan = _longitudeSpan(west, east);
-    final columnWidth = lngSpan <= 0 ? 1.0 : lngSpan / _segmentColumns;
-    final relativeLng = _relativeLongitude(lng, west);
-    final rawColumn =
-        (relativeLng / columnWidth).floor().clamp(0, _segmentColumns - 1);
-
-    return rawRow * _segmentColumns + rawColumn;
-  }
-
-  int _segmentIndexForScreenOffset({
-    required ui.Offset offset,
-    required ui.Rect usableScreenRect,
-  }) {
-    final columnWidth = usableScreenRect.width <= 0
-        ? 1.0
-        : usableScreenRect.width / _segmentColumns;
-    final rowHeight = usableScreenRect.height <= 0
-        ? 1.0
-        : usableScreenRect.height / _segmentRows;
-
-    final rawColumn = ((offset.dx - usableScreenRect.left) / columnWidth)
-        .floor()
-        .clamp(0, _segmentColumns - 1);
-    final rawRow = ((offset.dy - usableScreenRect.top) / rowHeight)
-        .floor()
-        .clamp(0, _segmentRows - 1);
-
-    return rawRow * _segmentColumns + rawColumn;
-  }
-
-  ui.Rect _expandScreenRect(ui.Rect rect) {
-    final verticalInset = math.max(
-      _viewportMinVerticalOverscan,
-      rect.height * _viewportVerticalOverscanFactor,
-    );
-    return ui.Rect.fromLTRB(
-      rect.left,
-      rect.top - verticalInset,
-      rect.right,
-      rect.bottom + verticalInset,
-    );
-  }
-
-  double _longitudeSpan(double west, double east) {
-    return west <= east ? (east - west) : (360 - west + east);
-  }
-
-  double _relativeLongitude(double lng, double west) {
-    final delta = lng - west;
-    return delta >= 0 ? delta : delta + 360;
-  }
-
-  ui.Rect _pinScreenRectForLocation({
-    required ui.Offset center,
-    required bool isSelected,
-  }) {
-    final width = isSelected ? _denseSelectedPinWidth : _densePinWidth;
-    final height = isSelected ? _denseSelectedPinHeight : _densePinHeight;
-    return ui.Rect.fromCenter(
-      center: center,
-      width: width,
-      height: height,
-    );
-  }
-
-  double _overlapRatio(ui.Rect a, ui.Rect b) {
-    final intersection = a.intersect(b);
-    if (intersection.isEmpty) return 0.0;
-
-    final intersectionArea = intersection.width * intersection.height;
-    final baseArea = math.min(a.width * a.height, b.width * b.height);
-    if (baseArea <= 0) return 0.0;
-
-    return intersectionArea / baseArea;
-  }
-
-  int _compareLocationsForDenseDisplay(LocationModel a, LocationModel b) {
-    final aSelected = _selectedLocationId == a.locationId.toString();
-    final bSelected = _selectedLocationId == b.locationId.toString();
-    if (aSelected != bSelected) {
-      return aSelected ? -1 : 1;
-    }
-
-    final matchCompare = (b.matchScore ?? 0.0).compareTo(a.matchScore ?? 0.0);
-    if (matchCompare != 0) return matchCompare;
-
-    final savedCompare = (b.savedCount ?? 0).compareTo(a.savedCount ?? 0);
-    if (savedCompare != 0) return savedCompare;
-
-    final ratingCompare = (b.rating ?? 0.0).compareTo(a.rating ?? 0.0);
-    if (ratingCompare != 0) return ratingCompare;
-
-    return a.locationId.compareTo(b.locationId);
   }
 
   String _buildLocationIconKey(LocationModel location) {
@@ -1790,7 +1185,6 @@ class GeoJsonMapLayerService {
       vibeVector: location.vibeVector,
       fallbackSeed: location.locationId,
     );
-    final selected = _selectedLocationId == location.locationId.toString();
     final colorHex = _colorHex(shadowStyle.color);
     final badgeType = location.markerBadgeType ?? 'none';
     final wavyScore = ((location.vibe?.wavyScore ?? 0.0) * 100).round();
@@ -1806,7 +1200,7 @@ class GeoJsonMapLayerService {
         ? 'fn0'
         : 'fn${location.friendSaves.length}_${location.friendSaves.take(3).map((f) => f.friendProfileImageUrl ?? f.friendId).join("|").hashCode}';
 
-    return '${visualKey}-${shadowStyle.key}-$colorHex-$badgeType-s$savedCount-w$wavyScore-b$bossmanScore-m$matchScore-sel${selected ? 1 : 0}-$friendSig';
+    return '$visualKey-${shadowStyle.key}-$colorHex-$badgeType-s$savedCount-w$wavyScore-b$bossmanScore-m$matchScore-$friendSig';
   }
 
   String _buildInfoSubtitle(LocationModel location) {
@@ -1861,12 +1255,7 @@ class GeoJsonMapLayerService {
         .toUpperCase();
   }
 
-  String _clusterOverflowTierKey(int pointCount) {
-    if (pointCount <= 2) return 'dots0';
-    if (pointCount == 3) return 'dots1';
-    if (pointCount == 4) return 'dots2';
-    return 'dots3';
-  }
+  String _hex(Color color) => '#${_colorHex(color)}';
 
   Future<mapbox.MbxImage> _createMapboxImage(Uint8List pngBytes) async {
     final codec = await ui.instantiateImageCodec(pngBytes);
@@ -1881,20 +1270,6 @@ class GeoJsonMapLayerService {
     } finally {
       frame.image.dispose();
       codec.dispose();
-    }
-  }
-
-  int _bouncePhaseForProgress(double progress) {
-    final phaseIndex = (progress * 4).floor().clamp(0, 3);
-    switch (phaseIndex) {
-      case 0:
-        return 1;
-      case 1:
-        return 2;
-      case 2:
-        return 3;
-      default:
-        return 0;
     }
   }
 

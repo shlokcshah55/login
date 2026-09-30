@@ -280,7 +280,7 @@ class PinitMarkers {
 
   static const double _basePinBubbleDiameter = 32.0;
   static const double _popularPinBubbleDiameter = 36.0;
-  static const double _selectedPinScale = 1.7;
+  static const double _selectedPinScale = 1.4;
   static const double _accentRatingThreshold = 4.5;
   static const double _pinBubbleWidthFactor = 1.18;
   static const double _pinBubbleHeightFactor = 0.92;
@@ -491,7 +491,7 @@ class PinitMarkers {
     );
 
     final key =
-        'pin7|${visual.key}|$name|${devicePixelRatio.toStringAsFixed(2)}'
+        'pin8|${visual.key}|$name|${devicePixelRatio.toStringAsFixed(2)}'
         '|${fillColor.toARGB32()}|${shadowStyle.key}'
         '|${textColor.toARGB32()}|$selected|$showText|$avatarKey'
         '|${wavyScore.toStringAsFixed(2)}|${bossmanScore.toStringAsFixed(2)}'
@@ -1240,7 +1240,6 @@ class PinitMarkers {
     final double selectionScale = selected ? _selectedPinScale : 1.0;
     final double bubR =
         _pinBubbleDiameterForSavedCount(savedCount) / 2 * dpr * selectionScale;
-    final double tailH = bubR * 0.55;
     final double avatarRingExtra = avatarColors.isNotEmpty ? 3.6 * dpr : 0;
     final double ringSpace = avatarRingExtra;
     final double shadowExtra = _hardShadowOffset * dpr;
@@ -1281,23 +1280,30 @@ class PinitMarkers {
     final bool hasFriendAvatars =
         friendAvatarImages.isNotEmpty || friendInitials.isNotEmpty;
     final double friendStackExtra = hasFriendAvatars ? 9.0 * dpr : 0.0;
-    final double pad = selBorder + ringSpace + shadowExtra + 4 + friendStackExtra;
+    final double pad =
+        selBorder + ringSpace + shadowExtra + 4 + friendStackExtra;
 
     final double totalW = showText
         ? bubbleOuterSize.width + textGap + pillW
         : bubbleOuterSize.width;
-    final double totalH = math.max(bubbleOuterSize.height, pillH) + tailH;
 
     final int outW = (totalW + pad * 2).ceil();
-    final int outH = (totalH + pad * 2).ceil();
-
-    final rec = ui.PictureRecorder();
-    final c = Canvas(rec);
 
     final centre = Offset(
       bubbleOuterSize.width / 2 + pad,
       bubbleOuterSize.height / 2 + pad,
     );
+
+    // Crop the canvas just below the tail's hard shadow so a bottom-anchored
+    // icon puts the tail tip on the location (map layers offset by the shadow).
+    final double tailTipY =
+        _bubbleRectFor(centre: centre, radius: bubR).bottom + bubR * 0.52;
+    final double pillBottom =
+        showText ? centre.dy + pillH / 2 + shadowExtra : 0;
+    final int outH = (math.max(tailTipY + shadowExtra, pillBottom) + 1).ceil();
+
+    final rec = ui.PictureRecorder();
+    final c = Canvas(rec);
 
     // 1. Pointer tail
     _drawPointerTail(c,
