@@ -78,3 +78,6 @@ jobs:
 
       - name: Replay migrations and seed
         run: supabase db reset
+
+      - name: Run database tests (pgTAP)
+        run: supabase test db
