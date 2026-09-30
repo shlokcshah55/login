@@ -2,12 +2,13 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(13);
+select plan(14);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures. cuisine_key is set by locations_set_cuisine_key_trg from `types`.
 --   Baseline cluster (far away): 20 each italian / indian / pizza / chinese / korean
---   "Islington" (51.536, -0.103): 10 italian, 3 indian, 5 pizza, 3 korean
+--   "Islington" (51.536, -0.103): 10 italian, 3 indian, 5 pizza, 3 korean,
+--                                  3 australian (absent from the baseline: huge raw lift)
 --   "East Ham"  (51.539,  0.052): 10 indian, 2 italian, 5 pizza
 -- ---------------------------------------------------------------------------
 insert into locations (location_id, name, lat, lng, types, rating, user_ratings_total)
@@ -17,7 +18,7 @@ from (
     from unnest(array['italian','indian','pizza','chinese','korean']) t, generate_series(1, 20) g
   union all
   select 51.536 + g * 0.0001, -0.103, t, g
-    from (values ('italian', 10), ('indian', 3), ('pizza', 5), ('korean', 3)) v(t, n), generate_series(1, n) g
+    from (values ('italian', 10), ('indian', 3), ('pizza', 5), ('korean', 3), ('australian', 3)) v(t, n), generate_series(1, n) g
   union all
   select 51.539 + g * 0.0001, 0.052, t, g
     from (values ('indian', 10), ('italian', 2), ('pizza', 5)) v(t, n), generate_series(1, n) g
@@ -66,6 +67,11 @@ select is(
 select is(
   (select id from get_home_rail(51.539, 0.052) where kind = 'cuisine' order by score desc limit 1),
   'indian', 'East Ham: Indian has the highest area lift');
+
+select ok(
+  (select score from get_home_rail(51.536, -0.103) where id = 'australian')
+    < (select score from get_home_rail(51.536, -0.103) where id = 'italian'),
+  'Smoothed lift: 3 rare places cannot outrank a 10-place specialty');
 
 select ok(
   not exists (select 1 from get_home_rail(51.536, -0.103) where id = 'pizza'),
