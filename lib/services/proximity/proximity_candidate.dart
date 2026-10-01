@@ -31,6 +31,7 @@ enum ProximitySource {
 /// `social_post_places`. Every field is optional: older saves have none.
 class ProximityInsight {
   const ProximityInsight({
+    this.savedMethod,
     this.creatorHandle,
     this.topDish,
     this.vibe,
@@ -39,6 +40,8 @@ class ProximityInsight {
     this.beenTo = false,
   });
 
+  /// `tiktok`, `instagram` or `in-app`, from the latest save action.
+  final String? savedMethod;
   final String? creatorHandle;
   final String? topDish;
   final String? vibe;
@@ -56,6 +59,7 @@ class ProximityInsight {
     }
 
     return ProximityInsight(
+      savedMethod: clean(json['saved_method']),
       creatorHandle: clean(json['creator_handle']),
       topDish: clean(json['top_dish']),
       vibe: clean(json['vibe']),
@@ -112,7 +116,9 @@ class ProximityCandidate {
       name: location.name,
       latitude: lat,
       longitude: lng,
-      source: ProximitySource.fromSavedMethod(location.savedMethod),
+      source: ProximitySource.fromSavedMethod(
+        location.savedMethod ?? insight.savedMethod,
+      ),
       insight: insight,
       cuisine: location.cuisinePrimary ?? location.cuisine,
       rating: location.rating,
