@@ -409,6 +409,18 @@ class FCMService {
     return normalized;
   }
 
+  /// Opens [deepLink] as if a push carrying it had been tapped. On a cold
+  /// start the navigator may not exist yet, so wait for it briefly.
+  Future<bool> openDeepLink(
+    String deepLink, {
+    Map<String, dynamic> data = const {},
+  }) async {
+    for (var i = 0; i < 30 && navigatorKey.currentState == null; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    }
+    return _handleDeepLink(deepLink, data);
+  }
+
   Future<bool> _handleDeepLink(
       String deepLink, Map<String, dynamic> data) async {
     final segments = _deepLinkSegments(deepLink);

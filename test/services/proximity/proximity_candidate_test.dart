@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/services/proximity/proximity_candidate.dart';
@@ -53,5 +55,50 @@ void main() {
 
   test('places without coordinates cannot be candidates', () {
     expect(ProximityCandidate.fromLocation(loc(lat: null)), isNull);
+  });
+
+  test('snapshot round trip keeps everything the policy needs', () {
+    const original = ProximityCandidate(
+      locationId: 3,
+      name: 'Nobu',
+      latitude: 51.5,
+      longitude: -0.1,
+      source: ProximitySource.tiktok,
+      insight: ProximityInsight(
+        savedMethod: 'tiktok',
+        creatorHandle: 'foodie',
+        topDish: 'miso cod',
+        confidenceTier: 'high',
+        confirmedByUser: true,
+      ),
+      cuisine: 'Japanese',
+      rating: 4.6,
+      userRatingsTotal: 900,
+      openingHoursPeriods: [
+        {
+          'open': {'day': 1, 'time': '1200'},
+          'close': {'day': 1, 'time': '2300'},
+        },
+      ],
+      openNow: true,
+    );
+
+    final restored = ProximityCandidate.tryFromJson(
+      jsonDecode(jsonEncode(original.toJson())),
+    )!;
+
+    expect(restored.locationId, 3);
+    expect(restored.source, ProximitySource.tiktok);
+    expect(restored.insight.creatorHandle, 'foodie');
+    expect(restored.insight.topDish, 'miso cod');
+    expect(restored.insight.confirmedByUser, isTrue);
+    expect(restored.rating, 4.6);
+    expect(restored.openingHoursPeriods, hasLength(1));
+    expect(restored.openNow, isTrue);
+  });
+
+  test('a corrupt snapshot entry is ignored', () {
+    expect(ProximityCandidate.tryFromJson('nope'), isNull);
+    expect(ProximityCandidate.tryFromJson({'id': 1}), isNull);
   });
 }

@@ -75,9 +75,9 @@
 	<key>NSCameraUsageDescription</key>
 	<string>This app needs camera access to take photos of locations you want to share.</string>
 <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>This app needs location access to provide location-based features and background updates.</string>
+	<string>Pinit uses your location in the background to let you know when you're near a place you've saved.</string>
 	<key>NSLocationAlwaysUsageDescription</key>
-	<string>This app needs location access to provide location-based features even when the app is in the background.</string>
+	<string>Pinit uses your location in the background to let you know when you're near a place you've saved.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>This app needs location access to show your current location and provide location-based features.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>

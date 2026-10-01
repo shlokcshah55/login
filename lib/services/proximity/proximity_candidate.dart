@@ -52,6 +52,16 @@ class ProximityInsight {
   final bool confirmedByUser;
   final bool beenTo;
 
+  Map<String, dynamic> toJson() => {
+        'saved_method': savedMethod,
+        'creator_handle': creatorHandle,
+        'top_dish': topDish,
+        'vibe': vibe,
+        'confidence_tier': confidenceTier,
+        'confirmed_by_user': confirmedByUser,
+        'been_to': beenTo,
+      };
+
   factory ProximityInsight.fromJson(Map<String, dynamic> json) {
     String? clean(dynamic v) {
       final s = (v as String?)?.trim();
@@ -101,6 +111,49 @@ class ProximityCandidate {
   final bool? openNow;
 
   bool get isSocial => source.isSocial;
+
+  /// Compact form for the on-device snapshot used when the OS wakes the app
+  /// before the saved list has loaded from the network.
+  Map<String, dynamic> toJson() => {
+        'id': locationId,
+        'name': name,
+        'lat': latitude,
+        'lng': longitude,
+        'source': source.name,
+        'insight': insight.toJson(),
+        'cuisine': cuisine,
+        'rating': rating,
+        'reviews': userRatingsTotal,
+        'periods': openingHoursPeriods,
+        'open_now': openNow,
+      };
+
+  static ProximityCandidate? tryFromJson(Object? raw) {
+    if (raw is! Map) return null;
+    final id = (raw['id'] as num?)?.toInt();
+    final lat = (raw['lat'] as num?)?.toDouble();
+    final lng = (raw['lng'] as num?)?.toDouble();
+    final name = raw['name'] as String?;
+    if (id == null || lat == null || lng == null || name == null) return null;
+
+    final insight = raw['insight'];
+    return ProximityCandidate(
+      locationId: id,
+      name: name,
+      latitude: lat,
+      longitude: lng,
+      source: ProximitySource.fromSavedMethod(raw['source'] as String?),
+      insight: insight is Map
+          ? ProximityInsight.fromJson(Map<String, dynamic>.from(insight))
+          : const ProximityInsight(),
+      cuisine: raw['cuisine'] as String?,
+      rating: (raw['rating'] as num?)?.toDouble(),
+      userRatingsTotal: (raw['reviews'] as num?)?.toInt(),
+      openingHoursPeriods:
+          raw['periods'] is List ? raw['periods'] as List : null,
+      openNow: raw['open_now'] as bool?,
+    );
+  }
 
   /// Returns null when the place has no coordinates.
   static ProximityCandidate? fromLocation(
