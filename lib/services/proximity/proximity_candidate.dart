@@ -1,0 +1,124 @@
+import 'package:login/models/locations.dart';
+
+/// Where a saved place came from. Social saves (TikTok / Instagram) carry a
+/// creator's reason for saving, so they get boosted and richer copy.
+enum ProximitySource {
+  tiktok,
+  instagram,
+  inApp;
+
+  bool get isSocial => this != inApp;
+
+  String get label => switch (this) {
+        tiktok => 'TikTok',
+        instagram => 'Instagram',
+        inApp => 'Pinit',
+      };
+
+  static ProximitySource fromSavedMethod(String? method) {
+    switch (method?.toLowerCase()) {
+      case 'tiktok':
+        return tiktok;
+      case 'instagram':
+        return instagram;
+      default:
+        return inApp;
+    }
+  }
+}
+
+/// Social context for a saved place, joined from `video_insights` and
+/// `social_post_places`. Every field is optional: older saves have none.
+class ProximityInsight {
+  const ProximityInsight({
+    this.creatorHandle,
+    this.topDish,
+    this.vibe,
+    this.confidenceTier,
+    this.confirmedByUser = false,
+    this.beenTo = false,
+  });
+
+  final String? creatorHandle;
+  final String? topDish;
+  final String? vibe;
+
+  /// `high`, `medium` or `low` from the share extraction. Null when unknown
+  /// (legacy saves, in-app saves).
+  final String? confidenceTier;
+  final bool confirmedByUser;
+  final bool beenTo;
+
+  factory ProximityInsight.fromJson(Map<String, dynamic> json) {
+    String? clean(dynamic v) {
+      final s = (v as String?)?.trim();
+      return (s == null || s.isEmpty) ? null : s;
+    }
+
+    return ProximityInsight(
+      creatorHandle: clean(json['creator_handle']),
+      topDish: clean(json['top_dish']),
+      vibe: clean(json['vibe']),
+      confidenceTier: clean(json['confidence_tier'])?.toLowerCase(),
+      confirmedByUser: json['confirmed_by_user'] == true,
+      beenTo: json['been_to'] == true,
+    );
+  }
+}
+
+/// A saved place the proximity system may notify about.
+class ProximityCandidate {
+  const ProximityCandidate({
+    required this.locationId,
+    required this.name,
+    required this.latitude,
+    required this.longitude,
+    this.source = ProximitySource.inApp,
+    this.insight = const ProximityInsight(),
+    this.cuisine,
+    this.rating,
+    this.userRatingsTotal,
+    this.openingHoursPeriods,
+    this.openNow,
+  });
+
+  final int locationId;
+  final String name;
+  final double latitude;
+  final double longitude;
+  final ProximitySource source;
+  final ProximityInsight insight;
+  final String? cuisine;
+  final double? rating;
+  final int? userRatingsTotal;
+
+  /// Google-style periods: `{open: {day, time: "HHMM"}, close: {...}}`.
+  final List<dynamic>? openingHoursPeriods;
+  final bool? openNow;
+
+  bool get isSocial => source.isSocial;
+
+  /// Returns null when the place has no coordinates.
+  static ProximityCandidate? fromLocation(
+    LocationModel location, {
+    ProximityInsight insight = const ProximityInsight(),
+  }) {
+    final lat = location.lat;
+    final lng = location.lng;
+    if (lat == null || lng == null) return null;
+
+    return ProximityCandidate(
+      locationId: location.locationId,
+      name: location.name,
+      latitude: lat,
+      longitude: lng,
+      source: ProximitySource.fromSavedMethod(location.savedMethod),
+      insight: insight,
+      cuisine: location.cuisinePrimary ?? location.cuisine,
+      rating: location.rating,
+      userRatingsTotal: location.userRatingsTotal,
+      openingHoursPeriods: location.openingHoursPeriods,
+      openNow: location.openNow,
+    );
+  }
+}
