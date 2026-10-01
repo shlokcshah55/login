@@ -31,16 +31,8 @@ class PinitMap extends StatefulWidget {
 }
 
 class _PinitMapState extends State<PinitMap> {
-  static const double _usableMapTopOverlay = 160.0;
-  static const double _usableMapControlsAllowance = 52.0;
-  static const Duration _viewportRefreshThrottle = Duration(milliseconds: 96);
   bool _locationTrackingStarted = false;
   LocationListManager? _locationListManager;
-  Timer? _viewportRefreshTimer;
-  bool _viewportRefreshPending = false;
-  bool _viewportRefreshPendingInteracting = false;
-  bool _viewportRefreshInFlight = false;
-  bool _mapInteractionActive = false;
   bool _geoJsonMapLoaded = false;
 
   // Legacy fields for PointAnnotation-based rendering (when useGeoJsonLayers is false)
@@ -427,12 +419,15 @@ class _PinitMapState extends State<PinitMap> {
   }
 
   /// Handle cluster tap from GeoJSON layer.
-  void _onClusterTapped(LatLng center, int pointCount) {
+  void _onClusterTapped(LatLng center, int pointCount, double? expansionZoom) {
     print('PinitMap: Cluster tapped at $center with $pointCount points');
     final mapState = context.read<MapStateProvider>();
 
-    // Zoom in to expand the cluster
-    mapState.animateCamera(center, zoom: mapState.currentZoom + 2);
+    // Zoom to where the cluster splits apart (small nudge past it so the
+    // places separate cleanly).
+    final zoom =
+        expansionZoom != null ? expansionZoom + 0.5 : mapState.currentZoom + 2;
+    mapState.animateCamera(center, zoom: zoom);
   }
 
   @override
@@ -497,14 +492,6 @@ class _PinitMapState extends State<PinitMap> {
           },
           onCameraChangeListener: (mapbox.CameraChangedEventData event) {
             _onCameraChanged(mapStateProvider, locationListManager);
-          },
-          onMapIdleListener: (mapbox.MapIdleEventData event) {
-            _mapInteractionActive = false;
-            _scheduleViewportPresentationRefresh(
-              mapStateProvider,
-              immediate: true,
-              isInteracting: false,
-            );
           },
         ),
 
@@ -664,120 +651,11 @@ class _PinitMapState extends State<PinitMap> {
         target: center,
         zoom: state.zoom,
       ));
-      final shouldRefreshImmediately = !_mapInteractionActive;
-      _mapInteractionActive = true;
-      _scheduleViewportPresentationRefresh(
-        mapStateProvider,
-        immediate: shouldRefreshImmediately,
-        isInteracting: true,
-      );
     } catch (_) {}
-  }
-
-  void _scheduleViewportPresentationRefresh(
-    MapStateProvider mapStateProvider, {
-    bool immediate = false,
-    required bool isInteracting,
-  }) {
-    _viewportRefreshPending = true;
-    _viewportRefreshPendingInteracting = isInteracting;
-
-    if (immediate) {
-      _viewportRefreshTimer?.cancel();
-      _viewportRefreshTimer = null;
-      unawaited(_pumpViewportPresentationRefresh(mapStateProvider));
-      return;
-    }
-
-    if (_viewportRefreshTimer != null || _viewportRefreshInFlight) {
-      return;
-    }
-
-    _viewportRefreshTimer = Timer(_viewportRefreshThrottle, () {
-      _viewportRefreshTimer = null;
-      if (!mounted) return;
-      unawaited(_pumpViewportPresentationRefresh(mapStateProvider));
-    });
-  }
-
-  Future<void> _pumpViewportPresentationRefresh(
-    MapStateProvider mapStateProvider,
-  ) async {
-    if (!mounted || _viewportRefreshInFlight || !_viewportRefreshPending) {
-      return;
-    }
-
-    _viewportRefreshPending = false;
-    final isInteracting = _viewportRefreshPendingInteracting;
-    _viewportRefreshInFlight = true;
-    try {
-      await _refreshViewportPresentationNow(
-        mapStateProvider,
-        isInteracting: isInteracting,
-      );
-    } finally {
-      _viewportRefreshInFlight = false;
-
-      if (_viewportRefreshPending && mounted) {
-        _scheduleViewportPresentationRefresh(
-          mapStateProvider,
-          isInteracting: _viewportRefreshPendingInteracting,
-        );
-      }
-    }
-  }
-
-  Future<void> _refreshViewportPresentationNow(
-    MapStateProvider mapStateProvider, {
-    required bool isInteracting,
-  }) async {
-    final map = mapStateProvider.mapboxMap;
-    if (map == null) return;
-
-    try {
-      final state = await map.getCameraState();
-      final bounds = await map.coordinateBoundsForCamera(
-        mapbox.CameraOptions(
-          center: state.center,
-          zoom: state.zoom,
-          bearing: state.bearing,
-          pitch: state.pitch,
-        ),
-      );
-      final usableScreenRect = _buildUsableScreenRect();
-      await mapStateProvider.refreshGeoJsonViewportPresentation(
-        visibleBounds: LatLngBounds.fromCoordinateBounds(bounds),
-        usableScreenRect: usableScreenRect,
-        isInteracting: isInteracting,
-      );
-    } catch (_) {}
-  }
-
-  Rect _buildUsableScreenRect() {
-    final media = MediaQuery.of(context);
-    final bottomNavVisible = context.read<HomeViewModel>().bottomNavVisible;
-    final carouselBottom = bottomNavVisible ? 110.0 : 20.0;
-    final carouselHeight = bottomNavVisible ? 185.0 : 215.0;
-    final top = media.padding.top + _usableMapTopOverlay;
-    final bottom = media.size.height -
-        carouselBottom -
-        carouselHeight -
-        _usableMapControlsAllowance;
-    final clampedTop = top.clamp(0.0, media.size.height).toDouble();
-    final clampedBottom =
-        bottom.clamp(clampedTop + 1.0, media.size.height).toDouble();
-
-    return Rect.fromLTRB(
-      0,
-      clampedTop,
-      media.size.width,
-      clampedBottom,
-    );
   }
 
   @override
   void dispose() {
-    _viewportRefreshTimer?.cancel();
     if (_locationTrackingStarted) {
       _locationListManager?.stopLocationUpdates();
     }

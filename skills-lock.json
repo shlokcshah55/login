@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "apple-design": {
+      "source": "dickwu/apple-design-skill",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "546d29fc8b607454f3656426b3470030d48a87927746d4609c2901a6e9f38e2f"
+    },
     "flutter-adding-home-screen-widgets": {
       "source": "flutter/skills",
       "sourceType": "github",

@@ -31,6 +31,10 @@ class MapStateProvider with ChangeNotifier {
   // Flag to toggle between old and new rendering approaches
   bool _useGeoJsonLayers = true;
 
+  // When true (category/overview stage), the map keeps only a few expanded pins
+  // per screen grid cell and renders the rest as compact dots.
+  bool _pinsDotsByDefault = false;
+
   List<LatLng> _polylinePoints = [];
 
   // Getters
@@ -83,17 +87,17 @@ class MapStateProvider with ChangeNotifier {
       _geoJsonLayerService = GeoJsonMapLayerService(
         mapboxMap: map,
         config: const GeoJsonLayerConfig(
-          enableClustering: false,
-          clusterRadius: 34,
+          enableClustering: true,
+          clusterRadius: 50,
           clusterMaxZoom: 12,
           showTextLabels: true,
           allowTextOverlap: false,
-          allowIconOverlap: true,
-          denseMarkerThreshold: 15,
         ),
         onLocationTapped: onLocationTapped,
         onClusterTapped: onClusterTapped,
       );
+      // Re-apply the desired presentation mode to the freshly created service.
+      unawaited(_geoJsonLayerService!.setDotsByDefault(_pinsDotsByDefault));
       _flushPendingRecentSaveBounces();
       log("MapStateProvider: GeoJSON layer service created (initialization deferred until locations arrive).");
     } else {
@@ -159,6 +163,17 @@ class MapStateProvider with ChangeNotifier {
     }
 
     _geoJsonLayerService!.pulseLocation(locationId);
+  }
+
+  /// Toggle compact-dots-by-default rendering (category/overview stage). When
+  /// enabled, only a few pins per screen grid cell stay expanded; the rest
+  /// render as compact dots.
+  Future<void> setPinsDotsByDefault(bool value) async {
+    if (_pinsDotsByDefault == value) return;
+    _pinsDotsByDefault = value;
+    if (_useGeoJsonLayers && _geoJsonLayerService != null) {
+      await _geoJsonLayerService!.setDotsByDefault(value);
+    }
   }
 
   /// Handle a tap on the map at the given screen coordinates.
@@ -342,6 +357,7 @@ class MapStateProvider with ChangeNotifier {
   Future<void> focusOnLocations(
     List<LocationModel> locations, {
     double padding = 84.0,
+    double? topPadding,
   }) async {
     final points = locations
         .map((location) => location.position)
@@ -375,7 +391,7 @@ class MapStateProvider with ChangeNotifier {
         northeast: LatLng(maxLat, maxLng),
       ).toCoordinateBounds(),
       mapbox.MbxEdgeInsets(
-        top: padding,
+        top: topPadding ?? padding,
         left: padding,
         bottom: padding + 180,
         right: padding,
@@ -416,22 +432,6 @@ class MapStateProvider with ChangeNotifier {
     _currentVisibleCenter = center;
     _currentZoom = zoom;
     _checkIfViewDiffersFromLastSearch();
-  }
-
-  Future<void> refreshGeoJsonViewportPresentation({
-    LatLngBounds? visibleBounds,
-    Rect? usableScreenRect,
-    required bool isInteracting,
-  }) async {
-    if (!_useGeoJsonLayers || _geoJsonLayerService == null) {
-      return;
-    }
-
-    await _geoJsonLayerService!.updateViewportPresentation(
-      visibleBounds: visibleBounds,
-      usableScreenRect: usableScreenRect,
-      isInteracting: isInteracting,
-    );
   }
 
   /// Check if current view differs significantly from the last searched area

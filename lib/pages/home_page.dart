@@ -9,12 +9,14 @@ import 'package:login/pages/home/home_view_model.dart';
 import 'package:login/pages/home/search/header_search_location_hydrator.dart';
 import 'package:login/pages/home/search/header_search_readiness.dart';
 import 'package:login/pages/home/search/header_search_types.dart';
+import 'package:login/pages/home/widgets/category_carousel.dart';
+import 'package:login/pages/home/categories/category_glyph.dart';
+import 'package:login/pages/home/categories/home_category.dart';
+import 'package:login/pages/home/widgets/floating_location_card.dart';
 import 'package:login/pages/home/widgets/home_carousel.dart';
-import 'package:login/pages/home/widgets/home_filter_sheet.dart';
 import 'package:login/pages/home/widgets/home_header_search_shell.dart';
 import 'package:login/pages/home/widgets/home_map_layer.dart';
 // ARCHIVED: import 'package:login/pages/home/widgets/home_social_inbox_button.dart';
-import 'package:login/pages/home/widgets/profile_completion_carousel_card.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart' as pinit;
 import 'package:login/pages/social_review/social_review_inbox_page.dart';
 import 'package:login/themes/app_typography.dart';
@@ -83,9 +85,6 @@ class _HomePageState extends State<HomePage> {
   final ProfileCompletionCardPreferencesService
       _profileCompletionCardPreferencesService =
       ProfileCompletionCardPreferencesService();
-  Set<String> _selectedVibeTagIds = <String>{};
-  Set<String> _selectedCuisineTagIds = <String>{};
-  int _maxResults = 30;
   bool _wizardPopoverScheduled = false;
   bool _wizardPopoverShown = false;
   bool _isWizardPopoverVisible = false;
@@ -722,35 +721,37 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Future<void> _openHomeFilters() async {
-    final result = await HomeFilterSheet.show(
-      context,
-      initialVibeTagIds: _selectedVibeTagIds,
-      initialCuisineTagIds: _selectedCuisineTagIds,
-      initialAvailabilityFilter: _locationListManager.availabilityFilter,
-      initialExcludeSaved: _locationListManager.excludeSavedFilter,
-      showMaxResults:
-          _locationListManager.currentListType == LocationListType.recommended,
-      initialMaxResults: _maxResults,
-    );
-    if (!mounted || result == null) return;
-    if (result.launchSweetTreat) {
-      unawaited(_viewModel.submitDefaultSweetTreatSearch());
+  void _openSeeAll(HomeViewModel viewModel) {
+    final collectionId = viewModel.activeCollectionId;
+    if (collectionId != null && collectionId.isNotEmpty) {
+      unawaited(
+        _openCollectionListView(
+          collectionId: collectionId,
+          locations: viewModel.locations,
+        ),
+      );
       return;
     }
-    setState(() {
-      _selectedVibeTagIds = result.vibeTagIds;
-      _selectedCuisineTagIds = result.cuisineTagIds;
-      _maxResults = result.maxResults;
-    });
-    await _locationListManager.applyFilters(
-      vibeTagIds: result.vibeTagIds.toList(),
-      cuisineTagIds: result.cuisineTagIds.toList(),
-      availabilityFilter: result.availabilityFilter,
-      excludeSaved: result.excludeSaved,
-      vibeTagNames: result.vibeTagNames,
-      cuisineTagNames: result.cuisineTagNames,
-      maxResults: result.maxResults,
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CarouselListPage(
+          locations: viewModel.locations,
+          title: switch (viewModel.homeMode) {
+            HomeMode.you => 'Your Saves',
+            HomeMode.explore => 'Top Picks',
+            HomeMode.bubble => 'Bubble Picks',
+            HomeMode.bubbleSaved => 'Bubble Saves',
+          },
+          listType: switch (viewModel.homeMode) {
+            HomeMode.you => LocationListType.saved,
+            HomeMode.explore => LocationListType.recommended,
+            HomeMode.bubble => LocationListType.bubble,
+            HomeMode.bubbleSaved => LocationListType.bubbleSaved,
+          },
+          homeViewModel:
+              viewModel.homeMode == HomeMode.explore ? viewModel : null,
+        ),
+      ),
     );
   }
 
@@ -888,96 +889,6 @@ class _HomePageState extends State<HomePage> {
                                         ),
                                       ),
                                     ),
-                                    if (!(viewModel.isMagicSearchActive &&
-                                        viewModel.currentListType ==
-                                            LocationListType.search)) ...[
-                                      const SizedBox(height: 10),
-                                      GestureDetector(
-                                        onTap: _openHomeFilters,
-                                        child: Stack(
-                                          clipBehavior: Clip.none,
-                                          children: [
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                horizontal: 12,
-                                                vertical: 8,
-                                              ),
-                                              decoration: BoxDecoration(
-                                                color: pinit.PinitColors.cream,
-                                                borderRadius:
-                                                    BorderRadius.circular(999),
-                                                border: Border.all(
-                                                  color: pinit
-                                                      .PinitColors.aubergine,
-                                                  width: 1.5,
-                                                ),
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color: pinit
-                                                        .PinitColors.aubergine,
-                                                    blurRadius: 0,
-                                                    offset: const Offset(3, 3),
-                                                  ),
-                                                ],
-                                              ),
-                                              child: Icon(
-                                                FeatherIcons.sliders,
-                                                size: 15,
-                                                color:
-                                                    pinit.PinitColors.aubergine,
-                                              ),
-                                            ),
-                                            if (_selectedVibeTagIds
-                                                    .isNotEmpty ||
-                                                _selectedCuisineTagIds
-                                                    .isNotEmpty)
-                                              Positioned(
-                                                top: -4,
-                                                right: -2,
-                                                child: Container(
-                                                  constraints:
-                                                      const BoxConstraints(
-                                                    minWidth: 18,
-                                                    minHeight: 18,
-                                                  ),
-                                                  padding: const EdgeInsets
-                                                      .symmetric(
-                                                    horizontal: 5,
-                                                    vertical: 2,
-                                                  ),
-                                                  decoration: BoxDecoration(
-                                                    color: pinit
-                                                        .PinitColors.accent,
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                      999,
-                                                    ),
-                                                    border: Border.all(
-                                                      color: pinit
-                                                          .PinitColors.cream,
-                                                      width: 1.2,
-                                                    ),
-                                                  ),
-                                                  child: Center(
-                                                    child: Text(
-                                                      '${_selectedVibeTagIds.length + _selectedCuisineTagIds.length}',
-                                                      style: AppTypography.sans(
-                                                        fontSize: 10,
-                                                        fontWeight:
-                                                            FontWeight.w800,
-                                                        color: pinit
-                                                            .PinitColors.cream,
-                                                        height: 1.0,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
                                   ],
                                 ),
                                 Column(
@@ -1059,61 +970,13 @@ class _HomePageState extends State<HomePage> {
                                           ),
                                           const SizedBox(width: 10),
                                         ],
-                                        if (viewModel.locations.isNotEmpty)
+                                        // On the category stage See All
+                                        // lives at the end of the chip rail.
+                                        if (viewModel.locations.isNotEmpty &&
+                                            viewModel.homeBrowseStage !=
+                                                HomeBrowseStage.categories)
                                           GestureDetector(
-                                            onTap: () {
-                                              final collectionId =
-                                                  viewModel.activeCollectionId;
-                                              if (collectionId != null &&
-                                                  collectionId.isNotEmpty) {
-                                                unawaited(
-                                                  _openCollectionListView(
-                                                    collectionId: collectionId,
-                                                    locations:
-                                                        viewModel.locations,
-                                                  ),
-                                                );
-                                                return;
-                                              }
-                                              Navigator.of(context).push(
-                                                MaterialPageRoute(
-                                                  builder: (_) =>
-                                                      CarouselListPage(
-                                                    locations:
-                                                        viewModel.locations,
-                                                    title: switch (
-                                                        viewModel.homeMode) {
-                                                      HomeMode.you =>
-                                                        'Your Saves',
-                                                      HomeMode.explore =>
-                                                        'Top Picks',
-                                                      HomeMode.bubble =>
-                                                        'Bubble Picks',
-                                                      HomeMode.bubbleSaved =>
-                                                        'Bubble Saves',
-                                                    },
-                                                    listType: switch (
-                                                        viewModel.homeMode) {
-                                                      HomeMode.you =>
-                                                        LocationListType.saved,
-                                                      HomeMode.explore =>
-                                                        LocationListType
-                                                            .recommended,
-                                                      HomeMode.bubble =>
-                                                        LocationListType.bubble,
-                                                      HomeMode.bubbleSaved =>
-                                                        LocationListType
-                                                            .bubbleSaved,
-                                                    },
-                                                    homeViewModel:
-                                                        viewModel.homeMode ==
-                                                                HomeMode.explore
-                                                            ? viewModel
-                                                            : null,
-                                                  ),
-                                                ),
-                                              );
-                                            },
+                                            onTap: () => _openSeeAll(viewModel),
                                             child: Container(
                                               padding:
                                                   const EdgeInsets.symmetric(
@@ -1179,49 +1042,73 @@ class _HomePageState extends State<HomePage> {
                               eyebrow: 'FILTERING',
                               title: 'Matching your filters...',
                             )
-                          else
-                            HomeCarousel(
-                              pageController: viewModel.pageController,
-                              locations: viewModel.locations,
-                              leadingCard: viewModel
-                                      .shouldShowProfileChecklistCard
-                                  ? ProfileCompletionCarouselCard(
-                                      isCollapsed: _profileChecklistCollapsed,
-                                      state: viewModel.profileChecklistState,
-                                    )
-                                  : null,
-                              heightOverride: viewModel
-                                          .shouldShowProfileChecklistCard &&
-                                      _carouselPageIndex == 0 &&
-                                      _profileChecklistCollapsed
-                                  ? (viewModel.bottomNavVisible ? 140.0 : 160.0)
-                                  : null,
-                              selectedMarkerId: viewModel.selectedMarkerId,
+                          else if (viewModel.homeBrowseStage ==
+                                  HomeBrowseStage.categories &&
+                              viewModel.selectedOverviewLocation != null)
+                            // A tapped pin replaces the category carousel with
+                            // its card until dismissed.
+                            FloatingLocationCard(
+                              key: ValueKey(
+                                viewModel.selectedOverviewLocation!.locationId,
+                              ),
+                              location: viewModel.selectedOverviewLocation!,
                               bottomNavVisible: viewModel.bottomNavVisible,
-                              onPageChanged: (index) {
-                                if (_carouselPageIndex != index) {
-                                  setState(() => _carouselPageIndex = index);
-                                }
-                                viewModel.onCarouselPageChanged(index);
-                              },
-                              showFirstItemSwipeHint:
-                                  _showFirstCarouselSwipeHint &&
-                                      viewModel.locations.isNotEmpty,
-                              onFirstItemSwipeHintCompleted:
-                                  _dismissFirstCarouselSwipeHint,
-                              onScrollStart: () {
-                                _dismissFirstCarouselSwipeHint();
-                                viewModel.onCarouselScrollStart();
-                              },
                               onLocationSelected: viewModel.onLocationSelected,
-                              onSwipeUp: (location) {
-                                _dismissFirstCarouselSwipeHint();
-                                viewModel.onCarouselSwipeUp(location);
+                              onDismiss: viewModel.clearPinSelection,
+                            )
+                          else if (viewModel.homeBrowseStage ==
+                              HomeBrowseStage.categories)
+                            CategoryCarousel(
+                              categories: viewModel.homeCategories,
+                              bottomNavVisible: viewModel.bottomNavVisible,
+                              onCategorySelected: (category) {
+                                unawaited(viewModel.openCategory(category));
                               },
-                              onSwipeDown: (location) {
-                                _dismissFirstCarouselSwipeHint();
-                                viewModel.onCarouselSwipeDown(location);
-                              },
+                              onSeeAll: viewModel.locations.isNotEmpty
+                                  ? () => _openSeeAll(viewModel)
+                                  : null,
+                            )
+                          else
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _FocusedCategoryHeader(
+                                  category: viewModel.activeCategory,
+                                  onBack: viewModel.closeCategory,
+                                ),
+                                HomeCarousel(
+                                  pageController: viewModel.pageController,
+                                  locations: viewModel.locations,
+                                  selectedMarkerId: viewModel.selectedMarkerId,
+                                  bottomNavVisible: viewModel.bottomNavVisible,
+                                  onPageChanged: (index) {
+                                    if (_carouselPageIndex != index) {
+                                      setState(
+                                          () => _carouselPageIndex = index);
+                                    }
+                                    viewModel.onCarouselPageChanged(index);
+                                  },
+                                  showFirstItemSwipeHint:
+                                      _showFirstCarouselSwipeHint &&
+                                          viewModel.locations.isNotEmpty,
+                                  onFirstItemSwipeHintCompleted:
+                                      _dismissFirstCarouselSwipeHint,
+                                  onScrollStart: () {
+                                    _dismissFirstCarouselSwipeHint();
+                                    viewModel.onCarouselScrollStart();
+                                  },
+                                  onLocationSelected:
+                                      viewModel.onLocationSelected,
+                                  onSwipeUp: (location) {
+                                    _dismissFirstCarouselSwipeHint();
+                                    viewModel.onCarouselSwipeUp(location);
+                                  },
+                                  onSwipeDown: (location) {
+                                    _dismissFirstCarouselSwipeHint();
+                                    viewModel.onCarouselSwipeDown(location);
+                                  },
+                                ),
+                              ],
                             ),
                         ],
                       ),
@@ -1899,46 +1786,86 @@ class _TopPanel extends StatelessWidget {
                           });
                         },
                       )
-                    : HomeChipRow(
-                            rowSpotlightKey: modeRowSpotlightKey,
-                            currentMode: viewModel.homeMode,
-                            onModeChanged: viewModel.setHomeMode,
-                            activeBubbleName: viewModel.activeBubbleName,
-                            collections: viewModel.collections,
-                            isLoadingCollections:
-                                viewModel.isLoadingCollections,
-                            activeCollectionId: viewModel.activeCollectionId,
-                            onCollectionMenuOpened: () {
-                              unawaited(viewModel.loadCollections());
-                            },
-                            onCollectionsVisibilityChanged:
-                                viewModel.setEatListsOpen,
-                            onCollectionSelected: (collection) {
-                              showModalBottomSheet(
-                                context: context,
-                                isScrollControlled: true,
-                                backgroundColor: Colors.transparent,
-                                builder: (_) => CollectionDetailSheet(
-                                  collection: CollectionModel.fromItem(
-                                    collection,
-                                  ),
-                                ),
-                              );
-                            },
-                            // ARCHIVED: social inbox button hidden from the
-                            // front end. Backend logic (SocialReviewProvider,
-                            // _openSocialReviewInbox, SocialReviewInboxPage)
-                            // is untouched. To restore, put back:
-                            // trailingAction: Consumer<SocialReviewProvider>(
-                            //   builder: (context, socialReview, _) =>
-                            //       HomeSocialInboxButton(
-                            //     count: socialReview.needsCheckingCount,
-                            //     onTap: onSocialInboxTap,
-                            //   ),
-                            // ),
-                          ),
+                    // The SAVED / PICKS / EAT-LISTS chip row has been replaced
+                    // by the category carousel landing (see CategoryCarousel).
+                    : const SizedBox.shrink(),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Slim bar shown above the focused location carousel. Tapping the chevron or
+/// swiping vertically on the bar returns to the category carousel.
+class _FocusedCategoryHeader extends StatelessWidget {
+  const _FocusedCategoryHeader({required this.category, required this.onBack});
+
+  final HomeCategory? category;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    final category = this.category;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onVerticalDragEnd: (details) {
+        // Either direction dismisses back to the category tiles.
+        if ((details.primaryVelocity ?? 0).abs() > 80) onBack();
+      },
+      onTap: onBack,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          // Same chip language as the category rail, so drilling in reads as
+          // the tapped chip pinning itself above the cards.
+          child: Container(
+            height: 40,
+            padding: const EdgeInsets.only(left: 12, right: 5),
+            decoration: BoxDecoration(
+              color: pinit.PinitColors.cream,
+              borderRadius: BorderRadius.circular(999),
+              border:
+                  Border.all(color: pinit.PinitColors.creamDeep, width: 1.5),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x1441133D),
+                  blurRadius: 16,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.arrow_back_rounded,
+                  size: 16,
+                  color: pinit.PinitColors.aubergine,
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    category?.label ?? 'All categories',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.brand(
+                      fontSize: 15,
+                      color: pinit.PinitColors.aubergine,
+                      height: 1.0,
+                    ),
+                  ),
+                ),
+                if (category != null) ...[
+                  const SizedBox(width: 8),
+                  CategoryGlyph(category: category, size: 28),
+                ] else
+                  const SizedBox(width: 9),
+              ],
+            ),
+          ),
         ),
       ),
     );

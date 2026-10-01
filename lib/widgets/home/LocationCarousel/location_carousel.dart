@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
+import 'package:login/pages/home/categories/vibe_styles.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/providers/location_list_provider.dart';
 import 'package:login/utils/geo_types.dart';
@@ -11,44 +12,6 @@ import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 import 'dart:developer';
-
-// ─────────────────────────────────────────────────────────────
-//  Vibe tag display config: label + icon
-//  Colours intentionally omitted — pinit palette is cream + aubergine.
-// ─────────────────────────────────────────────────────────────
-class _VibeTagStyle {
-  final String label;
-  final IconData icon;
-  const _VibeTagStyle(this.label, this.icon);
-}
-
-const Map<String, _VibeTagStyle> _vibeStyles = {
-  'cafe': _VibeTagStyle('Café', FeatherIcons.coffee),
-  'casual': _VibeTagStyle('Casual', FeatherIcons.smile),
-  'cozy': _VibeTagStyle('Cozy', FeatherIcons.home),
-  'coffee_shop': _VibeTagStyle('Coffee', FeatherIcons.coffee),
-  'bar': _VibeTagStyle('Bar', FeatherIcons.moon),
-  'elegant': _VibeTagStyle('Elegant', FeatherIcons.feather),
-  'fine_dining': _VibeTagStyle('Fine Dining', FeatherIcons.award),
-  'food_truck': _VibeTagStyle('Food Truck', FeatherIcons.truck),
-  'hole_in_the_wall': _VibeTagStyle('Hidden Gem', FeatherIcons.key),
-  'late_night': _VibeTagStyle('Late Night', FeatherIcons.moon),
-  'live_music': _VibeTagStyle('Live Music', FeatherIcons.music),
-  'bougie': _VibeTagStyle('Bougie', FeatherIcons.star),
-  'modern': _VibeTagStyle('Modern', FeatherIcons.zap),
-  'fast_food': _VibeTagStyle('Fast Food', FeatherIcons.fastForward),
-  'quiet': _VibeTagStyle('Quiet', FeatherIcons.volumeX),
-  'romantic': _VibeTagStyle('Romantic', FeatherIcons.heart),
-  'sports_bar': _VibeTagStyle('Sports Bar', FeatherIcons.tv),
-  'trendy': _VibeTagStyle('Trendy', FeatherIcons.trendingUp),
-  'takeout_friendly': _VibeTagStyle('Takeaway', FeatherIcons.package),
-  'pub': _VibeTagStyle('Pub', FeatherIcons.home),
-  'shop': _VibeTagStyle('Shop', FeatherIcons.shoppingCart),
-  'brunch': _VibeTagStyle('Brunch', FeatherIcons.sun),
-  'outdoor_dining': _VibeTagStyle('Outdoor', FeatherIcons.wind),
-  'wavy': _VibeTagStyle('Wavy', FeatherIcons.activity),
-  'bossman': _VibeTagStyle('Bossman', FeatherIcons.shield),
-};
 
 class LocationCarousel extends StatelessWidget {
   final PageController pageController;
@@ -171,7 +134,7 @@ String _friendSaveLabel(LocationModel location) {
   return '$displayName +$remaining saved';
 }
 
-/// Wraps a [_CarouselCard] with vertical swipe gesture detection.
+/// Wraps a [CarouselCard] with vertical swipe gesture detection.
 /// Swipe up → shortlist; swipe down → save.
 class _SwipeableCard extends StatefulWidget {
   final LocationModel location;
@@ -322,7 +285,7 @@ class _SwipeableCardState extends State<_SwipeableCard>
                     ),
                   );
                 },
-                child: _CarouselCard(
+                child: CarouselCard(
                   location: widget.location,
                   sectionTitle: widget.sectionTitle,
                   isSelected: widget.isSelected,
@@ -525,7 +488,9 @@ class _SwipeUpShortlistHint extends StatelessWidget {
 //  Individual card – pinit style: cream surface, aubergine border,
 //  hard offset shadow, image left / info right.
 // ─────────────────────────────────────────────────────────────
-class _CarouselCard extends StatelessWidget {
+/// A single location card as shown in the home carousel. Also reused as the
+/// standalone floating card on the category stage (see [FloatingLocationCard]).
+class CarouselCard extends StatelessWidget {
   final LocationModel location;
   final String? sectionTitle;
   final bool isSelected;
@@ -533,7 +498,8 @@ class _CarouselCard extends StatelessWidget {
   final Set<int> beenToLocationIds;
   final ValueChanged<LocationModel> onLocationSelected;
 
-  const _CarouselCard({
+  const CarouselCard({
+    super.key,
     required this.location,
     required this.sectionTitle,
     required this.isSelected,
@@ -862,7 +828,7 @@ class _CarouselCard extends StatelessWidget {
                                           cuisine: true,
                                         ),
                                       ..._topVibeTags.map((entry) {
-                                        final style = _vibeStyles[entry.key];
+                                        final style = vibeStyles[entry.key];
                                         if (style == null) {
                                           return const SizedBox.shrink();
                                         }
