@@ -14,6 +14,7 @@ void main() {
       const url = '$legacy/profile_photos/u1/a.jpg?v=1';
       expect(PhotoUrls.normalize(url), url);
       expect(PhotoUrls.avatar(url, 96), url);
+      expect(PhotoUrls.gallery('9', extras: 2), isEmpty);
     });
   });
 
@@ -42,6 +43,22 @@ void main() {
           '$cdn/u/u1/p.jpg?v=99');
       expect(PhotoUrls.normalize('$legacy/collection_covers/c1/cover.png'),
           '$cdn/c/c1/cover.png');
+    });
+
+    test('gallery lists the primary plus stored extras as hero urls', () {
+      expect(PhotoUrls.gallery('9', extras: 2), [
+        '$cdn/l/9/0_hero.webp',
+        '$cdn/l/9/1_hero.webp',
+        '$cdn/l/9/2_hero.webp',
+      ]);
+      expect(PhotoUrls.gallery('9', extras: 0), ['$cdn/l/9/0_hero.webp']);
+    });
+
+    test('gallery is capped by maxPhotos and tolerates bad input', () {
+      expect(PhotoUrls.gallery('9', extras: 20, maxPhotos: 4), hasLength(4));
+      expect(PhotoUrls.gallery('9', extras: -3), hasLength(1));
+      expect(PhotoUrls.gallery('9', extras: 3, maxPhotos: 0), isEmpty);
+      expect(PhotoUrls.gallery('', extras: 3), isEmpty);
     });
 
     test('variant swaps the size role only on cdn variant urls', () {

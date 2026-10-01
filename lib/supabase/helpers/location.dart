@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 
@@ -12,6 +13,7 @@ import '../../utils/photo_urls.dart';
 import '../../models/proximal_models.dart';
 import '../../models/video_insights.dart';
 import '../../models/video_extras.dart';
+import '../../services/recommendations_api.dart';
 import '../constants.dart';
 import '../supabase_client.dart';
 
@@ -75,6 +77,36 @@ class LocationHelper {
   // Locations confirmed to have no image available (Google returned no photos).
   // Persisted in-memory for the session; the DB flag prevents retries across sessions.
   static final Set<int> _noImageAvailable = {};
+
+  // Locations the server has already been asked to ingest photos for this
+  // session (CDN mode only), so list reloads do not re-request them.
+  static final Set<int> _serverIngestRequested = {};
+  static RecommendationsApi? _recommendationsApi;
+  RecommendationsApi get _recommendations =>
+      _recommendationsApi ??= RecommendationsApi();
+
+  /// CDN mode: photos are ingested server-side (Google -> R2). The app no
+  /// longer downloads from Google or writes to Supabase Storage itself; it
+  /// asks the recommendations server to process the location, whose
+  /// completeness pipeline runs the photo task when the photo is missing.
+  Future<void> _requestServerPhotoIngest(
+      int locationId, String? placeId) async {
+    if (locationId <= 0 || _noImageAvailable.contains(locationId)) return;
+    if (!_serverIngestRequested.add(locationId)) return;
+    try {
+      await _recommendations.processLocation(
+        locationId: locationId,
+        googlePlaceId: placeId,
+        source: 'photo-ingest',
+      );
+    } catch (e) {
+      _serverIngestRequested
+          .remove(locationId); // allow a retry on a later load
+      if (kDebugMode) {
+        print('[Image] [$locationId] server photo ingest request failed: $e');
+      }
+    }
+  }
 
   @visibleForTesting
   static String? photoResourceNameFor(Map<String, dynamic> photo) {
@@ -1495,7 +1527,13 @@ class LocationHelper {
   /// Places v1 `photos[].name`; missing or legacy-only metadata triggers a
   /// one-time v1 Details refresh before any image upload.
   Future<String?> getLocationImage(
-      int locationId, String google_place_id, String? photoReference) async {
+      int locationId, String google_place_id, String? photoReference,
+      {bool? imageStored}) async {
+    if (PhotoUrls.isConfigured) {
+      if (imageStored == true) return _locationPhotoUrl(locationId);
+      await _requestServerPhotoIngest(locationId, google_place_id);
+      return null;
+    }
     if (_activeDownloads.containsKey(locationId)) {
       return _activeDownloads[locationId];
     }
@@ -1649,6 +1687,10 @@ class LocationHelper {
     required String placeId,
     List<Map<String, dynamic>>? cachedPhotos,
   }) async {
+    if (PhotoUrls.isConfigured) {
+      await _requestServerPhotoIngest(locationId, placeId);
+      return null;
+    }
     final resolution = await _resolvePhotoMetadata(
       locationId: locationId,
       placeId: placeId,
@@ -1730,6 +1772,23 @@ class LocationHelper {
       if (urls.isNotEmpty) {
         onPartial?.call(urls);
       }
+      return urls;
+    }
+
+    // CDN mode: show what the server has stored; never fetch from Google or
+    // write to Supabase Storage from the app.
+    if (PhotoUrls.isConfigured) {
+      if (location.imageStored != true) {
+        unawaited(
+            _requestServerPhotoIngest(locationId, location.googlePlaceId));
+        return const [];
+      }
+      final urls = PhotoUrls.gallery(
+        '$locationId',
+        extras: location.extraPhotosStored ?? 0,
+        maxPhotos: maxPhotos,
+      );
+      if (urls.isNotEmpty) onPartial?.call(urls);
       return urls;
     }
 

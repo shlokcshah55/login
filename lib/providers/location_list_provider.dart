@@ -515,7 +515,8 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       final locationImage = await _supabaseService.locations.getLocationImage(
           locationId,
           locationData['google_place_id'],
-          locationData['photo_reference']);
+          locationData['photo_reference'],
+          imageStored: locationData['image_stored'] == true);
 
       final location = LocationModel.fromJson(locationData, locationImage)
           .copyWith(savedAt: savedAt ?? DateTime.now());
@@ -1287,9 +1288,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
     final savedIds = saved.map((l) => l.locationId).toSet();
     final picks = _recommendedLocations.keys
         .where((l) =>
-            l.lat != null &&
-            l.lng != null &&
-            !savedIds.contains(l.locationId))
+            l.lat != null && l.lng != null && !savedIds.contains(l.locationId))
         .toList();
 
     final signature = <int>{

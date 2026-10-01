@@ -39,6 +39,21 @@ class PhotoUrls {
     return '$_baseUrl/l/$locationId/${index}_${size.name}.webp';
   }
 
+  /// Hero URLs for a location's primary photo plus [extras] stored extras,
+  /// capped at [maxPhotos] in total. Empty when unconfigured.
+  static List<String> gallery(
+    String locationId, {
+    required int extras,
+    int maxPhotos = 10,
+  }) {
+    if (!isConfigured || locationId.isEmpty || maxPhotos <= 0) return const [];
+    final count = extras.clamp(0, maxPhotos - 1) + 1;
+    return [
+      for (var i = 0; i < count; i++)
+        location(locationId, PhotoSize.hero, index: i)!,
+    ];
+  }
+
   /// Resized (WebP/AVIF via `format=auto`) rendition of a stored avatar or
   /// cover URL. Returns [url] unchanged when it is not hosted on the CDN.
   static String? avatar(String? url, int width) {
