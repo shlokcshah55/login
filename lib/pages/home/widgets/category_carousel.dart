@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -9,7 +10,7 @@ import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/themes/app_typography.dart';
 
 /// Tier-1 of the home browse flow: a single slim rail of category chips
-/// (sources, cuisines, eat-lists, vibes) docked above the nav, so the map
+/// (cuisines, bubbles, eat-lists, vibes, sources) docked above the nav, so the map
 /// keeps the screen. Each chip carries a generated [CategoryGlyph]; tapping
 /// one drills into the focused location carousel.
 class CategoryCarousel extends StatefulWidget {
@@ -146,11 +147,15 @@ class _CategoryChipState extends State<_CategoryChip> {
 
   String get _meta {
     final count = widget.category.count;
+    final area = widget.category.areaLabel;
     return switch (widget.category.kind) {
       HomeCategoryKind.source => '$count ${count == 1 ? 'SAVE' : 'SAVES'}',
+      HomeCategoryKind.cuisine when area != null =>
+        '${area.toUpperCase()} · $count',
       HomeCategoryKind.cuisine => '$count ${count == 1 ? 'SPOT' : 'SPOTS'}',
       HomeCategoryKind.eatList => 'LIST · $count',
       HomeCategoryKind.vibe => 'VIBE · $count',
+      HomeCategoryKind.bubble => 'BUBBLE · $count',
     };
   }
 
@@ -159,9 +164,16 @@ class _CategoryChipState extends State<_CategoryChip> {
     final category = widget.category;
     final isOwnList = category.kind == HomeCategoryKind.eatList;
 
+    final avatars = category.kind == HomeCategoryKind.bubble
+        ? category.avatarUrls.where((u) => u.isNotEmpty).take(2).toList()
+        : const <String>[];
+
     return Semantics(
       button: true,
-      label: '${category.label}, ${category.count} places',
+      label: category.areaLabel == null
+          ? '${category.label}, ${category.count} places'
+          : '${category.label} in ${category.areaLabel}, '
+              '${category.count} places',
       child: GestureDetector(
         onTapDown: (_) => _setPressed(true),
         onTapCancel: () => _setPressed(false),
@@ -205,13 +217,16 @@ class _CategoryChipState extends State<_CategoryChip> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TweenAnimationBuilder<double>(
-                  tween: Tween(end: _pressed ? 0.06 : 0.0),
-                  duration: const Duration(milliseconds: 260),
-                  curve: Curves.easeOutBack,
-                  builder: (context, spin, _) =>
-                      CategoryGlyph(category: category, size: 38, spin: spin),
-                ),
+                if (avatars.isNotEmpty)
+                  _AvatarPair(urls: avatars)
+                else
+                  TweenAnimationBuilder<double>(
+                    tween: Tween(end: _pressed ? 0.06 : 0.0),
+                    duration: const Duration(milliseconds: 260),
+                    curve: Curves.easeOutBack,
+                    builder: (context, spin, _) =>
+                        CategoryGlyph(category: category, size: 38, spin: spin),
+                  ),
                 const SizedBox(width: 10),
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 132),
@@ -250,6 +265,48 @@ class _CategoryChipState extends State<_CategoryChip> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Up to two overlapping member photos for a bubble chip, in place of the
+/// generated glyph. Falls back to the glyph when no member has a photo.
+class _AvatarPair extends StatelessWidget {
+  final List<String> urls;
+
+  const _AvatarPair({required this.urls});
+
+  static const double _size = 30;
+  static const double _overlap = 12;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: _size + (urls.length - 1) * (_size - _overlap),
+      height: 38,
+      child: Stack(
+        alignment: Alignment.centerLeft,
+        children: [
+          for (var i = 0; i < urls.length; i++)
+            Positioned(
+              left: i * (_size - _overlap),
+              child: Container(
+                width: _size,
+                height: _size,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: PinitColors.creamDeep,
+                  border: Border.all(color: PinitColors.cream, width: 2),
+                  image: DecorationImage(
+                    image: CachedNetworkImageProvider(urls[i]),
+                    fit: BoxFit.cover,
+                    onError: (_, __) {},
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -334,7 +391,7 @@ class _SeeAllChipState extends State<_SeeAllChip> {
   }
 }
 
-/// A quiet 4px dot between groups (sources · cuisines · lists · vibes).
+/// A quiet 4px dot between groups (cuisines · bubbles · lists · vibes · sources).
 class _GroupDot extends StatelessWidget {
   const _GroupDot();
 

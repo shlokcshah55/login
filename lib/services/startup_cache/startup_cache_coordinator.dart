@@ -67,8 +67,13 @@ class StartupCacheCoordinator extends ChangeNotifier {
   bool _hasHydratedData = false;
   StartupCacheRefreshStatus _refreshStatus = StartupCacheRefreshStatus.idle;
   StartupSnapshotReadResult? _lastReadResult;
+  StartupSnapshot? _lastSnapshot;
+  HomeRailSnapshot? _homeRail;
 
   String? get activeUserId => _activeUserId;
+
+  /// Rail from the hydrated snapshot (or the latest [updateHomeRail]).
+  HomeRailSnapshot? get cachedHomeRail => _homeRail;
   StartupCacheRefreshStatus get refreshStatus => _refreshStatus;
   StartupSnapshotReadResult? get lastReadResult => _lastReadResult;
 
@@ -79,6 +84,8 @@ class StartupCacheCoordinator extends ChangeNotifier {
   }) async {
     _activeUserId = userId;
     _hasHydratedData = false;
+    _homeRail = null;
+    _lastSnapshot = null;
     _refreshStatus = StartupCacheRefreshStatus.idle;
     if (!enabled) {
       _timing.recordSnapshotDisabled();
@@ -106,6 +113,8 @@ class StartupCacheCoordinator extends ChangeNotifier {
     }
     locationListManager.hydrateCachedSavedLocations(snapshot.savedLocations);
 
+    _homeRail = snapshot.homeRail;
+    _lastSnapshot = snapshot;
     _acceptedConsentVersion = snapshot.acceptedConsentVersion;
     _hasHydratedData = true;
     _lastFingerprint = _fingerprint(snapshot);
@@ -138,7 +147,27 @@ class StartupCacheCoordinator extends ChangeNotifier {
       profile: profile,
       savedLocations: List<LocationModel>.of(savedLocations),
       acceptedConsentVersion: _acceptedConsentVersion,
+      homeRail: _homeRail,
     );
+    _schedule(snapshot);
+  }
+
+  /// Records the latest server home rail and persists it with the rest of
+  /// the snapshot. Before the first profile/saves write it is only held in
+  /// memory and included in that write.
+  void updateHomeRail({
+    required String userId,
+    required HomeRailSnapshot rail,
+  }) {
+    if (!enabled || _activeUserId != userId) return;
+    _homeRail = rail;
+    final base = _pendingSnapshot ?? _lastSnapshot;
+    if (base == null || base.userId != userId) return;
+    _schedule(base.withHomeRail(rail));
+  }
+
+  void _schedule(StartupSnapshot snapshot) {
+    _lastSnapshot = snapshot;
     if (_fingerprint(snapshot) == _lastFingerprint) return;
 
     _pendingSnapshot = snapshot;
@@ -204,6 +233,8 @@ class StartupCacheCoordinator extends ChangeNotifier {
       _acceptedConsentVersion = null;
       _lastFingerprint = null;
       _lastReadResult = null;
+      _lastSnapshot = null;
+      _homeRail = null;
       _hasHydratedData = false;
       _setRefreshStatus(StartupCacheRefreshStatus.idle);
     }

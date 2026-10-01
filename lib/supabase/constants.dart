@@ -36,6 +36,7 @@ class SupabaseConstants {
       'accept_pending_referral_for_user';
   static const String rpcGetMyReferralDashboard = 'get_my_referral_dashboard';
   static const String rpcRedeemVoucher = 'redeem_voucher';
+  static const String rpcGetHomeRail = 'get_home_rail';
 
   // RPC params
   static const String paramReferralCode = 'p_code';
@@ -90,6 +91,7 @@ class SupabaseConstants {
   static const String columnCuisineDetected = 'cuisine_detected';
   static const String columnCuisineSource = 'cuisine_source';
   static const String columnCuisinePrimary = 'cuisine_primary';
+  static const String columnCuisineKey = 'cuisine_key';
   static const String columnTopReviewLanguage = 'top_review_language';
   static const String columnTopLanguageShare = 'top_language_share';
   static const String columnReviewLanguageCountsJson =

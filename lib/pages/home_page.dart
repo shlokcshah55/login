@@ -53,6 +53,7 @@ import 'package:login/widgets/wizard_completion_popover.dart';
 import 'package:login/supabase/helpers/collections.dart';
 import 'package:login/pages/profile/widgets/collections_grid.dart';
 import 'package:provider/provider.dart';
+import 'package:login/services/startup_cache/startup_cache_coordinator.dart';
 
 class HomePage extends StatefulWidget {
   final bool isActive;
@@ -133,6 +134,7 @@ class _HomePageState extends State<HomePage> {
       shortlistProvider: _shortlistProvider,
       supabaseService: _supabaseService,
       userDataProvider: _userDataProvider,
+      startupCache: context.read<StartupCacheCoordinator>(),
     );
     _viewModel.init();
 

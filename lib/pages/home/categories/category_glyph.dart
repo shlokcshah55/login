@@ -21,6 +21,11 @@ class CategoryMark {
   /// names, vibe tags), so the icon is resolved from keywords rather than a
   /// fixed per-category table.
   factory CategoryMark.resolve(HomeCategory category) {
+    // Bubble names are free text ("Date crew"), so don't keyword-match them.
+    if (category.kind == HomeCategoryKind.bubble) {
+      return const CategoryMark._(icon: Icons.groups_rounded);
+    }
+
     final haystack = _normalise('${category.id} ${category.label}');
 
     if (category.kind == HomeCategoryKind.source) {
@@ -140,9 +145,9 @@ class _IconRule {
 ///
 /// The silhouette comes from the category kind (sources are perforated
 /// stamps, cuisines are rosettes, lists are tilted tags, vibes are soft
-/// starbursts). Petal count, depth, rotation and tone are seeded from the
-/// category id, so each category always gets the same unique badge and new
-/// categories get one automatically.
+/// starbursts, bubbles are soft clusters). Petal count, depth, rotation and
+/// tone are seeded from the category id, so each category always gets the
+/// same unique badge and new categories get one automatically.
 class CategoryGlyph extends StatelessWidget {
   final HomeCategory category;
   final double size;
@@ -266,6 +271,15 @@ class _GlyphSpec {
           rotation: (rng.nextDouble() - 0.5) * 0.36,
           fill: PinitColors.creamDeep,
           darkFill: false,
+        ),
+      HomeCategoryKind.bubble => _GlyphSpec(
+          kind: kind,
+          // Few, shallow lobes: a soft cluster rather than a badge.
+          lobes: 4 + rng.nextInt(2),
+          depth: 0.05,
+          rotation: rng.nextDouble() * math.pi,
+          fill: PinitColors.aubergineSoft,
+          darkFill: true,
         ),
       HomeCategoryKind.vibe => _GlyphSpec(
           kind: kind,
