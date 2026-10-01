@@ -6,6 +6,14 @@ class ProximityLocationNotification extends BaseNotification {
   final String locationName;
   final int? distanceMeters;
 
+  /// Copy the server sent with the push. Null for older notifications, which
+  /// fall back to a generic line built from the fields above.
+  final String? title;
+  final String? body;
+  final String? creatorHandle;
+  final String? dish;
+  final String? savedMethod;
+
   ProximityLocationNotification({
     required String id,
     required DateTime timestamp,
@@ -13,6 +21,11 @@ class ProximityLocationNotification extends BaseNotification {
     required this.locationId,
     required this.locationName,
     required this.distanceMeters,
+    this.title,
+    this.body,
+    this.creatorHandle,
+    this.dish,
+    this.savedMethod,
   }) : super(
           id: id,
           timestamp: timestamp,
@@ -22,6 +35,10 @@ class ProximityLocationNotification extends BaseNotification {
 
   factory ProximityLocationNotification.fromFCMData(Map<String, dynamic> data) {
     final rawDistance = data['distanceMeters'];
+    String? text(String key) {
+      final value = data[key]?.toString().trim();
+      return (value == null || value.isEmpty) ? null : value;
+    }
 
     return ProximityLocationNotification(
       id: data['id'] as String,
@@ -34,6 +51,11 @@ class ProximityLocationNotification extends BaseNotification {
       distanceMeters: rawDistance is num
           ? rawDistance.toInt()
           : int.tryParse(rawDistance?.toString() ?? ''),
+      title: text('title'),
+      body: text('body'),
+      creatorHandle: text('creatorHandle'),
+      dish: text('dish'),
+      savedMethod: text('savedMethod'),
     );
   }
 
@@ -42,6 +64,7 @@ class ProximityLocationNotification extends BaseNotification {
 
   @override
   String getMessage() {
+    if (body != null) return body!;
     if (distanceMeters == null) {
       return '$locationName is within walking distance';
     }
@@ -68,5 +91,5 @@ class ProximityLocationNotification extends BaseNotification {
   }
 
   @override
-  String getNotificationTitle() => 'Saved place nearby';
+  String getNotificationTitle() => title ?? 'Saved place nearby';
 }

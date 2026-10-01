@@ -271,6 +271,17 @@ class SmartNotificationListItem extends StatelessWidget {
         );
       case NotificationType.proximityLocation:
         final proximityNotif = notification as ProximityLocationNotification;
+        if (proximityNotif.body != null) {
+          return Text(
+            proximityNotif.body!,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: Colors.black87,
+              height: 1.3,
+            ),
+          );
+        }
         return RichText(
           maxLines: 2,
           overflow: TextOverflow.ellipsis,

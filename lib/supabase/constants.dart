@@ -2,6 +2,8 @@
 class SupabaseConstants {
   // Table names
   static const String tableLocations = 'locations';
+  static const String tableProximityNotificationLog =
+      'proximity_notification_log';
   static const String tableVideos = 'videos';
   static const String tableUserFriends = 'user_friends';
   static const String tableUserLocationActions = 'user_location_actions';
@@ -37,6 +39,7 @@ class SupabaseConstants {
   static const String rpcGetMyReferralDashboard = 'get_my_referral_dashboard';
   static const String rpcRedeemVoucher = 'redeem_voucher';
   static const String rpcGetHomeRail = 'get_home_rail';
+  static const String rpcGetProximityContext = 'get_proximity_context';
 
   // RPC params
   static const String paramReferralCode = 'p_code';

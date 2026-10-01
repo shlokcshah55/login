@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
+import 'package:login/services/proximity/proximity_copy.dart';
 import 'package:login/supabase/supabase_client.dart';
 import 'package:login/supabase/constants.dart';
 
@@ -138,11 +139,11 @@ class PushNotificationService {
     }
   }
 
-  Future<bool> sendProximityLocationNotification({
+  /// Sends a proximity push whose copy and metadata were built by
+  /// `buildProximityMessage`.
+  Future<bool> sendProximityMessage({
     required String recipientUserId,
-    required String locationId,
-    required String locationName,
-    required int distanceMeters,
+    required ProximityMessage message,
   }) async {
     try {
       final fcmToken = await _getFCMToken(recipientUserId);
@@ -156,15 +157,13 @@ class PushNotificationService {
 
       return await _sendNotification(
         fcmToken: fcmToken,
-        title: 'Saved place nearby',
-        body: '$locationName is ${distanceMeters}m away',
+        title: message.title,
+        body: message.body,
         recipientUserId: recipientUserId,
         type: 'proximity_location',
         additionalData: {
-          'deepLink': 'pinit://location/$locationId',
-          'locationId': locationId,
-          'locationName': locationName,
-          'distanceMeters': distanceMeters.toString(),
+          'deepLink': 'pinit://location/${message.metadata['locationId']}',
+          ...message.metadata,
         },
       );
     } catch (e) {

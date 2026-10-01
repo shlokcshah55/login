@@ -50,30 +50,15 @@ import UserNotifications
       }
     }
 
-    // Setup geofence method channel
+    // Background proximity (region monitoring + local notifications). The
+    // manager handles every call on this channel itself.
     if let controller = window?.rootViewController as? FlutterViewController {
       geofenceChannel = FlutterMethodChannel(name: GEOFENCE_CHANNEL, binaryMessenger: controller.binaryMessenger)
-      geofenceManager.setEventChannel(geofenceChannel!)
+      geofenceManager.attach(channel: geofenceChannel!)
     }
 
     if let controller = window?.rootViewController as? FlutterViewController {
       notificationsChannel = FlutterMethodChannel(name: NOTIFICATIONS_CHANNEL, binaryMessenger: controller.binaryMessenger)
-    }
-
-    geofenceChannel?.setMethodCallHandler { (call: FlutterMethodCall, result: @escaping FlutterResult) in
-      if call.method == "registerGeofences" {
-        guard let regions = call.arguments as? [[String: Any]] else {
-          result(FlutterError(code: "INVALID_ARGS", message: "Expected list of region dicts", details: nil))
-          return
-        }
-        self.geofenceManager.startMonitoring(regions: regions)
-        result(nil)
-      } else if call.method == "clearGeofences" {
-        self.geofenceManager.stopMonitoringAll()
-        result(nil)
-      } else {
-        result(FlutterMethodNotImplemented)
-      }
     }
 
     notificationsChannel?.setMethodCallHandler { (call: FlutterMethodCall, result: @escaping FlutterResult) in
@@ -190,6 +175,15 @@ extension AppDelegate {
     willPresent notification: UNNotification,
     withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
   ) {
+    if GeofenceManager.isLocalNotification(notification.request.content.userInfo) {
+      if #available(iOS 14.0, *) {
+        completionHandler([.banner, .list, .sound])
+      } else {
+        completionHandler([.alert, .sound])
+      }
+      return
+    }
+
     super.userNotificationCenter(
       center,
       willPresent: notification,
@@ -208,6 +202,12 @@ extension AppDelegate {
   ) {
     let userInfo = response.notification.request.content.userInfo
     print("📲 Notification tapped: \(userInfo)")
+
+    if GeofenceManager.isLocalNotification(userInfo) {
+      geofenceManager.handleNotificationTap(userInfo: userInfo)
+      completionHandler()
+      return
+    }
 
     super.userNotificationCenter(
       center,
