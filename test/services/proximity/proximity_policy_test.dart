@@ -71,7 +71,7 @@ void main() {
 
   test('closer wins when everything else is equal', () {
     final result = policy.evaluate(
-      candidates: [_at(_place(1), 800), _at(_place(2), 100)],
+      candidates: [_at(_place(1), 350), _at(_place(2), 100)],
       context: ctx(),
     );
     expect(result.selected.single.candidate.locationId, 2);
@@ -210,7 +210,7 @@ void main() {
 
   test('places beyond the radius are dropped', () {
     final result =
-        policy.evaluate(candidates: [_at(_place(1), 1500)], context: ctx());
+        policy.evaluate(candidates: [_at(_place(1), 500)], context: ctx());
     expect(result.suppressed[1], SuppressReason.outOfRadius);
   });
 
@@ -245,6 +245,6 @@ void main() {
           const ProximityInsight(creatorHandle: 'a', topDish: 'b', vibe: 'c'),
     );
     expect(policy.score(best, 0), closeTo(1.0, 1e-9));
-    expect(policy.score(_place(2, rating: 1), 1000), closeTo(0.0, 1e-9));
+    expect(policy.score(_place(2, rating: 1), 400), closeTo(0.0, 1e-9));
   });
 }

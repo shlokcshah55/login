@@ -6,7 +6,7 @@ import 'package:login/services/proximity/proximity_hours.dart';
 /// All tunable numbers for proximity notifications live here.
 class ProximityConfig {
   const ProximityConfig({
-    this.radiusMeters = 1000,
+    this.radiusMeters = 400,
     this.maxPerHour = 2,
     this.maxPerDay = 3,
     this.maxPerEvent = 1,
@@ -201,17 +201,28 @@ class ProximityPolicy {
     ProximityContext context,
   ) {
     if (distanceMeters > config.radiusMeters) return SuppressReason.outOfRadius;
+
+    final standing = _standingReason(c, context);
+    if (standing != null) return standing;
+
+    if (status.state == OpenState.closed) return SuppressReason.closed;
+    if (status.state == OpenState.closingSoon) {
+      return SuppressReason.closingSoon;
+    }
+    return null;
+  }
+
+  /// Reasons that hold regardless of where the user is or what time it is.
+  SuppressReason? _standingReason(
+    ProximityCandidate c,
+    ProximityContext context,
+  ) {
     if (c.insight.beenTo) return SuppressReason.beenTo;
 
     final lastSent = context.lastSentByLocation[c.locationId];
     if (lastSent != null &&
         context.now.difference(lastSent) < config.perPlaceCooldown) {
       return SuppressReason.cooldown;
-    }
-
-    if (status.state == OpenState.closed) return SuppressReason.closed;
-    if (status.state == OpenState.closingSoon) {
-      return SuppressReason.closingSoon;
     }
 
     // Shares the extractor was unsure about only count once the user has
@@ -224,6 +235,12 @@ class ProximityPolicy {
     }
     return null;
   }
+
+  /// False for places that cannot notify right now no matter where the user
+  /// goes (been-to, cooling down, unconfirmed low-confidence share). Used to
+  /// avoid spending scarce OS geofence slots on them.
+  bool isWorthMonitoring(ProximityCandidate c, ProximityContext context) =>
+      _standingReason(c, context) == null;
 
   bool isQuietHour(DateTime now) {
     final start = config.quietStartHour;
