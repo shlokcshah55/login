@@ -8,6 +8,7 @@ import 'package:login/services/analytics_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/locations.dart';
+import '../../utils/photo_urls.dart';
 import '../../models/proximal_models.dart';
 import '../../models/video_insights.dart';
 import '../../models/video_extras.dart';
@@ -233,10 +234,7 @@ class LocationHelper {
   Future<String?> _getLocationImageUrl(
       Map<String, dynamic> locationData) async {
     final locationId = locationData[SupabaseConstants.columnLocationId] as int;
-    final filename = '$locationId.jpg';
-
-    final publicUrl =
-        _client.storage.from('location_photos').getPublicUrl(filename);
+    final publicUrl = _locationPhotoUrl(locationId);
 
     if (locationData[SupabaseConstants.columnImageStored] == true) {
       return publicUrl;
@@ -980,13 +978,25 @@ class LocationHelper {
     }
   }
 
+  /// Public URL of a stored location photo. Uses the pre-generated CDN
+  /// variant once `PHOTO_CDN_BASE_URL` is configured, otherwise falls back to
+  /// the legacy Supabase Storage object (`{id}.jpg`, extras `{id}_{n}.jpg`).
+  String _locationPhotoUrl(
+    int locationId, {
+    int index = 0,
+    PhotoSize size = PhotoSize.card,
+  }) {
+    final cdn = PhotoUrls.location('$locationId', size, index: index);
+    if (cdn != null) return cdn;
+    final name = index == 0 ? '$locationId.jpg' : '${locationId}_$index.jpg';
+    return _client.storage.from('location_photos').getPublicUrl(name);
+  }
+
   String? _storedLocationImageUrl(Map<String, dynamic> locationData) {
     final locationId = locationData[SupabaseConstants.columnLocationId] as int?;
     if (locationId != null &&
         locationData[SupabaseConstants.columnImageStored] == true) {
-      return _client.storage
-          .from('location_photos')
-          .getPublicUrl('$locationId.jpg');
+      return _locationPhotoUrl(locationId);
     }
 
     final imageUrl = locationData[SupabaseConstants.columnImageUrl]?.toString();
@@ -1322,7 +1332,8 @@ class LocationHelper {
       final success = result['success'] == true;
       if (!success) {
         final err = (result is Map<String, dynamic>) ? result['error'] : null;
-        print('[LocationHelper] save_location_with_tags failed: ${err ?? result}');
+        print(
+            '[LocationHelper] save_location_with_tags failed: ${err ?? result}');
       }
       if (success) {
         _analyticsService.trackFeature(
@@ -1711,7 +1722,8 @@ class LocationHelper {
     void Function(List<String> contiguousPrefix)? onPartial,
   }) async {
     final locationId = location.locationId;
-    final bucket = _client.storage.from('location_photos');
+    String galleryUrl(int index) =>
+        _locationPhotoUrl(locationId, index: index, size: PhotoSize.hero);
 
     if (locationId <= 0) {
       final urls = _transientGooglePhotoUrls(location, maxPhotos: maxPhotos);
@@ -1745,7 +1757,7 @@ class LocationHelper {
     );
     if (resolution == null) {
       if (location.imageStored == true) {
-        final only = [bucket.getPublicUrl('$locationId.jpg')];
+        final only = [galleryUrl(0)];
         onPartial?.call(only);
         return only;
       }
@@ -1778,14 +1790,14 @@ class LocationHelper {
 
     // ─── Seed anything we can resolve for free from storage ─────────────
     if (location.imageStored == true && !resolution.shouldRefreshStoredPhotos) {
-      results[0] = bucket.getPublicUrl('$locationId.jpg');
+      results[0] = galleryUrl(0);
     }
     var alreadyStored = resolution.shouldRefreshStoredPhotos
         ? 0
         : location.extraPhotosStored ?? 0;
     if (alreadyStored > desired - 1) alreadyStored = desired - 1;
     for (var i = 1; i <= alreadyStored; i++) {
-      results[i] = bucket.getPublicUrl('${locationId}_$i.jpg');
+      results[i] = galleryUrl(i);
     }
     if (results.isNotEmpty) emit();
 

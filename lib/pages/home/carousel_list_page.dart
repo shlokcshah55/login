@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:login/widgets/pinit_image.dart';
 import 'dart:math' as math;
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -10,7 +11,6 @@ import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/utils/geo_types.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:login/widgets/home/location_list_card.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 
 enum _SavedSort { none, lastAdded, alphabetical, highestRated }
@@ -823,34 +823,18 @@ class _ListCard extends StatelessWidget {
   }
 
   Widget _buildImage(BuildContext context) {
-    final url = location.imageUrl ?? location.photoReference;
+    final url = location.imageUrl;
 
     if (url != null) {
-      return CachedNetworkImage(
-        imageUrl: url,
-        fit: BoxFit.cover,
+      return PinitImage.location(
+        url: url,
         width: double.infinity,
         height: double.infinity,
-        placeholder: (_, __) => _imagePlaceholder(),
-        errorWidget: (_, __, error) => _imageError(),
+        fallback: _imageError(),
       );
     }
     return _imageEmpty();
   }
-
-  Widget _imagePlaceholder() => Container(
-        color: PinitColors.creamSunk,
-        child: const Center(
-          child: SizedBox(
-            width: 22,
-            height: 22,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation(PinitColors.aubergineSoft),
-            ),
-          ),
-        ),
-      );
 
   Widget _imageError() => Container(
         color: PinitColors.creamSunk,

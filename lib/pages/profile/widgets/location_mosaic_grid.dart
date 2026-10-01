@@ -1,7 +1,8 @@
 import 'dart:math';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:login/utils/photo_urls.dart';
+import 'package:login/widgets/pinit_image.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
@@ -351,14 +352,13 @@ class _MosaicTile extends StatelessWidget {
 
   Widget _buildImage(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final url = location.imageUrl ?? location.photoReference;
+    final url = location.imageUrl;
 
     if (url != null) {
-      return CachedNetworkImage(
-        imageUrl: url,
-        fit: BoxFit.cover,
-        placeholder: (_, __) => Container(color: cs.surfaceContainerHighest),
-        errorWidget: (_, __, ___) => _imageFallback(cs),
+      return PinitImage.location(
+        url: url,
+        size: PhotoSize.thumb,
+        fallback: _imageFallback(cs),
       );
     }
     return _imageFallback(cs);
