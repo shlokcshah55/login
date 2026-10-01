@@ -219,7 +219,8 @@ class HomeCategoryBuilder {
     for (final loc in pool) {
       final key = _cuisineKey(loc);
       if (key == null) continue;
-      final label = loc.displayCuisine;
+      // Label from the key so 'italian' / 'Italian' rows land on one tile.
+      final label = LocationModel.formatCuisineLabel(key);
       if (label == null) continue;
       weightByKey[key] =
           (weightByKey[key] ?? 0) + (loc.matchScore ?? matchScoreFallback);
@@ -243,8 +244,11 @@ class HomeCategoryBuilder {
     }).toList();
   }
 
+  /// Prefers the server-normalised `cuisine_key`; falls back to the sparse
+  /// legacy fields for rows fetched without it (e.g. older cached saves).
   static String? _cuisineKey(LocationModel loc) {
-    final raw = (loc.cuisinePrimary ?? loc.cuisine)?.trim().toLowerCase();
+    final raw =
+        (loc.cuisineKey ?? loc.cuisinePrimary ?? loc.cuisine)?.trim().toLowerCase();
     if (raw == null || raw.isEmpty || raw == 'unknown') return null;
     return raw.replaceAll(RegExp(r'\s+'), '_');
   }

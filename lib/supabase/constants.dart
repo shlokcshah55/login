@@ -91,6 +91,7 @@ class SupabaseConstants {
   static const String columnCuisineDetected = 'cuisine_detected';
   static const String columnCuisineSource = 'cuisine_source';
   static const String columnCuisinePrimary = 'cuisine_primary';
+  static const String columnCuisineKey = 'cuisine_key';
   static const String columnTopReviewLanguage = 'top_review_language';
   static const String columnTopLanguageShare = 'top_language_share';
   static const String columnReviewLanguageCountsJson =

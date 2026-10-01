@@ -169,6 +169,11 @@ class LocationModel {
   final String? cuisineDetected;
   final String? cuisineSource;
   final String? cuisinePrimary;
+
+  /// Normalised cuisine (`locations.cuisine_key`, e.g. `italian`), derived
+  /// server-side from Google types with cuisine_primary as fallback. Prefer
+  /// this for grouping; it covers ~4x more places than cuisine_primary.
+  final String? cuisineKey;
   final String? topReviewLanguage;
   final double? topLanguageShare;
   final Map<String, dynamic>? reviewLanguageCountsJson;
@@ -323,6 +328,7 @@ class LocationModel {
     this.cuisineDetected,
     this.cuisineSource,
     this.cuisinePrimary,
+    this.cuisineKey,
     this.topReviewLanguage,
     this.topLanguageShare,
     this.reviewLanguageCountsJson,
@@ -429,6 +435,7 @@ class LocationModel {
       cuisineDetected: cuisineDetected,
       cuisineSource: cuisineSource,
       cuisinePrimary: cuisinePrimary,
+      cuisineKey: cuisineKey,
       topReviewLanguage: topReviewLanguage,
       topLanguageShare: topLanguageShare,
       reviewLanguageCountsJson: reviewLanguageCountsJson,
@@ -543,6 +550,7 @@ class LocationModel {
       cuisineDetected: json[SupabaseConstants.columnCuisineDetected],
       cuisineSource: json[SupabaseConstants.columnCuisineSource],
       cuisinePrimary: cuisinePrimary,
+      cuisineKey: json[SupabaseConstants.columnCuisineKey] as String?,
       topReviewLanguage: json[SupabaseConstants.columnTopReviewLanguage],
       topLanguageShare:
           (json[SupabaseConstants.columnTopLanguageShare] as num?)?.toDouble(),
@@ -713,6 +721,7 @@ class LocationModel {
       data[SupabaseConstants.columnCuisineSource] = cuisineSource;
     if (cuisinePrimary != null)
       data[SupabaseConstants.columnCuisinePrimary] = cuisinePrimary;
+    if (cuisineKey != null) data[SupabaseConstants.columnCuisineKey] = cuisineKey;
     if (topReviewLanguage != null)
       data[SupabaseConstants.columnTopReviewLanguage] = topReviewLanguage;
     if (topLanguageShare != null)
@@ -849,6 +858,7 @@ class LocationModel {
     String? cuisineDetected,
     String? cuisineSource,
     String? cuisinePrimary,
+    String? cuisineKey,
     String? topReviewLanguage,
     double? topLanguageShare,
     Map<String, dynamic>? reviewLanguageCountsJson,
@@ -942,6 +952,7 @@ class LocationModel {
       cuisineDetected: cuisineDetected ?? this.cuisineDetected,
       cuisineSource: cuisineSource ?? this.cuisineSource,
       cuisinePrimary: cuisinePrimary ?? this.cuisinePrimary,
+      cuisineKey: cuisineKey ?? this.cuisineKey,
       topReviewLanguage: topReviewLanguage ?? this.topReviewLanguage,
       topLanguageShare: topLanguageShare ?? this.topLanguageShare,
       reviewLanguageCountsJson:

@@ -5,7 +5,12 @@ import 'package:login/pages/home/categories/home_category.dart';
 import 'package:login/pages/home/categories/home_category_builder.dart';
 import 'package:login/supabase/helpers/collections.dart';
 
-LocationModel _loc(int id, {String? cuisine, String? savedMethod}) {
+LocationModel _loc(
+  int id, {
+  String? cuisine,
+  String? cuisineKey,
+  String? savedMethod,
+}) {
   return LocationModel(
     locationId: id,
     name: 'Place $id',
@@ -13,6 +18,7 @@ LocationModel _loc(int id, {String? cuisine, String? savedMethod}) {
     lat: 51.5,
     lng: -0.1,
     cuisinePrimary: cuisine,
+    cuisineKey: cuisineKey,
     savedMethod: savedMethod,
   );
 }
@@ -89,6 +95,55 @@ void main() {
         HomeCategoryKind.eatList,
       ]);
       expect(tiles.any((t) => t.kind == HomeCategoryKind.bubble), isFalse);
+    });
+  });
+
+  group('client cuisine tiles', () {
+    test('prefer cuisine_key over cuisine_primary', () {
+      final tiles = _build(recs: [
+        // cuisine_primary disagrees; the normalised key wins.
+        _loc(1, cuisine: 'Pizza', cuisineKey: 'italian'),
+        _loc(2, cuisineKey: 'italian'),
+      ]);
+      final cuisines =
+          tiles.where((t) => t.kind == HomeCategoryKind.cuisine).toList();
+      expect(cuisines.map((t) => t.id), ['italian']);
+      expect(cuisines.single.label, 'Italian');
+      expect(cuisines.single.count, 2);
+    });
+
+    test('places with only cuisine_key now get a tile', () {
+      final tiles = _build(recs: [_loc(1, cuisineKey: 'middle_eastern')]);
+      final tile = tiles.singleWhere((t) => t.kind == HomeCategoryKind.cuisine);
+      expect(tile.id, 'middle_eastern');
+      expect(tile.label, 'Middle Eastern');
+    });
+
+    test('mixed-case legacy values land on one tile', () {
+      final tiles = _build(recs: [
+        _loc(1, cuisine: 'italian'),
+        _loc(2, cuisine: 'Italian'),
+      ]);
+      final cuisines =
+          tiles.where((t) => t.kind == HomeCategoryKind.cuisine).toList();
+      expect(cuisines, hasLength(1));
+      expect(cuisines.single.count, 2);
+    });
+  });
+
+  group('LocationModel.cuisineKey', () {
+    test('round-trips cuisine_key through JSON', () {
+      final loc = LocationModel.fromJson({
+        'location_id': 5,
+        'name': 'Dishoom',
+        'created_at': '2026-09-01T00:00:00Z',
+        'lat': 51.5,
+        'lng': -0.1,
+        'cuisine_key': 'indian',
+      }, null);
+      expect(loc.cuisineKey, 'indian');
+      expect(loc.toJson()['cuisine_key'], 'indian');
+      expect(loc.copyWith(name: 'x').cuisineKey, 'indian');
     });
   });
 
