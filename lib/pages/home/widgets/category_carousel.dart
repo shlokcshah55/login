@@ -149,6 +149,7 @@ class _CategoryChipState extends State<_CategoryChip> {
     final count = widget.category.count;
     final area = widget.category.areaLabel;
     return switch (widget.category.kind) {
+      HomeCategoryKind.source when count == 0 => 'SHARE A TIKTOK',
       HomeCategoryKind.source => '$count ${count == 1 ? 'SAVE' : 'SAVES'}',
       HomeCategoryKind.cuisine when area != null =>
         '${area.toUpperCase()} · $count',
