@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/models/markers.dart';
 import 'package:login/models/proximal_models.dart';
@@ -18,7 +18,9 @@ import 'package:login/supabase/helpers/location.dart';
 import 'package:login/supabase/helpers/location_reviews.dart';
 import 'package:login/supabase/helpers/video_insights_helper.dart';
 import 'package:login/supabase/supabase_client.dart';
+import 'package:login/services/location_live_updates.dart';
 import 'package:login/widgets/home/been_to_review_sheet.dart';
+import 'package:login/widgets/pinit_image.dart';
 import 'package:login/widgets/home/been_to_swipe_ranker.dart';
 import 'package:login/widgets/home/expanded_card/add_to_bubble_sheet.dart';
 import 'package:login/widgets/home/expanded_card/add_to_collection_sheet.dart';
@@ -122,6 +124,16 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   VideoInsight? _videoInsight;
   final VideoInsightsHelper _videoInsightsHelper = VideoInsightsHelper();
   late final LocationProcessingTrigger _locationProcessingTrigger;
+
+  // ── Live details (worker writes while the card is open) ──
+  LocationModel? _liveLocation;
+  LocationLiveUpdates? _liveUpdates;
+  bool _enriching = false;
+  Timer? _enrichingTimer;
+
+  /// The location as currently known: the row re-read from the database
+  /// (kept fresh while open) layered over what the opener passed in.
+  LocationModel get _location => _liveLocation ?? widget.location;
   String? _resolvedSharedVideoUrl;
   List<SocialVideoPost> _socialVideoPosts = const [];
 
@@ -135,30 +147,30 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
       featureName: 'location_card',
       screenName: 'home',
       properties: <String, dynamic>{
-        'location_id': widget.location.locationId,
+        'location_id': _location.locationId,
       },
       registerTap: true,
       interactionKey: 'location_card_opened',
     );
     // Seed with whatever we already have synchronously (the storage URL
     // from the list row). The full gallery is fetched lazily below.
-    final seed = widget.location.imageUrl?.trim();
+    final seed = _location.imageUrl?.trim();
     if (seed != null && seed.isNotEmpty) {
       _photos = [seed];
     }
     _loadGalleryPhotos();
 
     _accentColor = PinitMarkerPalette.forCuisine(
-      widget.location.cuisine,
-      widget.location.types,
+      _location.cuisine,
+      _location.types,
     );
 
     final userProvider = Provider.of<UserDataProvider>(context, listen: false);
     _match = buildMatchResult(
-      matchScore: widget.location.matchScore,
-      locationVibe: widget.location.vibe,
+      matchScore: _location.matchScore,
+      locationVibe: _location.vibe,
       userVibeAffinity: userProvider.vibeTagAffinity,
-      locationDietary: widget.location.dietaryRequirementVector,
+      locationDietary: _location.dietaryRequirementVector,
       userDietary: userProvider.dietaryRequirementTagAffinity,
     );
 
@@ -189,17 +201,24 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     _fetchPinitAvgRating();
     _fetchPinitReviews();
     _fetchFriendIds();
-    _friendSaves = widget.location.friendSaves;
+    _friendSaves = _location.friendSaves;
     _fetchFriendSaves();
     _findSimilarPlaces();
     _seedSocialVideoPost();
     _bootstrapSocialVideoContext();
     _fetchSocialVideoPosts();
+    _liveUpdates = LocationLiveUpdates(
+      locationId: widget.location.locationId,
+      onRow: _onLiveRow,
+    )..start();
+    unawaited(_liveUpdates!.refresh());
     unawaited(_requestLocationProcessing());
   }
 
   @override
   void dispose() {
+    _liveUpdates?.dispose();
+    _enrichingTimer?.cancel();
     _sheetController.dispose();
     _matchController.dispose();
     super.dispose();
@@ -212,13 +231,13 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   void _checkSavedStatus() {
     final mgr = Provider.of<LocationListManager>(context, listen: false);
     setState(() {
-      _isSaved = mgr.isLocationSavedSync(widget.location.locationId);
+      _isSaved = mgr.isLocationSavedSync(_location.locationId);
     });
   }
 
   void _fetchPinitAvgRating() async {
     final result = await _reviewsHelper.getLocationAvgRating(
-      locationId: widget.location.locationId,
+      locationId: _location.locationId,
     );
     if (mounted && result != null) {
       setState(() {
@@ -230,7 +249,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
 
   void _fetchPinitReviews() async {
     final reviews = await _reviewsHelper.getPublicReviewsWithProfiles(
-      locationId: widget.location.locationId,
+      locationId: _location.locationId,
     );
     if (mounted) setState(() => _pinitReviews = reviews);
   }
@@ -241,15 +260,15 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   }
 
   Future<void> _fetchFriendSaves() async {
-    if (widget.location.friendSaves.isNotEmpty) return;
+    if (_location.friendSaves.isNotEmpty) return;
 
     final savesByLocationId =
         await _locationHelper.getFriendSavesForLocationIds(
-      [widget.location.locationId],
+      [_location.locationId],
     );
     if (!mounted) return;
 
-    final saves = savesByLocationId[widget.location.locationId];
+    final saves = savesByLocationId[_location.locationId];
     if (saves == null || saves.isEmpty) return;
     setState(() => _friendSaves = saves);
   }
@@ -259,12 +278,12 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     if (user == null) return;
     try {
       final review = await _reviewsHelper.getUserReview(
-        locationId: widget.location.locationId,
+        locationId: _location.locationId,
         userId: user.id,
       );
       if (!mounted || review == null) return;
       context.read<LocationListManager>().markLocationBeenTo(
-            widget.location.locationId,
+            _location.locationId,
           );
       setState(() {
         _isBeenTo = true;
@@ -330,11 +349,11 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
           builder: (_) => BeenToSwipeRanker(
-            newLocation: widget.location,
+            newLocation: _location,
             existingReviews: reviews,
             onSubmitted: (rating, notes, gatekeep) async {
               await _submitReviewAndAddToCollection(
-                locationId: widget.location.locationId,
+                locationId: _location.locationId,
                 rating: rating,
                 notes: notes,
                 gatekeep: gatekeep,
@@ -349,10 +368,10 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
           builder: (_) => BeenToReviewSheet(
-            locationName: widget.location.name,
+            locationName: _location.name,
             onSubmit: (rating, notes, gatekeep) async {
               await _submitReviewAndAddToCollection(
-                locationId: widget.location.locationId,
+                locationId: _location.locationId,
                 rating: rating,
                 notes: notes,
                 gatekeep: gatekeep,
@@ -377,14 +396,14 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => BeenToReviewSheet(
-        locationName: widget.location.name,
+        locationName: _location.name,
         initialRating: existingRating,
         initialNotes: _beenToNotes,
         initialGatekeep: _beenToGatekeep,
         submitLabel: 'Update rating',
         onSubmit: (rating, notes, gatekeep) async {
           await _reviewsHelper.updateBeenTo(
-            locationId: widget.location.locationId,
+            locationId: _location.locationId,
             rating: rating,
             content: notes,
             gatekeep: gatekeep,
@@ -413,7 +432,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
         if (mounted) {
           setState(() => _isSaved = false);
         }
-        final ok = await mgr.unsaveLocation(widget.location);
+        final ok = await mgr.unsaveLocation(_location);
         if (!ok && mounted) {
           setState(() => _isSaved = true);
         }
@@ -421,7 +440,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
         if (mounted) {
           setState(() => _isSaved = true);
         }
-        await mgr.saveLocation(widget.location);
+        await mgr.saveLocation(_location);
       }
     } catch (_) {
       if (mounted) {
@@ -444,7 +463,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     setState(() => _isDisliking = true);
     try {
       final mgr = Provider.of<LocationListManager>(context, listen: false);
-      final ok = await mgr.dislikeLocation(widget.location);
+      final ok = await mgr.dislikeLocation(_location);
       if (ok && mounted) {
         AppFeedback.showSuccess(
           context,
@@ -482,7 +501,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   void _showOnMap() {
     final navProvider = Provider.of<NavigationProvider>(context, listen: false);
     _handleClose();
-    navProvider.navigateToLocationOnMap(widget.location);
+    navProvider.navigateToLocationOnMap(_location);
   }
 
   Future<void> _openSimilarPlace(SimilarPlace similar) async {
@@ -527,8 +546,8 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => AddToCollectionSheet(
-        locationId: widget.location.locationId,
-        locationName: widget.location.name,
+        locationId: _location.locationId,
+        locationName: _location.name,
       ),
     );
   }
@@ -539,7 +558,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => AddToBubbleSheet(
-        location: widget.location,
+        location: _location,
       ),
     );
 
@@ -575,7 +594,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   /// location's vibe vector and all other locations available in the
   /// [LocationListManager]. Top 8 are kept.
   void _findSimilarPlaces() {
-    final thisVibe = widget.location.vibe;
+    final thisVibe = _location.vibe;
     if (thisVibe == null || thisVibe.values.isEmpty) return;
 
     final mgr = Provider.of<LocationListManager>(context, listen: false);
@@ -587,7 +606,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     ];
 
     // De-dupe by locationId and exclude the current location.
-    final seen = <int>{widget.location.locationId};
+    final seen = <int>{_location.locationId};
     final candidates = <LocationModel>[];
     for (final loc in all) {
       if (seen.contains(loc.locationId)) continue;
@@ -642,7 +661,14 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
 
   Future<void> _requestLocationProcessing() async {
     try {
-      await _locationProcessingTrigger.onExpanded(widget.location.locationId);
+      final queued =
+          await _locationProcessingTrigger.onExpanded(_location.locationId);
+      if (queued && mounted) {
+        _setEnriching(true);
+        // Picks up location_processing_queued_at and any stage that landed
+        // before the subscription was live.
+        unawaited(_liveUpdates?.refresh());
+      }
     } catch (e) {
       if (kDebugMode) {
         print('[ExpandedCard] Failed to enrich location: $e');
@@ -659,14 +685,14 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   /// notifications and featured surfaces often only carry the public
   /// social-video summary fields. The card now handles both cases.
   Future<void> _bootstrapSocialVideoContext() async {
-    final sourceUrl = preferredExpandedCardSocialVideoUrl(widget.location);
+    final sourceUrl = preferredExpandedCardSocialVideoUrl(_location);
     if (sourceUrl != null) {
       await _fetchVideoInsightFor(sourceUrl);
     }
 
     if (_videoInsight != null) return;
     if (shouldResolveExpandedCardSocialVideoUrl(
-      widget.location,
+      _location,
       forceResolveOnOpen: widget.resolveSharedVideoUrlOnOpen,
     )) {
       await _resolveSharedVideoUrl();
@@ -686,7 +712,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     if (_videoInsight != null) return;
 
     final insights = await _videoInsightsHelper.getInsightsForLocation(
-      widget.location.locationId,
+      _location.locationId,
     );
     if (!mounted || _videoInsight != null || insights.isEmpty) return;
 
@@ -698,7 +724,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     if (_videoInsight != null) return;
 
     final insight = await _videoInsightsHelper.getInsight(
-      locationId: widget.location.locationId,
+      locationId: _location.locationId,
       sourceVideoUrl: sourceUrl,
     );
 
@@ -712,7 +738,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     if (existing != null && existing.isNotEmpty) return;
 
     final resolved = await _locationHelper.getLatestSharedVideoUrl(
-      locationId: widget.location.locationId,
+      locationId: _location.locationId,
     );
     if (!mounted) return;
     if (resolved == null || resolved.trim().isEmpty) return;
@@ -725,20 +751,20 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   }
 
   void _seedSocialVideoPost() {
-    final url = widget.location.socialVideoUrl?.trim();
+    final url = _location.socialVideoUrl?.trim();
     if (url == null || url.isEmpty) return;
     _socialVideoPosts = [
       SocialVideoPost(
         sourceVideoUrl: url,
-        creatorHandle: widget.location.socialVideoCreatorHandle,
-        recommendedDish: widget.location.tiktokRecommendedDish,
+        creatorHandle: _location.socialVideoCreatorHandle,
+        recommendedDish: _location.tiktokRecommendedDish,
       ),
     ];
   }
 
   Future<void> _fetchSocialVideoPosts() async {
     final posts = await _videoInsightsHelper.getSocialVideoPostsForLocation(
-      widget.location.locationId,
+      _location.locationId,
     );
     if (!mounted || posts.isEmpty) return;
     setState(() => _socialVideoPosts = _mergeSocialVideoPosts(posts));
@@ -766,11 +792,11 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
 
   Future<void> _openInGoogleMaps() async {
     final target = resolveGoogleMapsTarget(
-      googleMapsUri: widget.location.googleMapsUri,
-      name: widget.location.name,
-      googlePlaceId: widget.location.googlePlaceId,
-      lat: widget.location.lat,
-      lng: widget.location.lng,
+      googleMapsUri: _location.googleMapsUri,
+      name: _location.name,
+      googlePlaceId: _location.googlePlaceId,
+      lat: _location.lat,
+      lng: _location.lng,
     );
     if (target != null && await canLaunchUrl(target)) {
       await launchUrl(target, mode: LaunchMode.externalApplication);
@@ -778,7 +804,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   }
 
   Future<void> _openWebsite() async {
-    final url = widget.location.website;
+    final url = _location.website;
     if (url != null && url.isNotEmpty) {
       final parsed = Uri.tryParse(url);
       if (parsed != null) {
@@ -791,7 +817,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   /// from (e.g. a TikTok video). Used by the "Saved from this TikTok"
   /// flash badge in the summary slab.
   Future<void> _openSavedFromUrl() async {
-    final url = _resolvedSharedVideoUrl ?? widget.location.savedFrom;
+    final url = _resolvedSharedVideoUrl ?? _location.savedFrom;
     await _openExternalUrl(url);
   }
 
@@ -812,45 +838,54 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   //  Display helpers
   // ─────────────────────────────────────────────────────────────
 
-  /// Loads the gallery with progressive, parallel delivery. Every time a
-  /// new contiguous prefix is ready we [setState] and [precacheImage]
-  /// each newly-arrived URL — that warms both the in-memory ImageCache
-  /// and the on-disk `CachedNetworkImage` cache so PageView swipes are
-  /// instant even though the network fetches only just finished.
+  void _onLiveRow(Map<String, dynamic> row) {
+    if (!mounted) return;
+    final current = _location;
+    final fresh = LocationModel.fromJson(row, current.imageUrl);
+    final hadNoPhotos = _photos.isEmpty;
+    setState(() {
+      _liveLocation = current.withStoredDetails(fresh);
+    });
+    _setEnriching(isLocationBeingEnriched(row, DateTime.now()));
+    if (hadNoPhotos && fresh.imageStored == true) {
+      unawaited(_loadGalleryPhotos());
+    }
+  }
+
+  void _setEnriching(bool value) {
+    if (!mounted) return;
+    _enrichingTimer?.cancel();
+    if (value) {
+      // Stop claiming work after the window even if no further write lands.
+      _enrichingTimer = Timer(locationEnrichmentWindow, () {
+        if (mounted) setState(() => _enriching = false);
+      });
+    }
+    if (_enriching != value) setState(() => _enriching = value);
+  }
+
+  /// Loads the gallery progressively. Each time more photos arrive we
+  /// [setState] and warm the next couple of photos ahead of the one on
+  /// screen, so swipes are instant without downloading the whole gallery up
+  /// front.
   Future<void> _loadGalleryPhotos() async {
-    final seen = <String>{..._photos};
+    void apply(List<String> urls) {
+      if (!mounted || urls.isEmpty || urls.length < _photos.length) return;
+      setState(() {
+        _photos = urls;
+        if (_currentPhotoIndex >= _photos.length) {
+          _currentPhotoIndex = _photos.length - 1;
+        }
+      });
+      _precacheAhead();
+    }
+
     try {
       final finalUrls = await _locationHelper.fetchExpandedCardPhotos(
-        widget.location,
-        onPartial: (partial) {
-          if (!mounted || partial.isEmpty) return;
-          for (final url in partial) {
-            if (seen.add(url)) {
-              precacheImage(CachedNetworkImageProvider(url), context);
-            }
-          }
-          setState(() {
-            _photos = partial;
-            if (_currentPhotoIndex >= _photos.length) {
-              _currentPhotoIndex = _photos.length - 1;
-            }
-          });
-        },
+        _location,
+        onPartial: apply,
       );
-      if (!mounted || finalUrls.isEmpty) return;
-      for (final url in finalUrls) {
-        if (seen.add(url)) {
-          precacheImage(CachedNetworkImageProvider(url), context);
-        }
-      }
-      if (finalUrls.length != _photos.length) {
-        setState(() {
-          _photos = finalUrls;
-          if (_currentPhotoIndex >= _photos.length) {
-            _currentPhotoIndex = _photos.length - 1;
-          }
-        });
-      }
+      if (finalUrls.length != _photos.length) apply(finalUrls);
     } catch (e) {
       if (kDebugMode) {
         print('[ExpandedCard] Gallery load failed: $e');
@@ -858,24 +893,39 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     }
   }
 
+  static const int _precacheAheadCount = 2;
+  final Set<String> _precached = {};
+
+  void _precacheAhead() {
+    if (!mounted) return;
+    final end = (_currentPhotoIndex + _precacheAheadCount)
+        .clamp(0, _photos.length - 1);
+    for (var i = _currentPhotoIndex + 1; i <= end; i++) {
+      final url = _photos[i];
+      if (_precached.add(url)) {
+        PinitImage.precacheLocation(context, url, size: HeroSection.photoSize);
+      }
+    }
+  }
+
   String _openStatusLabel() {
-    final o = widget.location.openNow;
+    final o = _location.openNow;
     if (o == true) return 'Open now';
     if (o == false) return 'Closed';
     return 'Hours unknown';
   }
 
   Color _openStatusColor() {
-    final o = widget.location.openNow;
+    final o = _location.openNow;
     if (o == true) return const Color(0xFF10B981);
     if (o == false) return const Color(0xFFEF4444);
     return const Color(0xFF9CA3AF);
   }
 
   String _priceLabel() {
-    final bucket = widget.location.priceBucket?.trim();
+    final bucket = _location.priceBucket?.trim();
     if (bucket != null && bucket.isNotEmpty) return bucket;
-    final level = widget.location.priceLevel;
+    final level = _location.priceLevel;
     if (level == null) return '';
     return '£' * (level.clamp(0, 4) + 1);
   }
@@ -889,10 +939,10 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
     final size = MediaQuery.of(context).size;
     final topPad = MediaQuery.of(context).padding.top;
     final displayLocation = (_resolvedSharedVideoUrl != null &&
-            (widget.location.savedFrom == null ||
-                widget.location.savedFrom!.trim().isEmpty))
-        ? widget.location.copyWith(savedFrom: _resolvedSharedVideoUrl)
-        : widget.location;
+            (_location.savedFrom == null ||
+                _location.savedFrom!.trim().isEmpty))
+        ? _location.copyWith(savedFrom: _resolvedSharedVideoUrl)
+        : _location;
     final locationWithSocialContext = _friendSaves.isEmpty
         ? displayLocation
         : displayLocation.copyWithFriendSaves(_friendSaves);
@@ -1038,7 +1088,10 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
           height: heroHeight,
           photos: _photos,
           currentPhotoIndex: _currentPhotoIndex,
-          onPhotoChanged: (i) => setState(() => _currentPhotoIndex = i),
+          onPhotoChanged: (i) {
+            setState(() => _currentPhotoIndex = i);
+            _precacheAhead();
+          },
           accentColor: _accentColor,
           openStatusLabel: _openStatusLabel(),
           openStatusColor: _openStatusColor(),
@@ -1100,6 +1153,11 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
               // Layer 3 — editorial body.
               const SizedBox(height: 32),
 
+              if (_enriching) ...[
+                const _EnrichingNote(),
+                const SizedBox(height: 16),
+              ],
+
               DetailsSection(
                 location: location,
                 onOpenInMaps: _openInGoogleMaps,
@@ -1132,6 +1190,23 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Quiet note shown while the worker is still filling in a sparse place.
+class _EnrichingNote extends StatelessWidget {
+  const _EnrichingNote();
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      'Filling in details…',
+      style: GoogleFonts.manrope(
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+        color: PinitColors.aubergineSoft,
+      ),
     );
   }
 }
