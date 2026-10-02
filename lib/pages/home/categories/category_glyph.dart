@@ -2,7 +2,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:login/pages/home/categories/home_category.dart';
+import 'package:login/pages/home/categories/home_category_builder.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/themes/app_typography.dart';
 
@@ -29,6 +31,9 @@ class CategoryMark {
     final haystack = _normalise('${category.id} ${category.label}');
 
     if (category.kind == HomeCategoryKind.source) {
+      if (category.id == HomeCategoryBuilder.sharedFindsId) {
+        return const CategoryMark._(icon: FontAwesomeIcons.tiktok);
+      }
       if (haystack.contains('instagram')) {
         return const CategoryMark._(icon: FeatherIcons.instagram);
       }

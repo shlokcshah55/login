@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/supabase/supabase_client.dart';
+import 'package:login/utils/photo_urls.dart';
 import 'package:login/widgets/feedback/app_feedback.dart';
 
 class BeenToSwipeRanker extends StatefulWidget {
@@ -710,11 +711,12 @@ class _BeenToSwipeRankerState extends State<BeenToSwipeRanker>
   Widget _buildComparisonImage(Map<String, dynamic> review) {
     final locationId = review['location_id'] as int?;
     final imageUrl = locationId != null
-        ? SupabaseClientManager()
-            .client
-            .storage
-            .from('location_photos')
-            .getPublicUrl('$locationId.jpg')
+        ? PhotoUrls.location('$locationId', PhotoSize.card) ??
+            SupabaseClientManager()
+                .client
+                .storage
+                .from('location_photos')
+                .getPublicUrl('$locationId.jpg')
         : null;
 
     return Stack(

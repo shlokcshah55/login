@@ -85,16 +85,54 @@ void main() {
   final collections = [_collection('c1', 'Date night', 4)];
 
   group('without server rail (flag off)', () {
-    test('keeps the original order: sources, cuisines, eat-lists', () {
+    test('orders Shared Finds, cuisines, eat-lists', () {
       final tiles = _build(saved: saved, collections: collections);
       expect(tiles.map((t) => t.kind).toList(), [
-        HomeCategoryKind.source,
         HomeCategoryKind.source,
         HomeCategoryKind.cuisine,
         HomeCategoryKind.cuisine,
         HomeCategoryKind.eatList,
       ]);
       expect(tiles.any((t) => t.kind == HomeCategoryKind.bubble), isFalse);
+    });
+  });
+
+  group('Shared Finds tile', () {
+    test('collects TikTok and Instagram saves only', () async {
+      final tiles = _build(
+        saved: [...saved, _loc(12, cuisine: 'Thai', savedMethod: 'in-app')],
+        collections: const [],
+      );
+      final shared = tiles.first;
+      expect(shared.id, HomeCategoryBuilder.sharedFindsId);
+      expect(shared.label, 'Shared Finds');
+      expect(shared.count, 2);
+      expect((await shared.resolve()).map((l) => l.locationId), [10, 11]);
+    });
+
+    test('is present even with no social saves', () {
+      final tiles = _build(saved: const [], collections: const []);
+      expect(tiles, hasLength(1));
+      expect(tiles.single.id, HomeCategoryBuilder.sharedFindsId);
+      expect(tiles.single.count, 0);
+    });
+
+    test('hides the Shared Finds collection from eat-lists', () {
+      final tiles = _build(
+        saved: saved,
+        collections: [_collection('sf', 'Shared Finds', 3), ...collections],
+      );
+      final lists = tiles.where((t) => t.kind == HomeCategoryKind.eatList);
+      expect(lists.map((t) => t.id), ['c1']);
+    });
+
+    test('stays first with the server rail', () {
+      final tiles = _build(
+        saved: const [],
+        collections: collections,
+        rail: [_candidate('cuisine', 'korean', label: 'Korean')],
+      );
+      expect(tiles.first.id, HomeCategoryBuilder.sharedFindsId);
     });
   });
 
@@ -148,7 +186,7 @@ void main() {
   });
 
   group('with server rail', () {
-    test('orders cuisines, bubbles, eat-lists, vibes, sources', () {
+    test('orders Shared Finds, cuisines, bubbles, eat-lists', () {
       final tiles = _build(
         saved: saved,
         collections: collections,
@@ -158,12 +196,11 @@ void main() {
         ],
       );
       final kinds = tiles.map((t) => t.kind).toList();
-      expect(kinds.first, HomeCategoryKind.cuisine);
+      expect(kinds.first, HomeCategoryKind.source);
+      expect(kinds[1], HomeCategoryKind.cuisine);
       expect(kinds.indexOf(HomeCategoryKind.bubble),
           lessThan(kinds.indexOf(HomeCategoryKind.eatList)));
-      expect(kinds.indexOf(HomeCategoryKind.eatList),
-          lessThan(kinds.indexOf(HomeCategoryKind.source)));
-      expect(tiles.first.id, 'korean');
+      expect(tiles[1].id, 'korean');
     });
 
     test('server cuisine wins over the client tile with the same key', () {

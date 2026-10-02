@@ -1,5 +1,5 @@
-import 'package:flutter/widgets.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:login/models/home_rail_candidate.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/pages/home/categories/home_category.dart';
@@ -11,12 +11,14 @@ import 'package:login/supabase/helpers/collections.dart';
 /// affinity, collections). Pure given its inputs — no I/O except the eat-list
 /// [resolve] closures, which defer to [loadCollectionLocations].
 ///
-/// Tile order: Instagram, TikTok (source), then cuisines, eat-lists, vibes.
+/// Tile order: Shared Finds (source), then cuisines, eat-lists, vibes.
 ///
 /// With [railCandidates] from `get_home_rail` (server rail enabled), cuisine
 /// tiles come from the server's area lift + taste ranking, bubble tiles are
-/// added, and the order becomes cuisines, bubbles, eat-lists, vibes, sources,
-/// capped at [maxTiles].
+/// added, and the order becomes Shared Finds, cuisines, bubbles, eat-lists,
+/// vibes, capped at [maxTiles].
+///
+/// The Shared Finds tile is always present, even with no social saves yet.
 class HomeCategoryBuilder {
   // ── Tunables ──────────────────────────────────────────────────
   static const int maxCuisineTiles = 4;
@@ -32,6 +34,13 @@ class HomeCategoryBuilder {
 
   /// Vibe keys we never surface as their own tile.
   static const Set<String> _excludedVibeTags = {'bossman'};
+
+  /// Id/label of the source tile collecting every TikTok + Instagram save.
+  static const String sharedFindsId = 'shared_finds';
+  static const String sharedFindsLabel = 'Shared Finds';
+
+  /// `saved_method` values that count as a shared find.
+  static const Set<String> _socialSavedMethods = {'tiktok', 'instagram'};
 
   /// Best-effort emoji per cuisine key; falls back to a plate.
   static const Map<String, String> _cuisineEmoji = {
@@ -110,8 +119,8 @@ class HomeCategoryBuilder {
 
     final categories = <HomeCategory>[];
 
-    // ── 1. Source tiles (Instagram, TikTok) — always first, if non-empty ──
-    categories.addAll(_sourceCategories(savedLocations));
+    // ── 1. Shared Finds — always first ──
+    categories.add(_sharedFindsCategory(savedLocations));
 
     // Pool for cuisine/vibe aggregation: area recommendations (area-aware)
     // combined with saved spots (personal), deduped by locationId.
@@ -176,37 +185,30 @@ class HomeCategoryBuilder {
             ));
 
     return [
+      _sharedFindsCategory(savedLocations),
       ...serverCuisines,
       ...clientCuisines,
       ...bubbles,
       ..._eatListCategories(collections, loadCollectionLocations),
       ..._vibeCategories(pool, vibeTagAffinity),
-      ..._sourceCategories(savedLocations),
     ].take(maxTiles).toList();
   }
 
   // ────────────────────────────────────────────────────────────────
   //  Source
   // ────────────────────────────────────────────────────────────────
-  static List<HomeCategory> _sourceCategories(List<LocationModel> saved) {
-    HomeCategory? tile(String method, String label, IconData icon) {
-      final matches =
-          saved.where((l) => l.savedMethod == method).toList(growable: false);
-      if (matches.isEmpty) return null;
-      return HomeCategory(
-        kind: HomeCategoryKind.source,
-        id: method,
-        label: label,
-        icon: icon,
-        count: matches.length,
-        resolve: () async => matches,
-      );
-    }
-
-    return [
-      tile('instagram', 'Instagram', FeatherIcons.instagram),
-      tile('tiktok', 'TikTok', FeatherIcons.video),
-    ].whereType<HomeCategory>().toList();
+  static HomeCategory _sharedFindsCategory(List<LocationModel> saved) {
+    final matches = saved
+        .where((l) => _socialSavedMethods.contains(l.savedMethod))
+        .toList(growable: false);
+    return HomeCategory(
+      kind: HomeCategoryKind.source,
+      id: sharedFindsId,
+      label: sharedFindsLabel,
+      icon: FontAwesomeIcons.tiktok,
+      count: matches.length,
+      resolve: () async => matches,
+    );
   }
 
   // ────────────────────────────────────────────────────────────────
@@ -260,8 +262,9 @@ class HomeCategoryBuilder {
     List<CollectionItem> collections,
     Future<List<LocationModel>> Function(String) loadCollectionLocations,
   ) {
+    // The auto-generated Shared Finds collection is covered by the source tile.
     return collections
-        .where((c) => c.placeCount > 0)
+        .where((c) => c.placeCount > 0 && c.name != sharedFindsLabel)
         .map(
           (c) => HomeCategory(
             kind: HomeCategoryKind.eatList,

@@ -12,6 +12,7 @@ class RecommendationsApi {
   static const String _path = '/recommendations/proximal';
   static const String _addLocationPath = '/locations/add';
   static const String _processLocationPath = '/locations/process';
+  static const Duration _locationPhotosTimeout = Duration(seconds: 8);
 
   final http.Client _client;
   final String _baseUrl;
@@ -266,6 +267,43 @@ class RecommendationsApi {
         'Failed with status ${response.statusCode}: ${response.body}',
       );
     }
+  }
+
+  /// Gallery photos for one location, in display order: CDN URLs for photos
+  /// already in R2, then short-lived Google URLs for the rest. The server
+  /// copies the Google ones into R2 in the background, so later opens are
+  /// served entirely from the CDN.
+  Future<List<String>> locationPhotos(int locationId, {int maxPhotos = 10}) async {
+    if (locationId <= 0) {
+      throw ArgumentError.value(
+        locationId,
+        'locationId',
+        'must be a positive canonical location ID',
+      );
+    }
+
+    final uri = Uri.parse('$_baseUrl/locations/$locationId/photos');
+    final response = await _client
+        .post(
+          uri,
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({'max_photos': maxPhotos}),
+        )
+        .timeout(_locationPhotosTimeout);
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw RecommendationsApiException(
+        'Failed with status ${response.statusCode}: ${response.body}',
+      );
+    }
+
+    final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+    final photos = decoded['photos'];
+    if (photos is! List) return const [];
+    return [
+      for (final url in photos)
+        if (url is String && url.isNotEmpty) url,
+    ];
   }
 }
 

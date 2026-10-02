@@ -1,9 +1,10 @@
 import 'dart:ui';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
+import 'package:login/utils/photo_urls.dart';
+import 'package:login/widgets/pinit_image.dart';
 
 /// Hero image carousel + glass status badges that anchors the top of the
 /// expanded location card. Stateless — the parent owns photo index state.
@@ -31,6 +32,10 @@ class HeroSection extends StatelessWidget {
   final String priceLabel;
   final bool isWavy;
 
+  /// Variant shown in the swipeable hero (720 px wide). Callers that warm
+  /// the cache must use the same size so the precached file is the one shown.
+  static const PhotoSize photoSize = PhotoSize.card;
+
   @override
   Widget build(BuildContext context) {
     return Stack(
@@ -45,12 +50,10 @@ class HeroSection extends StatelessWidget {
                   itemBuilder: (_, i) => Stack(
                     fit: StackFit.expand,
                     children: [
-                      CachedNetworkImage(
-                        imageUrl: photos[i],
-                        fit: BoxFit.cover,
-                        placeholder: (_, __) =>
-                            _EmptyHero(accentColor: accentColor),
-                        errorWidget: (_, __, ___) =>
+                      PinitImage.location(
+                        url: photos[i],
+                        size: photoSize,
+                        fallback:
                             _EmptyHero(accentColor: accentColor, isError: true),
                       ),
                       // Scrim gradient — darker at top for badges, lighter at bottom

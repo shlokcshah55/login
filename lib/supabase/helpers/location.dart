@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 
@@ -8,9 +9,11 @@ import 'package:login/services/analytics_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/locations.dart';
+import '../../utils/photo_urls.dart';
 import '../../models/proximal_models.dart';
 import '../../models/video_insights.dart';
 import '../../models/video_extras.dart';
+import '../../services/recommendations_api.dart';
 import '../constants.dart';
 import '../supabase_client.dart';
 
@@ -74,6 +77,32 @@ class LocationHelper {
   // Locations confirmed to have no image available (Google returned no photos).
   // Persisted in-memory for the session; the DB flag prevents retries across sessions.
   static final Set<int> _noImageAvailable = {};
+
+  // CDN mode: the server owns photo ingest (Google -> R2) for new and
+  // recommended places, so lists never ask for photos. Only opening a place
+  // asks the server for its gallery, once per location per session.
+  static final Set<int> _galleryRequested = {};
+  static RecommendationsApi? _recommendationsApi;
+  static RecommendationsApi get _recommendations =>
+      _recommendationsApi ??= RecommendationsApi();
+
+  @visibleForTesting
+  static void resetGalleryRequestsForTesting({RecommendationsApi? api}) {
+    _galleryRequested.clear();
+    _recommendationsApi = api;
+  }
+
+  /// CDN mode image for a list row: the stored card variant, or null (a
+  /// placeholder) while the server has not stored a photo yet.
+  @visibleForTesting
+  static String? cdnRowImageUrl(Map<String, dynamic> row) {
+    final locationId = row[SupabaseConstants.columnLocationId] as int?;
+    if (locationId == null ||
+        row[SupabaseConstants.columnImageStored] != true) {
+      return null;
+    }
+    return PhotoUrls.location('$locationId', PhotoSize.card);
+  }
 
   @visibleForTesting
   static String? photoResourceNameFor(Map<String, dynamic> photo) {
@@ -232,11 +261,10 @@ class LocationHelper {
   // See `get_locations_with_quality` and the photo pipeline migration.
   Future<String?> _getLocationImageUrl(
       Map<String, dynamic> locationData) async {
-    final locationId = locationData[SupabaseConstants.columnLocationId] as int;
-    final filename = '$locationId.jpg';
+    if (PhotoUrls.isConfigured) return cdnRowImageUrl(locationData);
 
-    final publicUrl =
-        _client.storage.from('location_photos').getPublicUrl(filename);
+    final locationId = locationData[SupabaseConstants.columnLocationId] as int;
+    final publicUrl = _locationPhotoUrl(locationId);
 
     if (locationData[SupabaseConstants.columnImageStored] == true) {
       return publicUrl;
@@ -980,13 +1008,25 @@ class LocationHelper {
     }
   }
 
+  /// Public URL of a stored location photo. Uses the pre-generated CDN
+  /// variant once `PHOTO_CDN_BASE_URL` is configured, otherwise falls back to
+  /// the legacy Supabase Storage object (`{id}.jpg`, extras `{id}_{n}.jpg`).
+  String _locationPhotoUrl(
+    int locationId, {
+    int index = 0,
+    PhotoSize size = PhotoSize.card,
+  }) {
+    final cdn = PhotoUrls.location('$locationId', size, index: index);
+    if (cdn != null) return cdn;
+    final name = index == 0 ? '$locationId.jpg' : '${locationId}_$index.jpg';
+    return _client.storage.from('location_photos').getPublicUrl(name);
+  }
+
   String? _storedLocationImageUrl(Map<String, dynamic> locationData) {
     final locationId = locationData[SupabaseConstants.columnLocationId] as int?;
     if (locationId != null &&
         locationData[SupabaseConstants.columnImageStored] == true) {
-      return _client.storage
-          .from('location_photos')
-          .getPublicUrl('$locationId.jpg');
+      return _locationPhotoUrl(locationId);
     }
 
     final imageUrl = locationData[SupabaseConstants.columnImageUrl]?.toString();
@@ -1322,7 +1362,8 @@ class LocationHelper {
       final success = result['success'] == true;
       if (!success) {
         final err = (result is Map<String, dynamic>) ? result['error'] : null;
-        print('[LocationHelper] save_location_with_tags failed: ${err ?? result}');
+        print(
+            '[LocationHelper] save_location_with_tags failed: ${err ?? result}');
       }
       if (success) {
         _analyticsService.trackFeature(
@@ -1484,7 +1525,11 @@ class LocationHelper {
   /// Places v1 `photos[].name`; missing or legacy-only metadata triggers a
   /// one-time v1 Details refresh before any image upload.
   Future<String?> getLocationImage(
-      int locationId, String google_place_id, String? photoReference) async {
+      int locationId, String google_place_id, String? photoReference,
+      {bool? imageStored}) async {
+    if (PhotoUrls.isConfigured) {
+      return imageStored == true ? _locationPhotoUrl(locationId) : null;
+    }
     if (_activeDownloads.containsKey(locationId)) {
       return _activeDownloads[locationId];
     }
@@ -1638,6 +1683,7 @@ class LocationHelper {
     required String placeId,
     List<Map<String, dynamic>>? cachedPhotos,
   }) async {
+    if (PhotoUrls.isConfigured) return null;
     final resolution = await _resolvePhotoMetadata(
       locationId: locationId,
       placeId: placeId,
@@ -1673,6 +1719,55 @@ class LocationHelper {
   }
 
   // ==================== EXPANDED CARD GALLERY ====================
+
+  /// CDN mode gallery. Stored photos are emitted at once from the CDN. If the
+  /// place should have more, one call to the server returns the full ordered
+  /// list (CDN URLs, then Google URLs it is copying into R2 in the
+  /// background); only the new tail is appended, so nothing on screen moves.
+  /// The app never talks to Google or Storage itself.
+  @visibleForTesting
+  static Future<List<String>> fetchCdnGallery(
+    LocationModel location, {
+    required int maxPhotos,
+    void Function(List<String> contiguousPrefix)? onPartial,
+  }) async {
+    final locationId = location.locationId;
+    if (location.imageUnavailable == true) return const [];
+
+    final stored = location.imageStored == true
+        ? PhotoUrls.gallery(
+            '$locationId',
+            extras: location.extraPhotosStored ?? 0,
+            maxPhotos: maxPhotos,
+          )
+        : const <String>[];
+    if (stored.isNotEmpty) onPartial?.call(stored);
+
+    final known = location.photos?.length;
+    final expected = known == null || known == 0
+        ? maxPhotos
+        : (known < maxPhotos ? known : maxPhotos);
+    if (stored.length >= expected) return stored;
+    if (!_galleryRequested.add(locationId)) return stored;
+
+    try {
+      final remote = await _recommendations.locationPhotos(
+        locationId,
+        maxPhotos: maxPhotos,
+      );
+      if (remote.length <= stored.length) return stored;
+      final merged = [...stored, ...remote.skip(stored.length)];
+      onPartial?.call(merged);
+      return merged;
+    } catch (e) {
+      _galleryRequested.remove(locationId); // retry on the next open
+      if (kDebugMode) {
+        print('[Gallery] [$locationId] server gallery request failed: $e');
+      }
+      return stored;
+    }
+  }
+
   /// Returns the list of Supabase Storage URLs for every photo we have
   /// stored for this location — primary first, then `_1`, `_2`, … up to
   /// `extra_photos_stored`.
@@ -1711,7 +1806,8 @@ class LocationHelper {
     void Function(List<String> contiguousPrefix)? onPartial,
   }) async {
     final locationId = location.locationId;
-    final bucket = _client.storage.from('location_photos');
+    String galleryUrl(int index) =>
+        _locationPhotoUrl(locationId, index: index, size: PhotoSize.hero);
 
     if (locationId <= 0) {
       final urls = _transientGooglePhotoUrls(location, maxPhotos: maxPhotos);
@@ -1719,6 +1815,11 @@ class LocationHelper {
         onPartial?.call(urls);
       }
       return urls;
+    }
+
+    if (PhotoUrls.isConfigured) {
+      return fetchCdnGallery(location,
+          maxPhotos: maxPhotos, onPartial: onPartial);
     }
 
     if (kDebugMode) {
@@ -1745,7 +1846,7 @@ class LocationHelper {
     );
     if (resolution == null) {
       if (location.imageStored == true) {
-        final only = [bucket.getPublicUrl('$locationId.jpg')];
+        final only = [galleryUrl(0)];
         onPartial?.call(only);
         return only;
       }
@@ -1778,14 +1879,14 @@ class LocationHelper {
 
     // ─── Seed anything we can resolve for free from storage ─────────────
     if (location.imageStored == true && !resolution.shouldRefreshStoredPhotos) {
-      results[0] = bucket.getPublicUrl('$locationId.jpg');
+      results[0] = galleryUrl(0);
     }
     var alreadyStored = resolution.shouldRefreshStoredPhotos
         ? 0
         : location.extraPhotosStored ?? 0;
     if (alreadyStored > desired - 1) alreadyStored = desired - 1;
     for (var i = 1; i <= alreadyStored; i++) {
-      results[i] = bucket.getPublicUrl('${locationId}_$i.jpg');
+      results[i] = galleryUrl(i);
     }
     if (results.isNotEmpty) emit();
 

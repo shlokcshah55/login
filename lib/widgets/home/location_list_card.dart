@@ -1,5 +1,5 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:login/widgets/pinit_image.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
@@ -268,7 +268,7 @@ class _RestaurantImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final url = location.imageUrl ?? location.photoReference;
+    final url = location.imageUrl;
     if (url == null || url.isEmpty) {
       return Container(
         color: PinitColors.creamSunk,
@@ -277,16 +277,7 @@ class _RestaurantImage extends StatelessWidget {
             Text(location.emoji ?? '📍', style: const TextStyle(fontSize: 40)),
       );
     }
-    return CachedNetworkImage(
-      imageUrl: url,
-      fit: BoxFit.cover,
-      placeholder: (_, __) => Container(color: PinitColors.creamSunk),
-      errorWidget: (_, __, ___) => Container(
-        color: PinitColors.creamSunk,
-        alignment: Alignment.center,
-        child: const Icon(FeatherIcons.image, color: PinitColors.mute),
-      ),
-    );
+    return PinitImage.location(url: url);
   }
 }
 

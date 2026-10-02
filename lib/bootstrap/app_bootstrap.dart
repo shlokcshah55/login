@@ -13,6 +13,7 @@ import 'package:login/services/startup_cache/startup_cache_coordinator.dart';
 import 'package:login/services/startup_cache/startup_snapshot_store.dart';
 import 'package:login/supabase/service.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
+import 'package:login/utils/photo_urls.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 Future<AppDependencies> bootstrap({
@@ -42,6 +43,13 @@ Future<AppDependencies> bootstrap({
 
   print('🔧 Loading .env file...');
   await dotenv.load();
+
+  // Empty/unset keeps legacy Supabase Storage URLs (see PhotoUrls). The
+  // Supabase URL backs the Storage fallback for photos not yet in R2.
+  PhotoUrls.configure(
+    dotenv.env['PHOTO_CDN_BASE_URL'],
+    legacyBaseUrl: dotenv.env['SUPABASE_URL'],
+  );
 
   // Initialize Mapbox access token. Telemetry opt-out is handled natively
   // in ios/Runner/AppDelegate.swift and android/.../MainActivity.kt — the
