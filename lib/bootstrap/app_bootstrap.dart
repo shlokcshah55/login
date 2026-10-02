@@ -44,9 +44,12 @@ Future<AppDependencies> bootstrap({
   print('🔧 Loading .env file...');
   await dotenv.load();
 
-  // Empty/unset keeps legacy Supabase Storage URLs; set only once the R2
-  // backfill is complete (see PhotoUrls).
-  PhotoUrls.configure(dotenv.env['PHOTO_CDN_BASE_URL']);
+  // Empty/unset keeps legacy Supabase Storage URLs (see PhotoUrls). The
+  // Supabase URL backs the Storage fallback for photos not yet in R2.
+  PhotoUrls.configure(
+    dotenv.env['PHOTO_CDN_BASE_URL'],
+    legacyBaseUrl: dotenv.env['SUPABASE_URL'],
+  );
 
   // Initialize Mapbox access token. Telemetry opt-out is handled natively
   // in ios/Runner/AppDelegate.swift and android/.../MainActivity.kt — the

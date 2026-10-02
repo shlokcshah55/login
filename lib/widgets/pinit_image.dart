@@ -37,6 +37,7 @@ class PinitImage extends StatelessWidget {
     this.height,
     this.fit = BoxFit.cover,
     this.fallback,
+    this.fallbackUrl,
   }) : avatarDiameter = null;
 
   /// A user avatar or collection cover, resized by the CDN to [diameter]
@@ -48,6 +49,7 @@ class PinitImage extends StatelessWidget {
     this.fit = BoxFit.cover,
     this.fallback,
   })  : avatarDiameter = diameter,
+        fallbackUrl = null,
         size = PhotoSize.thumb,
         width = diameter,
         height = diameter;
@@ -59,6 +61,34 @@ class PinitImage extends StatelessWidget {
   final BoxFit fit;
   final Widget? fallback;
   final double? avatarDiameter;
+
+  /// Tried when [url] fails to load. Defaults, for CDN location photos, to
+  /// the same photo in Supabase Storage (see [PhotoUrls.legacyFor]).
+  final String? fallbackUrl;
+
+  /// The URL actually fetched for a location photo [url] at [size].
+  static String resolveLocation(String url, PhotoSize size) {
+    final normalized = PhotoUrls.normalize(url, fallbackSize: size) ?? url;
+    return PhotoUrls.variant(normalized, size) ?? normalized;
+  }
+
+  /// Downloads a location photo into the shared disk cache, so a later
+  /// [PinitImage.location] with the same [url] and [size] needs no network.
+  static Future<void> precacheLocation(
+    BuildContext context,
+    String url, {
+    PhotoSize size = PhotoSize.card,
+  }) {
+    return precacheImage(
+      CachedNetworkImageProvider(
+        resolveLocation(url, size),
+        cacheManager: PinitImageCache.instance,
+        maxWidth: size.width,
+      ),
+      context,
+      onError: (_, __) {},
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -73,13 +103,26 @@ class PinitImage extends StatelessWidget {
       resolved = PhotoUrls.avatar(raw, px) ?? raw;
       decodeWidth = px;
     } else {
-      final normalized = PhotoUrls.normalize(raw, fallbackSize: size) ?? raw;
-      resolved = PhotoUrls.variant(normalized, size) ?? normalized;
+      resolved = resolveLocation(raw, size);
       decodeWidth = size.width;
     }
 
+    final secondary = avatarDiameter == null
+        ? (fallbackUrl ?? PhotoUrls.legacyFor(resolved))
+        : null;
+
+    return _network(
+      resolved,
+      decodeWidth,
+      onError: secondary == null || secondary == resolved
+          ? _fallback()
+          : _network(secondary, decodeWidth, onError: _fallback()),
+    );
+  }
+
+  Widget _network(String imageUrl, int decodeWidth, {required Widget onError}) {
     return CachedNetworkImage(
-      imageUrl: resolved,
+      imageUrl: imageUrl,
       cacheManager: PinitImageCache.instance,
       width: width,
       height: height,
@@ -88,7 +131,7 @@ class PinitImage extends StatelessWidget {
       fadeInDuration: const Duration(milliseconds: 120),
       fadeOutDuration: Duration.zero,
       placeholder: (_, __) => _placeholder(),
-      errorWidget: (_, __, ___) => _fallback(),
+      errorWidget: (_, __, ___) => onError,
     );
   }
 

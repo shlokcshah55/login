@@ -78,34 +78,30 @@ class LocationHelper {
   // Persisted in-memory for the session; the DB flag prevents retries across sessions.
   static final Set<int> _noImageAvailable = {};
 
-  // Locations the server has already been asked to ingest photos for this
-  // session (CDN mode only), so list reloads do not re-request them.
-  static final Set<int> _serverIngestRequested = {};
+  // CDN mode: the server owns photo ingest (Google -> R2) for new and
+  // recommended places, so lists never ask for photos. Only opening a place
+  // asks the server for its gallery, once per location per session.
+  static final Set<int> _galleryRequested = {};
   static RecommendationsApi? _recommendationsApi;
-  RecommendationsApi get _recommendations =>
+  static RecommendationsApi get _recommendations =>
       _recommendationsApi ??= RecommendationsApi();
 
-  /// CDN mode: photos are ingested server-side (Google -> R2). The app no
-  /// longer downloads from Google or writes to Supabase Storage itself; it
-  /// asks the recommendations server to process the location, whose
-  /// completeness pipeline runs the photo task when the photo is missing.
-  Future<void> _requestServerPhotoIngest(
-      int locationId, String? placeId) async {
-    if (locationId <= 0 || _noImageAvailable.contains(locationId)) return;
-    if (!_serverIngestRequested.add(locationId)) return;
-    try {
-      await _recommendations.processLocation(
-        locationId: locationId,
-        googlePlaceId: placeId,
-        source: 'photo-ingest',
-      );
-    } catch (e) {
-      _serverIngestRequested
-          .remove(locationId); // allow a retry on a later load
-      if (kDebugMode) {
-        print('[Image] [$locationId] server photo ingest request failed: $e');
-      }
+  @visibleForTesting
+  static void resetGalleryRequestsForTesting({RecommendationsApi? api}) {
+    _galleryRequested.clear();
+    _recommendationsApi = api;
+  }
+
+  /// CDN mode image for a list row: the stored card variant, or null (a
+  /// placeholder) while the server has not stored a photo yet.
+  @visibleForTesting
+  static String? cdnRowImageUrl(Map<String, dynamic> row) {
+    final locationId = row[SupabaseConstants.columnLocationId] as int?;
+    if (locationId == null ||
+        row[SupabaseConstants.columnImageStored] != true) {
+      return null;
     }
+    return PhotoUrls.location('$locationId', PhotoSize.card);
   }
 
   @visibleForTesting
@@ -265,6 +261,8 @@ class LocationHelper {
   // See `get_locations_with_quality` and the photo pipeline migration.
   Future<String?> _getLocationImageUrl(
       Map<String, dynamic> locationData) async {
+    if (PhotoUrls.isConfigured) return cdnRowImageUrl(locationData);
+
     final locationId = locationData[SupabaseConstants.columnLocationId] as int;
     final publicUrl = _locationPhotoUrl(locationId);
 
@@ -1530,9 +1528,7 @@ class LocationHelper {
       int locationId, String google_place_id, String? photoReference,
       {bool? imageStored}) async {
     if (PhotoUrls.isConfigured) {
-      if (imageStored == true) return _locationPhotoUrl(locationId);
-      await _requestServerPhotoIngest(locationId, google_place_id);
-      return null;
+      return imageStored == true ? _locationPhotoUrl(locationId) : null;
     }
     if (_activeDownloads.containsKey(locationId)) {
       return _activeDownloads[locationId];
@@ -1687,10 +1683,7 @@ class LocationHelper {
     required String placeId,
     List<Map<String, dynamic>>? cachedPhotos,
   }) async {
-    if (PhotoUrls.isConfigured) {
-      await _requestServerPhotoIngest(locationId, placeId);
-      return null;
-    }
+    if (PhotoUrls.isConfigured) return null;
     final resolution = await _resolvePhotoMetadata(
       locationId: locationId,
       placeId: placeId,
@@ -1726,6 +1719,55 @@ class LocationHelper {
   }
 
   // ==================== EXPANDED CARD GALLERY ====================
+
+  /// CDN mode gallery. Stored photos are emitted at once from the CDN. If the
+  /// place should have more, one call to the server returns the full ordered
+  /// list (CDN URLs, then Google URLs it is copying into R2 in the
+  /// background); only the new tail is appended, so nothing on screen moves.
+  /// The app never talks to Google or Storage itself.
+  @visibleForTesting
+  static Future<List<String>> fetchCdnGallery(
+    LocationModel location, {
+    required int maxPhotos,
+    void Function(List<String> contiguousPrefix)? onPartial,
+  }) async {
+    final locationId = location.locationId;
+    if (location.imageUnavailable == true) return const [];
+
+    final stored = location.imageStored == true
+        ? PhotoUrls.gallery(
+            '$locationId',
+            extras: location.extraPhotosStored ?? 0,
+            maxPhotos: maxPhotos,
+          )
+        : const <String>[];
+    if (stored.isNotEmpty) onPartial?.call(stored);
+
+    final known = location.photos?.length;
+    final expected = known == null || known == 0
+        ? maxPhotos
+        : (known < maxPhotos ? known : maxPhotos);
+    if (stored.length >= expected) return stored;
+    if (!_galleryRequested.add(locationId)) return stored;
+
+    try {
+      final remote = await _recommendations.locationPhotos(
+        locationId,
+        maxPhotos: maxPhotos,
+      );
+      if (remote.length <= stored.length) return stored;
+      final merged = [...stored, ...remote.skip(stored.length)];
+      onPartial?.call(merged);
+      return merged;
+    } catch (e) {
+      _galleryRequested.remove(locationId); // retry on the next open
+      if (kDebugMode) {
+        print('[Gallery] [$locationId] server gallery request failed: $e');
+      }
+      return stored;
+    }
+  }
+
   /// Returns the list of Supabase Storage URLs for every photo we have
   /// stored for this location — primary first, then `_1`, `_2`, … up to
   /// `extra_photos_stored`.
@@ -1775,21 +1817,9 @@ class LocationHelper {
       return urls;
     }
 
-    // CDN mode: show what the server has stored; never fetch from Google or
-    // write to Supabase Storage from the app.
     if (PhotoUrls.isConfigured) {
-      if (location.imageStored != true) {
-        unawaited(
-            _requestServerPhotoIngest(locationId, location.googlePlaceId));
-        return const [];
-      }
-      final urls = PhotoUrls.gallery(
-        '$locationId',
-        extras: location.extraPhotosStored ?? 0,
-        maxPhotos: maxPhotos,
-      );
-      if (urls.isNotEmpty) onPartial?.call(urls);
-      return urls;
+      return fetchCdnGallery(location,
+          maxPhotos: maxPhotos, onPartial: onPartial);
     }
 
     if (kDebugMode) {

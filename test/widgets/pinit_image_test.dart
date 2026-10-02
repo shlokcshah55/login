@@ -66,4 +66,29 @@ void main() {
     );
     expect(img.imageUrl, google);
   });
+
+  testWidgets('a failed cdn photo falls back to the Storage copy',
+      (tester) async {
+    PhotoUrls.configure(cdn, legacyBaseUrl: 'https://proj.supabase.co');
+    await _pump(
+      tester,
+      const PinitImage.location(url: '$cdn/l/9/2_hero.webp', width: 80),
+    );
+    final img = tester.widget<CachedNetworkImage>(
+      find.byType(CachedNetworkImage),
+    );
+    expect(img.imageUrl, '$cdn/l/9/2_card.webp');
+
+    final context = tester.element(find.byType(CachedNetworkImage));
+    final onError = img.errorWidget!(context, img.imageUrl, Exception('404'));
+    expect(onError, isA<CachedNetworkImage>());
+    final secondary = onError as CachedNetworkImage;
+    expect(secondary.imageUrl,
+        'https://proj.supabase.co/storage/v1/object/public/location_photos/9_2.jpg');
+    expect(secondary.cacheManager, PinitImageCache.instance);
+
+    // The Storage copy failing too ends at the quiet fallback.
+    expect(secondary.errorWidget!(context, secondary.imageUrl, Exception()),
+        isNot(isA<CachedNetworkImage>()));
+  });
 }

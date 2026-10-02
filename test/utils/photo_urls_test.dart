@@ -80,4 +80,27 @@ void main() {
           '$cdn/cdn-cgi/image/width=96,fit=cover,format=auto/u/u1/p.jpg?v=9');
     });
   });
+
+  group('legacyFor', () {
+    const supabase = 'https://proj.supabase.co';
+    setUp(() => PhotoUrls.configure(cdn, legacyBaseUrl: '$supabase/'));
+
+    test('maps cdn location variants back to the Storage object', () {
+      expect(PhotoUrls.legacyFor('$cdn/l/42/0_card.webp'),
+          '$supabase/storage/v1/object/public/location_photos/42.jpg');
+      expect(PhotoUrls.legacyFor('$cdn/l/42/3_hero.webp'),
+          '$supabase/storage/v1/object/public/location_photos/42_3.jpg');
+    });
+
+    test('is null for anything that is not a cdn location variant', () {
+      expect(PhotoUrls.legacyFor(null), isNull);
+      expect(PhotoUrls.legacyFor('https://lh3.googleusercontent.com/a'), isNull);
+      expect(PhotoUrls.legacyFor('$cdn/u/u1/p.jpg'), isNull);
+    });
+
+    test('is null without a legacy base', () {
+      PhotoUrls.configure(cdn);
+      expect(PhotoUrls.legacyFor('$cdn/l/42/0_card.webp'), isNull);
+    });
+  });
 }

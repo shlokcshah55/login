@@ -21,11 +21,18 @@ class PhotoUrls {
   PhotoUrls._();
 
   static String _baseUrl = '';
+  static String _legacyBaseUrl = '';
 
-  /// Set once at startup from `PHOTO_CDN_BASE_URL`. Trailing slashes are ignored.
-  static void configure(String? baseUrl) {
-    _baseUrl = (baseUrl ?? '').trim().replaceAll(RegExp(r'/+$'), '');
+  /// Set once at startup from `PHOTO_CDN_BASE_URL`. Trailing slashes are
+  /// ignored. [legacyBaseUrl] is the Supabase project URL, used to build the
+  /// Storage fallback for photos not yet copied to R2.
+  static void configure(String? baseUrl, {String? legacyBaseUrl}) {
+    _baseUrl = _trimBase(baseUrl);
+    _legacyBaseUrl = _trimBase(legacyBaseUrl);
   }
+
+  static String _trimBase(String? url) =>
+      (url ?? '').trim().replaceAll(RegExp(r'/+$'), '');
 
   static bool get isConfigured => _baseUrl.isNotEmpty;
 
@@ -73,6 +80,23 @@ class PhotoUrls {
   static String? variant(String? url, PhotoSize size) {
     if (url == null || !_variantSuffix.hasMatch(url)) return url;
     return url.replaceFirst(_variantSuffix, '_${size.name}.webp');
+  }
+
+  static final RegExp _cdnLocation =
+      RegExp(r'/l/([^/]+)/(\d+)_(?:thumb|card|hero)\.webp$');
+
+  /// Supabase Storage URL for the same photo as a CDN location variant URL,
+  /// or null when [url] is not one or no legacy base is configured. A safety
+  /// net while R2 is still being filled; remove once dual-write ends.
+  static String? legacyFor(String? url) {
+    if (url == null || _legacyBaseUrl.isEmpty || !isConfigured) return null;
+    if (!url.startsWith('$_baseUrl/')) return null;
+    final match = _cdnLocation.firstMatch(url);
+    if (match == null) return null;
+    final id = match.group(1)!;
+    final index = int.parse(match.group(2)!);
+    final name = index == 0 ? '$id.jpg' : '${id}_$index.jpg';
+    return '$_legacyBaseUrl/storage/v1/object/public/location_photos/$name';
   }
 
   static final RegExp _legacy = RegExp(
