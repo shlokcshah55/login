@@ -102,6 +102,10 @@ class GeoJsonMapLayerService {
   final OnClusterTapped? onClusterTapped;
 
   bool _isInitialized = false;
+  // In-flight setup shared by concurrent callers. Without it, a second
+  // caller hits "source already exists" and its cleanup tears down the
+  // source/layers the first caller just built, leaving no pins.
+  Future<void>? _initializing;
   String? _selectedLocationId;
   List<LocationModel>? _pendingLocations;
   List<LocationModel> _currentLocations = const [];
@@ -178,12 +182,16 @@ class GeoJsonMapLayerService {
   ///
   /// Must be called after the map style has loaded.
   /// Any locations that arrived before initialization will be flushed after setup completes.
-  Future<void> initialize() async {
+  Future<void> initialize() {
     if (_isInitialized) {
       log('GeoJsonMapLayerService: Already initialized');
-      return;
+      return Future.value();
     }
+    return _initializing ??=
+        _initialize().whenComplete(() => _initializing = null);
+  }
 
+  Future<void> _initialize() async {
     try {
       await _createGeoJsonSource();
       await _addFallbackIcon();
