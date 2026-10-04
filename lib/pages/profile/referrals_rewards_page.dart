@@ -5,7 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/reward_voucher.dart';
 import 'package:login/providers/referral_rewards_provider.dart';
+import 'package:login/supabase/helpers/location.dart';
 import 'package:login/widgets/feedback/app_feedback.dart';
+import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:login/widgets/referral/referral_code_entry_card.dart';
 import 'package:login/widgets/referral/referral_code_prompt_sheet.dart';
 import 'package:provider/provider.dart';
@@ -30,6 +32,7 @@ class _ReferralsRewardsPageState extends State<ReferralsRewardsPage> {
   late final ReferralRewardsProvider _provider;
   late final bool _ownsProvider;
   String? _redeemingVoucherId;
+  String? _openingLocationVoucherId;
   bool _isReferralSheetVisible = false;
   bool _showUsedVouchers = false;
 
@@ -121,6 +124,11 @@ class _ReferralsRewardsPageState extends State<ReferralsRewardsPage> {
                                               _redeemingVoucherId == voucher.id,
                                           onRedeem: () =>
                                               _handleRedeem(voucher),
+                                          isOpeningLocation:
+                                              _openingLocationVoucherId ==
+                                                  voucher.id,
+                                          onViewLocation: () =>
+                                              _handleViewLocation(voucher),
                                         ),
                                       ),
                                     ],
@@ -142,6 +150,11 @@ class _ReferralsRewardsPageState extends State<ReferralsRewardsPage> {
                                       },
                                       builder: (voucher) => VoucherCard(
                                         voucher: voucher,
+                                        isOpeningLocation:
+                                            _openingLocationVoucherId ==
+                                                voucher.id,
+                                        onViewLocation: () =>
+                                            _handleViewLocation(voucher),
                                       ),
                                     ),
                                   ],
@@ -176,6 +189,50 @@ class _ReferralsRewardsPageState extends State<ReferralsRewardsPage> {
           message: _provider.error!,
         ),
       );
+    }
+  }
+
+  Future<void> _handleViewLocation(RewardVoucher voucher) async {
+    final locationId = voucher.locationId;
+    if (locationId == null || _openingLocationVoucherId != null) return;
+
+    HapticFeedback.selectionClick();
+    setState(() => _openingLocationVoucherId = voucher.id);
+    try {
+      final locations = await LocationHelper().getLocationsByIds([locationId]);
+      if (!mounted) return;
+      if (locations.isEmpty) {
+        throw StateError('Location $locationId not found');
+      }
+
+      await showGeneralDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        barrierLabel:
+            MaterialLocalizations.of(context).modalBarrierDismissLabel,
+        barrierColor: Colors.transparent,
+        transitionDuration: const Duration(milliseconds: 300),
+        pageBuilder: (ctx, anim, _) => ExpandedLocationCard(
+          location: locations.first,
+          onClose: () => Navigator.of(ctx).pop(),
+        ),
+        transitionBuilder: (ctx, anim, _, child) =>
+            FadeTransition(opacity: anim, child: child),
+      );
+    } catch (e) {
+      debugPrint('[ReferralsRewardsPage] Failed to open voucher location: $e');
+      if (!mounted) return;
+      unawaited(
+        AppFeedback.showError(
+          context,
+          title: 'Couldn’t open location',
+          message: 'Please try again in a moment.',
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _openingLocationVoucherId = null);
+      }
     }
   }
 

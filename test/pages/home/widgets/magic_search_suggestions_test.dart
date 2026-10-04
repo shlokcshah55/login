@@ -5,7 +5,6 @@ import 'package:login/pages/home/widgets/magic_search_suggestions.dart';
 void main() {
   testWidgets(
       'shows Naria wheel entry below magic suggestions',
-      skip: true, // ARCHIVED: "Try it Kaian's way" entry point is hidden; re-enable when restored.
       (tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -27,7 +26,7 @@ void main() {
     expect(find.text('Suggested'), findsOneWidget);
     expect(find.text('Sweet treat nearby'), findsOneWidget);
     expect(find.text('OR...'), findsOneWidget);
-    expect(find.text("Try it Kaian's way"), findsOneWidget);
+    expect(find.text("Try it Sable's way"), findsOneWidget);
     expect(
       find.text('Spin a country wheel and let fate pick the craving.'),
       findsOneWidget,
@@ -36,9 +35,17 @@ void main() {
 
   testWidgets(
       'Naria wheel submits a country-led magic search',
-      skip: true, // ARCHIVED: "Try it Kaian's way" entry point is hidden; re-enable when restored.
       (tester) async {
     String? submittedQuery;
+
+    // The fallback test font is wider than the shipped DM Sans, so the fixed
+    // 128px intro row overflows here; ignore only that layout warning.
+    final originalOnError = FlutterError.onError;
+    FlutterError.onError = (details) {
+      if (details.exceptionAsString().contains('overflowed')) return;
+      originalOnError?.call(details);
+    };
+    addTearDown(() => FlutterError.onError = originalOnError);
 
     await tester.pumpWidget(
       MaterialApp(
@@ -57,13 +64,13 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text("Try it Kaian's way"));
+    await tester.tap(find.text("Try it Sable's way"));
     await tester.pumpAndSettle();
 
-    expect(find.text("Kaian's way"), findsOneWidget);
+    expect(find.text("Sable's way"), findsOneWidget);
     expect(
       find.text(
-        "Kaian is exploring the world's cuisine without leaving London. He spins a wheel and finds a restaurant. Try it out in your city.",
+        "Sable explores the world's cuisine one spin at a time. Spin the wheel, land on a country, and find that cuisine near you.",
       ),
       findsOneWidget,
     );
@@ -73,14 +80,14 @@ void main() {
     await tester.tap(find.text('Spin the wheel'));
     await tester.pumpAndSettle();
 
-    expect(find.text("Naria's wheel"), findsOneWidget);
+    expect(find.text("Sable's wheel"), findsOneWidget);
     expect(find.text('It will come up with a place.'), findsOneWidget);
 
     await tester.tap(find.text('Search'));
     await tester.pump();
 
     expect(submittedQuery, isNotNull);
-    expect(submittedQuery, startsWith('Cool '));
-    expect(submittedQuery, endsWith(' cuisine'));
+    expect(submittedQuery, startsWith('Authentic '));
+    expect(submittedQuery, endsWith(' cuisine near me'));
   });
 }

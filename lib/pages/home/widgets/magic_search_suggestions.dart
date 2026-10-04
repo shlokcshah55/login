@@ -70,9 +70,8 @@ class _MagicSearchSuggestionsState extends State<MagicSearchSuggestions> {
     HapticFeedback.selectionClick();
     setState(() => _isSpinning = true);
 
-    final target = _wheelItem +
-        (_nariaCountries.length * 2) +
-        _random.nextInt(_nariaCountries.length);
+    final base = _wheelItem + (_nariaCountries.length * 2);
+    final target = base + _random.nextInt(_nariaCountries.length);
 
     await _wheelController.animateToItem(
       target,
@@ -158,10 +157,12 @@ class _MagicSearchSuggestionsState extends State<MagicSearchSuggestions> {
             ? _NariaIntroCard(
                 key: const ValueKey('naria-intro-card'),
                 onInstagramTap: () => unawaited(
-                  _openNariaLink('https://www.instagram.com/kaianslife/'),
+                  _openNariaLink('https://www.instagram.com/sablesway/'),
                 ),
                 onTikTokTap: () => unawaited(
-                  _openNariaLink('https://www.tiktok.com/@kaianslife'),
+                  _openNariaLink(
+                    'https://www.tiktok.com/@sablesway?_r=1&_t=ZN-999Dy0ddlqA',
+                  ),
                 ),
                 onSpin: () {
                   HapticFeedback.selectionClick();
@@ -348,18 +349,15 @@ class _MagicSearchSuggestionContent extends StatelessWidget {
           suggestions: suggestions,
           onSelected: onSelected,
         ),
-        // ARCHIVED: "Try it Kaian's way" entry point. To restore, uncomment
-        // the block below (widget classes/state left intact, untouched).
-        // const SizedBox(height: 11),
-        // const _NariaDivider(),
-        // const SizedBox(height: 9),
-        // _NariaWayButton(onTap: onNariaTap),
+        const SizedBox(height: 11),
+        const _NariaDivider(),
+        const SizedBox(height: 9),
+        _NariaWayButton(onTap: onNariaTap),
       ],
     );
   }
 }
 
-// ignore: unused_element
 class _NariaDivider extends StatelessWidget {
   const _NariaDivider();
 
@@ -521,8 +519,9 @@ class _NariaWayButtonState extends State<_NariaWayButton>
                           ),
                         ),
                         child: Image.asset(
-                          'lib/kaian.png',
-                          fit: BoxFit.contain,
+                          'lib/assets/sablebefore.png',
+                          fit: BoxFit.cover,
+                          alignment: Alignment.topCenter,
                         ),
                       ),
                       const SizedBox(width: 11),
@@ -531,7 +530,7 @@ class _NariaWayButtonState extends State<_NariaWayButton>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              "Try it Kaian's way",
+                              "Try it Sable's way",
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: GoogleFonts.dmSans(
@@ -599,127 +598,108 @@ class _NariaIntroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-      decoration: BoxDecoration(
-        color: pinit.PinitColors.creamSunk,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: pinit.PinitColors.aubergine,
-          width: 1.3,
-        ),
-      ),
-      child: Column(
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      children: [
+        SizedBox(
+          height: 128,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Column(
-                children: [
-                  Container(
-                    width: 64,
-                    height: 64,
-                    clipBehavior: Clip.antiAlias,
-                    decoration: BoxDecoration(
-                      color: pinit.PinitColors.aubergine,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: pinit.PinitColors.cream,
-                        width: 3,
-                      ),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x2441133D),
-                          blurRadius: 18,
-                          offset: Offset(0, 8),
+              Expanded(
+                flex: 3,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Sable's way",
+                          style: GoogleFonts.dmSans(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                            color: pinit.PinitColors.aubergine,
+                            letterSpacing: 0.1,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          "Sable explores the world's cuisine one spin at a time. Spin the wheel, land on a country, and find that cuisine near you.",
+                          style: GoogleFonts.dmSans(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: pinit.PinitColors.aubergineSoft,
+                            height: 1.28,
+                          ),
                         ),
                       ],
                     ),
-                    child: Image.asset(
-                      'lib/kaian.png',
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                  const SizedBox(height: 7),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _NariaSocialButton(
-                        label: 'Instagram',
-                        icon: FontAwesomeIcons.instagram,
-                        onTap: onInstagramTap,
-                      ),
-                      const SizedBox(width: 6),
-                      _NariaSocialButton(
-                        label: 'TikTok',
-                        icon: FontAwesomeIcons.tiktok,
-                        onTap: onTikTokTap,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "Kaian's way",
-                      style: GoogleFonts.dmSans(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w900,
-                        color: pinit.PinitColors.aubergine,
-                        letterSpacing: 0.1,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      "Kaian is exploring the world's cuisine without leaving London. He spins a wheel and finds a restaurant. Try it out in your city.",
-                      style: GoogleFonts.dmSans(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                        color: pinit.PinitColors.aubergineSoft,
-                        height: 1.28,
-                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _NariaSocialButton(
+                          label: 'Instagram',
+                          icon: FontAwesomeIcons.instagram,
+                          onTap: onInstagramTap,
+                        ),
+                        const SizedBox(width: 6),
+                        _NariaSocialButton(
+                          label: 'TikTok',
+                          icon: FontAwesomeIcons.tiktok,
+                          onTap: onTikTokTap,
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: Image.asset(
+                    'lib/assets/Sablemain.png',
+                    fit: BoxFit.cover,
+                    alignment: Alignment.topCenter,
+                  ),
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 10),
-          GestureDetector(
-            onTap: onSpin,
-            child: Container(
-              height: 44,
-              decoration: BoxDecoration(
-                color: pinit.PinitColors.aubergine,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.casino_rounded,
-                    size: 17,
+        ),
+        const SizedBox(height: 10),
+        GestureDetector(
+          onTap: onSpin,
+          child: Container(
+            height: 44,
+            decoration: BoxDecoration(
+              color: pinit.PinitColors.aubergine,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.casino_rounded,
+                  size: 17,
+                  color: pinit.PinitColors.cream,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Spin the wheel',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
                     color: pinit.PinitColors.cream,
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Spin the wheel',
-                    style: GoogleFonts.dmSans(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w900,
-                      color: pinit.PinitColors.cream,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -753,7 +733,7 @@ class _NariaSocialButton extends StatelessWidget {
               width: 1,
             ),
           ),
-          child: Icon(
+          child: FaIcon(
             icon,
             size: 14,
             color: pinit.PinitColors.aubergine,
@@ -830,7 +810,7 @@ class _NariaCountryWheel extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          "Naria's wheel",
+                          "Sable's wheel",
                           style: GoogleFonts.dmSans(
                             fontSize: 13,
                             fontWeight: FontWeight.w900,
@@ -1024,202 +1004,58 @@ class _WheelActionButton extends StatelessWidget {
 
 const List<String> _nariaCountries = [
   'Afghanistan',
-  'Albania',
-  'Algeria',
-  'Andorra',
-  'Angola',
-  'Antigua and Barbuda',
   'Argentina',
-  'Armenia',
-  'Australia',
-  'Austria',
-  'Azerbaijan',
-  'Bahamas',
-  'Bahrain',
   'Bangladesh',
-  'Barbados',
-  'Belarus',
   'Belgium',
-  'Belize',
-  'Benin',
-  'Bhutan',
-  'Bolivia',
-  'Bosnia and Herzegovina',
-  'Botswana',
   'Brazil',
-  'Brunei',
-  'Bulgaria',
-  'Burkina Faso',
-  'Burundi',
-  'Cabo Verde',
-  'Cambodia',
-  'Cameroon',
-  'Canada',
-  'Central African Republic',
-  'Chad',
-  'Chile',
   'China',
   'Colombia',
-  'Comoros',
-  'Costa Rica',
-  "Cote d'Ivoire",
-  'Croatia',
   'Cuba',
   'Cyprus',
-  'Czechia',
-  'Democratic Republic of the Congo',
-  'Denmark',
-  'Djibouti',
-  'Dominica',
-  'Dominican Republic',
-  'Ecuador',
   'Egypt',
-  'El Salvador',
-  'Equatorial Guinea',
   'Eritrea',
-  'Estonia',
-  'Eswatini',
   'Ethiopia',
-  'Fiji',
-  'Finland',
   'France',
-  'Gabon',
-  'Gambia',
   'Georgia',
-  'Germany',
   'Ghana',
   'Greece',
-  'Grenada',
-  'Guatemala',
-  'Guinea',
-  'Guinea-Bissau',
-  'Guyana',
-  'Haiti',
-  'Honduras',
-  'Hungary',
-  'Iceland',
   'India',
   'Indonesia',
   'Iran',
-  'Iraq',
   'Ireland',
   'Israel',
   'Italy',
   'Jamaica',
   'Japan',
-  'Jordan',
-  'Kazakhstan',
-  'Kenya',
-  'Kiribati',
-  'Kosovo',
-  'Kuwait',
-  'Kyrgyzstan',
-  'Laos',
-  'Latvia',
   'Lebanon',
-  'Lesotho',
-  'Liberia',
-  'Libya',
-  'Liechtenstein',
-  'Lithuania',
-  'Luxembourg',
-  'Madagascar',
-  'Malawi',
   'Malaysia',
-  'Maldives',
-  'Mali',
-  'Malta',
-  'Marshall Islands',
-  'Mauritania',
-  'Mauritius',
   'Mexico',
-  'Micronesia',
-  'Moldova',
-  'Monaco',
-  'Mongolia',
-  'Montenegro',
   'Morocco',
-  'Mozambique',
-  'Myanmar',
-  'Namibia',
-  'Nauru',
   'Nepal',
-  'Netherlands',
-  'New Zealand',
-  'Nicaragua',
-  'Niger',
   'Nigeria',
-  'North Korea',
-  'North Macedonia',
-  'Norway',
-  'Oman',
   'Pakistan',
-  'Palau',
   'Palestine',
-  'Panama',
-  'Papua New Guinea',
-  'Paraguay',
   'Peru',
   'Philippines',
   'Poland',
   'Portugal',
-  'Qatar',
-  'Republic of the Congo',
-  'Romania',
-  'Russia',
-  'Rwanda',
-  'Saint Kitts and Nevis',
-  'Saint Lucia',
-  'Saint Vincent and the Grenadines',
-  'Samoa',
-  'San Marino',
-  'Sao Tome and Principe',
-  'Saudi Arabia',
   'Senegal',
-  'Serbia',
-  'Seychelles',
-  'Sierra Leone',
   'Singapore',
-  'Slovakia',
-  'Slovenia',
-  'Solomon Islands',
   'Somalia',
   'South Africa',
   'South Korea',
-  'South Sudan',
   'Spain',
   'Sri Lanka',
-  'Sudan',
-  'Suriname',
-  'Sweden',
-  'Switzerland',
   'Syria',
   'Taiwan',
-  'Tajikistan',
-  'Tanzania',
   'Thailand',
-  'Timor-Leste',
-  'Togo',
-  'Tonga',
   'Trinidad and Tobago',
-  'Tunisia',
   'Turkey',
-  'Turkmenistan',
-  'Tuvalu',
-  'Uganda',
   'Ukraine',
-  'United Arab Emirates',
   'United Kingdom',
   'United States',
-  'Uruguay',
-  'Uzbekistan',
-  'Vanuatu',
-  'Vatican City',
   'Venezuela',
   'Vietnam',
-  'Yemen',
-  'Zambia',
-  'Zimbabwe',
 ];
 
 class _MagicSuggestion {

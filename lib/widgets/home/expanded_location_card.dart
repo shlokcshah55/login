@@ -998,7 +998,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                           children: [
                             _buildRestaurantBody(
                               scrollCtrl: scrollCtrl,
-                              heroHeight: size.height * 0.34,
+                              heroHeight: size.height * 0.26,
                               isWavy: isWavy,
                               location: locationWithSocialContext,
                             ),
