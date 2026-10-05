@@ -7,7 +7,6 @@ void main() {
     expect(
       shouldSyncGeoJsonPins(
         useGeoJsonLayers: true,
-        isMapLoaded: true,
         currentListType: LocationListType.saved,
         hasLoadedSavedLocations: false,
       ),
@@ -17,7 +16,6 @@ void main() {
     expect(
       shouldSyncGeoJsonPins(
         useGeoJsonLayers: true,
-        isMapLoaded: true,
         currentListType: LocationListType.saved,
         hasLoadedSavedLocations: true,
       ),
@@ -25,25 +23,25 @@ void main() {
     );
   });
 
-  test('non-saved lists only need the map to be ready', () {
+  test('non-saved lists sync without waiting for saved locations', () {
     expect(
       shouldSyncGeoJsonPins(
         useGeoJsonLayers: true,
-        isMapLoaded: false,
-        currentListType: LocationListType.recommended,
-        hasLoadedSavedLocations: false,
-      ),
-      isFalse,
-    );
-
-    expect(
-      shouldSyncGeoJsonPins(
-        useGeoJsonLayers: true,
-        isMapLoaded: true,
         currentListType: LocationListType.recommended,
         hasLoadedSavedLocations: false,
       ),
       isTrue,
+    );
+  });
+
+  test('legacy annotation mode never syncs GeoJSON pins', () {
+    expect(
+      shouldSyncGeoJsonPins(
+        useGeoJsonLayers: false,
+        currentListType: LocationListType.recommended,
+        hasLoadedSavedLocations: true,
+      ),
+      isFalse,
     );
   });
 }

@@ -1220,9 +1220,21 @@ class LocationModel {
   ///  • Bossman places are visually de-saturated / muted
   ///  • High saved-count places glow more intensely
   ///  • Friends who saved the place get a small avatar stack on the pin
+  /// Builds the map marker for this location. With [renderImage] false the
+  /// PNG (and any friend-avatar downloads) is skipped — the GeoJSON map layer
+  /// draws its own pin icons and never reads [MapMarkerData.imageBytes].
   Future<MapMarkerData?> toMarker(double dpr,
-      {bool shouldShowName = true}) async {
+      {bool shouldShowName = true, bool renderImage = true}) async {
     if (lat == null || lng == null) return null;
+    if (!renderImage) {
+      return MapMarkerData(
+        id: locationId.toString(),
+        position: LatLng(lat!, lng!),
+        imageBytes: const <int>[],
+        title: name,
+        snippet: vicinity ?? '',
+      );
+    }
 
     // Extract vibe scores — default to 0 when vector is absent.
     final double wavyScore = vibe?.wavyScore ?? 0.0;

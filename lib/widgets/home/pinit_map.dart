@@ -33,7 +33,7 @@ class PinitMap extends StatefulWidget {
 class _PinitMapState extends State<PinitMap> {
   bool _locationTrackingStarted = false;
   LocationListManager? _locationListManager;
-  bool _geoJsonMapLoaded = false;
+  MapStateProvider? _mapStateProvider;
 
   // Legacy fields for PointAnnotation-based rendering (when useGeoJsonLayers is false)
   // ignore: unused_field
@@ -44,8 +44,9 @@ class _PinitMapState extends State<PinitMap> {
   String _lastSyncedItemIds = '';
   bool _syncInProgress = false;
 
-  // GeoJSON: Track last synced location IDs to avoid redundant updates
-  String _lastGeoJsonSyncKey = '';
+  // GeoJSON: key of the last list handed to MapStateProvider.requestPins, so
+  // unrelated notifications don't re-push an identical list.
+  String _lastRequestedPinsKey = '';
 
   // Filter state
   Set<String> _selectedVibeTagIds = {};
@@ -81,7 +82,13 @@ class _PinitMapState extends State<PinitMap> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _locationListManager ??= context.read<LocationListManager>();
+    if (_locationListManager == null) {
+      _locationListManager = context.read<LocationListManager>();
+      _mapStateProvider = context.read<MapStateProvider>();
+      // Pins follow the list directly rather than piggybacking on rebuilds.
+      _locationListManager!.addListener(_requestPinsIfChanged);
+      _requestPinsIfChanged();
+    }
   }
 
   Future<void> _startLocationTracking() async {
@@ -203,8 +210,6 @@ class _PinitMapState extends State<PinitMap> {
     return names;
   }
 
-  /// Update locations using GeoJSON source (new approach).
-  /// Mapbox handles clustering and text collision detection natively.
   String _buildGeoJsonSyncKey(
     List<LocationModel> locations,
     Set<int> beenToLocationIds,
@@ -218,58 +223,31 @@ class _PinitMapState extends State<PinitMap> {
     return 'items:${itemIds.join(",")}|visited:${visitedIds.join(",")}';
   }
 
-  void _updateGeoJsonLocations(
-    Map<dynamic, MapMarkerData> currentItems,
-    MapStateProvider mapStateProvider,
-    Set<int> beenToLocationIds,
-  ) {
-    if (!mapStateProvider.useGeoJsonLayers) return;
+  /// Hands the current list to [MapStateProvider.requestPins] when it has
+  /// changed. The provider serialises updates (latest wins) and holds them
+  /// until the map style is ready, so this never has to retry.
+  void _requestPinsIfChanged() {
+    final locationListManager = _locationListManager;
+    final mapStateProvider = _mapStateProvider;
+    if (locationListManager == null || mapStateProvider == null) return;
 
-    final locations = currentItems.keys.whereType<LocationModel>().toList();
-    final syncKey = _buildGeoJsonSyncKey(locations, beenToLocationIds);
-
-    if (syncKey == _lastGeoJsonSyncKey) {
-      // No change, skip update
-      return;
-    }
-
-    print('PinitMap: Updating GeoJSON with ${currentItems.length} locations');
-
-    // Update via provider (which delegates to GeoJsonMapLayerService)
-    // Only mark as synced if the update actually succeeded
-    mapStateProvider
-        .updateMapLocations(
-      locations,
-      beenToLocationIds: beenToLocationIds,
-    )
-        .then((success) {
-      if (success) {
-        _lastGeoJsonSyncKey = syncKey;
-        print('PinitMap: GeoJSON sync successful, key set to $syncKey');
-      } else {
-        print(
-            'PinitMap: GeoJSON update skipped (service not ready), will retry on next rebuild');
-      }
-    });
-  }
-
-  void _syncGeoJsonLocationsIfReady(
-    LocationListManager locationListManager,
-    MapStateProvider mapStateProvider,
-  ) {
     if (!shouldSyncGeoJsonPins(
       useGeoJsonLayers: mapStateProvider.useGeoJsonLayers,
-      isMapLoaded: _geoJsonMapLoaded,
       currentListType: locationListManager.currentListType,
       hasLoadedSavedLocations: locationListManager.hasLoadedSavedLocations,
     )) {
       return;
     }
 
-    _updateGeoJsonLocations(
-      locationListManager.currentItems,
-      mapStateProvider,
-      locationListManager.beenToLocationIds,
+    final locations = locationListManager.currentItems.keys.toList();
+    final beenToLocationIds = locationListManager.beenToLocationIds;
+    final key = _buildGeoJsonSyncKey(locations, beenToLocationIds);
+    if (key == _lastRequestedPinsKey) return;
+    _lastRequestedPinsKey = key;
+
+    mapStateProvider.requestPins(
+      locations,
+      beenToLocationIds: beenToLocationIds,
     );
   }
 
@@ -440,13 +418,8 @@ class _PinitMapState extends State<PinitMap> {
     final dpr = MediaQuery.of(context).devicePixelRatio;
     locationListManager.setDevicePixelRatio(dpr);
 
-    // Update map based on current approach
-    if (mapStateProvider.useGeoJsonLayers) {
-      _syncGeoJsonLocationsIfReady(
-        locationListManager,
-        mapStateProvider,
-      );
-    } else {
+    // GeoJSON pins are driven by _requestPinsIfChanged (a list listener).
+    if (!mapStateProvider.useGeoJsonLayers) {
       _applyClusteringAsync(
         locationListManager.currentItems,
         dpr,
@@ -480,7 +453,9 @@ class _PinitMapState extends State<PinitMap> {
           ),
           styleUri: "mapbox://styles/srishlok/cmlpttggl000p01rz51whgzk9",
           onMapCreated: _onMapCreated,
-          onMapLoadedListener: _onMapLoaded,
+          // Sources and layers only need the style, not the tiles, so this
+          // fires sooner than onMapLoaded.
+          onStyleLoadedListener: (_) => mapStateReader.onStyleLoaded(),
           onTapListener: (mapbox.MapContentGestureContext tapContext) {
             // Handle GeoJSON layer tap events
             if (mapStateProvider.useGeoJsonLayers) {
@@ -591,47 +566,31 @@ class _PinitMapState extends State<PinitMap> {
     final mapState = context.read<MapStateProvider>();
     final locationManager = context.read<LocationListManager>();
 
-    await map.attribution.updateSettings(
-      mapbox.AttributionSettings(enabled: false),
-    );
-
-    // Initialize map with callbacks for GeoJSON layer events
-    await mapState.setMapboxMap(
+    // Must come first: the SDK doesn't await this callback, and the style can
+    // finish loading during any later await. setMapboxMap creates the layer
+    // service synchronously, before its own first await.
+    final mapReady = mapState.setMapboxMap(
       map,
       onLocationTapped: _onLocationTapped,
       onClusterTapped: _onClusterTapped,
     );
 
+    unawaited(map.attribution.updateSettings(
+      mapbox.AttributionSettings(enabled: false),
+    ));
+
     // Enable location puck (blue dot)
-    await map.location.updateSettings(mapbox.LocationComponentSettings(
+    unawaited(map.location.updateSettings(mapbox.LocationComponentSettings(
       enabled: true,
       pulsingEnabled: true,
-    ));
+    )));
 
     LatLng initialLocation = locationManager.currentPosition ??
         const LatLng(PinitMap.DEFAULT_LAT, PinitMap.DEFAULT_LNG);
     print('Setting initial location in onMapCreated: $initialLocation');
     mapState.setLastFocusedUserLocation(initialLocation);
+    await mapReady;
     _mapReady = true;
-    _geoJsonMapLoaded = false;
-
-    // Reset sync key so the first post-load sync always runs.
-    _lastGeoJsonSyncKey = '';
-  }
-
-  void _onMapLoaded(mapbox.MapLoadedEventData _) {
-    _geoJsonMapLoaded = true;
-    _lastGeoJsonSyncKey = '';
-
-    if (!mounted) {
-      return;
-    }
-
-    final locationManager = context.read<LocationListManager>();
-    final mapState = context.read<MapStateProvider>();
-
-    setState(() {});
-    _syncGeoJsonLocationsIfReady(locationManager, mapState);
   }
 
   Future<void> _onCameraChanged(
@@ -656,6 +615,7 @@ class _PinitMapState extends State<PinitMap> {
 
   @override
   void dispose() {
+    _locationListManager?.removeListener(_requestPinsIfChanged);
     if (_locationTrackingStarted) {
       _locationListManager?.stopLocationUpdates();
     }

@@ -128,6 +128,19 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
     _mapStateProvider = mapStateProvider;
   }
 
+  /// Marker PNGs are only drawn by the legacy PointAnnotation map. The GeoJSON
+  /// layer renders its own icons, so building them there only delays pins.
+  bool get _rendersMarkerImages =>
+      !(_mapStateProvider?.useGeoJsonLayers ?? false);
+
+  // Bumped whenever _currentItems is re-pointed. Async marker rebuilds capture
+  // it and drop their result if a newer change landed while they awaited.
+  int _currentItemsEpoch = 0;
+
+  // Bumped per recommendations request so an older response that finishes
+  // late can't overwrite a newer one.
+  int _recommendationsRequestId = 0;
+
   // Location lists
   Map<LocationModel, MapMarkerData> _savedLocations = {};
   Map<LocationModel, MapMarkerData> _recommendedLocations = {};
@@ -147,7 +160,12 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
   final Map<String, Map<LocationModel, MapMarkerData>> _collectionMarkerCache =
       {};
   String? _activeCollectionKey;
-  Map<LocationModel, MapMarkerData> _currentItems = {};
+  Map<LocationModel, MapMarkerData> _currentItemsMap = {};
+  Map<LocationModel, MapMarkerData> get _currentItems => _currentItemsMap;
+  set _currentItems(Map<LocationModel, MapMarkerData> items) {
+    _currentItemsMap = items;
+    _currentItemsEpoch++;
+  }
   List<LocationModel> _justDecideLocations = [];
   List<LocationModel> _popularLocations = [];
   List<LocationModel> _hiddenGemLocations = [];
@@ -540,7 +558,8 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
           final shouldShowName = selectedForNames.contains(loc.locationId);
           final marker = await loc
               .setPreference(LocationPreference.saved)
-              .toMarker(_devicePixelRatio, shouldShowName: shouldShowName);
+              .toMarker(_devicePixelRatio,
+              shouldShowName: shouldShowName, renderImage: _rendersMarkerImages);
           return MapEntry(loc, marker!);
         }),
       );
@@ -704,9 +723,9 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
   // MarkerClustering.getUnclusteredLocationIds() to avoid duplicate O(N²) logic
 
   /// Regenerates markers in _currentItems with names (all if ≤10, random 10 if >10)
-  Future<void> _applyNameSelectionToCurrentItems(
+  Future<bool> _applyNameSelectionToCurrentItems(
       {LatLngBounds? viewportBounds}) async {
-    if (_currentItems.isEmpty) return;
+    if (_currentItems.isEmpty) return false;
 
     final selectedForNames = _selectLocationsForNameDisplay(
       _currentItems,
@@ -714,17 +733,40 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       zoom: _currentZoom,
     );
 
-    // Regenerate markers with updated name visibility
+    return _rebuildCurrentItemMarkers(selectedForNames);
+  }
+
+  /// Re-renders the PNG markers in [_currentItems] so only [namedIds] show a
+  /// name. Returns false when nothing was applied: either the GeoJSON layer is
+  /// drawing pins (names are a map-layer concern there), or [_currentItems]
+  /// changed while the markers were rendering — writing the stale rebuild
+  /// back would put the previous list's pins on the map.
+  Future<bool> _rebuildCurrentItemMarkers(Set<int> namedIds) async {
+    if (!_rendersMarkerImages || _currentItems.isEmpty) return false;
+
+    final epoch = _currentItemsEpoch;
+    final sourceIds =
+        _currentItems.keys.map((location) => location.locationId).toSet();
+
     final updatedMarkers = await Future.wait(
       _currentItems.keys.map((location) async {
-        final shouldShowName = selectedForNames.contains(location.locationId);
+        final shouldShowName = namedIds.contains(location.locationId);
         final marker = await location.toMarker(_devicePixelRatio,
-            shouldShowName: shouldShowName);
-        return MapEntry(location, marker!);
+            shouldShowName: shouldShowName, renderImage: _rendersMarkerImages);
+        return marker == null ? null : MapEntry(location, marker);
       }),
     );
 
-    _currentItems = Map.fromEntries(updatedMarkers);
+    final currentIds =
+        _currentItems.keys.map((location) => location.locationId).toSet();
+    if (epoch != _currentItemsEpoch || !setEquals(sourceIds, currentIds)) {
+      return false;
+    }
+
+    _currentItems = Map.fromEntries(
+      updatedMarkers.whereType<MapEntry<LocationModel, MapMarkerData>>(),
+    );
+    return true;
   }
 
   /// Call this when map viewport changes (pan/zoom) to update name display
@@ -766,17 +808,9 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
     _lastSelectionZoom = zoom;
 
     // Regenerate markers with updated name visibility
-    final updatedMarkers = await Future.wait(
-      _currentItems.keys.map((location) async {
-        final shouldShowName = newSelection.contains(location.locationId);
-        final marker = await location.toMarker(_devicePixelRatio,
-            shouldShowName: shouldShowName);
-        return MapEntry(location, marker!);
-      }),
-    );
-
-    _currentItems = Map.fromEntries(updatedMarkers);
-    notifyListeners();
+    if (await _rebuildCurrentItemMarkers(newSelection)) {
+      notifyListeners();
+    }
   }
 
   /// Calculates distance between two LatLng points using Haversine formula
@@ -887,11 +921,16 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
     }
     print(
         "Set current list type to: $type, item count: ${_currentItems.length}");
-
-    // Apply name selection with current viewport if available
-    await _applyNameSelectionToCurrentItems(
-        viewportBounds: _currentViewportBounds);
+    // Publish the switch straight away so the map isn't left showing the
+    // previous list while markers re-render.
     notifyListeners();
+
+    // Apply name selection with current viewport if available. The rebuild
+    // is dropped if a newer switch landed while it rendered.
+    if (await _applyNameSelectionToCurrentItems(
+        viewportBounds: _currentViewportBounds)) {
+      notifyListeners();
+    }
   }
 
   void hydrateCachedSavedLocations(List<LocationModel> locations) {
@@ -969,6 +1008,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
     return location.setPreference(LocationPreference.saved).toMarker(
           _devicePixelRatio,
           shouldShowName: shouldShowName,
+          renderImage: _rendersMarkerImages,
         );
   }
 
@@ -1174,6 +1214,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
             .toMarker(
               _devicePixelRatio,
               shouldShowName: selectedForNames.contains(location.locationId),
+              renderImage: _rendersMarkerImages,
             );
         return MapEntry(
           location,
@@ -1252,6 +1293,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
             .toMarker(
               _devicePixelRatio,
               shouldShowName: selectedForNames.contains(location.locationId),
+              renderImage: _rendersMarkerImages,
             );
 
         return MapEntry(
@@ -1322,7 +1364,8 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
             : LocationPreference.recommended;
         final marker = await location
             .setPreference(preference)
-            .toMarker(_devicePixelRatio, shouldShowName: false);
+            .toMarker(_devicePixelRatio,
+              shouldShowName: false, renderImage: _rendersMarkerImages);
 
         return MapEntry(
           location,
@@ -1392,6 +1435,9 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
     final searchCenter = LatLng(latitude, longitude);
     final searchRadius = radiusKm;
 
+    final requestId = ++_recommendationsRequestId;
+    bool isCurrent() => requestId == _recommendationsRequestId;
+
     _isLoadingRecommendations = true;
     _error = null;
     notifyListeners();
@@ -1420,6 +1466,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
         collaborativeWeight: collaborativeWeight,
         cuisines: (cuisines != null && cuisines.isNotEmpty) ? cuisines : null,
       );
+      if (!isCurrent()) return;
 
       // Extract IDs (preserves ranking!)
       final locationIds = response.recommendations
@@ -1450,6 +1497,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
 
       // Fetch full location data
       final hydrated = await _fetchLocationsByIdsInOrder(locationIds);
+      if (!isCurrent()) return;
 
       // Attach friend_saves attribution from each Recommendation onto the
       // hydrated LocationModel. The map widget renders an avatar stack on
@@ -1478,7 +1526,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
           '(of ${locations.length} total)');
 
       // Build markers for all locations
-      await _buildMarkersAndSync(locations);
+      if (!await _buildMarkersAndSync(locations, isCurrent: isCurrent)) return;
       _error = null;
 
       if (serverFiltered) {
@@ -1491,7 +1539,11 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
         _allRecommendedLocations = locations;
         // Apply active filters if any (legacy client-side path — only
         // runs when no tag filters were supplied to this call).
-        await _applyFiltersToList(LocationListType.recommended);
+        await _applyFiltersToList(
+          LocationListType.recommended,
+          isCurrent: isCurrent,
+        );
+        if (!isCurrent()) return;
       }
 
       // Update last searched area
@@ -1500,12 +1552,17 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       print("Fetched ${locations.length} recommendations"
           "${serverFiltered ? ' (filtered)' : ''}");
     } catch (e) {
+      // A newer request owns the list now; don't wipe its results.
+      if (!isCurrent()) return;
       print('Error fetching personalized recommendations: $e');
       _error = "Failed to load recommendations: ${e.toString()}";
       _recommendedLocations = {};
     } finally {
-      _isLoadingRecommendations = false;
-      notifyListeners();
+      // Only the latest request clears the spinner.
+      if (isCurrent()) {
+        _isLoadingRecommendations = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -1572,7 +1629,12 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
 
   /// Filters the current list type, removing non-matching locations.
   /// Caches the unfiltered list so it can be restored when filters are cleared.
-  Future<void> _applyFiltersToList(LocationListType type) async {
+  /// [isCurrent] lets a caller abandon the write if its request was superseded
+  /// while markers were building.
+  Future<void> _applyFiltersToList(
+    LocationListType type, {
+    bool Function()? isCurrent,
+  }) async {
     final markerMap = _markerMapFor(type);
     var allCached = _allLocationsFor(type);
 
@@ -1580,8 +1642,9 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
     if (!hasActiveFilters) {
       print("🔍 [Filter] type=$type — no active filters, restoring "
           "${allCached.length} cached locations");
-      if (allCached.isNotEmpty) {
-        await _buildMarkersForType(type, allCached);
+      if (allCached.isNotEmpty &&
+          !await _buildMarkersForType(type, allCached, isCurrent: isCurrent)) {
+        return;
       }
       _syncCurrentItems();
       notifyListeners();
@@ -1727,7 +1790,9 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
     }
     print("🔍 [Filter] ────────────────────────────────────");
 
-    await _buildMarkersForType(type, filtered);
+    if (!await _buildMarkersForType(type, filtered, isCurrent: isCurrent)) {
+      return;
+    }
     _syncCurrentItems();
     notifyListeners();
 
@@ -1735,8 +1800,13 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
   }
 
   /// Builds markers for a list of locations and assigns to the correct list type.
-  Future<void> _buildMarkersForType(
-      LocationListType type, List<LocationModel> locations) async {
+  /// Returns false (and writes nothing) if [isCurrent] reports the caller was
+  /// superseded while the markers built.
+  Future<bool> _buildMarkersForType(
+    LocationListType type,
+    List<LocationModel> locations, {
+    bool Function()? isCurrent,
+  }) async {
     final tempMap = Map.fromEntries(locations.map((loc) => MapEntry(
         loc,
         MapMarkerData(
@@ -1766,12 +1836,15 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
         final shouldShowName = selectedForNames.contains(location.locationId);
         final marker = await location
             .setPreference(preference)
-            .toMarker(_devicePixelRatio, shouldShowName: shouldShowName);
+            .toMarker(_devicePixelRatio,
+              shouldShowName: shouldShowName, renderImage: _rendersMarkerImages);
         return MapEntry(location, marker!);
       }),
     );
 
+    if (isCurrent != null && !isCurrent()) return false;
     _setMarkerMapFor(type, Map.fromEntries(markers));
+    return true;
   }
 
   /// Syncs _currentItems to match the current list type's marker map.
@@ -1780,7 +1853,10 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
   }
 
   /// Builds markers for a list of locations and sets _recommendedLocations + syncs currentItems.
-  Future<void> _buildMarkersAndSync(List<LocationModel> locations) async {
+  Future<bool> _buildMarkersAndSync(
+    List<LocationModel> locations, {
+    bool Function()? isCurrent,
+  }) async {
     final tempMap = Map.fromEntries(locations.map((loc) => MapEntry(
         loc,
         MapMarkerData(
@@ -1798,13 +1874,16 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
         final shouldShowName = selectedForNames.contains(location.locationId);
         final marker = await location
             .setPreference(LocationPreference.recommended)
-            .toMarker(_devicePixelRatio, shouldShowName: shouldShowName);
+            .toMarker(_devicePixelRatio,
+              shouldShowName: shouldShowName, renderImage: _rendersMarkerImages);
         return MapEntry(location, marker!);
       }),
     );
 
+    if (isCurrent != null && !isCurrent()) return false;
     _recommendedLocations = Map.fromEntries(markers);
     _syncRecommendedItemsIfActive();
+    return true;
   }
 
   /// Updates filter tags and applies client-side filtering on cached recommendations.
@@ -2004,7 +2083,8 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
           final shouldShowName = selectedForNames.contains(location.locationId);
           final marker = await location
               .setPreference(LocationPreference.bubble)
-              .toMarker(_devicePixelRatio, shouldShowName: shouldShowName);
+              .toMarker(_devicePixelRatio,
+              shouldShowName: shouldShowName, renderImage: _rendersMarkerImages);
           return MapEntry(location, marker!);
         }),
       );
@@ -2194,7 +2274,8 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
         final shouldShowName = selectedForNames.contains(loc.locationId);
         final marker = await loc
             .setPreference(LocationPreference.recommended)
-            .toMarker(_devicePixelRatio, shouldShowName: shouldShowName);
+            .toMarker(_devicePixelRatio,
+              shouldShowName: shouldShowName, renderImage: _rendersMarkerImages);
         return MapEntry(loc, marker!);
       }),
     );
@@ -2225,6 +2306,9 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       return false;
     }
 
+    final requestId = ++_recommendationsRequestId;
+    bool isCurrent() => requestId == _recommendationsRequestId;
+
     _isSearchingArea = true;
     _error = null;
     notifyListeners();
@@ -2243,6 +2327,7 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
         collaborativeWeight: collaborativeWeight,
         includeTasteBreakdown: includeTasteBreakdown,
       );
+      if (!isCurrent()) return false;
 
       final locationIds = response.recommendations
           .map((rec) => rec.locationId)
@@ -2260,12 +2345,19 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       }
 
       final locations = await _fetchLocationsByIdsInOrder(locationIds);
+      if (!isCurrent()) return false;
 
       // Cache the full unfiltered list
       _allRecommendedLocations = locations;
 
-      await _buildMarkersAndSync(locations);
-      await _applyFiltersToList(LocationListType.recommended);
+      if (!await _buildMarkersAndSync(locations, isCurrent: isCurrent)) {
+        return false;
+      }
+      await _applyFiltersToList(
+        LocationListType.recommended,
+        isCurrent: isCurrent,
+      );
+      if (!isCurrent()) return false;
       _updateLastSearchedArea(center, radiusKm);
       _areaChanged = false;
       _error = null;
@@ -2274,13 +2366,17 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
       await setCurrentListType(LocationListType.recommended);
       return true;
     } catch (e) {
+      if (!isCurrent()) return false;
       print('LocationListManager: Search this area failed: $e');
       _error = "Search failed: ${e.toString()}";
       notifyListeners();
       return false;
     } finally {
-      _isSearchingArea = false;
-      notifyListeners();
+      // A newer search still owns the spinner.
+      if (isCurrent()) {
+        _isSearchingArea = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -2415,7 +2511,8 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
         final shouldShowName = selectedForNames.contains(loc.locationId);
         final marker = await loc
             .setPreference(LocationPreference.saved)
-            .toMarker(_devicePixelRatio, shouldShowName: shouldShowName);
+            .toMarker(_devicePixelRatio,
+              shouldShowName: shouldShowName, renderImage: _rendersMarkerImages);
         return MapEntry(
           loc,
           marker ??
@@ -2573,7 +2670,8 @@ class LocationListManager with ChangeNotifier, WidgetsBindingObserver {
           final shouldShowName = selectedForNames.contains(location.locationId);
           final marker = await location
               .setPreference(LocationPreference.search)
-              .toMarker(_devicePixelRatio, shouldShowName: shouldShowName);
+              .toMarker(_devicePixelRatio,
+              shouldShowName: shouldShowName, renderImage: _rendersMarkerImages);
           return marker != null ? MapEntry(location, marker) : null;
         }),
       );

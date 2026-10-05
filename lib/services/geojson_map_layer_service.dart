@@ -254,12 +254,16 @@ class GeoJsonMapLayerService {
     Set<int> beenToLocationIds = const <int>{},
   }) async {
     try {
+      // Register icons before publishing the list: bounce timers and selection
+      // changes push _currentLocations at any time, and pins whose image isn't
+      // registered yet would render with the fallback icon.
+      await _registerEmojiIcons(locations);
+      await _registerSelectedIcon(locations);
+
       _currentLocations = List<LocationModel>.from(locations);
       _beenToLocationIds = Set<int>.from(beenToLocationIds);
       _pruneBounceStateForCurrentLocations();
 
-      await _registerEmojiIcons(locations);
-      await _registerSelectedIcon();
       await _updateSourceData();
       _flushPendingRecentSaveBounces();
 
@@ -342,6 +346,24 @@ class GeoJsonMapLayerService {
 
   void pulseLocation(int locationId) {
     markLocationAsRecentlySaved(locationId);
+  }
+
+  /// The map reloaded its style, which drops every source, layer and image we
+  /// added. Forget them so the next [initialize] rebuilds from scratch.
+  void resetForNewStyle() {
+    _isInitialized = false;
+    _registeredIconIds.clear();
+    log('GeoJsonMapLayerService: Style reloaded; layers will be rebuilt');
+  }
+
+  /// Stop all activity without touching the style — used when the map this
+  /// service drew on has been replaced.
+  void detach() {
+    for (final timer in _bounceTimersByLocationId.values) {
+      timer.cancel();
+    }
+    _bounceTimersByLocationId.clear();
+    _isInitialized = false;
   }
 
   /// Clean up resources when the service is no longer needed.
@@ -451,17 +473,18 @@ class GeoJsonMapLayerService {
 
     log('GeoJsonMapLayerService: Registering ${pending.length} new emoji icons');
 
-    for (final entry in pending.entries) {
-      await _registerPinIcon(entry.key, entry.value, selected: false);
-    }
+    // In parallel: each icon may wait on friend-avatar downloads.
+    await Future.wait(pending.entries.map(
+      (entry) => _registerPinIcon(entry.key, entry.value, selected: false),
+    ));
   }
 
   /// Register the enlarged icon variant for the currently selected location.
-  Future<void> _registerSelectedIcon() async {
+  Future<void> _registerSelectedIcon([List<LocationModel>? locations]) async {
     final selectedId = _selectedLocationId;
     if (selectedId == null) return;
 
-    for (final location in _currentLocations) {
+    for (final location in locations ?? _currentLocations) {
       if (location.locationId.toString() != selectedId) continue;
       final iconId =
           '$_iconPrefix${_buildLocationIconKey(location)}$_selectedIconSuffix';

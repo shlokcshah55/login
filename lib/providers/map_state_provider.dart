@@ -7,7 +7,39 @@ import 'package:login/models/locations.dart';
 import 'package:login/services/geojson_map_layer_service.dart';
 import 'package:login/utils/geo_types.dart';
 
+/// Builds the GeoJSON layer service for a freshly created map. Overridable so
+/// tests can drive pin sync without a real Mapbox map.
+typedef GeoJsonLayerServiceFactory = GeoJsonMapLayerService Function(
+  mapbox.MapboxMap map, {
+  OnLocationTapped? onLocationTapped,
+  OnClusterTapped? onClusterTapped,
+});
+
 class MapStateProvider with ChangeNotifier {
+  MapStateProvider({GeoJsonLayerServiceFactory? layerServiceFactory})
+      : _layerServiceFactory = layerServiceFactory ?? _defaultLayerService;
+
+  final GeoJsonLayerServiceFactory _layerServiceFactory;
+
+  static GeoJsonMapLayerService _defaultLayerService(
+    mapbox.MapboxMap map, {
+    OnLocationTapped? onLocationTapped,
+    OnClusterTapped? onClusterTapped,
+  }) {
+    return GeoJsonMapLayerService(
+      mapboxMap: map,
+      config: const GeoJsonLayerConfig(
+        enableClustering: true,
+        clusterRadius: 50,
+        clusterMaxZoom: 12,
+        showTextLabels: true,
+        allowTextOverlap: false,
+      ),
+      onLocationTapped: onLocationTapped,
+      onClusterTapped: onClusterTapped,
+    );
+  }
+
   mapbox.MapboxMap? _mapboxMap;
   mapbox.PointAnnotationManager? _pointAnnotationManager;
   mapbox.PolylineAnnotationManager? _polylineAnnotationManager;
@@ -36,6 +68,17 @@ class MapStateProvider with ChangeNotifier {
   bool _pinsDotsByDefault = false;
 
   List<LatLng> _polylinePoints = [];
+
+  // Pin sync state (GeoJSON mode). Requests are "latest wins": only the most
+  // recent list is kept, and a single pump applies it once the style is ready.
+  bool _styleReady = false;
+  List<LocationModel>? _desiredPins;
+  Set<int> _desiredBeenToIds = const <int>{};
+  List<LocationModel>? _appliedPins;
+  Set<int> _appliedBeenToIds = const <int>{};
+  bool _pinSyncRunning = false;
+  Timer? _pinRetryTimer;
+  int _pinRetryAttempt = 0;
 
   // Getters
   mapbox.MapboxMap? get mapboxMap => _mapboxMap;
@@ -72,36 +115,33 @@ class MapStateProvider with ChangeNotifier {
     controller.jumpToPage(index);
   }
 
-  /// Call this from MapWidget's onMapCreated callback.
+  /// Call this from MapWidget's onMapCreated callback, before any other await,
+  /// so the layer service exists by the time the style finishes loading.
   ///
-  /// Note: GeoJSON layer service initialization is deferred until the first
-  /// location update to ensure supabase restaurants have loaded first.
+  /// Layer setup itself waits for [onStyleLoaded].
   Future<void> setMapboxMap(
     mapbox.MapboxMap map, {
     OnLocationTapped? onLocationTapped,
     OnClusterTapped? onClusterTapped,
   }) async {
     _mapboxMap = map;
+    // A new map (e.g. the map widget remounted) has a fresh style: nothing is
+    // drawn on it yet, so re-queue whatever was last shown.
+    _styleReady = false;
+    _geoJsonLayerService?.detach();
+    _requeueAppliedPins();
 
     if (_useGeoJsonLayers) {
-      // Create GeoJSON service but defer initialization until locations arrive
-      // This ensures supabase restaurants are loaded before we set up the layers
-      _geoJsonLayerService = GeoJsonMapLayerService(
-        mapboxMap: map,
-        config: const GeoJsonLayerConfig(
-          enableClustering: true,
-          clusterRadius: 50,
-          clusterMaxZoom: 12,
-          showTextLabels: true,
-          allowTextOverlap: false,
-        ),
+      // Layers are set up by the pin pump once the style has loaded.
+      _geoJsonLayerService = _layerServiceFactory(
+        map,
         onLocationTapped: onLocationTapped,
         onClusterTapped: onClusterTapped,
       );
       // Re-apply the desired presentation mode to the freshly created service.
       unawaited(_geoJsonLayerService!.setDotsByDefault(_pinsDotsByDefault));
       _flushPendingRecentSaveBounces();
-      log("MapStateProvider: GeoJSON layer service created (initialization deferred until locations arrive).");
+      log("MapStateProvider: GeoJSON layer service created; layers wait for style load.");
     } else {
       // Legacy: use PointAnnotationManager
       _pointAnnotationManager =
@@ -114,39 +154,90 @@ class MapStateProvider with ChangeNotifier {
     log("MapStateProvider: MapboxMap controller initialized.");
   }
 
-  /// Update the locations displayed on the map (GeoJSON mode).
+  /// Call this from MapWidget's onStyleLoadedListener. Fires again if the
+  /// style is reloaded, which wipes our sources and layers.
+  void onStyleLoaded() {
+    final service = _geoJsonLayerService;
+    if (service != null && service.isInitialized) {
+      service.resetForNewStyle();
+      _requeueAppliedPins();
+    }
+    _styleReady = true;
+    unawaited(_pumpPins());
+  }
+
+  /// Ask for [locations] to be shown on the map (GeoJSON mode).
   ///
-  /// This method should be called when the location list changes.
-  /// Mapbox handles clustering automatically.
-  /// If the service hasn't been initialized yet, it will be initialized now
-  /// (ensuring supabase restaurants have loaded first).
-  /// Returns true if the update was actually performed, false if skipped.
-  Future<bool> updateMapLocations(
+  /// Safe to call at any time and as often as you like: only the latest
+  /// request is kept, updates never overlap, and a request made before the
+  /// map/style is ready is applied as soon as it is.
+  void requestPins(
     List<LocationModel> locations, {
     Set<int> beenToLocationIds = const <int>{},
-  }) async {
-    if (!_useGeoJsonLayers || _geoJsonLayerService == null) {
-      return false;
-    }
+  }) {
+    _desiredPins = List<LocationModel>.of(locations);
+    _desiredBeenToIds = Set<int>.of(beenToLocationIds);
+    unawaited(_pumpPins());
+  }
 
-    // Lazy initialization: initialize on first location update
-    if (!_geoJsonLayerService!.isInitialized) {
-      try {
-        await _geoJsonLayerService!.initialize();
-        log("MapStateProvider: GeoJSON layer service initialized on first location update.");
-      } catch (e) {
-        log("MapStateProvider: Failed to initialize GeoJSON layer service: $e");
-        return false;
+  void _schedulePinRetry() {
+    if (_pinRetryTimer?.isActive ?? false) return;
+    final delayMs = min(250 * pow(2, _pinRetryAttempt).toInt(), 8000);
+    _pinRetryAttempt++;
+    _pinRetryTimer = Timer(Duration(milliseconds: delayMs), () {
+      unawaited(_pumpPins());
+    });
+  }
+
+  void _requeueAppliedPins() {
+    if (_desiredPins == null && _appliedPins != null) {
+      _desiredPins = _appliedPins;
+      _desiredBeenToIds = _appliedBeenToIds;
+    }
+    _appliedPins = null;
+  }
+
+  Future<void> _pumpPins() async {
+    if (_pinSyncRunning) return;
+    _pinSyncRunning = true;
+    try {
+      while (_desiredPins != null) {
+        final service = _geoJsonLayerService;
+        // Not ready yet: keep the request; setMapboxMap/onStyleLoaded will
+        // pump again.
+        if (!_useGeoJsonLayers || service == null || !_styleReady) return;
+
+        final pins = _desiredPins!;
+        final beenTo = _desiredBeenToIds;
+        _desiredPins = null;
+
+        try {
+          await service.initialize();
+          await service.updateLocations(pins, beenToLocationIds: beenTo);
+          // The service may have been swapped while we awaited; only record
+          // what actually landed on the current one.
+          if (identical(service, _geoJsonLayerService)) {
+            _appliedPins = pins;
+            _appliedBeenToIds = beenTo;
+          }
+          _pinRetryAttempt = 0;
+          _flushPendingRecentSaveBounces();
+          log("MapStateProvider: Updated ${pins.length} locations on map.");
+        } catch (e, stack) {
+          debugPrint('MapStateProvider: Pin sync failed: $e\n$stack');
+          // Keep these pins queued unless a newer list already is, and retry
+          // with backoff — the caller won't re-request an unchanged list.
+          _desiredPins ??= pins;
+          if (identical(_desiredPins, pins)) {
+            _desiredBeenToIds = beenTo;
+            _schedulePinRetry();
+            return;
+          }
+        }
       }
+    } finally {
+      _pinSyncRunning = false;
     }
-
-    await _geoJsonLayerService!.updateLocations(
-      locations,
-      beenToLocationIds: beenToLocationIds,
-    );
-    _flushPendingRecentSaveBounces();
-    log("MapStateProvider: Updated ${locations.length} locations on map.");
-    return true;
   }
 
   void bounceRecentlySaved(int locationId) {
@@ -530,6 +621,7 @@ class MapStateProvider with ChangeNotifier {
 
   @override
   void dispose() {
+    _pinRetryTimer?.cancel();
     _pendingRecentSaveBounces.clear();
     _geoJsonLayerService?.dispose();
     _geoJsonLayerService = null;
