@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:login/widgets/pinit_image.dart';
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
+import 'package:login/pages/home/categories/vibe_styles.dart';
+import 'package:login/pages/home/widgets/see_all_filter_rail.dart';
 import 'package:login/pages/home/home_view_model.dart';
 import 'package:login/providers/location_list_provider.dart';
+import 'package:login/providers/map_state_provider.dart';
+import 'package:login/providers/nav_bar/visibility_provider.dart';
 import 'package:login/providers/navigation_provider.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/utils/geo_types.dart';
+import 'package:login/widgets/feedback/app_feedback.dart';
 import 'package:login/widgets/home/expanded_location_card.dart';
 import 'package:login/widgets/home/location_list_card.dart';
 import 'package:provider/provider.dart';
@@ -32,43 +38,6 @@ String _friendSaveLabel(LocationModel location) {
   return '$displayName +$remaining saved';
 }
 
-// ─────────────────────────────────────────────────────────────
-//  Vibe tag display config – mirrors location_carousel.dart
-// ─────────────────────────────────────────────────────────────
-class _VibeTagStyle {
-  final String label;
-  final IconData icon;
-  const _VibeTagStyle(this.label, this.icon);
-}
-
-const Map<String, _VibeTagStyle> _vibeStyles = {
-  'cafe': _VibeTagStyle('Café', FeatherIcons.coffee),
-  'casual': _VibeTagStyle('Casual', FeatherIcons.smile),
-  'cozy': _VibeTagStyle('Cozy', FeatherIcons.home),
-  'coffee_shop': _VibeTagStyle('Coffee', FeatherIcons.coffee),
-  'bar': _VibeTagStyle('Bar', FeatherIcons.moon),
-  'elegant': _VibeTagStyle('Elegant', FeatherIcons.feather),
-  'fine_dining': _VibeTagStyle('Fine Dining', FeatherIcons.award),
-  'food_truck': _VibeTagStyle('Food Truck', FeatherIcons.truck),
-  'hole_in_the_wall': _VibeTagStyle('Hidden Gem', FeatherIcons.key),
-  'late_night': _VibeTagStyle('Late Night', FeatherIcons.moon),
-  'live_music': _VibeTagStyle('Live Music', FeatherIcons.music),
-  'bougie': _VibeTagStyle('Bougie', FeatherIcons.star),
-  'modern': _VibeTagStyle('Modern', FeatherIcons.zap),
-  'fast_food': _VibeTagStyle('Fast Food', FeatherIcons.fastForward),
-  'quiet': _VibeTagStyle('Quiet', FeatherIcons.volumeX),
-  'romantic': _VibeTagStyle('Romantic', FeatherIcons.heart),
-  'sports_bar': _VibeTagStyle('Sports Bar', FeatherIcons.tv),
-  'trendy': _VibeTagStyle('Trendy', FeatherIcons.trendingUp),
-  'takeout_friendly': _VibeTagStyle('Takeaway', FeatherIcons.package),
-  'pub': _VibeTagStyle('Pub', FeatherIcons.home),
-  'shop': _VibeTagStyle('Shop', FeatherIcons.shoppingCart),
-  'brunch': _VibeTagStyle('Brunch', FeatherIcons.sun),
-  'outdoor_dining': _VibeTagStyle('Outdoor', FeatherIcons.wind),
-  'wavy': _VibeTagStyle('Wavy', FeatherIcons.activity),
-  'bossman': _VibeTagStyle('Bossman', FeatherIcons.shield),
-};
-
 class CarouselListPage extends StatefulWidget {
   final List<LocationModel> locations;
   final String title;
@@ -90,20 +59,171 @@ class CarouselListPage extends StatefulWidget {
 }
 
 class _CarouselListPageState extends State<CarouselListPage> {
+  static const String _savedId = 'saved';
+  static const String _pickedId = 'picked';
+  static const String _otherId = 'other';
+
   final TextEditingController _searchController = TextEditingController();
   String _query = '';
   _SavedSort _savedSort = _SavedSort.none;
+  late String _sourceId = switch (widget.listType) {
+    LocationListType.saved => _savedId,
+    LocationListType.recommended => _pickedId,
+    _ => _otherId,
+  };
+  final Set<String> _cuisines = {};
+  final Set<String> _vibes = {};
 
-  bool get _isSavedSeeAll => widget.listType == LocationListType.saved;
-  bool get _canShowInMap => widget.collectionId != null;
+  /// Saved/Picked switching only makes sense for the home See All lists, not
+  /// for a collection or someone else's list.
+  bool get _hasSources =>
+      widget.collectionId == null &&
+      (widget.listType == LocationListType.saved ||
+          widget.listType == LocationListType.recommended ||
+          widget.listType == LocationListType.bubble ||
+          widget.listType == LocationListType.bubbleSaved);
 
-  void _showInMap() {
+  bool get _isSavedSeeAll => _sourceId == _savedId;
+  bool get _hasActiveFilters => _cuisines.isNotEmpty || _vibes.isNotEmpty;
+
+  List<LocationModel> _poolFor(String sourceId, LocationListManager? manager) {
+    final opened = switch (widget.listType) {
+      LocationListType.saved => _savedId,
+      LocationListType.recommended => _pickedId,
+      _ => _otherId,
+    };
+    final fromManager = switch (sourceId) {
+      _savedId => manager?.savedLocations.keys.toList(),
+      _pickedId => manager?.recommendedLocations.keys.toList(),
+      _ => null,
+    };
+    // The list the page was opened with is the freshest copy of its own source.
+    if (sourceId == opened) return widget.locations;
+    return fromManager ?? const [];
+  }
+
+  List<SeeAllFilterOption> _sourceOptions(LocationListManager? manager) {
+    if (!_hasSources) return const [];
+    final options = <SeeAllFilterOption>[];
+    for (final entry in [
+      (_savedId, 'Saved'),
+      (_pickedId, 'Picked'),
+      if (widget.listType == LocationListType.bubble ||
+          widget.listType == LocationListType.bubbleSaved)
+        (_otherId, widget.title),
+    ]) {
+      final count = _poolFor(entry.$1, manager).length;
+      if (count == 0 && entry.$1 != _sourceId) continue;
+      options.add(
+        SeeAllFilterOption(id: entry.$1, label: entry.$2, count: count),
+      );
+    }
+    return options;
+  }
+
+  bool _matchesQuery(LocationModel loc, String query) {
+    if (query.isEmpty) return true;
+    if (loc.name.toLowerCase().contains(query)) return true;
+    if ((seeAllCuisineLabel(loc) ?? '').toLowerCase().contains(query)) return true;
+    return seeAllVibeIds(loc).any(
+      (id) => vibeStyles[id]!.label.toLowerCase().contains(query),
+    );
+  }
+
+  bool _matchesChips(LocationModel loc) {
+    if (_cuisines.isNotEmpty && !_cuisines.contains(seeAllCuisineId(loc))) {
+      return false;
+    }
+    if (_vibes.isNotEmpty && seeAllVibeIds(loc).intersection(_vibes).isEmpty) {
+      return false;
+    }
+    return true;
+  }
+
+  void _selectSource(String id) {
+    if (id == _sourceId) return;
+    setState(() {
+      _sourceId = id;
+      _cuisines.clear();
+      _vibes.clear();
+    });
+  }
+
+  void _toggle(Set<String> set, String id) {
+    setState(() => set.contains(id) ? set.remove(id) : set.add(id));
+  }
+
+  void _clearFilters() {
+    _searchController.clear();
+    setState(() {
+      _query = '';
+      _cuisines.clear();
+      _vibes.clear();
+    });
+  }
+
+  List<String> _labelsFor(
+    List<SeeAllFilterOption> options,
+    Set<String> selected,
+  ) =>
+      [
+        for (final o in options)
+          if (selected.contains(o.id)) o.label,
+      ];
+
+  Future<void> _showInMap(List<LocationModel> visible) async {
     final collectionId = widget.collectionId;
-    if (collectionId == null) return;
-    context
-        .read<NavigationProvider>()
-        .navigateToCollectionMapOnly(collectionId);
-    Navigator.of(context).popUntil((route) => route.isFirst);
+    final nav = context.read<NavigationProvider>();
+    if (collectionId != null && _query.trim().isEmpty && !_hasActiveFilters) {
+      nav.navigateToCollectionMapOnly(collectionId);
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      return;
+    }
+
+    final mappable =
+        visible.where((l) => l.lat != null && l.lng != null).toList();
+    if (mappable.isEmpty) {
+      unawaited(
+        AppFeedback.showError(
+          context,
+          title: 'Nothing to map',
+          message: 'None of these places have a location yet.',
+        ),
+      );
+      return;
+    }
+
+    final homeViewModel = widget.homeViewModel;
+    if (homeViewModel != null) {
+      final pool = _poolFor(
+        _sourceId,
+        Provider.of<LocationListManager?>(context, listen: false),
+      );
+      final labels = [
+        ..._labelsFor(buildCuisineOptions(pool), _cuisines),
+        ..._labelsFor(buildVibeOptions(pool), _vibes),
+      ];
+      final navigator = Navigator.of(context);
+      await homeViewModel.openLocations(
+        mappable,
+        label: labels.isEmpty ? widget.title : labels.join(' · '),
+      );
+      nav.navigateToTab(0);
+      navigator.popUntil((route) => route.isFirst);
+      return;
+    }
+
+    final manager = context.read<LocationListManager>();
+    final map = context.read<MapStateProvider>();
+    final bottomNav = context.read<BottomNavVisibilityProvider>();
+    final navigator = Navigator.of(context);
+
+    await manager.showLocationsOnMap(mappable);
+    map.setSelectedMarkerId(null);
+    await map.focusOnLocations(mappable);
+    bottomNav.showTemporarily();
+    nav.navigateToTab(0);
+    navigator.popUntil((route) => route.isFirst);
   }
 
   @override
@@ -112,13 +232,11 @@ class _CarouselListPageState extends State<CarouselListPage> {
     super.dispose();
   }
 
-  List<LocationModel> get _visibleLocations {
+  List<LocationModel> _visibleFrom(List<LocationModel> pool) {
     final query = _query.trim().toLowerCase();
-    final filtered = query.isEmpty
-        ? List<LocationModel>.from(widget.locations)
-        : widget.locations
-            .where((loc) => loc.name.toLowerCase().contains(query))
-            .toList();
+    final filtered = pool
+        .where((loc) => _matchesQuery(loc, query) && _matchesChips(loc))
+        .toList();
 
     if (!_isSavedSeeAll) return filtered;
 
@@ -182,7 +300,23 @@ class _CarouselListPageState extends State<CarouselListPage> {
 
   @override
   Widget build(BuildContext context) {
-    final visible = _visibleLocations;
+    final manager = Provider.of<LocationListManager?>(context);
+    final pool = _poolFor(_sourceId, manager);
+    final visible = _visibleFrom(pool);
+    final query = _query.trim().toLowerCase();
+    bool labelMatches(SeeAllFilterOption o, Set<String> selected) =>
+        query.isEmpty ||
+        selected.contains(o.id) ||
+        o.label.toLowerCase().contains(query);
+    final cuisineOptions = buildCuisineOptions(pool)
+        .where((o) => labelMatches(o, _cuisines))
+        .toList();
+    final vibeOptions = buildVibeOptions(pool)
+        .where((o) => labelMatches(o, _vibes))
+        .toList();
+    final sourceOptions = _sourceOptions(manager);
+    final mappableCount =
+        visible.where((l) => l.lat != null && l.lng != null).length;
     return Scaffold(
       backgroundColor: PinitColors.cream,
       appBar: AppBar(
@@ -212,34 +346,47 @@ class _CarouselListPageState extends State<CarouselListPage> {
           ),
         ),
         actions: [
-          if (_canShowInMap)
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: GestureDetector(
-                onTap: _showInMap,
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: GestureDetector(
+              onTap: mappableCount == 0 && widget.collectionId == null
+                  ? null
+                  : () => unawaited(_showInMap(visible)),
+              child: Opacity(
+                opacity: mappableCount == 0 && widget.collectionId == null
+                    ? 0.4
+                    : 1,
                 child: Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: PinitColors.creamSunk,
+                    color: PinitColors.aubergine,
                     borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: PinitColors.aubergine.withValues(alpha: 0.25),
-                      width: 1.5,
-                    ),
                   ),
-                  child: Text(
-                    'Show in map',
-                    style: GoogleFonts.dmSans(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: PinitColors.aubergine,
-                      letterSpacing: 0.3,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        FeatherIcons.map,
+                        size: 13,
+                        color: PinitColors.cream,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'SEE ON MAP · ${visible.length}',
+                        style: GoogleFonts.dmSans(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          color: PinitColors.cream,
+                          letterSpacing: 0.9,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
+          ),
         ],
         centerTitle: false,
         automaticallyImplyLeading: false,
@@ -262,7 +409,7 @@ class _CarouselListPageState extends State<CarouselListPage> {
                       color: PinitColors.aubergine,
                     ),
                     decoration: InputDecoration(
-                      hintText: 'Search by name',
+                      hintText: 'Search places, cuisines, vibes',
                       hintStyle: GoogleFonts.dmSans(
                         fontSize: 14,
                         color: PinitColors.mute,
@@ -357,18 +504,51 @@ class _CarouselListPageState extends State<CarouselListPage> {
               ],
             ),
           ),
+          if (sourceOptions.isNotEmpty ||
+              cuisineOptions.isNotEmpty ||
+              vibeOptions.isNotEmpty)
+            SeeAllFilterRail(
+              sources: sourceOptions,
+              activeSourceId: _sourceId,
+              cuisines: cuisineOptions,
+              vibes: vibeOptions,
+              selectedCuisines: _cuisines,
+              selectedVibes: _vibes,
+              onSourceSelected: _selectSource,
+              onCuisineToggled: (id) => _toggle(_cuisines, id),
+              onVibeToggled: (id) => _toggle(_vibes, id),
+              onClear: _hasActiveFilters ? _clearFilters : null,
+            ),
           Expanded(
             child: visible.isEmpty
                 ? Center(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(24, 40, 24, 40),
-                      child: Text(
-                        'No matches.',
-                        style: GoogleFonts.dmSans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: PinitColors.mute,
-                        ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'No places match.',
+                            style: GoogleFonts.dmSans(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: PinitColors.mute,
+                            ),
+                          ),
+                          if (_hasActiveFilters || query.isNotEmpty)
+                            TextButton(
+                              onPressed: _clearFilters,
+                              child: Text(
+                                'CLEAR FILTERS',
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: PinitColors.accent,
+                                  letterSpacing: 1.3,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   )
@@ -704,7 +884,7 @@ class _ListCard extends StatelessWidget {
                                       cuisine: true,
                                     ),
                                   ..._topVibeTags.map((entry) {
-                                    final style = _vibeStyles[entry.key];
+                                    final style = vibeStyles[entry.key];
                                     if (style == null) {
                                       return const SizedBox.shrink();
                                     }

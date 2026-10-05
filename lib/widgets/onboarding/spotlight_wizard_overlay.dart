@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
@@ -141,6 +142,7 @@ class _SpotlightWizardOverlayState extends State<SpotlightWizardOverlay> {
   }
 
   void _goNext() {
+    HapticFeedback.selectionClick();
     if (_index == widget.steps.length - 1) {
       widget.onCompleted();
       return;
@@ -606,7 +608,7 @@ class _StepBadge extends StatelessWidget {
   }
 }
 
-class _SpotlightBackdrop extends StatelessWidget {
+class _SpotlightBackdrop extends StatefulWidget {
   const _SpotlightBackdrop({
     required this.spotlightRect,
     required this.highlightShape,
@@ -616,8 +618,16 @@ class _SpotlightBackdrop extends StatelessWidget {
   final SpotlightHighlightShape highlightShape;
 
   @override
+  State<_SpotlightBackdrop> createState() => _SpotlightBackdropState();
+}
+
+class _SpotlightBackdropState extends State<_SpotlightBackdrop> {
+  // Last cutout, so the next one glides from it instead of popping in.
+  Rect? _lastRect;
+
+  @override
   Widget build(BuildContext context) {
-    final rect = spotlightRect;
+    final rect = widget.spotlightRect;
     if (rect == null) {
       return BackdropFilter(
         filter: ui.ImageFilter.blur(sigmaX: 7, sigmaY: 7),
@@ -628,26 +638,36 @@ class _SpotlightBackdrop extends StatelessWidget {
       );
     }
 
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        ClipPath(
-          clipper: _SpotlightOutsideClipper(
-            rect: rect,
-            highlightShape: highlightShape,
-          ),
-          child: BackdropFilter(
-            filter: ui.ImageFilter.blur(sigmaX: 7, sigmaY: 7),
-            child: const SizedBox.expand(),
-          ),
-        ),
-        CustomPaint(
-          painter: _SpotlightScrimPainter(
-            rect: rect,
-            highlightShape: highlightShape,
-          ),
-        ),
-      ],
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
+    return TweenAnimationBuilder<Rect?>(
+      tween: RectTween(begin: _lastRect ?? rect, end: rect),
+      duration: Duration(milliseconds: reduceMotion ? 0 : 350),
+      curve: Curves.easeOutCubic,
+      onEnd: () => _lastRect = rect,
+      builder: (context, animated, _) {
+        final current = animated ?? rect;
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            ClipPath(
+              clipper: _SpotlightOutsideClipper(
+                rect: current,
+                highlightShape: widget.highlightShape,
+              ),
+              child: BackdropFilter(
+                filter: ui.ImageFilter.blur(sigmaX: 7, sigmaY: 7),
+                child: const SizedBox.expand(),
+              ),
+            ),
+            CustomPaint(
+              painter: _SpotlightScrimPainter(
+                rect: current,
+                highlightShape: widget.highlightShape,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

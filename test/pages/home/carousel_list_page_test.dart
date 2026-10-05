@@ -61,4 +61,68 @@ void main() {
     expect(newestTop, lessThan(middleTop));
     expect(middleTop, lessThan(olderTop));
   });
+
+  LocationModel place({
+    required int id,
+    required String name,
+    required String cuisineKey,
+    double? lat = 51.5,
+  }) {
+    return LocationModel(
+      locationId: id,
+      name: name,
+      createdAt: DateTime(2026, 1, id),
+      cuisineKey: cuisineKey,
+      lat: lat,
+      lng: lat == null ? null : -0.1,
+    ).setPreference(LocationPreference.saved);
+  }
+
+  Widget page(List<LocationModel> locations) => MaterialApp(
+        home: CarouselListPage(
+          title: 'Your Saves',
+          listType: LocationListType.saved,
+          locations: locations,
+        ),
+      );
+
+  testWidgets('cuisine chips filter tiles and clear restores them',
+      (tester) async {
+    await tester.pumpWidget(page([
+      place(id: 1, name: 'Luigi', cuisineKey: 'italian'),
+      place(id: 2, name: 'Tokyo Bar', cuisineKey: 'japanese'),
+      place(id: 3, name: 'Nonna', cuisineKey: 'italian'),
+    ]));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Saved'), findsOneWidget);
+    expect(find.byType(LocationListCard), findsNWidgets(3));
+    expect(find.text('SEE ON MAP · 3'), findsOneWidget);
+
+    await tester.tap(find.text('Italian'));
+    await tester.pumpAndSettle();
+    expect(find.byType(LocationListCard), findsNWidgets(2));
+    expect(find.text('Tokyo Bar'), findsNothing);
+    expect(find.text('SEE ON MAP · 2'), findsOneWidget);
+
+    await tester.tap(find.text('CLEAR'));
+    await tester.pumpAndSettle();
+    expect(find.byType(LocationListCard), findsNWidgets(3));
+  });
+
+  testWidgets('searching matches cuisine and narrows the chip rail',
+      (tester) async {
+    await tester.pumpWidget(page([
+      place(id: 1, name: 'Luigi', cuisineKey: 'italian'),
+      place(id: 2, name: 'Tokyo Bar', cuisineKey: 'japanese'),
+    ]));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'japan');
+    await tester.pumpAndSettle();
+
+    expect(find.byType(LocationListCard), findsOneWidget);
+    expect(find.text('Tokyo Bar'), findsOneWidget);
+    expect(find.text('Italian'), findsNothing);
+  });
 }

@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:login/pages/profile/widgets/been_to_rankings_section.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/users.dart';
 import 'package:login/models/locations.dart';
@@ -26,6 +25,7 @@ import 'widgets/profile_completion_checklist_card.dart';
 import 'edit_profile_page.dart';
 import 'preferences_page.dart';
 import 'referrals_rewards_page.dart';
+import '../../utils/invite_share.dart';
 import 'other_user_profile_page.dart';
 import 'user_list_page.dart';
 import '../../widgets/profile/find_friends_section.dart';
@@ -922,13 +922,7 @@ class _ProfilePageState extends State<ProfilePage>
   }
 
   void _shareProfile(BuildContext context, UserModel user) {
-    const appStoreUrl =
-        'https://apps.apple.com/gb/app/pinit/id6762100292';
-    final referralCode = user.referralCode;
-    final message = referralCode != null
-        ? "I've got Pinit and I want to be your friend! 🍽️ Use my referral code $referralCode and we both get rewards! Join me on the app: $appStoreUrl"
-        : "I've got Pinit and I want to be your friend! 🍽️ Join me on the app: $appStoreUrl";
-    Share.share(message, subject: 'Join me on Pinit!');
+    InviteShare.share(referralCode: user.referralCode);
   }
 }
 

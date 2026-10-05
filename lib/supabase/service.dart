@@ -210,9 +210,17 @@ class SupabaseService extends ChangeNotifier {
     }
   }
 
+  /// Completes when an in-flight email sign-up (auth user + profile row) is
+  /// done. `auth.signUp` fires `signedIn` before `create_user_profile`
+  /// returns, so the auth listener waits on this to avoid creating the row
+  /// itself and mislabelling an email user as a new OAuth user.
+  Completer<void>? _signUpInFlight;
+
   Future<String> signUp(String email, String password,
       {String? name, String? username}) async {
     _setLoading(true);
+    final inFlight = Completer<void>();
+    _signUpInFlight = inFlight;
     try {
       UserModel user = await _authService.signUp(
           email: email, password: password, name: name, username: username);
@@ -224,6 +232,8 @@ class SupabaseService extends ChangeNotifier {
       _setError('Sign up failed: $e');
       return '';
     } finally {
+      if (identical(_signUpInFlight, inFlight)) _signUpInFlight = null;
+      if (!inFlight.isCompleted) inFlight.complete();
       _setLoading(false);
     }
   }
@@ -423,6 +433,11 @@ class SupabaseService extends ChangeNotifier {
             // creating the user record and caching the profile.
             _isHandlingSignedIn = true;
             try {
+              final signUpInFlight = _signUpInFlight;
+              if (signUpInFlight != null) {
+                await signUpInFlight.future
+                    .timeout(const Duration(seconds: 20), onTimeout: () {});
+              }
               // User just signed in - this is the ONLY place we call ensureUserRecordExists
               final isNewUser = await _authService.ensureUserRecordExists();
               print('Is user new: $isNewUser');

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:login/animations/common_animations.dart';
+import 'package:login/widgets/onboarding/onboarding_headline.dart';
 import 'package:provider/provider.dart';
 import '../../../models/signup_wizard_state.dart';
 import '../../../models/locations.dart';
@@ -158,18 +158,10 @@ class _VibeStepState extends State<VibeStep> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Small textbox-like hint area
-                  TypingText(
+                  OnboardingHeadline(
                     text:
                         'Pick two who you relate to most. (hold for more info)',
-                    style: const TextStyle(
-                      fontFamily: 'Rova',
-                      fontFamilyFallback: ['Naria'],
-                      fontSize: 20,
-                      fontWeight: FontWeight.w100,
-                      color: PinitColors.aubergine,
-                      letterSpacing: 1.5,
-                    ),
-                    totalDuration: const Duration(milliseconds: 2200),
+                    fontSize: 24,
                   ),
 
                   const SizedBox(height: 12),

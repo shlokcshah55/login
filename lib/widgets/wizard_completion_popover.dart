@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:login/animations/common_animations.dart';
+import 'package:login/widgets/onboarding/onboarding_headline.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 
 /// Bold, energetic popover that prompts users to complete their profile wizard
@@ -84,18 +84,10 @@ class _WizardCompletionPopoverState extends State<WizardCompletionPopover>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     // Typing title animation
-                    TypingText(
+                    OnboardingHeadline(
                       text: 'Give us some more...',
-                      totalDuration: const Duration(milliseconds: 800),
-                      style: TextStyle(
-                        fontFamily: 'Rova',
-                        fontFamilyFallback: ['Naria'],
-                        fontSize: 28,
-                        fontWeight: FontWeight.w100,
-                        color: PinitColors.cream,
-                        letterSpacing: 1.7,
-                        height: 1.05,
-                      ),
+                      fontSize: 28,
+                      color: PinitColors.cream,
                     ),
                     const SizedBox(height: 20),
 

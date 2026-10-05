@@ -62,6 +62,9 @@ Rova is used for anything that needs editorial weight, with Naria only as its gl
 | `label` | DM Sans | 11 | 1.0 | w600 | +`fontSize × 0.12` (UPPERCASE) | Section headers ("NEARBY", "YOUR BUBBLES"). The signature move. |
 | `micro` | DM Sans | 10 | 1.0 | w700 | +0.4 (UPPERCASE) | Tag text, badge text, chip labels |
 
+### Onboarding prompts (exception)
+Rova ships a single weight, so `w100` prompts render hairline-thin and are hard to read. Sign-up and onboarding prompts and headlines use **Manrope ExtraBold (w800, letterSpacing about -0.2)** via `OnboardingHeadline` (`lib/widgets/onboarding/onboarding_headline.dart`). They appear instantly (short fade/slide), never as a typing animation. Rova stays for brand moments elsewhere.
+
 ### In-code examples
 
 ```dart

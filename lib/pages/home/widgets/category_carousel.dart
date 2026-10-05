@@ -60,9 +60,9 @@ class _CategoryCarouselState extends State<CategoryCarousel>
     for (var i = 0; i < categories.length; i++) {
       final category = categories[i];
       if (i > 0 && categories[i - 1].kind != category.kind) {
-        items.add(const _GroupDot());
+        items.add(const CategoryGroupDot());
       }
-      items.add(_CategoryChip(
+      items.add(CategoryChip(
         category: category,
         onTap: () => widget.onCategorySelected(category),
       ));
@@ -128,17 +128,29 @@ class _CategoryCarouselState extends State<CategoryCarousel>
   }
 }
 
-class _CategoryChip extends StatefulWidget {
+class CategoryChip extends StatefulWidget {
   final HomeCategory category;
   final VoidCallback onTap;
 
-  const _CategoryChip({required this.category, required this.onTap});
+  /// Filled aubergine state, for chips used as toggles (See All filters).
+  final bool selected;
+
+  /// Replaces the kind-derived meta line when set.
+  final String? meta;
+
+  const CategoryChip({
+    super.key,
+    required this.category,
+    required this.onTap,
+    this.selected = false,
+    this.meta,
+  });
 
   @override
-  State<_CategoryChip> createState() => _CategoryChipState();
+  State<CategoryChip> createState() => _CategoryChipState();
 }
 
-class _CategoryChipState extends State<_CategoryChip> {
+class _CategoryChipState extends State<CategoryChip> {
   bool _pressed = false;
 
   void _setPressed(bool value) {
@@ -146,6 +158,7 @@ class _CategoryChipState extends State<_CategoryChip> {
   }
 
   String get _meta {
+    if (widget.meta != null) return widget.meta!;
     final count = widget.category.count;
     final area = widget.category.areaLabel;
     return switch (widget.category.kind) {
@@ -194,11 +207,18 @@ class _CategoryChipState extends State<_CategoryChip> {
             padding: const EdgeInsets.only(left: 7, right: 18),
             decoration: BoxDecoration(
               // The user's own lists sit one step deeper in the cream family.
-              color: _pressed
-                  ? PinitColors.creamDeep
-                  : (isOwnList ? PinitColors.creamSunk : PinitColors.cream),
+              color: widget.selected
+                  ? PinitColors.aubergine
+                  : _pressed
+                      ? PinitColors.creamDeep
+                      : (isOwnList ? PinitColors.creamSunk : PinitColors.cream),
               borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: PinitColors.creamDeep, width: 1.5),
+              border: Border.all(
+                color: widget.selected
+                    ? PinitColors.aubergine
+                    : PinitColors.creamDeep,
+                width: 1.5,
+              ),
               boxShadow: _pressed
                   ? const [
                       BoxShadow(
@@ -241,7 +261,9 @@ class _CategoryChipState extends State<_CategoryChip> {
                         overflow: TextOverflow.ellipsis,
                         style: AppTypography.brand(
                           fontSize: 16,
-                          color: PinitColors.aubergine,
+                          color: widget.selected
+                              ? PinitColors.cream
+                              : PinitColors.aubergine,
                           height: 1.0,
                           letterSpacing: 0.2,
                         ),
@@ -253,7 +275,9 @@ class _CategoryChipState extends State<_CategoryChip> {
                         style: GoogleFonts.dmSans(
                           fontSize: 9.5,
                           fontWeight: FontWeight.w700,
-                          color: PinitColors.mute,
+                          color: widget.selected
+                              ? PinitColors.cream.withValues(alpha: 0.7)
+                              : PinitColors.mute,
                           letterSpacing: 0.9,
                           height: 1.0,
                           fontFeatures: const [FontFeature.tabularFigures()],
@@ -393,8 +417,8 @@ class _SeeAllChipState extends State<_SeeAllChip> {
 }
 
 /// A quiet 4px dot between groups (cuisines · bubbles · lists · vibes · sources).
-class _GroupDot extends StatelessWidget {
-  const _GroupDot();
+class CategoryGroupDot extends StatelessWidget {
+  const CategoryGroupDot({super.key});
 
   @override
   Widget build(BuildContext context) {

@@ -339,6 +339,42 @@ class HomeViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Whether See All should open on the user's saves rather than picks while
+  /// on the category stage: follow the mode, but never open an empty list
+  /// when the other one has places.
+  bool get seeAllOpensSaved {
+    final hasSaved = locationListManager.savedLocations.isNotEmpty;
+    final hasPicks = locationListManager.recommendedLocations.isNotEmpty;
+    return homeMode == HomeMode.you
+        ? hasSaved || !hasPicks
+        : !hasPicks && hasSaved;
+  }
+
+  /// True when See All has something to list. On the category stage the map
+  /// shows a saves+picks overview that is empty until built, so [locations]
+  /// alone would hide the chip.
+  bool get canOpenSeeAll =>
+      locations.isNotEmpty ||
+      locationListManager.savedLocations.isNotEmpty ||
+      locationListManager.recommendedLocations.isNotEmpty;
+
+  /// Focus the home carousel and map on an arbitrary [locations] list (e.g.
+  /// the See All filters), labelled [label] in the focused header.
+  Future<void> openLocations(
+    List<LocationModel> locations, {
+    required String label,
+  }) {
+    return openCategory(
+      HomeCategory(
+        kind: HomeCategoryKind.source,
+        id: 'see_all_filtered',
+        label: label,
+        count: locations.length,
+        resolve: () async => locations,
+      ),
+    );
+  }
+
   /// Return from the focused carousel to the category tiles.
   void closeCategory() {
     if (_browseStage == HomeBrowseStage.categories) return;

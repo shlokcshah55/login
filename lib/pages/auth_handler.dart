@@ -13,6 +13,7 @@ import 'package:login/providers/user_data_provider.dart';
 import 'package:login/services/analytics_service.dart';
 import 'package:login/services/startup_cache/startup_cache_coordinator.dart';
 import 'package:login/services/startup_cache/startup_timing.dart';
+import 'package:login/services/onboarding_resume_service.dart';
 import 'package:login/widgets/launch_splash_body.dart';
 import 'package:login/widgets/startup_cache_status_banner.dart';
 import 'package:provider/provider.dart';
@@ -58,6 +59,7 @@ class _AuthHandlerState extends State<AuthHandler> {
   bool _logoutCleanupScheduled = false;
   bool _hasCleanedLoggedOutState = false;
   bool _wizardCompletionRouteScheduled = false;
+  bool _onboardingResumeChecked = false;
   String? _legalConsentCheckedUserId;
   bool? _hasAcceptedLegalConsent;
   UserDataProvider? _observedUserDataProvider;
@@ -479,6 +481,20 @@ class _AuthHandlerState extends State<AuthHandler> {
         );
   }
 
+  /// An email user who created an account but quit mid-onboarding is not
+  /// covered by `pendingOAuthWizardRouting` (in-memory, OAuth only). Re-open
+  /// the onboarding steps once on the next launch; if they abandon again the
+  /// existing home popover is the fallback.
+  void _scheduleOnboardingResumeIfNeeded(String? userId) {
+    if (_onboardingResumeChecked || userId == null) return;
+    _onboardingResumeChecked = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final resume = await OnboardingResumeService().consume(userId);
+      if (!mounted || !resume) return;
+      _scheduleWizardCompletionRoute();
+    });
+  }
+
   void _scheduleWizardCompletionRoute() {
     if (_wizardCompletionRouteScheduled) return;
     _wizardCompletionRouteScheduled = true;
@@ -599,6 +615,10 @@ class _AuthHandlerState extends State<AuthHandler> {
           if (shouldPresentWizard) {
             _scheduleWizardCompletionRoute();
             return const LaunchSplashBody();
+          }
+
+          if (userProfile != null && !userProfile.wizardCompleted) {
+            _scheduleOnboardingResumeIfNeeded(userProfile.supabaseId);
           }
 
           if (!_hasReportedFirstUsableHome) {

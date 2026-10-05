@@ -1,18 +1,16 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/signup_wizard_state.dart';
-import '../../providers/user_data_provider.dart';
-import '../../services/what_we_do_wizard_service.dart';
-import '../../supabase/service.dart';
-import '../../supabase/constants.dart';
-import '../../widgets/feedback/app_feedback.dart';
-import '../auth_handler.dart';
+import '../../services/onboarding_analytics.dart';
+import '../../services/onboarding_resume_service.dart';
 import '../profile/widgets/pinit_colors.dart';
 import 'account_step.dart';
-import 'steps/dietary_step.dart';
+import 'onboarding_flow.dart';
+import 'signup_intro_video_page.dart';
 
+/// Email sign-up: intro video -> account -> onboarding flow (first save,
+/// make it yours, bubble + invite). Google/Apple users skip the first two and
+/// enter the same [OnboardingFlow] through `WizardCompletionPage`.
 class SignupWizardPage extends StatelessWidget {
   const SignupWizardPage({super.key});
 
@@ -34,8 +32,17 @@ class _SignupWizardContent extends StatefulWidget {
 
 class _SignupWizardContentState extends State<_SignupWizardContent> {
   final PageController _pageController = PageController();
+  final OnboardingAnalytics _analytics = OnboardingAnalytics(flow: 'email');
   int _currentStep = 0;
-  bool _isCompletingWizard = false;
+
+  static const int _accountPage = 1;
+  static const int _flowPage = 2;
+
+  @override
+  void initState() {
+    super.initState();
+    _analytics.viewed(OnboardingStep.introVideo);
+  }
 
   @override
   void dispose() {
@@ -43,108 +50,29 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
     super.dispose();
   }
 
-  void _nextStep() {
-    if (_currentStep < 1) {
-      _pageController.nextPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    }
+  void _goTo(int page) {
+    _pageController.animateToPage(
+      page,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
   }
 
-  void _previousStep() {
-    if (_currentStep > 0) {
-      _pageController.previousPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    }
+  void _onIntroDone() {
+    _analytics.completed(OnboardingStep.introVideo);
+    _analytics.viewed(OnboardingStep.account);
+    _goTo(_accountPage);
   }
 
-  Future<void> _completeWizard() async {
-    setState(() {
-      _isCompletingWizard = true;
-    });
-    try {
-      // Use this.context from the State class, not the build method's context
-      final wizardState =
-          Provider.of<SignupWizardState>(this.context, listen: false);
-      final supabase =
-          Provider.of<SupabaseService>(this.context, listen: false);
-
-      // Validate required data
-      if (wizardState.userId == null) {
-        throw Exception('User ID is required to complete wizard');
-      }
-
-      // Step 1: Atomically mark the wizard complete + persist spice
-      // tolerance + seed dietary tag affinities. Vibe tags were already
-      // initialized on account creation; no additional onboarding steps.
-      await supabase.users.finalizeSignupWizard(
-        wizardState.userId!,
-        spiceTolerance: wizardState.spiceTolerance,
-        dietaryTagIds: wizardState.selectedDietaryTagIds,
-      );
-
-      // Step 2: Persist place actions in parallel. Collect failures instead
-      // of aborting the batch — a single flaky RPC shouldn't block completion.
-      final failures = <String>[];
-      Future<void> guard(String label, Future<dynamic> fut) =>
-          fut.then((_) {}).catchError((e) {
-            failures.add('$label: $e');
-          });
-
-      await Future.wait([
-        for (final id in wizardState.addedLocationIds)
-          guard(
-            'save $id',
-            supabase.locations.saveLocation(
-              id,
-              savedMethod: SupabaseConstants.savedMethodInApp,
-            ),
-          ),
-        for (final id in wizardState.beenToLocationIds)
-          guard('been-to $id', supabase.reviews.markBeenTo(locationId: id)),
-      ]);
-
-      if (failures.isNotEmpty && mounted) {
-        await AppFeedback.showError(
-          this.context,
-          title: 'Not everything saved',
-          message:
-              '${failures.length} place(s) didn\'t save — you can add them later.',
-        );
-      }
-
-      // wizard_completed already flipped by finalizeSignupWizard above.
-      if (mounted) {
-        this.context.read<UserDataProvider>().setWizardCompleted(true);
-      }
-
-      await WhatWeDoWizardService().markPending();
-
-      // Step 4: Navigate to main app
-      if (mounted) {
-        Navigator.of(this.context).pushAndRemoveUntil(
-          MaterialPageRoute(
-            builder: (context) => const AuthHandler(),
-          ),
-          (route) => false,
-        );
-      }
-    } catch (e) {
-      setState(() {
-        _isCompletingWizard = false;
-      });
-      if (mounted) {
-        await AppFeedback.showError(
-          this.context,
-          title: 'Setup failed',
-          message: 'We’re working hard to fix this — sorry.',
-        );
-      }
+  void _onAccountCreated() {
+    final userId = context.read<SignupWizardState>().userId;
+    _analytics.completed(OnboardingStep.account);
+    _analytics.markAccountCreated();
+    if (userId != null) {
+      // If the app is closed mid-onboarding, resume once on next launch.
+      OnboardingResumeService().markInProgress(userId);
     }
-    // Note: Don't set _isCompletingWizard = false on success since we're navigating away
+    _goTo(_flowPage);
   }
 
   @override
@@ -152,77 +80,23 @@ class _SignupWizardContentState extends State<_SignupWizardContent> {
     return Scaffold(
       backgroundColor: PinitColors.surfaceLight,
       body: SafeArea(
+        // The intro video (step 0) is full-bleed and handles its own insets;
+        // the onboarding steps handle theirs too.
+        top: _currentStep == _accountPage,
+        bottom: _currentStep == _accountPage,
         child: Material(
           color: PinitColors.surfaceLight,
-          child: Column(
+          child: PageView(
+            controller: _pageController,
+            physics: const NeverScrollableScrollPhysics(),
+            onPageChanged: (index) => setState(() => _currentStep = index),
             children: [
-              //   // Progress Indicator
-              //   Padding(
-              //     padding:
-              //         const EdgeInsets.symmetric(horizontal: 24.0, vertical: 5),
-              //     child: Column(
-              //       crossAxisAlignment: CrossAxisAlignment.start,
-              //       children: [
-              //         Text(
-              //           _stepTitles[_currentStep],
-              //           style: const TextStyle(
-              //             fontFamily: 'Rova',
-              //             fontSize: 32,
-              //             fontWeight: FontWeight.w100,
-              //             color: PinitColors.aubergine,
-              //             letterSpacing: 1.5,
-              //           ),
-              //         ),
-              //         const SizedBox(height: 12),
-              //         // Progress bar
-              //         Container(
-              //           height: 12,
-              //           decoration: BoxDecoration(
-              //             color: PinitColors.creamDeep,
-              //             borderRadius: BorderRadius.circular(4),
-              //           ),
-              //           child: LayoutBuilder(
-              //             builder: (context, constraints) {
-              //               return AnimatedContainer(
-              //                 duration: const Duration(milliseconds: 400),
-              //                 curve: Curves.easeOutQuint,
-              //                 width: constraints.maxWidth * _calculateProgress(),
-              //                 decoration: BoxDecoration(
-              //                   color: PinitColors.accent,
-              //                   borderRadius: BorderRadius.circular(4),
-              //                 ),
-              //               );
-              //             },
-              //           ),
-              //         ),
-              //       ],
-              //     ),
-              //   ),
-              // Page Content
-              Expanded(
-                child: PageView(
-                  controller: _pageController,
-                  physics:
-                      const NeverScrollableScrollPhysics(), // Disable swipe, use buttons
-                  onPageChanged: (index) {
-                    setState(() {
-                      _currentStep = index;
-                    });
-                  },
-                  children: [
-                    AccountStep(
-                      onNext: _nextStep,
-                    ),
-                    DietaryStep(
-                      onNext: () {
-                        if (_isCompletingWizard) return;
-                        unawaited(_completeWizard());
-                      },
-                      onBack: _previousStep,
-                    ),
-                  ],
-                ),
+              SignupIntroVideoPage(
+                onContinue: _onIntroDone,
+                onSkipped: () => _analytics.skipped(OnboardingStep.introVideo),
               ),
+              AccountStep(onNext: _onAccountCreated),
+              OnboardingFlow(analytics: _analytics),
             ],
           ),
         ),

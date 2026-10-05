@@ -11,10 +11,15 @@ class DietaryStep extends StatefulWidget {
   final VoidCallback onNext;
   final VoidCallback onBack;
 
+  /// Renders only the preferences content (no page chrome or navigation
+  /// buttons) so it can sit inside another scrolling screen.
+  final bool embedded;
+
   const DietaryStep({
     super.key,
     required this.onNext,
     required this.onBack,
+    this.embedded = false,
   });
 
   @override
@@ -62,6 +67,9 @@ class _DietaryStepState extends State<DietaryStep> {
     }
   }
 
+  Widget _maybeExpanded({required Widget child}) =>
+      widget.embedded ? child : Expanded(child: child);
+
   @override
   Widget build(BuildContext context) {
     // Need to listen to wizardState to rebuild when tags are selected/deselected
@@ -71,7 +79,7 @@ class _DietaryStepState extends State<DietaryStep> {
       color: PinitColors.surfaceLight,
       child: Column(
         children: [
-          Expanded(
+          _maybeExpanded(
             child: _isLoading
                 ? const Center(child: LoadingWidget())
                 : _error != null
@@ -111,12 +119,11 @@ class _DietaryStepState extends State<DietaryStep> {
                                       const SizedBox(height: 4),
                                       Text('Which of these apply to you?',
                                           style: TextStyle(
-                                              fontFamily: 'Rova',
-                                              fontFamilyFallback: ['Naria'],
+                                              fontFamily: 'Manrope',
                                               fontSize: 20,
-                                              fontWeight: FontWeight.w100,
+                                              fontWeight: FontWeight.w800,
                                               color: PinitColors.aubergine,
-                                              letterSpacing: 1.5,
+                                              letterSpacing: -0.2,
                                               height: 1.1)),
                                     ],
                                   ),
@@ -193,14 +200,15 @@ class _DietaryStepState extends State<DietaryStep> {
                             ),
                             const SizedBox(height: 20),
 
-                            Padding(
-                              padding: const EdgeInsets.only(left: 22.0),
-                              child: SvgPicture.asset(
-                                'lib/assets/illustrations/Foodies - Noodle Soup.svg',
-                                width: 170,
-                                height: 170,
+                            if (!widget.embedded)
+                              Padding(
+                                padding: const EdgeInsets.only(left: 22.0),
+                                child: SvgPicture.asset(
+                                  'lib/assets/illustrations/Foodies - Noodle Soup.svg',
+                                  width: 170,
+                                  height: 170,
+                                ),
                               ),
-                            ),
 
                             const SizedBox(height: 20),
 
@@ -208,12 +216,11 @@ class _DietaryStepState extends State<DietaryStep> {
                             const Text(
                               'How much spice can you handle...',
                               style: TextStyle(
-                                fontFamily: 'Rova',
-                                fontFamilyFallback: ['Naria'],
+                                fontFamily: 'Manrope',
                                 fontSize: 24,
-                                fontWeight: FontWeight.w100,
+                                fontWeight: FontWeight.w800,
                                 color: PinitColors.aubergine,
-                                letterSpacing: 1.8,
+                                letterSpacing: -0.2,
                               ),
                             ),
                             const SizedBox(height: 20),
@@ -301,72 +308,73 @@ class _DietaryStepState extends State<DietaryStep> {
           ),
 
           // Navigation buttons
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: PinitColors.surfaceLight,
-              boxShadow: [
-                BoxShadow(
-                  color: PinitColors.aubergine.withValues(alpha: 0.06),
-                  blurRadius: 10,
-                  offset: const Offset(0, -2),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                // Back button
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: widget.onBack,
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      side: const BorderSide(
-                        color: PinitColors.aubergine,
-                        width: 1.5,
+          if (!widget.embedded)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: PinitColors.surfaceLight,
+                boxShadow: [
+                  BoxShadow(
+                    color: PinitColors.aubergine.withValues(alpha: 0.06),
+                    blurRadius: 10,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  // Back button
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: widget.onBack,
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        side: const BorderSide(
+                          color: PinitColors.aubergine,
+                          width: 1.5,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
                       ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                    ),
-                    child: Text(
-                      'Back',
-                      style: GoogleFonts.dmSans(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: PinitColors.aubergine,
+                      child: Text(
+                        'Back',
+                        style: GoogleFonts.dmSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: PinitColors.aubergine,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                // Next button
-                Expanded(
-                  flex: 2,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : widget.onNext,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      backgroundColor: PinitColors.aubergine,
-                      foregroundColor: PinitColors.cream,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
+                  const SizedBox(width: 12),
+                  // Next button
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : widget.onNext,
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        backgroundColor: PinitColors.aubergine,
+                        foregroundColor: PinitColors.cream,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
                       ),
-                    ),
-                    child: Text(
-                      'Continue',
-                      style: GoogleFonts.dmSans(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.5,
+                      child: Text(
+                        'Continue',
+                        style: GoogleFonts.dmSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.5,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
         ],
       ),
     );

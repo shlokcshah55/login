@@ -1,1315 +1,919 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
-import '../../animations/animation_builders.dart';
-import '../../animations/common_animations.dart';
-import '../../animations/animation_constants.dart';
+
 import '../../models/signup_wizard_state.dart';
 import '../../supabase/service.dart';
 import '../../widgets/auth/legal_consent_section.dart';
 import '../../widgets/loading_widget.dart';
-import '../../widgets/profile/profile_photo_selector.dart';
+import '../../widgets/onboarding/onboarding_headline.dart';
 import '../profile/widgets/pinit_colors.dart';
 
+/// Account creation as a single form: name, username, email, password and the
+/// legal consent, with an optional photo. Everything is validated inline (the
+/// username live), then one tap creates the account.
 class AccountStep extends StatefulWidget {
   final VoidCallback onNext;
-  final Function(int)? onSubStepChanged;
 
-  const AccountStep({
-    super.key,
-    required this.onNext,
-    this.onSubStepChanged,
-  });
+  const AccountStep({super.key, required this.onNext});
 
   @override
   State<AccountStep> createState() => _AccountStepState();
 }
 
+enum _Field { name, username, email, password, consent, form }
+
+enum _UsernameStatus { idle, checking, available, taken }
+
 class _AccountStepState extends State<AccountStep>
-    with TickerProviderStateMixin {
-  final PageController _pageController = PageController();
-  int _currentSubStep = 0;
+    with SingleTickerProviderStateMixin {
+  static final RegExp _emailPattern =
+      RegExp(r'^[\w\-.+]+@([\w-]+\.)+[\w-]{2,}$');
+  static const Duration _usernameDebounce = Duration(milliseconds: 450);
 
-  // Form controllers
-  final TextEditingController nameController = TextEditingController();
-  final TextEditingController usernameController = TextEditingController();
-  final TextEditingController emailController = TextEditingController();
-  final TextEditingController passwordController = TextEditingController();
-  final TextEditingController confirmPasswordController =
-      TextEditingController();
+  final _name = TextEditingController();
+  final _username = TextEditingController();
+  final _email = TextEditingController();
+  final _password = TextEditingController();
 
-  // Focus nodes for fields (keep keyboard open and control focus)
-  late FocusNode nameFocusNode;
-  late FocusNode emailFocusNode;
-  late FocusNode passwordFocusNode;
-  late FocusNode usernameFocusNode;
+  final _nameFocus = FocusNode();
+  final _usernameFocus = FocusNode();
+  final _emailFocus = FocusNode();
+  final _passwordFocus = FocusNode();
 
-  // Profile picture state
-  File? _selectedProfileImage;
-  late AnimationController _transitionController;
+  late final AnimationController _entrance;
+  Timer? _usernameTimer;
 
-  // Error handling
-  final ValueNotifier<String?> errorNotifier = ValueNotifier<String?>(null);
-  bool isLoading = false;
-  bool _isPasswordVisible = false;
-  bool _isConfirmPasswordVisible = false;
-  bool _legalConsentChecked = false;
+  final Map<_Field, String?> _errors = {};
+  _UsernameStatus _usernameStatus = _UsernameStatus.idle;
+  // The suggestion follows the name until the user edits the username.
+  bool _usernameEdited = false;
+  bool _passwordVisible = false;
+  bool _consent = false;
+  bool _submitting = false;
+  File? _photo;
 
   @override
   void initState() {
     super.initState();
-    _initializeAnimations();
-
-    // initialize focus nodes
-    nameFocusNode = FocusNode();
-    emailFocusNode = FocusNode();
-    passwordFocusNode = FocusNode();
-    usernameFocusNode = FocusNode();
-
-    // Notify parent of initial sub-step and focus first field after mount
+    _entrance = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    )..forward();
+    _name.addListener(_suggestUsername);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      widget.onSubStepChanged?.call(_currentSubStep + 1);
-      _focusCurrentField();
+      if (mounted) _nameFocus.requestFocus();
     });
-  }
-
-  Future<bool> _ensureLegalConsentAccepted() async {
-    if (!_legalConsentChecked) {
-      errorNotifier.value =
-          'Please agree to the Terms and Conditions and Privacy Policy.';
-      return false;
-    }
-
-    errorNotifier.value = null;
-    return true;
   }
 
   @override
   void dispose() {
-    _pageController.dispose();
-    _transitionController.dispose();
-    nameController.dispose();
-    emailController.dispose();
-    passwordController.dispose();
-    confirmPasswordController.dispose();
-    errorNotifier.dispose();
-    nameFocusNode.dispose();
-    emailFocusNode.dispose();
-    passwordFocusNode.dispose();
-    usernameFocusNode.dispose();
-    usernameController.dispose();
+    _usernameTimer?.cancel();
+    _entrance.dispose();
+    for (final c in [_name, _username, _email, _password]) {
+      c.dispose();
+    }
+    for (final f in [_nameFocus, _usernameFocus, _emailFocus, _passwordFocus]) {
+      f.dispose();
+    }
     super.dispose();
   }
 
-  void _initializeAnimations() {
-    _transitionController = AnimationController(
-      duration: AnimationDurations.signupTransition,
-      vsync: this,
-    );
-    _transitionController.forward();
+  // ───────────────────────── Validation ─────────────────────────
+
+  void _setError(_Field field, String? message) {
+    if (_errors[field] == message) return;
+    setState(() => _errors[field] = message);
   }
 
-  Widget _buildAnimatedSubStep({required Widget child}) {
-    return AnimatedBuilder(
-      animation: _transitionController,
-      builder: (context, child) {
-        return Transform.rotate(
-          angle:
-              AnimationBuilders.createRotationAnimation(_transitionController)
-                  .value,
-          child: Transform.translate(
-            offset: Offset(
-              0,
-              AnimationBuilders.createMainSlideAnimation(_transitionController)
-                      .value
-                      .dy *
-                  MediaQuery.of(context).size.height,
-            ),
-            child: Opacity(
-              opacity:
-                  AnimationBuilders.createFadeAnimation(_transitionController)
-                      .value,
-              child: Transform.scale(
-                scale: AnimationBuilders.createScaleAnimation(
-                        _transitionController)
-                    .value,
-                child: child,
-              ),
-            ),
-          ),
-        );
-      },
-      child: child,
-    );
+  void _suggestUsername() {
+    if (_usernameEdited) return;
+    final slug = _name.text
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]'), '');
+    final suggestion = slug.length > 18 ? slug.substring(0, 18) : slug;
+    if (_username.text != suggestion) {
+      _username.text = suggestion;
+      _queueUsernameCheck();
+    }
   }
 
-  Future<bool> _validateUserName() async {
-    final username = usernameController.text.trim();
-    if (username.isEmpty) {
-      errorNotifier.value = 'Username cannot be empty';
-      return false;
-    }
-
-    if (username.length < 3) {
-      errorNotifier.value = 'Username must be at least 3 characters';
-      return false;
-    }
-
-    final _supabaseService =
-        Provider.of<SupabaseService>(context, listen: false);
-
-    if (await _supabaseService.users.usernameExists(username) == true) {
-      errorNotifier.value = 'Username is already in use, please choose another';
-      return false;
-    }
-
-    // Clear any errors
-    errorNotifier.value = null;
-    return true;
-  }
-
-  bool _validateName() {
-    final name = nameController.text.trim();
-    if (name.isEmpty) {
-      errorNotifier.value = 'Name cannot be empty';
-      return false;
-    }
-
-    if (name.length < 2) {
-      errorNotifier.value = 'Name must be at least 2 characters';
-      return false;
-    }
-
-    // Clear any errors
-    errorNotifier.value = null;
-    return true;
-  }
-
-  Future<bool> _validateEmail() async {
-    if (emailController.text.isEmpty) {
-      errorNotifier.value = 'Email cannot be empty';
-      return false;
-    }
-
-    final _supabaseService =
-        Provider.of<SupabaseService>(context, listen: false);
-
-    if (await _supabaseService.users.emailExists(emailController.text) ==
-        true) {
-      errorNotifier.value = 'Email is already in use, please sign in';
-      return false;
-    }
-
-    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-        .hasMatch(emailController.text)) {
-      errorNotifier.value = 'Please enter a valid email';
-      return false;
-    }
-
-    errorNotifier.value = null;
-    return true;
-  }
-
-  bool _validatePassword() {
-    if (passwordController.text.isEmpty) {
-      errorNotifier.value = 'Password cannot be empty';
-      return false;
-    }
-
-    if (passwordController.text.length < 6) {
-      errorNotifier.value = 'Password must be at least 6 characters';
-      return false;
-    }
-
-    if (passwordController.text != confirmPasswordController.text) {
-      errorNotifier.value = 'Passwords do not match';
-      return false;
-    }
-
-    errorNotifier.value = null;
-    return true;
-  }
-
-  Future<void> _advanceToNextSubStep() async {
-    print(
-        '⏭️ [ADVANCE] Moving from step $_currentSubStep to ${_currentSubStep + 1}');
-
-    // Reverse animation
-    await _transitionController.reverse();
-
-    // Move to next sub-step
-    setState(() => _currentSubStep++);
-    print('⏭️ [ADVANCE] Now at step $_currentSubStep');
-
-    await _pageController.animateToPage(
-      _currentSubStep,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-    );
-
-    // Forward animation for new step
-    await _transitionController.forward();
-
-    // Focus the appropriate field for the newly shown sub-step
-    print('⏭️ [ADVANCE] Calling _focusCurrentField for step $_currentSubStep');
-    _focusCurrentField();
-
-    // Notify parent of progress
-    widget.onSubStepChanged?.call(_currentSubStep + 1);
-  }
-
-  Future<void> _createAccountAndAdvance() async {
-    if (!_validatePassword()) {
-      print('❌ [CREATE_ACCOUNT] Password validation failed');
+  void _queueUsernameCheck() {
+    _usernameTimer?.cancel();
+    final value = _username.text.trim();
+    if (value.length < 3) {
+      setState(() {
+        _usernameStatus = _UsernameStatus.idle;
+        _errors[_Field.username] = null;
+      });
       return;
     }
+    setState(() {
+      _usernameStatus = _UsernameStatus.checking;
+      _errors[_Field.username] = null;
+    });
+    _usernameTimer = Timer(_usernameDebounce, () async {
+      final taken = await _usernameTaken(value);
+      if (!mounted || _username.text.trim() != value) return;
+      setState(() {
+        _usernameStatus =
+            taken ? _UsernameStatus.taken : _UsernameStatus.available;
+        _errors[_Field.username] =
+            taken ? 'That username is taken, try another' : null;
+      });
+    });
+  }
 
-    if (!await _ensureLegalConsentAccepted()) {
-      print('❌ [CREATE_ACCOUNT] Legal consent not accepted');
+  Future<bool> _usernameTaken(String value) async {
+    try {
+      final supabase = context.read<SupabaseService>();
+      return await supabase.users.usernameExists(value) == true;
+    } catch (_) {
+      // A failed lookup must not block sign-up; the server enforces it.
+      return false;
+    }
+  }
+
+  Future<bool> _emailTaken(String value) async {
+    try {
+      final supabase = context.read<SupabaseService>();
+      return await supabase.users.emailExists(value) == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  String? _nameError() {
+    final name = _name.text.trim();
+    if (name.isEmpty) return 'Tell us what to call you';
+    if (name.length < 2) return 'Name must be at least 2 characters';
+    return null;
+  }
+
+  String? _usernameFormatError() {
+    final value = _username.text.trim();
+    if (value.isEmpty) return 'Pick a username';
+    if (value.length < 3) return 'At least 3 characters';
+    return null;
+  }
+
+  String? _emailFormatError() {
+    final value = _email.text.trim();
+    if (value.isEmpty) return 'Enter your email';
+    if (!_emailPattern.hasMatch(value)) return 'That email doesn’t look right';
+    return null;
+  }
+
+  String? _passwordError() {
+    if (_password.text.isEmpty) return 'Choose a password';
+    if (_password.text.length < 6) return 'At least 6 characters';
+    return null;
+  }
+
+  Future<void> _checkEmailOnBlur() async {
+    final formatError = _emailFormatError();
+    if (_email.text.trim().isEmpty) return;
+    if (formatError != null) {
+      _setError(_Field.email, formatError);
       return;
     }
+    final taken = await _emailTaken(_email.text.trim());
+    if (!mounted) return;
+    _setError(_Field.email, taken ? 'That email already has an account' : null);
+  }
 
-    setState(() => isLoading = true);
-    errorNotifier.value = null;
+  /// Validates everything at once and focuses the first problem.
+  Future<bool> _validateAll() async {
+    final name = _nameError();
+    final usernameFormat = _usernameFormatError();
+    final emailFormat = _emailFormatError();
+    final password = _passwordError();
+
+    final results = await Future.wait<bool>([
+      if (usernameFormat == null) _usernameTaken(_username.text.trim()),
+      if (emailFormat == null) _emailTaken(_email.text.trim()),
+    ]);
+    var i = 0;
+    final usernameTaken = usernameFormat == null ? results[i++] : false;
+    final emailTaken = emailFormat == null ? results[i++] : false;
+    if (!mounted) return false;
+
+    final errors = <_Field, String?>{
+      _Field.name: name,
+      _Field.username: usernameFormat ??
+          (usernameTaken ? 'That username is taken, try another' : null),
+      _Field.email: emailFormat ??
+          (emailTaken ? 'That email already has an account' : null),
+      _Field.password: password,
+      _Field.consent:
+          _consent ? null : 'Please agree to the Terms and Privacy Policy',
+      _Field.form: null,
+    };
+    setState(() {
+      _errors
+        ..clear()
+        ..addAll(errors);
+      if (usernameFormat == null) {
+        _usernameStatus =
+            usernameTaken ? _UsernameStatus.taken : _UsernameStatus.available;
+      }
+    });
+
+    final firstBad = [
+      (_Field.name, _nameFocus),
+      (_Field.username, _usernameFocus),
+      (_Field.email, _emailFocus),
+      (_Field.password, _passwordFocus),
+    ].where((e) => errors[e.$1] != null).map((e) => e.$2).firstOrNull;
+    if (firstBad != null) {
+      HapticFeedback.lightImpact();
+      firstBad.requestFocus();
+    } else if (errors[_Field.consent] != null) {
+      HapticFeedback.lightImpact();
+      FocusScope.of(context).unfocus();
+    }
+    return errors.values.every((e) => e == null);
+  }
+
+  // ───────────────────────── Submit ─────────────────────────
+
+  Future<void> _submit() async {
+    if (_submitting) return;
+    FocusScope.of(context).unfocus();
+    setState(() => _submitting = true);
 
     try {
-      print('🚀 [CREATE_ACCOUNT] Starting account creation...');
-      final supabaseProvider =
-          Provider.of<SupabaseService>(context, listen: false);
-      final wizardState =
-          Provider.of<SignupWizardState>(context, listen: false);
+      if (!await _validateAll()) return;
 
-      // Create the Supabase account and continue directly into the app.
-      print(
-          '📝 [CREATE_ACCOUNT] Calling signUp with email: ${emailController.text}');
-      String userID = await supabaseProvider.signUp(
-        emailController.text,
-        passwordController.text,
-        name: nameController.text,
-        username: usernameController.text,
+      final supabase = context.read<SupabaseService>();
+      final wizardState = context.read<SignupWizardState>();
+      final name = _name.text.trim();
+      final email = _email.text.trim();
+
+      final userId = await supabase.signUp(
+        email,
+        _password.text,
+        name: name,
+        username: _username.text.trim(),
       );
-
-      print('✅ [CREATE_ACCOUNT] Account created successfully. UserID: $userID');
-
-      if (userID.isEmpty) {
+      if (userId.isEmpty) {
         throw Exception('Failed to create account');
       }
 
-      wizardState.setUserId(userID);
-      wizardState.setAccountInfo(nameController.text, emailController.text);
+      wizardState.setUserId(userId);
+      wizardState.setAccountInfo(name, email);
 
-      print('🏷️ [CREATE_ACCOUNT] Initializing vibe tags for user: $userID');
-      await supabaseProvider.tags.initializeVibeTagsForUser(userID);
-
-      print('⏳ [CREATE_ACCOUNT] Waiting for authenticated session...');
-      int retryCount = 0;
-      while (supabaseProvider.users.currentUser == null && retryCount < 10) {
+      var retries = 0;
+      while (supabase.users.currentUser == null && retries < 10) {
         await Future.delayed(const Duration(milliseconds: 200));
-        retryCount++;
+        retries++;
       }
 
-      print('✅ [CREATE_ACCOUNT] Session ready (retries: $retryCount)');
-      await supabaseProvider.users.acceptLegalConsent(userID);
-      await _addProfilePic();
+      // Independent writes, so run them together.
+      await Future.wait([
+        supabase.tags.initializeVibeTagsForUser(userId),
+        supabase.users.acceptLegalConsent(userId),
+      ]);
+
+      // The photo upload is not on the critical path: continue straight into
+      // onboarding and let it finish in the background.
+      unawaited(_uploadProfilePhoto(supabase, wizardState, userId));
+
+      if (mounted) widget.onNext();
     } catch (e) {
-      print('❌ [CREATE_ACCOUNT] Error: ${e.toString()}');
-      errorNotifier.value = 'Sign up failed: ${e.toString()}';
-    } finally {
       if (mounted) {
-        setState(() => isLoading = false);
-      }
-    }
-  }
-
-  // Helper method to get a random default icon from assets
-  Future<File> _getRandomDefaultIcon() async {
-    final iconFiles = [
-      'lib/assets/pin_emojis/burgerIcon.jpg',
-      'lib/assets/pin_emojis/curryIcon.jpg',
-      'lib/assets/pin_emojis/donutIcon.jpg',
-      'lib/assets/pin_emojis/phoIcon.jpg',
-      'lib/assets/pin_emojis/pizzaIcon.jpg',
-      'lib/assets/pin_emojis/steakIcon.jpg',
-      'lib/assets/pin_emojis/sushiIcon.jpg',
-      'lib/assets/pin_emojis/tacoIcon.jpg',
-      'lib/assets/pin_emojis/thaiIcon.jpg',
-    ];
-
-    // Randomly select one icon
-    final random = Random();
-    final selectedIcon = iconFiles[random.nextInt(iconFiles.length)];
-
-    // Load asset as bytes
-    final byteData = await rootBundle.load(selectedIcon);
-    final bytes = byteData.buffer.asUint8List();
-
-    // Create temporary file
-    final tempDir = await getTemporaryDirectory();
-    final fileName = selectedIcon.split('/').last;
-    final tempFile = File('${tempDir.path}/$fileName');
-
-    // Write bytes to temp file
-    await tempFile.writeAsBytes(bytes);
-
-    return tempFile;
-  }
-
-  // We create have already created the account before this step, but this stores the profile pic
-  Future<void> _addProfilePic() async {
-    setState(() => isLoading = true);
-
-    try {
-      final supabaseService =
-          Provider.of<SupabaseService>(context, listen: false);
-      final wizardState =
-          Provider.of<SignupWizardState>(context, listen: false);
-
-      // Always upload a profile picture (user-selected or default)
-      if (wizardState.userId != null) {
-        File imageToUpload;
-
-        if (_selectedProfileImage != null) {
-          // User selected a photo - use it
-          imageToUpload = _selectedProfileImage!;
-        } else {
-          // No photo selected - pick random default icon
-          imageToUpload = await _getRandomDefaultIcon();
-        }
-
-        // Upload the image (user-selected or default)
-        final fileExt = imageToUpload.path.split('.').last;
-        final filePath = '${wizardState.userId}/${wizardState.userId}.$fileExt';
-
-        String profilePictureUrl = await supabaseService.users
-            .uploadImage(imageToUpload, filePath, wizardState.userId!);
-
-        wizardState.setProfilePicture(profilePictureUrl);
-      }
-
-      // Proceed to the next wizard step.
-      if (mounted) {
-        widget.onNext();
-      }
-    } catch (e) {
-      errorNotifier.value = 'Failed to complete signup: ${e.toString()}';
-    } finally {
-      if (mounted) {
-        setState(() => isLoading = false);
-      }
-    }
-  }
-
-  Widget _buildKeyboardAwareSubStep(Widget child, {bool lockKeyboard = false}) {
-    // Compute a height that keeps content visible above the keyboard when locked.
-    final mq = MediaQuery.of(context);
-    final screenHeight = mq.size.height;
-    final keyboardHeight = mq.viewInsets.bottom;
-    final baseHeight = screenHeight * 0.75;
-
-    final topBuffer = 80.0;
-    // Available height when keyboard is open
-    final availableHeight = max(0.0, screenHeight - keyboardHeight - topBuffer);
-    final containerHeight =
-        lockKeyboard ? min(baseHeight, availableHeight) : baseHeight;
-
-    final content = lockKeyboard
-        ? SizedBox(
-            height: containerHeight,
-            child: Container(
-              padding: const EdgeInsets.all(24.0),
-              child: child,
-            ),
-          )
-        : SingleChildScrollView(
-            padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
-            child: Container(
-              height: containerHeight,
-              padding: const EdgeInsets.all(24.0),
-              child: child,
-            ),
-          );
-
-    return GestureDetector(
-      onTap: () {
-        if (!lockKeyboard) FocusScope.of(context).unfocus();
-      },
-      child: content,
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String hintText,
-    required IconData icon,
-    bool obscureText = false,
-    Widget? suffixIcon,
-    TextInputType keyboardType = TextInputType.text,
-    FocusNode? focusNode,
-    double? height,
-  }) {
-    return Container(
-      height: height,
-      decoration: BoxDecoration(
-        color: PinitColors.creamSunk,
-        borderRadius: BorderRadius.circular(16),
-        border: Border(
-          right: BorderSide(
-            color: PinitColors.aubergine,
-            width: 4,
-          ),
-          bottom: BorderSide(
-            color: PinitColors.aubergine,
-            width: 4,
-          ),
-        ),
-        boxShadow: PinitColors.cardShadow,
-      ),
-      child: TextField(
-        controller: controller,
-        obscureText: obscureText,
-        keyboardType: keyboardType,
-        focusNode: focusNode,
-        autofocus: false,
-        textInputAction: TextInputAction.next,
-        style: GoogleFonts.dmSans(fontSize: 15, color: PinitColors.aubergine),
-        decoration: InputDecoration(
-          hintText: hintText,
-          hintStyle: TextStyle(
-              color: PinitColors.aubergineSoft.withValues(alpha: 0.6)),
-          prefixIcon: Icon(icon,
-              color: PinitColors.aubergineSoft.withValues(alpha: 0.6)),
-          suffixIcon: suffixIcon,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide.none,
-          ),
-          contentPadding: EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: height != null ? 12 : 18,
-          ),
-          filled: true,
-          fillColor: PinitColors.creamSunk,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildErrorBanner() {
-    return ValueListenableBuilder<String?>(
-      valueListenable: errorNotifier,
-      builder: (context, error, _) {
-        if (error == null) return const SizedBox.shrink();
-
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: PinitColors.creamSunk,
-            borderRadius: BorderRadius.circular(16),
-            border: Border(
-              right: BorderSide(
-                color: PinitColors.aubergine,
-                width: 4,
-              ),
-              bottom: BorderSide(
-                color: PinitColors.aubergine,
-                width: 4,
-              ),
-            ),
-            boxShadow: PinitColors.cardShadow,
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.info_outline, color: PinitColors.aubergine, size: 18),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  error,
-                  style: GoogleFonts.dmSans(
-                    color: PinitColors.aubergine,
-                    fontSize: 14,
-                  ),
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: () => errorNotifier.value = null,
-                child:
-                    Icon(Icons.close, size: 18, color: PinitColors.aubergine),
-              ),
-            ],
-          ),
+        _setError(
+          _Field.form,
+          'We couldn’t create your account. ${_friendly(e)}',
         );
-      },
-    );
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
-  // Focus on right text field based on current sub-step
-  void _focusCurrentField() {
-    if (!mounted) return;
-    switch (_currentSubStep) {
-      case 0:
-        print('📍 [FOCUS] Reached Name step');
-        FocusScope.of(context).requestFocus(nameFocusNode);
-        break;
-      case 1:
-        print('📍 [FOCUS] Reached Username step');
-        FocusScope.of(context).requestFocus(usernameFocusNode);
-        break;
-      case 2:
-        print('📍 [FOCUS] Reached Email step');
-        FocusScope.of(context).requestFocus(emailFocusNode);
-        break;
-      case 3:
-        print('📍 [FOCUS] Reached Password step');
-        FocusScope.of(context).requestFocus(passwordFocusNode);
-        break;
-      case 4:
-        print('📍 [FOCUS] Reached Profile Picture step');
-        FocusScope.of(context).unfocus();
-        break;
-      default:
-        print('📍 [FOCUS] Reached default step');
-        FocusScope.of(context).unfocus();
+  String _friendly(Object e) {
+    final text = e.toString().toLowerCase();
+    if (text.contains('already') || text.contains('registered')) {
+      return 'That email may already have an account.';
     }
+    if (text.contains('network') || text.contains('socket')) {
+      return 'Check your connection and try again.';
+    }
+    return 'Please try again.';
+  }
+
+  Future<void> _uploadProfilePhoto(
+    SupabaseService supabase,
+    SignupWizardState wizardState,
+    String userId,
+  ) async {
+    try {
+      final image = _photo ?? await _randomDefaultIcon();
+      final ext = image.path.split('.').last;
+      final url = await supabase.users
+          .uploadImage(image, '$userId/$userId.$ext', userId);
+      wizardState.setProfilePicture(url);
+    } catch (_) {
+      // Non-fatal: the avatar can be set later from the profile.
+    }
+  }
+
+  Future<File> _randomDefaultIcon() async {
+    const icons = [
+      'burgerIcon',
+      'curryIcon',
+      'donutIcon',
+      'phoIcon',
+      'pizzaIcon',
+      'steakIcon',
+      'sushiIcon',
+      'tacoIcon',
+      'thaiIcon',
+    ];
+    final asset =
+        'lib/assets/pin_emojis/${icons[Random().nextInt(icons.length)]}.jpg';
+    final bytes = (await rootBundle.load(asset)).buffer.asUint8List();
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/${asset.split('/').last}');
+    await file.writeAsBytes(bytes);
+    return file;
+  }
+
+  Future<void> _pickPhoto() async {
+    HapticFeedback.selectionClick();
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        imageQuality: 85,
+      );
+      if (picked != null && mounted) {
+        setState(() => _photo = File(picked.path));
+      }
+    } catch (_) {
+      // Permission denied or picker failed: keep the default avatar.
+    }
+  }
+
+  // ───────────────────────── UI ─────────────────────────
+
+  /// Staggered fade + slide for the n-th block of the form.
+  Widget _reveal(int index, Widget child) {
+    final reduce = MediaQuery.of(context).disableAnimations;
+    if (reduce) return child;
+    final start = (index * 0.09).clamp(0.0, 0.6);
+    final animation = CurvedAnimation(
+      parent: _entrance,
+      curve: Interval(start, (start + 0.4).clamp(0.0, 1.0),
+          curve: Curves.easeOutCubic),
+    );
+    return FadeTransition(
+      opacity: animation,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 0.12),
+          end: Offset.zero,
+        ).animate(animation),
+        child: child,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: true,
-      child: Container(
-        decoration: const BoxDecoration(
-          color: PinitColors.cream,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(30),
-            topRight: Radius.circular(30),
-          ),
-        ),
-        child: PageView(
-          controller: _pageController,
-          physics: const NeverScrollableScrollPhysics(),
-          onPageChanged: (index) {
-            setState(() => _currentSubStep = index);
-            widget.onSubStepChanged?.call(index + 1);
-            _focusCurrentField();
-          },
+    return Container(
+      color: PinitColors.surfaceLight,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Column(
           children: [
-            _buildKeyboardAwareSubStep(_buildNameSubStep(), lockKeyboard: true),
-            _buildKeyboardAwareSubStep(_buildUserNameSubStep(),
-                lockKeyboard: true),
-            _buildKeyboardAwareSubStep(_buildEmailSubStep(),
-                lockKeyboard: true),
-            _buildKeyboardAwareSubStep(_buildPasswordSubStep(),
-                lockKeyboard: true),
-            _buildKeyboardAwareSubStep(_buildProfilePictureSubStep()),
+            Expanded(
+              child: SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+                child: AutofillGroup(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: IconButton(
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          onPressed: () => Navigator.of(context).maybePop(),
+                          icon: const Icon(
+                            Icons.arrow_back_rounded,
+                            color: PinitColors.aubergine,
+                          ),
+                        ),
+                      ),
+                      _reveal(
+                        0,
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const OnboardingHeadline(
+                                    text: 'Create your account',
+                                    fontSize: 30,
+                                    textAlign: TextAlign.start,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Takes about 20 seconds.',
+                                    style: GoogleFonts.manrope(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                      color: PinitColors.aubergineSoft,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            _AvatarButton(photo: _photo, onTap: _pickPhoto),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      _reveal(
+                        1,
+                        _LabeledField(
+                          label: 'NAME',
+                          controller: _name,
+                          focusNode: _nameFocus,
+                          hint: 'What should we call you?',
+                          icon: Icons.person_outline_rounded,
+                          error: _errors[_Field.name],
+                          capitalization: TextCapitalization.words,
+                          autofillHints: const [AutofillHints.givenName],
+                          textInputAction: TextInputAction.next,
+                          onChanged: (_) => _setError(_Field.name, null),
+                          onSubmitted: (_) => _usernameFocus.requestFocus(),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _reveal(
+                        2,
+                        _LabeledField(
+                          label: 'USERNAME',
+                          controller: _username,
+                          focusNode: _usernameFocus,
+                          hint: 'For your mates to find you',
+                          icon: Icons.alternate_email_rounded,
+                          error: _errors[_Field.username],
+                          helper: _usernameStatus == _UsernameStatus.available
+                              ? 'Available'
+                              : null,
+                          autofillHints: const [AutofillHints.newUsername],
+                          textInputAction: TextInputAction.next,
+                          formatters: [
+                            FilteringTextInputFormatter.allow(
+                              RegExp(r'[A-Za-z0-9_.]'),
+                            ),
+                            LengthLimitingTextInputFormatter(24),
+                          ],
+                          trailing: switch (_usernameStatus) {
+                            _UsernameStatus.checking => const _MiniSpinner(),
+                            _UsernameStatus.available => const Icon(
+                                Icons.check_circle_rounded,
+                                color: PinitColors.teal,
+                                size: 20,
+                              ),
+                            _UsernameStatus.taken => const Icon(
+                                Icons.cancel_rounded,
+                                color: PinitColors.accent,
+                                size: 20,
+                              ),
+                            _ => null,
+                          },
+                          onChanged: (_) {
+                            _usernameEdited = true;
+                            _queueUsernameCheck();
+                          },
+                          onSubmitted: (_) => _emailFocus.requestFocus(),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _reveal(
+                        3,
+                        Focus(
+                          onFocusChange: (focused) {
+                            if (!focused) _checkEmailOnBlur();
+                          },
+                          child: _LabeledField(
+                            label: 'EMAIL',
+                            controller: _email,
+                            focusNode: _emailFocus,
+                            hint: 'you@example.com',
+                            icon: Icons.mail_outline_rounded,
+                            error: _errors[_Field.email],
+                            keyboardType: TextInputType.emailAddress,
+                            autofillHints: const [AutofillHints.email],
+                            textInputAction: TextInputAction.next,
+                            onChanged: (_) => _setError(_Field.email, null),
+                            onSubmitted: (_) => _passwordFocus.requestFocus(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _reveal(
+                        4,
+                        _LabeledField(
+                          label: 'PASSWORD',
+                          controller: _password,
+                          focusNode: _passwordFocus,
+                          hint: 'At least 6 characters',
+                          icon: Icons.lock_outline_rounded,
+                          error: _errors[_Field.password],
+                          obscure: !_passwordVisible,
+                          autofillHints: const [AutofillHints.newPassword],
+                          textInputAction: TextInputAction.done,
+                          trailing: GestureDetector(
+                            onTap: () => setState(
+                              () => _passwordVisible = !_passwordVisible,
+                            ),
+                            child: Icon(
+                              _passwordVisible
+                                  ? Icons.visibility_off_outlined
+                                  : Icons.visibility_outlined,
+                              size: 20,
+                              color: PinitColors.aubergineSoft,
+                            ),
+                          ),
+                          onChanged: (_) => _setError(_Field.password, null),
+                          onSubmitted: (_) => FocusScope.of(context).unfocus(),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      _reveal(
+                        5,
+                        LegalConsentSection(
+                          value: _consent,
+                          errorText: _errors[_Field.consent],
+                          onChanged: (value) => setState(() {
+                            _consent = value;
+                            if (value) _errors[_Field.consent] = null;
+                          }),
+                          textColor: PinitColors.aubergine,
+                          linkColor: PinitColors.aubergine,
+                          checkboxActiveColor: PinitColors.aubergine,
+                          checkboxCheckColor: PinitColors.cream,
+                          checkboxSideColor: PinitColors.aubergineSoft,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            _reveal(
+              6,
+              Container(
+                padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
+                decoration: BoxDecoration(
+                  color: PinitColors.surfaceLight,
+                  boxShadow: [
+                    BoxShadow(
+                      color: PinitColors.aubergine.withValues(alpha: 0.06),
+                      blurRadius: 10,
+                      offset: const Offset(0, -2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      alignment: Alignment.topCenter,
+                      child: _errors[_Field.form] == null
+                          ? const SizedBox(width: double.infinity)
+                          : Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: Text(
+                                _errors[_Field.form]!,
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: PinitColors.accent,
+                                ),
+                              ),
+                            ),
+                    ),
+                    _CreateButton(loading: _submitting, onTap: _submit),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
+}
 
-  // Sub-Step 1: Name Field
-  Widget _buildNameSubStep() {
-    return _buildAnimatedSubStep(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-          // Top text with stagger
-          SlideTransition(
-            position: AnimationBuilders.createTextSlideAnimation(
-                _transitionController),
-            child: FadeTransition(
-              opacity:
-                  AnimationBuilders.createFadeAnimation(_transitionController),
-              child: Column(
-                children: [
-                  TypingText(
-                    key: ValueKey(_currentSubStep == 0),
-                    text: 'What should we call you?',
-                    style: const TextStyle(
-                      fontFamily: 'Rova',
-                      fontFamilyFallback: ['Naria'],
-                      fontSize: 18,
-                      fontWeight: FontWeight.w100,
-                      color: PinitColors.aubergine,
-                      letterSpacing: 1.2,
-                      height: 1.2,
-                    ),
-                    totalDuration: const Duration(milliseconds: 2200),
-                  ),
-                  const SizedBox(height: 15),
-                ],
-              ),
+class _LabeledField extends StatelessWidget {
+  const _LabeledField({
+    required this.label,
+    required this.controller,
+    required this.focusNode,
+    required this.hint,
+    required this.icon,
+    required this.onChanged,
+    required this.onSubmitted,
+    this.error,
+    this.helper,
+    this.trailing,
+    this.obscure = false,
+    this.keyboardType = TextInputType.text,
+    this.capitalization = TextCapitalization.none,
+    this.textInputAction = TextInputAction.next,
+    this.autofillHints,
+    this.formatters,
+  });
+
+  final String label;
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final String hint;
+  final IconData icon;
+  final String? error;
+  final String? helper;
+  final Widget? trailing;
+  final bool obscure;
+  final TextInputType keyboardType;
+  final TextCapitalization capitalization;
+  final TextInputAction textInputAction;
+  final Iterable<String>? autofillHints;
+  final List<TextInputFormatter>? formatters;
+  final ValueChanged<String> onChanged;
+  final ValueChanged<String> onSubmitted;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasError = error != null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 6),
+          child: Text(
+            label,
+            style: GoogleFonts.dmSans(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.3,
+              color: PinitColors.aubergineSoft,
             ),
           ),
-          const SizedBox(height: 16),
-
-          // Middle: Name field
-          SlideTransition(
-            position: AnimationBuilders.createFieldSlideAnimation(
-                _transitionController),
-            child: FadeTransition(
-              opacity:
-                  AnimationBuilders.createFadeAnimation(_transitionController),
-              child: Column(
-                children: [
-                  _buildErrorBanner(),
-                  _buildTextField(
-                    controller: nameController,
-                    hintText: 'Full Name',
-                    icon: Icons.person_outline,
-                    focusNode: nameFocusNode,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // Bottom: Continue button
-          SlideTransition(
-            position: AnimationBuilders.createBottomSlideAnimation(
-                _transitionController),
-            child: FadeTransition(
-              opacity:
-                  AnimationBuilders.createFadeAnimation(_transitionController),
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 12),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border(
-                    right: BorderSide(
-                      color: PinitColors.aubergine,
-                      width: 2,
-                    ),
-                    bottom: BorderSide(
-                      color: PinitColors.aubergine,
-                      width: 2,
-                    ),
-                  ),
-                  boxShadow: PinitColors.cardShadow,
+        ),
+        AnimatedBuilder(
+          animation: focusNode,
+          builder: (context, child) {
+            final focused = focusNode.hasFocus;
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              decoration: BoxDecoration(
+                color: PinitColors.creamSunk,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: hasError
+                      ? PinitColors.accent
+                      : focused
+                          ? PinitColors.aubergine
+                          : PinitColors.aubergine.withValues(alpha: 0.18),
+                  width: focused || hasError ? 1.8 : 1.2,
                 ),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      if (_validateName()) {
-                        _advanceToNextSubStep();
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: PinitColors.aubergine,
-                      foregroundColor: PinitColors.cream,
-                      elevation: 0,
-                      shadowColor: Colors.transparent,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                boxShadow: focused
+                    ? const [
+                        BoxShadow(
+                          color: PinitColors.aubergine,
+                          blurRadius: 0,
+                          offset: Offset(3, 3),
+                        ),
+                      ]
+                    : const [],
+              ),
+              child: child,
+            );
+          },
+          child: TextField(
+            controller: controller,
+            focusNode: focusNode,
+            obscureText: obscure,
+            keyboardType: keyboardType,
+            textCapitalization: capitalization,
+            textInputAction: textInputAction,
+            autofillHints: autofillHints,
+            inputFormatters: formatters,
+            autocorrect: false,
+            enableSuggestions: !obscure,
+            onChanged: onChanged,
+            onSubmitted: onSubmitted,
+            cursorColor: PinitColors.aubergine,
+            style: GoogleFonts.manrope(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: PinitColors.aubergine,
+            ),
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: GoogleFonts.manrope(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+                color: PinitColors.mute,
+              ),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 16,
+              ),
+              prefixIcon:
+                  Icon(icon, size: 20, color: PinitColors.aubergineSoft),
+              suffixIcon: trailing == null
+                  ? null
+                  : Padding(
+                      padding: const EdgeInsets.only(right: 14),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        widthFactor: 1,
+                        child: trailing,
                       ),
                     ),
-                    child: const Text(
-                      'Continue',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w100,
+            ),
+          ),
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topLeft,
+          child: (error ?? helper) == null
+              ? const SizedBox(width: double.infinity)
+              : Padding(
+                  padding: const EdgeInsets.only(left: 4, top: 6),
+                  child: Text(
+                    error ?? helper!,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: hasError ? PinitColors.accent : PinitColors.teal,
+                    ),
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AvatarButton extends StatelessWidget {
+  const _AvatarButton({required this.photo, required this.onTap});
+
+  final File? photo;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Add a profile photo (optional)',
+      child: GestureDetector(
+        onTap: onTap,
+        child: SizedBox(
+          width: 64,
+          height: 64,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: PinitColors.creamSunk,
+                  border: Border.all(color: PinitColors.aubergine, width: 1.5),
+                  image: photo == null
+                      ? null
+                      : DecorationImage(
+                          image: FileImage(photo!),
+                          fit: BoxFit.cover,
+                        ),
+                ),
+                child: photo == null
+                    ? const Icon(
+                        Icons.person_rounded,
+                        size: 30,
+                        color: PinitColors.aubergineSoft,
+                      )
+                    : null,
+              ),
+              Positioned(
+                right: -2,
+                bottom: -2,
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: const BoxDecoration(
+                    color: PinitColors.accent,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    photo == null ? Icons.add_rounded : Icons.edit_rounded,
+                    size: 14,
+                    color: PinitColors.cream,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniSpinner extends StatelessWidget {
+  const _MiniSpinner();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: 16,
+      height: 16,
+      child: CircularProgressIndicator(
+        strokeWidth: 2,
+        color: PinitColors.aubergineSoft,
+      ),
+    );
+  }
+}
+
+class _CreateButton extends StatelessWidget {
+  const _CreateButton({required this.loading, required this.onTap});
+
+  final bool loading;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: 56,
+      decoration: BoxDecoration(
+        color: PinitColors.aubergine,
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: const [
+          BoxShadow(
+            color: PinitColors.accent,
+            blurRadius: 0,
+            offset: Offset(3, 3),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(999),
+          onTap: loading ? null : onTap,
+          child: Center(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              child: loading
+                  ? const LoadingWidget(
+                      key: ValueKey('loading'),
+                      width: 24,
+                      height: 24,
+                    )
+                  : Text(
+                      'CREATE ACCOUNT',
+                      key: const ValueKey('label'),
+                      style: GoogleFonts.dmSans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
                         letterSpacing: 1.3,
+                        color: PinitColors.cream,
                       ),
                     ),
-                  ),
-                ),
-              ),
             ),
           ),
-          // Quote design
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Box space
-                const SizedBox(height: 30),
-                // Quote text
-                Text(
-                  'Did you know less than 5% of saved posts ever get looked at again',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontStyle: FontStyle.italic,
-                    fontWeight: FontWeight.w500,
-                    color: PinitColors.aubergine,
-                    height: 1.5,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Sub-Step 2: Username Field
-  Widget _buildUserNameSubStep() {
-    return _buildAnimatedSubStep(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-          // Top text with stagger
-          SlideTransition(
-            position: AnimationBuilders.createTextSlideAnimation(
-                _transitionController),
-            child: FadeTransition(
-              opacity:
-                  AnimationBuilders.createFadeAnimation(_transitionController),
-              child: Column(
-                children: [
-                  const SizedBox(height: 16),
-                  TypingText(
-                    key: ValueKey(_currentSubStep == 1),
-                    text: 'Pick a username for your mates to see..',
-                    style: const TextStyle(
-                      fontFamily: 'Rova',
-                      fontFamilyFallback: ['Naria'],
-                      fontSize: 22,
-                      fontWeight: FontWeight.normal,
-                      color: PinitColors.aubergine,
-                    ),
-                    totalDuration: const Duration(milliseconds: 2200),
-                  ),
-                  const SizedBox(height: 8),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Middle: Name field
-          SlideTransition(
-            position: AnimationBuilders.createFieldSlideAnimation(
-                _transitionController),
-            child: FadeTransition(
-              opacity:
-                  AnimationBuilders.createFadeAnimation(_transitionController),
-              child: Column(
-                children: [
-                  _buildErrorBanner(),
-                  _buildTextField(
-                    controller: usernameController,
-                    hintText: 'User Name',
-                    icon: Icons.person_outline,
-                    focusNode: usernameFocusNode,
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // Bottom: Continue button
-          SlideTransition(
-            position: AnimationBuilders.createBottomSlideAnimation(
-                _transitionController),
-            child: FadeTransition(
-              opacity:
-                  AnimationBuilders.createFadeAnimation(_transitionController),
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 12),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border(
-                    right: BorderSide(
-                      color: PinitColors.aubergine,
-                      width: 2,
-                    ),
-                    bottom: BorderSide(
-                      color: PinitColors.aubergine,
-                      width: 2,
-                    ),
-                  ),
-                  boxShadow: PinitColors.cardShadow,
-                ),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      if (await _validateUserName()) {
-                        _advanceToNextSubStep();
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: PinitColors.aubergine,
-                      foregroundColor: PinitColors.cream,
-                      elevation: 0,
-                      shadowColor: Colors.transparent,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    child: const Text(
-                      'Continue',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          // Quote design
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Large quotation mark
-                const SizedBox(height: 2),
-                Text(
-                  'Did you know the average person spends 40 minutes researching restaurants on social media before booking',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontStyle: FontStyle.italic,
-                    fontWeight: FontWeight.w500,
-                    color: PinitColors.aubergine,
-                    height: 1.5,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Sub-Step 3: Email Field
-  Widget _buildEmailSubStep() {
-    return _buildAnimatedSubStep(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-          // Top text
-          SlideTransition(
-            position: AnimationBuilders.createTextSlideAnimation(
-                _transitionController),
-            child: FadeTransition(
-              opacity:
-                  AnimationBuilders.createFadeAnimation(_transitionController),
-              child: Column(
-                children: [
-                  const SizedBox(height: 12),
-                  TypingText(
-                    key: ValueKey(_currentSubStep == 2),
-                    text: 'What\'s your email address?',
-                    style: const TextStyle(
-                      fontFamily: 'Rova',
-                      fontFamilyFallback: ['Naria'],
-                      fontSize: 22,
-                      fontWeight: FontWeight.normal,
-                      color: PinitColors.aubergine,
-                    ),
-                    totalDuration: const Duration(milliseconds: 2200),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Middle: Email field
-          SlideTransition(
-            position: AnimationBuilders.createFieldSlideAnimation(
-                _transitionController),
-            child: FadeTransition(
-              opacity:
-                  AnimationBuilders.createFadeAnimation(_transitionController),
-              child: Column(
-                children: [
-                  _buildErrorBanner(),
-                  _buildTextField(
-                    controller: emailController,
-                    hintText: 'Email',
-                    icon: Icons.email_outlined,
-                    keyboardType: TextInputType.emailAddress,
-                    focusNode: emailFocusNode,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Bottom: Continue button
-          SlideTransition(
-            position: AnimationBuilders.createBottomSlideAnimation(
-                _transitionController),
-            child: FadeTransition(
-              opacity:
-                  AnimationBuilders.createFadeAnimation(_transitionController),
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 12),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border(
-                    right: BorderSide(
-                      color: PinitColors.aubergine,
-                      width: 2,
-                    ),
-                    bottom: BorderSide(
-                      color: PinitColors.aubergine,
-                      width: 2,
-                    ),
-                  ),
-                  boxShadow: PinitColors.cardShadow,
-                ),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      if (await _validateEmail()) {
-                        _advanceToNextSubStep();
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: PinitColors.aubergine,
-                      foregroundColor: PinitColors.cream,
-                      elevation: 0,
-                      shadowColor: Colors.transparent,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    child: const Text(
-                      'Continue',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          // Quote design
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 8),
-                // Quote text
-                Text(
-                  '73% of people end up settling for a restaurant simply because it’s easier than deciding.',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontStyle: FontStyle.italic,
-                    fontWeight: FontWeight.w500,
-                    color: PinitColors.aubergine,
-                    height: 1.5,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Sub-Step 4: Password Fields
-  Widget _buildPasswordSubStep() {
-    return _buildAnimatedSubStep(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-          // Top text
-          SlideTransition(
-            position: AnimationBuilders.createTextSlideAnimation(
-                _transitionController),
-            child: FadeTransition(
-              opacity:
-                  AnimationBuilders.createFadeAnimation(_transitionController),
-              child: Column(
-                children: [
-                  TypingText(
-                    key: ValueKey(_currentSubStep == 3),
-                    text: 'Create a secure password',
-                    style: const TextStyle(
-                      fontFamily: 'Rova',
-                      fontFamilyFallback: ['Naria'],
-                      fontSize: 24,
-                      fontWeight: FontWeight.normal,
-                      color: PinitColors.aubergine,
-                    ),
-                    totalDuration: const Duration(milliseconds: 2200),
-                  ),
-                  const SizedBox(height: 8),
-                ],
-              ),
-            ),
-          ),
-
-          // Middle: Password fields (staggered)
-          Expanded(
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _buildErrorBanner(),
-                  SlideTransition(
-                    position: AnimationBuilders.createFieldSlideAnimation(
-                        _transitionController),
-                    child: FadeTransition(
-                      opacity: AnimationBuilders.createFadeAnimation(
-                          _transitionController),
-                      child: _buildTextField(
-                        controller: passwordController,
-                        hintText: 'Password',
-                        icon: Icons.lock_outline,
-                        obscureText: !_isPasswordVisible,
-                        focusNode: passwordFocusNode,
-                        height: 60,
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _isPasswordVisible
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined,
-                            color: Colors.white70,
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _isPasswordVisible = !_isPasswordVisible;
-                            });
-                          },
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  SlideTransition(
-                    position: Tween<Offset>(
-                      begin: const Offset(0, 0.6),
-                      end: Offset.zero,
-                    ).animate(CurvedAnimation(
-                      parent: _transitionController,
-                      curve:
-                          const Interval(0.15, 0.65, curve: Curves.easeOutBack),
-                    )),
-                    child: FadeTransition(
-                      opacity: Tween<double>(
-                        begin: 0.0,
-                        end: 1.0,
-                      ).animate(CurvedAnimation(
-                        parent: _transitionController,
-                        curve:
-                            const Interval(0.15, 0.55, curve: Curves.easeInOut),
-                      )),
-                      child: _buildTextField(
-                        controller: confirmPasswordController,
-                        hintText: 'Confirm Password',
-                        icon: Icons.lock_outline,
-                        obscureText: !_isConfirmPasswordVisible,
-                        height: 60,
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _isConfirmPasswordVisible
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined,
-                            color: PinitColors.aubergine,
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _isConfirmPasswordVisible =
-                                  !_isConfirmPasswordVisible;
-                            });
-                          },
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // Bottom: Continue button
-          SlideTransition(
-            position: AnimationBuilders.createBottomSlideAnimation(
-                _transitionController),
-            child: FadeTransition(
-              opacity:
-                  AnimationBuilders.createFadeAnimation(_transitionController),
-              child: Column(
-                children: [
-                  Container(
-                    margin:
-                        const EdgeInsets.symmetric(horizontal: 0, vertical: 12),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border(
-                        right: BorderSide(
-                          color: PinitColors.aubergine,
-                          width: 2,
-                        ),
-                        bottom: BorderSide(
-                          color: PinitColors.aubergine,
-                          width: 2,
-                        ),
-                      ),
-                      boxShadow: PinitColors.cardShadow,
-                    ),
-                    child: SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton(
-                        onPressed: isLoading
-                            ? null
-                            : () {
-                                if (_validatePassword()) {
-                                  _advanceToNextSubStep();
-                                }
-                              },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: PinitColors.aubergine,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shadowColor: Colors.transparent,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        child: isLoading
-                            ? const LoadingWidget(width: 24, height: 24)
-                            : const Text(
-                                'Continue',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w100,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Sub-Step 5: Profile Picture (Final step)
-  Widget _buildProfilePictureSubStep() {
-    return _buildAnimatedSubStep(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-          // Use the reusable ProfilePhotoSelector widget
-          Expanded(
-            child: Center(
-              child: ProfilePhotoSelector(
-                currentImage: _selectedProfileImage,
-                onPhotoSelected: (File file) {
-                  setState(() {
-                    _selectedProfileImage = file;
-                  });
-                },
-                onPhotoRemoved: () {
-                  setState(() {
-                    _selectedProfileImage = null;
-                  });
-                },
-                animationController: _transitionController,
-                borderColor: PinitColors.aubergine.withValues(alpha: 0.3),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          // Bottom: Buttons section
-          SlideTransition(
-            position: AnimationBuilders.createBottomSlideAnimation(
-                _transitionController),
-            child: FadeTransition(
-              opacity:
-                  AnimationBuilders.createFadeAnimation(_transitionController),
-              child: Column(
-                children: [
-                  LegalConsentSection(
-                    value: _legalConsentChecked,
-                    onChanged: (value) {
-                      setState(() {
-                        _legalConsentChecked = value;
-                      });
-                      if (value && errorNotifier.value != null) {
-                        errorNotifier.value = null;
-                      }
-                    },
-                    textColor: PinitColors.aubergine,
-                    linkColor: PinitColors.aubergine,
-                    checkboxActiveColor: PinitColors.aubergine,
-                    checkboxCheckColor: PinitColors.cream,
-                    checkboxSideColor: PinitColors.aubergineSoft,
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: ElevatedButton(
-                      onPressed: isLoading ? null : _createAccountAndAdvance,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: PinitColors.aubergine,
-                        foregroundColor: Colors.white,
-                        elevation: 4,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      child: isLoading
-                          ? const LoadingWidget(width: 24, height: 24)
-                          : Text(
-                              _selectedProfileImage != null
-                                  ? 'Create Account'
-                                  : 'Skip & Create Account',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w100,
-                              ),
-                            ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'You\'re all set! Let\'s personalize your experience',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade500,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

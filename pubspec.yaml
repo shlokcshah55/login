@@ -35,6 +35,7 @@ dependencies:
   googleapis: any
   googleapis_auth: any
   lottie: ^2.3.1
+  video_player: ^2.9.2
 
   logging: ^1.2.0
   geolocator: ^13.0.2
@@ -145,6 +146,7 @@ flutter:
     - lib/assets/openmoji-svg-color/
     - lib/assets/illustrations/login-one.png
     - lib/assets/wizards/
+    - lib/assets/videos/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware

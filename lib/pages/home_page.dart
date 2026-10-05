@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,6 +7,7 @@ import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:login/models/locations.dart';
 import 'package:login/pages/home/home_view_model.dart';
+import 'package:login/pages/home/onboarding/home_tour_steps.dart';
 import 'package:login/pages/home/search/header_search_location_hydrator.dart';
 import 'package:login/pages/home/search/header_search_readiness.dart';
 import 'package:login/pages/home/search/header_search_types.dart';
@@ -110,6 +112,8 @@ class _HomePageState extends State<HomePage> {
   final GlobalKey _searchSpotlightKey = GlobalKey();
   final GlobalKey _modeRowSpotlightKey = GlobalKey();
   final GlobalKey _dealADeckSpotlightKey = GlobalKey();
+  final GlobalKey _categoryRailSpotlightKey = GlobalKey();
+  final GlobalKey _focusedStageSpotlightKey = GlobalKey();
   // True for the single frame between a pending "open normal search" request
   // landing and the search actually opening. Without this, that frame briefly
   // paints the home page's own collapsed search entry — which is always
@@ -588,47 +592,14 @@ class _HomePageState extends State<HomePage> {
     HomeViewModel viewModel,
   ) {
     return [
-      const SpotlightWizardStep(
-        targetKey: null,
-        title: 'Welcome to',
-        titleLogoAssetPath: 'lib/assets/purplePinit.png',
-        illustrationAssetPath:
-            'lib/assets/illustrations/Beep Beep - Food Van.svg',
-        eyebrow: 'STEP 0',
-        description:
-            '\nHey! Thank you for using Pinit.\n\nPinit does a lot more than you think, so let us give you a quick tour of the main features to help you get the most out of it.',
+      ...buildHomeTourSteps(
+        viewModel: viewModel,
+        searchKey: _searchSpotlightKey,
+        categoryRailKey: _categoryRailSpotlightKey,
+        focusedStageKey: _focusedStageSpotlightKey,
+        // Share extension is iOS-only (ios/URLShareExtension).
+        includeShareDemo: Platform.isIOS,
       ),
-      SpotlightWizardStep(
-        targetKey: _searchSpotlightKey,
-        title: 'Search with magic.',
-        description:
-            'Type a vibe, a dish, or something you are craving, we will find the best matches and drop them straight into your carousel.',
-        placement: SpotlightBubblePlacement.below,
-        highlightShape: SpotlightHighlightShape.pill,
-        badgeIcon: FeatherIcons.search,
-      ),
-      SpotlightWizardStep(
-        targetKey: _modeRowSpotlightKey,
-        title: 'Switch your lens.',
-        description:
-            'Jump between your saved spots, recommended picks, and your shortlisted eat-lists without leaving the map.',
-        placement: SpotlightBubblePlacement.below,
-        showHighlightShadow: false,
-        badgeIcon: FeatherIcons.layers,
-      ),
-      if (viewModel.locations.isNotEmpty &&
-          viewModel.homeMode == HomeMode.explore)
-        SpotlightWizardStep(
-          targetKey: _dealADeckSpotlightKey,
-          title: 'Let Pinit decide.',
-          description:
-              'Really struggling and just want somewhere quick? Tell us how far you want to walk and deal a deck gives you a short swipeable set when the map has too many good options!',
-          placement: SpotlightBubblePlacement.above,
-          highlightShape: SpotlightHighlightShape.pill,
-          shadowColor: pinit.PinitColors.aubergine,
-          badgeIcon: Icons.gavel_rounded,
-          badgeColor: pinit.PinitColors.accent,
-        ),
       if (_includeReferralSpotlightStep)
         SpotlightWizardStep(
           targetKey: null,
@@ -734,6 +705,31 @@ class _HomePageState extends State<HomePage> {
       );
       return;
     }
+    // The category stage maps a saves+picks overview, not the mode's own
+    // list, so open on saves or picks directly.
+    if (viewModel.homeBrowseStage == HomeBrowseStage.categories &&
+        (viewModel.homeMode == HomeMode.you ||
+            viewModel.homeMode == HomeMode.explore)) {
+      final manager = viewModel.locationListManager;
+      final saved = viewModel.seeAllOpensSaved;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => CarouselListPage(
+            locations: (saved
+                    ? manager.savedLocations
+                    : manager.recommendedLocations)
+                .keys
+                .toList(),
+            title: saved ? 'Your Saves' : 'Top Picks',
+            listType: saved
+                ? LocationListType.saved
+                : LocationListType.recommended,
+            homeViewModel: viewModel,
+          ),
+        ),
+      );
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => CarouselListPage(
@@ -750,8 +746,7 @@ class _HomePageState extends State<HomePage> {
             HomeMode.bubble => LocationListType.bubble,
             HomeMode.bubbleSaved => LocationListType.bubbleSaved,
           },
-          homeViewModel:
-              viewModel.homeMode == HomeMode.explore ? viewModel : null,
+          homeViewModel: viewModel,
         ),
       ),
     );
@@ -1061,12 +1056,13 @@ class _HomePageState extends State<HomePage> {
                           else if (viewModel.homeBrowseStage ==
                               HomeBrowseStage.categories)
                             CategoryCarousel(
+                              key: _categoryRailSpotlightKey,
                               categories: viewModel.homeCategories,
                               bottomNavVisible: viewModel.bottomNavVisible,
                               onCategorySelected: (category) {
                                 unawaited(viewModel.openCategory(category));
                               },
-                              onSeeAll: viewModel.locations.isNotEmpty
+                              onSeeAll: viewModel.canOpenSeeAll
                                   ? () => _openSeeAll(viewModel)
                                   : null,
                             )
@@ -1078,37 +1074,42 @@ class _HomePageState extends State<HomePage> {
                                   category: viewModel.activeCategory,
                                   onBack: viewModel.closeCategory,
                                 ),
-                                HomeCarousel(
-                                  pageController: viewModel.pageController,
-                                  locations: viewModel.locations,
-                                  selectedMarkerId: viewModel.selectedMarkerId,
-                                  bottomNavVisible: viewModel.bottomNavVisible,
-                                  onPageChanged: (index) {
-                                    if (_carouselPageIndex != index) {
-                                      setState(
-                                          () => _carouselPageIndex = index);
-                                    }
-                                    viewModel.onCarouselPageChanged(index);
-                                  },
-                                  showFirstItemSwipeHint:
-                                      _showFirstCarouselSwipeHint &&
-                                          viewModel.locations.isNotEmpty,
-                                  onFirstItemSwipeHintCompleted:
-                                      _dismissFirstCarouselSwipeHint,
-                                  onScrollStart: () {
-                                    _dismissFirstCarouselSwipeHint();
-                                    viewModel.onCarouselScrollStart();
-                                  },
-                                  onLocationSelected:
-                                      viewModel.onLocationSelected,
-                                  onSwipeUp: (location) {
-                                    _dismissFirstCarouselSwipeHint();
-                                    viewModel.onCarouselSwipeUp(location);
-                                  },
-                                  onSwipeDown: (location) {
-                                    _dismissFirstCarouselSwipeHint();
-                                    viewModel.onCarouselSwipeDown(location);
-                                  },
+                                KeyedSubtree(
+                                  key: _focusedStageSpotlightKey,
+                                  child: HomeCarousel(
+                                    pageController: viewModel.pageController,
+                                    locations: viewModel.locations,
+                                    selectedMarkerId:
+                                        viewModel.selectedMarkerId,
+                                    bottomNavVisible:
+                                        viewModel.bottomNavVisible,
+                                    onPageChanged: (index) {
+                                      if (_carouselPageIndex != index) {
+                                        setState(
+                                            () => _carouselPageIndex = index);
+                                      }
+                                      viewModel.onCarouselPageChanged(index);
+                                    },
+                                    showFirstItemSwipeHint:
+                                        _showFirstCarouselSwipeHint &&
+                                            viewModel.locations.isNotEmpty,
+                                    onFirstItemSwipeHintCompleted:
+                                        _dismissFirstCarouselSwipeHint,
+                                    onScrollStart: () {
+                                      _dismissFirstCarouselSwipeHint();
+                                      viewModel.onCarouselScrollStart();
+                                    },
+                                    onLocationSelected:
+                                        viewModel.onLocationSelected,
+                                    onSwipeUp: (location) {
+                                      _dismissFirstCarouselSwipeHint();
+                                      viewModel.onCarouselSwipeUp(location);
+                                    },
+                                    onSwipeDown: (location) {
+                                      _dismissFirstCarouselSwipeHint();
+                                      viewModel.onCarouselSwipeDown(location);
+                                    },
+                                  ),
                                 ),
                               ],
                             ),
