@@ -333,7 +333,10 @@ class HomeViewModel extends ChangeNotifier {
     if (locations.isNotEmpty) {
       mapStateProvider
           .setSelectedMarkerId(locations.first.locationId.toString());
-      unawaited(mapStateProvider.focusOnLocations(locations));
+      unawaited(mapStateProvider.focusOnLocations(
+        locations,
+        anchor: locationListManager.currentPosition,
+      ));
     }
     bottomNavVisibilityProvider.showTemporarily();
     notifyListeners();

@@ -9,6 +9,7 @@ void main() {
     String? cuisine,
     String? cuisinePrimary,
     int? reviewCount = 128,
+    String? savedFrom,
   }) {
     return LocationModel(
       locationId: 1,
@@ -18,10 +19,11 @@ void main() {
       cuisinePrimary: cuisinePrimary,
       rating: 4.6,
       userRatingsTotal: reviewCount,
+      savedFrom: savedFrom,
     );
   }
 
-  Widget buildSubject(LocationModel location) {
+  Widget buildSubject(LocationModel location, {bool isSaved = false}) {
     return MaterialApp(
       home: Scaffold(
         body: SingleChildScrollView(
@@ -33,6 +35,7 @@ void main() {
               matchAnim: const AlwaysStoppedAnimation<double>(1),
               onAddressTap: () {},
               onSavedFromTap: () {},
+              isSaved: isSaved,
               isBeenTo: false,
               isBeenToLoading: false,
               onBeenTo: () {},
@@ -74,5 +77,24 @@ void main() {
 
     expect(find.text('unknown'), findsNothing);
     expect(find.byIcon(Icons.restaurant_menu_rounded), findsNothing);
+  });
+
+  group('saved-from badge', () {
+    const tiktokUrl = 'https://www.tiktok.com/@someone/video/123';
+
+    testWidgets('shows when the user saved the place from a video',
+        (tester) async {
+      await tester.pumpWidget(
+        buildSubject(buildLocation(savedFrom: tiktokUrl), isSaved: true),
+      );
+      expect(find.textContaining('Saved from'), findsOneWidget);
+    });
+
+    testWidgets('hides when the place is not saved', (tester) async {
+      await tester.pumpWidget(
+        buildSubject(buildLocation(savedFrom: tiktokUrl)),
+      );
+      expect(find.textContaining('Saved from'), findsNothing);
+    });
   });
 }

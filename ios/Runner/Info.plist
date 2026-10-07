@@ -37,9 +37,25 @@
 				<string>com.example.srishlok.pinit</string>
 			</array>
 		</dict>
+		<!-- Google Sign-In: the iOS client's REVERSED client ID, e.g.
+		     com.googleusercontent.apps.1234567890-abcdefg -->
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.299193903436-rdne3e7o9kup764mvgecqgp46g4d1o0a</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<!-- Google Sign-In: iOS OAuth client ID (1234567890-abcdefg.apps.googleusercontent.com) -->
+	<key>GIDClientID</key>
+	<string>299193903436-rdne3e7o9kup764mvgecqgp46g4d1o0a.apps.googleusercontent.com</string>
+	<!-- Google Sign-In: Web OAuth client ID, the one Supabase uses. ID tokens are issued for it. -->
+	<key>GIDServerClientID</key>
+	<string>299193903436-rejar7brfbh1cjgrt3toki69d30a7fu0.apps.googleusercontent.com</string>
 	<key>GOOGLE_MAPS_API_KEY</key>
 	<string>AIzaSyCi0MLRrvIHvHzMf16LF9_KmJWVmQQ8OPM</string>
 	<key>LSApplicationQueriesSchemes</key>

@@ -1110,6 +1110,7 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
                 matchAnim: _matchAnim,
                 onAddressTap: _openInGoogleMaps,
                 onSavedFromTap: _openSavedFromUrl,
+                isSaved: _isSaved,
                 isBeenTo: _isBeenTo,
                 isBeenToLoading: _isBeenToLoading,
                 onBeenTo: _onBeenToTap,

@@ -8,6 +8,7 @@ import 'login_page.dart';
 import 'signup_wizard/signup_wizard_page.dart';
 import '../supabase/service.dart';
 import '../services/apple_auth_service.dart';
+import '../services/google_auth_service.dart';
 import 'auth_handler.dart';
 import '../widgets/feedback/app_feedback.dart';
 
@@ -20,38 +21,84 @@ class WelcomePage extends StatefulWidget {
 
 class _WelcomePageState extends State<WelcomePage> {
   bool _isAppleSigningIn = false;
+  bool _isGoogleSigningIn = false;
 
   Future<void> _signInWithGoogle(BuildContext context) async {
+    if (_isGoogleSigningIn) {
+      return;
+    }
+
+    setState(() {
+      _isGoogleSigningIn = true;
+    });
+
     try {
       final supabaseProvider =
           Provider.of<SupabaseService>(context, listen: false);
-
-      // Initiate Google OAuth flow
       final bool success = await supabaseProvider.signInWithGoogle();
 
-      if (success) {
-        print("Google OAuth flow initiated - waiting for callback");
-      } else {
-        // Show error to user
-        if (context.mounted) {
-          await AppFeedback.showError(
-            context,
-            title: 'Google sign-in',
-            message: 'Failed to start Google sign in.',
-          );
-        }
+      if (!mounted) {
+        return;
       }
-    } catch (e) {
-      print("Google sign in error: $e");
-      if (context.mounted) {
+
+      if (!success) {
         await AppFeedback.showError(
           context,
-          title: 'Google sign-in failed',
-          message: 'Please try again in a moment.',
+          title: 'Google sign-in',
+          message: 'Failed to start Google sign in.',
         );
+      } else if (_usesNativeGoogleSignIn) {
+        // Native sign-in already has a session; the browser flow on other
+        // platforms finishes via the deep-link callback instead.
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const AuthHandler()),
+        );
+      }
+    } on GoogleSignInCancelledException {
+      // Intentionally noop when the user dismisses the Google sheet.
+    } on GoogleSignInNetworkException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      await AppFeedback.showError(
+        context,
+        title: 'Google sign-in',
+        message: error.message,
+        actionLabel: 'Retry',
+        onAction: () => _signInWithGoogle(context),
+      );
+    } on AuthException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      await AppFeedback.showError(
+        context,
+        title: 'Google sign-in',
+        message: error.message,
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      await AppFeedback.showError(
+        context,
+        title: 'Google sign-in failed',
+        message: 'Please try again in a moment.',
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGoogleSigningIn = false;
+        });
       }
     }
   }
+
+  bool get _usesNativeGoogleSignIn =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
 
   bool get _supportsAppleSignIn {
     if (kIsWeb) {

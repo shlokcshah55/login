@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:login/services/apple_auth_service.dart';
+import 'package:login/services/google_auth_service.dart';
 import 'package:login/services/push_notification_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -96,13 +97,18 @@ class AuthHelper {
   AuthHelper({
     SupabaseClient? client,
     AppleAuthService? appleAuthService,
+    GoogleAuthService? googleAuthService,
     HttpPost? httpPost,
   })  : _client = client ?? SupabaseClientManager().client,
         _appleAuthService = appleAuthService ?? AppleAuthService(),
+        _injectedGoogleAuthService = googleAuthService,
         _httpPost = httpPost ?? http.post;
 
   final SupabaseClient _client;
   final AppleAuthService _appleAuthService;
+  final GoogleAuthService? _injectedGoogleAuthService;
+  late final GoogleAuthService _googleAuthService =
+      _injectedGoogleAuthService ?? GoogleAuthService(client: _client);
   final HttpPost _httpPost;
   User? get currentUser => _client.auth.currentUser;
   bool get isAuthenticated => currentUser != null;
@@ -186,9 +192,29 @@ class AuthHelper {
     }
   }
 
-  /// Sign in with Google using Supabase OAuth
-  /// Returns true if OAuth flow was successfully initiated
+  /// Sign in with Google.
+  /// On iOS this is native (Google SDK sheet + ID token) and returns true once
+  /// the Supabase session exists. Elsewhere it starts the browser OAuth flow and
+  /// returns true once the flow is initiated; the session arrives via deep link.
   Future<bool> signInWithGoogle() async {
+    if (!kIsWeb && Platform.isIOS) {
+      try {
+        await _googleAuthService.signInWithGoogle();
+        return true;
+      } on GoogleSignInCancelledException {
+        rethrow;
+      } on GoogleSignInNetworkException {
+        rethrow;
+      } on AuthException {
+        rethrow;
+      } catch (e) {
+        if (kDebugMode) {
+          print('Error signing in with Google: $e');
+        }
+        throw AuthException('Google sign in failed: $e');
+      }
+    }
+
     try {
       if (kDebugMode) {
         print('Initiating Google OAuth flow...');

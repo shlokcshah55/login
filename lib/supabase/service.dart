@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:login/models/users.dart';
 import 'package:login/services/apple_auth_service.dart';
+import 'package:login/services/google_auth_service.dart';
 import 'package:login/supabase/helpers/auth.dart';
 import 'package:login/supabase/helpers/collections.dart';
 import 'package:login/supabase/helpers/location.dart';
@@ -336,6 +337,18 @@ class SupabaseService extends ChangeNotifier {
         _setError('Failed to initiate Google sign in');
       }
       return success;
+    } on GoogleSignInCancelledException {
+      _pendingOAuthWizardRouting = false;
+      _setError(null);
+      rethrow;
+    } on GoogleSignInNetworkException catch (e) {
+      _pendingOAuthWizardRouting = false;
+      _setError(e.message);
+      rethrow;
+    } on AuthException catch (e) {
+      _pendingOAuthWizardRouting = false;
+      _setError(e.message);
+      rethrow;
     } catch (e) {
       _pendingOAuthWizardRouting = false;
       _setError('Google sign in failed: $e');

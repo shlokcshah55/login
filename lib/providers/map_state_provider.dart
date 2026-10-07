@@ -447,15 +447,64 @@ class MapStateProvider with ChangeNotifier {
     log("MapStateProvider: Camera focused on bounds containing $point1 and $point2");
   }
 
+  /// Furthest the camera zooms out when framing a set of places: roughly a
+  /// few miles across on a phone screen.
+  static const double minFocusZoom = 12.0;
+
+  /// Places further than this from the seed place are left out of the frame,
+  /// so one save in another city doesn't zoom the map out to the globe.
+  static const double focusClusterRadiusKm = 5.0;
+
+  /// Picks the points worth framing: the point closest to [anchor] (or the
+  /// first point without one) plus every point within [radiusKm] of it.
+  @visibleForTesting
+  static List<LatLng> pointsToFrame(
+    List<LatLng> points, {
+    LatLng? anchor,
+    double radiusKm = focusClusterRadiusKm,
+  }) {
+    if (points.length < 2) return points;
+    var seed = points.first;
+    if (anchor != null) {
+      var best = double.infinity;
+      for (final point in points) {
+        final d = _distanceKm(anchor, point);
+        if (d < best) {
+          best = d;
+          seed = point;
+        }
+      }
+    }
+    return points.where((p) => _distanceKm(seed, p) <= radiusKm).toList();
+  }
+
+  static double _distanceKm(LatLng a, LatLng b) {
+    const earthRadiusKm = 6371.0;
+    final dLat = (b.latitude - a.latitude) * pi / 180;
+    final dLng = (b.longitude - a.longitude) * pi / 180;
+    final h = sin(dLat / 2) * sin(dLat / 2) +
+        cos(a.latitude * pi / 180) *
+            cos(b.latitude * pi / 180) *
+            sin(dLng / 2) *
+            sin(dLng / 2);
+    return earthRadiusKm * 2 * atan2(sqrt(h), sqrt(1 - h));
+  }
+
+  /// Frames [locations], keeping only the cluster near [anchor] (defaults to
+  /// the current map centre) and never zooming out past [minFocusZoom].
   Future<void> focusOnLocations(
     List<LocationModel> locations, {
     double padding = 84.0,
     double? topPadding,
+    LatLng? anchor,
   }) async {
-    final points = locations
-        .map((location) => location.position)
-        .whereType<LatLng>()
-        .toList();
+    final points = pointsToFrame(
+      locations
+          .map((location) => location.position)
+          .whereType<LatLng>()
+          .toList(),
+      anchor: anchor ?? _currentVisibleCenter,
+    );
 
     if (points.isEmpty) return;
     if (points.length == 1) {
@@ -494,6 +543,9 @@ class MapStateProvider with ChangeNotifier {
       null,
       null,
     );
+    if ((camera.zoom ?? minFocusZoom) < minFocusZoom) {
+      camera.zoom = minFocusZoom;
+    }
 
     await map.flyTo(camera, mapbox.MapAnimationOptions(duration: 650));
     log('MapStateProvider: Camera focused on ${points.length} collection locations');

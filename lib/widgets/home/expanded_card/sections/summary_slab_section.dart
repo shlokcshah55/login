@@ -29,6 +29,7 @@ class SummarySlabSection extends StatelessWidget {
     required this.matchAnim,
     required this.onAddressTap,
     required this.onSavedFromTap,
+    required this.isSaved,
     required this.isBeenTo,
     required this.isBeenToLoading,
     required this.onBeenTo,
@@ -44,6 +45,11 @@ class SummarySlabSection extends StatelessWidget {
   final Animation<double> matchAnim;
   final VoidCallback onAddressTap;
   final VoidCallback onSavedFromTap;
+
+  /// Whether the current user has this place saved. The "Saved from"
+  /// badge only makes sense for the user's own saves; a place that just
+  /// has public TikTok insights must not claim it was saved.
+  final bool isSaved;
   final bool isBeenTo;
   final bool isBeenToLoading;
   final VoidCallback onBeenTo;
@@ -65,7 +71,8 @@ class SummarySlabSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasMatch = match.score > 0;
     final hasVicinity = location.vicinity != null;
-    final hasSourceUrl = (location.savedFrom ?? '').trim().isNotEmpty;
+    final hasSourceUrl =
+        isSaved && (location.savedFrom ?? '').trim().isNotEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
