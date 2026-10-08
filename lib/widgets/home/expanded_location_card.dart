@@ -61,6 +61,7 @@ class ExpandedLocationCard extends StatefulWidget {
     this.resolveSharedVideoUrlOnOpen = true,
     this.socialReviewContext,
     this.locationProcessingTrigger,
+    this.onShowOnMap,
   });
 
   final LocationModel location;
@@ -68,6 +69,10 @@ class ExpandedLocationCard extends StatefulWidget {
   final bool resolveSharedVideoUrlOnOpen;
   final SocialReviewContext? socialReviewContext;
   final LocationProcessingTrigger? locationProcessingTrigger;
+
+  /// Called after "Minimise and locate on the map" closes the card, so a
+  /// host page pushed over home can get out of the way of the map.
+  final VoidCallback? onShowOnMap;
 
   @override
   State<ExpandedLocationCard> createState() => _ExpandedLocationCardState();
@@ -500,7 +505,11 @@ class _ExpandedLocationCardState extends State<ExpandedLocationCard>
   /// selecting its marker and the matching carousel item.
   void _showOnMap() {
     final navProvider = Provider.of<NavigationProvider>(context, listen: false);
-    _handleClose();
+    final onShowOnMap = widget.onShowOnMap;
+    _sheetController.reverse().then((_) {
+      widget.onClose();
+      onShowOnMap?.call();
+    });
     navProvider.navigateToLocationOnMap(_location);
   }
 

@@ -171,6 +171,13 @@ class _CarouselListPageState extends State<CarouselListPage> {
           if (selected.contains(o.id)) o.label,
       ];
 
+  /// "Minimise and locate on the map" focuses home's map, which sits under
+  /// this page, so leave it.
+  void _returnToMap() {
+    if (!mounted) return;
+    Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
   Future<void> _showInMap(List<LocationModel> visible) async {
     final collectionId = widget.collectionId;
     final nav = context.read<NavigationProvider>();
@@ -566,7 +573,10 @@ class _CarouselListPageState extends State<CarouselListPage> {
                         children: [
                           if (sectionTitle != null)
                             _MagicSearchSectionHeader(title: sectionTitle),
-                          LocationListCard(location: location),
+                          LocationListCard(
+                            location: location,
+                            onShowOnMap: _returnToMap,
+                          ),
                         ],
                       );
                     },

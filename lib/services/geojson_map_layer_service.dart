@@ -79,8 +79,9 @@ typedef OnClusterTapped = void Function(
 ///   ranked by importance. Where a pin doesn't fit, Mapbox hides it (pin and
 ///   label together), leaving the dot underneath.
 ///
-/// The selected place is drawn in its own top layer so it always shows, with
-/// an enlarged pin and a details line.
+/// The selected place is drawn in its own top layer, fed by an unclustered
+/// source, so it always shows (even inside a cluster) with an enlarged pin and
+/// a details line.
 ///
 /// ## Usage
 ///
@@ -119,6 +120,10 @@ class GeoJsonMapLayerService {
   final Set<int> _pendingRecentSaveIds = {};
   bool _sourceUpdateInFlight = false;
   bool _sourceUpdateQueued = false;
+
+  /// Unclustered source holding only the selected place, so its pin shows
+  /// even while the place is folded into a cluster.
+  String get _selectedSourceId => '${config.sourceId}-selected';
 
   // Layer IDs (bottom → top)
   static const String _clusterShadowLayerId = 'pinit-cluster-shadow';
@@ -206,6 +211,7 @@ class GeoJsonMapLayerService {
       log('GeoJsonMapLayerService: Initialized successfully');
 
       await _applyPinPadding();
+      await _updateSelectedSourceData();
       await _applySelectionFilters();
 
       // Flush any locations that arrived before initialization completed
@@ -276,8 +282,9 @@ class GeoJsonMapLayerService {
 
   /// Set the selected location (for highlighting).
   ///
-  /// Pass null to clear selection. Only the two layer filters change — the
-  /// source data is left alone so the rest of the map doesn't re-place.
+  /// Pass null to clear selection. Only the two layer filters and the
+  /// one-feature selected source change — the main source is left alone so
+  /// the rest of the map doesn't re-place.
   void setSelectedLocation(String? locationId) {
     if (_selectedLocationId == locationId) return;
     _selectedLocationId = locationId;
@@ -285,6 +292,7 @@ class GeoJsonMapLayerService {
     if (_isInitialized) {
       unawaited(() async {
         await _registerSelectedIcon();
+        await _updateSelectedSourceData();
         await _applySelectionFilters();
       }());
     }
@@ -404,10 +412,12 @@ class GeoJsonMapLayerService {
       await _safeRemoveLayer(layerId);
     }
 
-    try {
-      await _map.style.removeStyleSource(config.sourceId);
-    } catch (_) {
-      // Source may not exist
+    for (final sourceId in [config.sourceId, _selectedSourceId]) {
+      try {
+        await _map.style.removeStyleSource(sourceId);
+      } catch (_) {
+        // Source may not exist
+      }
     }
 
     for (final iconId in _registeredIconIds) {
@@ -440,6 +450,16 @@ class GeoJsonMapLayerService {
     await _map.style.addStyleSource(
       config.sourceId,
       jsonEncode(source),
+    );
+    await _map.style.addStyleSource(
+      _selectedSourceId,
+      jsonEncode({
+        'type': 'geojson',
+        'data': {
+          'type': 'FeatureCollection',
+          'features': <Map<String, dynamic>>[],
+        },
+      }),
     );
 
     log('GeoJsonMapLayerService: GeoJSON source created with clustering=${config.enableClustering}');
@@ -748,6 +768,7 @@ class GeoJsonMapLayerService {
 
     await _addLabelledSymbolLayer(
       id: _selectedPinLayerId,
+      sourceId: _selectedSourceId,
       filter: _selectedPinFilter(null),
       layout: layout,
       labelOffsetLeft: _selectedLabelOffsetLeft,
@@ -759,6 +780,7 @@ class GeoJsonMapLayerService {
   /// right-hand label if the SDK rejects `text-variable-anchor-offset`.
   Future<void> _addLabelledSymbolLayer({
     required String id,
+    String? sourceId,
     required List<Object> filter,
     required Map<String, dynamic> layout,
     required List<double> labelOffsetLeft,
@@ -766,7 +788,7 @@ class GeoJsonMapLayerService {
     Map<String, dynamic> layerJson(Map<String, dynamic> layout) => {
           'id': id,
           'type': 'symbol',
-          'source': config.sourceId,
+          'source': sourceId ?? config.sourceId,
           'filter': filter,
           'layout': layout,
           'paint': {
@@ -859,13 +881,9 @@ class GeoJsonMapLayerService {
       ];
 
   List<Object> _selectedPinFilter(int? selectedId) => [
-        'all',
-        _unclusteredFilter,
-        [
-          '==',
-          ['get', 'locationId'],
-          selectedId ?? -1
-        ],
+        '==',
+        ['get', 'locationId'],
+        selectedId ?? -1
       ];
 
   Future<void> _applySelectionFilters() async {
@@ -1109,9 +1127,32 @@ class GeoJsonMapLayerService {
           'data',
           geoJsonString,
         );
+        await _updateSelectedSourceData();
       } while (_sourceUpdateQueued);
     } finally {
       _sourceUpdateInFlight = false;
+    }
+  }
+
+  /// Writes just the selected place (or nothing) into the selected source.
+  Future<void> _updateSelectedSourceData() async {
+    if (!_isInitialized) return;
+    final selectedId = _selectedLocationId;
+    final selected = selectedId == null
+        ? const <LocationModel>[]
+        : _currentLocations
+            .where((l) => l.locationId.toString() == selectedId)
+            .take(1)
+            .toList();
+    try {
+      await _map.style.setStyleSourceProperty(
+        _selectedSourceId,
+        'data',
+        jsonEncode(_locationsToGeoJson(selected)),
+      );
+    } catch (e) {
+      debugPrint(
+          'GeoJsonMapLayerService: Failed to update selected source: $e');
     }
   }
 

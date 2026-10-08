@@ -125,4 +125,44 @@ void main() {
     expect(find.text('Tokyo Bar'), findsOneWidget);
     expect(find.text('Italian'), findsNothing);
   });
+
+  testWidgets('locating a place on the map leaves See All for the map',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => CarouselListPage(
+                  title: 'Your Saves',
+                  listType: LocationListType.saved,
+                  locations: [
+                    savedLocation(
+                      id: 1,
+                      name: 'Only Save',
+                      savedAt: DateTime(2026, 4, 1),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            child: const Text('Home map'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Home map'));
+    await tester.pumpAndSettle();
+    expect(find.byType(CarouselListPage), findsOneWidget);
+
+    final card = tester.widget<LocationListCard>(find.byType(LocationListCard));
+    expect(card.onShowOnMap, isNotNull);
+    card.onShowOnMap!();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CarouselListPage), findsNothing);
+    expect(find.text('Home map'), findsOneWidget);
+  });
 }

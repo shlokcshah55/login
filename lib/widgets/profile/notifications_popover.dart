@@ -10,8 +10,7 @@ import 'package:login/models/notifications/follow_request_notification.dart';
 import 'package:login/models/notifications/processing_error_notification.dart';
 import 'package:login/models/notifications/social_post_review_notification.dart';
 import 'package:login/models/notifications/video_processed_notification.dart';
-import 'package:login/pages/social_review/social_review_inbox_page.dart';
-import 'package:login/pages/social_review/social_review_place_item.dart';
+import 'package:login/pages/social_review/social_post_places_sheet.dart';
 import 'package:login/pages/profile/other_user_profile_page.dart';
 import 'package:login/pages/profile/widgets/pinit_colors.dart';
 import 'package:login/providers/navigation_provider.dart';
@@ -110,15 +109,9 @@ class _NotificationsPopoverState extends State<NotificationsPopover> {
         setState(() {
           _notifications = _visibleNotifications(FCMService().notifications);
         });
-        await Navigator.of(context).push<void>(
-          MaterialPageRoute(
-            builder: (_) => SocialReviewInboxPage(
-              initialFilter:
-                  notification.outcome == SocialShareNotificationOutcome.saved
-                      ? SocialReviewInboxFilter.recentlySaved
-                      : SocialReviewInboxFilter.needsChecking,
-            ),
-          ),
+        await showSocialPostPlacesSheet(
+          context,
+          postId: notification.socialPostId,
         );
         return;
       }

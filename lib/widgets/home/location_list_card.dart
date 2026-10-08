@@ -18,6 +18,8 @@ class LocationListCard extends StatefulWidget {
     this.statusLabel,
     this.statusIcon,
     this.borderColor,
+    this.onShowOnMap,
+    this.trailing,
   });
 
   final LocationModel location;
@@ -26,6 +28,13 @@ class LocationListCard extends StatefulWidget {
   final String? statusLabel;
   final IconData? statusIcon;
   final Color? borderColor;
+
+  /// Optional widget pinned to the bottom-right of the text column, e.g. a
+  /// match-score pill or a save action.
+  final Widget? trailing;
+
+  /// Forwarded to the expanded card's "Minimise and locate on the map".
+  final VoidCallback? onShowOnMap;
 
   @override
   State<LocationListCard> createState() => _LocationListCardState();
@@ -57,6 +66,7 @@ class _LocationListCardState extends State<LocationListCard> {
       pageBuilder: (ctx, _, __) => ExpandedLocationCard(
         location: location,
         onClose: () => Navigator.of(ctx).pop(),
+        onShowOnMap: widget.onShowOnMap,
       ),
       transitionBuilder: (_, animation, __, child) =>
           FadeTransition(opacity: animation, child: child),
@@ -218,6 +228,10 @@ class _LocationListCardState extends State<LocationListCard> {
                                     _Tag(label: '£' * location.priceLevel!),
                                   if (cuisine != null)
                                     Flexible(child: _Tag(label: cuisine)),
+                                  if (widget.trailing != null) ...[
+                                    const Spacer(),
+                                    widget.trailing!,
+                                  ],
                                 ],
                               ),
                             ],

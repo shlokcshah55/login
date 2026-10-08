@@ -217,7 +217,8 @@ class _HomePageState extends State<HomePage> {
     if (location != null) {
       navProvider.clearPendingFocusLocation();
       _locationListManager.focusSingleLocation(location);
-      _mapStateProvider.setSelectedMarkerId(location.locationId.toString());
+      // Selects the pin and flies to it close enough to leave any cluster.
+      _viewModel.onLocationSelected(location);
     }
 
     if (shouldOpenSearch) {

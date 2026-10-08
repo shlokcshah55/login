@@ -21,7 +21,7 @@ import 'package:login/models/notifications/follow_request_notification.dart';
 import 'package:login/models/notifications/user_added_to_bubble_notification.dart';
 import 'package:login/models/notifications/video_processed_notification.dart';
 import 'package:login/widgets/profile/notifications_popover.dart';
-import 'package:login/pages/social_review/social_post_review_page.dart';
+import 'package:login/pages/social_review/social_post_places_sheet.dart';
 import 'package:login/services/notification_routes.dart';
 import 'package:login/services/analytics_service.dart';
 import 'package:login/utils/route_open_guard.dart';
@@ -540,12 +540,14 @@ class FCMService {
           return false;
         }
         await markAsReadIfPossible();
-        navigatorKey.currentState?.push(
-          MaterialPageRoute(
-            builder: (_) =>
-                SocialPostReviewPage(postId: postId, source: 'notification'),
-          ),
-        );
+        final sheetContext = navigatorKey.currentContext;
+        if (sheetContext != null && sheetContext.mounted) {
+          unawaited(showSocialPostPlacesSheet(
+            sheetContext,
+            postId: postId,
+            source: 'push',
+          ));
+        }
         _trackDeepLinkRouted(deepLink: deepLink, route: 'social-review');
         return true;
 

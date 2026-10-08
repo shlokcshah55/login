@@ -955,17 +955,28 @@ class HomeViewModel extends ChangeNotifier {
       location.locationId.toString(),
       triggeredByCarousel: true,
     );
-    mapStateProvider.animateCamera(
-      location.position!,
-    );
+    _flyToSelected(location);
   }
 
   void onLocationSelected(LocationModel location) {
     mapStateProvider.setSelectedMarkerId(
       location.locationId.toString(),
     );
+    _flyToSelected(location);
+  }
+
+  /// Zoom a selected place is brought to at least, so it leaves its cluster
+  /// (clusters stop at zoom 12) and its pin is readable.
+  static const double selectedFocusZoom = 14.5;
+
+  /// Centres [location], zooming in only when the map is further out than
+  /// [selectedFocusZoom].
+  void _flyToSelected(LocationModel location) {
+    final position = location.position;
+    if (position == null) return;
     mapStateProvider.animateCamera(
-      location.position!,
+      position,
+      zoom: math.max(mapStateProvider.currentZoom, selectedFocusZoom),
     );
   }
 
