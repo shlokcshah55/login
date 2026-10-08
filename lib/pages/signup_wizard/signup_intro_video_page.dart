@@ -7,7 +7,7 @@ import 'package:video_player/video_player.dart';
 
 import '../profile/widgets/pinit_colors.dart';
 
-/// Full-bleed 9:16 intro shown before the account step. Autoplays muted,
+/// 9:16 intro shown before the account step, letterboxed on cream. Autoplays muted,
 /// skippable, tap to toggle sound. If the video can't load it calls
 /// [onContinue] straight away so sign-up is never blocked.
 class SignupIntroVideoPage extends StatefulWidget {
@@ -132,126 +132,119 @@ class _SignupIntroVideoPageState extends State<SignupIntroVideoPage>
     super.dispose();
   }
 
-  double get _progress {
-    final total = _controller.value.duration.inMilliseconds;
-    if (total <= 0) return 0;
-    return (_controller.value.position.inMilliseconds / total).clamp(0.0, 1.0);
-  }
-
   @override
   Widget build(BuildContext context) {
     final reduceMotion = MediaQuery.of(context).disableAnimations;
-    return Scaffold(
-      backgroundColor: PinitColors.aubergine,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          if (_ready)
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: _toggleMute,
-              child: AnimatedBuilder(
-                animation: _entrance,
-                builder: (context, child) {
-                  final t = Curves.easeOutCubic.transform(_entrance.value);
-                  return Opacity(
-                    opacity: t,
-                    child: Transform.scale(
-                      scale: reduceMotion ? 1 : 1.04 - 0.04 * t,
-                      child: child,
+    final fills = chapterFills(
+      position: _controller.value.position,
+      duration: _ready ? _controller.value.duration : Duration.zero,
+    );
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.dark,
+      child: Scaffold(
+        // Matches the video's own background, so the video sits on the page
+        // with no visible frame and can be letterboxed instead of cropped.
+        backgroundColor: PinitColors.cream,
+        body: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                child: Column(
+                  children: [
+                    _ChapterProgress(fills: fills),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        _GhostAction(
+                          onTap: _toggleMute,
+                          semanticsLabel: _muted ? 'Turn sound on' : 'Mute',
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _muted
+                                    ? Icons.volume_off_rounded
+                                    : Icons.volume_up_rounded,
+                                size: 16,
+                                color: PinitColors.aubergine,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                _muted ? 'TAP FOR SOUND' : 'SOUND ON',
+                                style: _label,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Spacer(),
+                        _GhostAction(
+                          onTap: () {
+                            widget.onSkipped?.call();
+                            _leave();
+                          },
+                          semanticsLabel: 'Skip intro',
+                          child: Text('SKIP', style: _label),
+                        ),
+                      ],
                     ),
-                  );
-                },
-                child: FittedBox(
-                  fit: BoxFit.cover,
-                  clipBehavior: Clip.hardEdge,
-                  child: SizedBox(
-                    width: _controller.value.size.width,
-                    height: _controller.value.size.height,
-                    child: VideoPlayer(_controller),
-                  ),
+                  ],
                 ),
               ),
-            ),
-          const IgnorePointer(child: _Scrims()),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-              child: Column(
-                children: [
-                  _ProgressBar(progress: _progress),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      _GlassPill(
+              Expanded(
+                child: _ready
+                    ? GestureDetector(
+                        behavior: HitTestBehavior.opaque,
                         onTap: _toggleMute,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              _muted
-                                  ? Icons.volume_off_rounded
-                                  : Icons.volume_up_rounded,
-                              size: 16,
-                              color: PinitColors.cream,
+                        child: AnimatedBuilder(
+                          animation: _entrance,
+                          builder: (context, child) {
+                            final t =
+                                Curves.easeOutCubic.transform(_entrance.value);
+                            return Opacity(
+                              opacity: t,
+                              child: Transform.scale(
+                                scale: reduceMotion ? 1 : 1.03 - 0.03 * t,
+                                child: child,
+                              ),
+                            );
+                          },
+                          child: FittedBox(
+                            fit: BoxFit.contain,
+                            child: SizedBox(
+                              width: _controller.value.size.width,
+                              height: _controller.value.size.height,
+                              child: VideoPlayer(_controller),
                             ),
-                            const SizedBox(width: 6),
-                            Text(
-                              _muted ? 'TAP FOR SOUND' : 'SOUND ON',
-                              style: _label,
-                            ),
-                          ],
+                          ),
                         ),
-                      ),
-                      const Spacer(),
-                      _GlassPill(
-                        onTap: () {
-                          widget.onSkipped?.call();
-                          _leave();
-                        },
-                        child: Text('SKIP', style: _label),
-                      ),
-                    ],
-                  ),
-                  const Spacer(),
-                  AnimatedSlide(
+                      )
+                    : const SizedBox.expand(),
+              ),
+              SizedBox(
+                height: 88,
+                child: Center(
+                  child: AnimatedSlide(
                     duration: const Duration(milliseconds: 280),
                     curve: Curves.easeOutCubic,
-                    offset: _ctaVisible ? Offset.zero : const Offset(0, 0.4),
+                    offset: _ctaVisible || reduceMotion
+                        ? Offset.zero
+                        : const Offset(0, 0.4),
                     child: AnimatedOpacity(
                       duration: const Duration(milliseconds: 280),
                       curve: Curves.easeOutCubic,
                       opacity: _ctaVisible ? 1 : 0,
                       child: IgnorePointer(
                         ignoring: !_ctaVisible,
-                        child: SizedBox(
-                          width: double.infinity,
-                          height: 56,
-                          child: FilledButton(
-                            onPressed: _leave,
-                            style: FilledButton.styleFrom(
-                              backgroundColor: PinitColors.cream,
-                              foregroundColor: PinitColors.aubergine,
-                              shape: const StadiumBorder(),
-                            ),
-                            child: Text(
-                              "LET'S GO",
-                              style: GoogleFonts.dmSans(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.2,
-                              ),
-                            ),
-                          ),
-                        ),
+                        child: _ContinueButton(onPressed: _leave),
                       ),
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -260,78 +253,185 @@ class _SignupIntroVideoPageState extends State<SignupIntroVideoPage>
         fontSize: 11,
         fontWeight: FontWeight.w700,
         letterSpacing: 1.2,
-        color: PinitColors.cream,
+        color: PinitColors.aubergine,
       );
 }
 
-class _Scrims extends StatelessWidget {
-  const _Scrims();
+/// Where each chapter of the intro video starts, read off its headline cuts.
+/// The last one is the logo end card. Update these if the video changes.
+const List<Duration> _chapterStarts = [
+  Duration.zero,
+  Duration(milliseconds: 2600), // Share it to Pinit
+  Duration(milliseconds: 7600), // We'll remind you when you're near
+  Duration(milliseconds: 9100), // Hear what the creator said
+  Duration(milliseconds: 12100), // And what your mates think
+  Duration(milliseconds: 14600), // Every save, on one map
+  Duration(milliseconds: 17600), // Any vibe, dish, or craving
+  Duration(milliseconds: 25400), // Settle the group-chat debate
+  Duration(milliseconds: 29200), // Logo end card
+];
 
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          stops: const [0, 0.22, 0.72, 1],
-          colors: [
-            PinitColors.aubergine.withValues(alpha: 0.55),
-            PinitColors.aubergine.withValues(alpha: 0),
-            PinitColors.aubergine.withValues(alpha: 0),
-            PinitColors.aubergine.withValues(alpha: 0.6),
-          ],
-        ),
-      ),
-    );
+const Duration _expectedDuration = Duration(milliseconds: 31500);
+
+/// How full each progress segment is (0 to 1), one per chapter. Falls back to
+/// a single segment if the asset's length no longer matches [_chapterStarts].
+@visibleForTesting
+List<double> chapterFills({
+  required Duration position,
+  required Duration duration,
+}) {
+  if (duration <= Duration.zero) {
+    return List<double>.filled(_chapterStarts.length, 0);
   }
+  final offBy = (duration - _expectedDuration).abs();
+  if (offBy > const Duration(seconds: 1)) {
+    return [
+      (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0),
+    ];
+  }
+  final fills = <double>[];
+  for (var i = 0; i < _chapterStarts.length; i++) {
+    final start = _chapterStarts[i].inMilliseconds;
+    final end = i + 1 < _chapterStarts.length
+        ? _chapterStarts[i + 1].inMilliseconds
+        : duration.inMilliseconds;
+    final fill = (position.inMilliseconds - start) / (end - start);
+    fills.add(fill.clamp(0.0, 1.0));
+  }
+  return fills;
 }
 
-class _ProgressBar extends StatelessWidget {
-  const _ProgressBar({required this.progress});
+class _ChapterProgress extends StatelessWidget {
+  const _ChapterProgress({required this.fills});
 
-  final double progress;
+  final List<double> fills;
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(999),
-      child: SizedBox(
-        height: 3,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            ColoredBox(color: PinitColors.cream.withValues(alpha: 0.28)),
-            FractionallySizedBox(
-              alignment: Alignment.centerLeft,
-              widthFactor: progress,
-              child: const ColoredBox(color: PinitColors.accent),
+    return ExcludeSemantics(
+      child: Row(
+        children: [
+          for (var i = 0; i < fills.length; i++) ...[
+            if (i > 0) const SizedBox(width: 4),
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: SizedBox(
+                  height: 3,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      const ColoredBox(color: PinitColors.creamDeep),
+                      FractionallySizedBox(
+                        alignment: Alignment.centerLeft,
+                        widthFactor: fills[i],
+                        child: const ColoredBox(color: PinitColors.aubergine),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ],
-        ),
+        ],
       ),
     );
   }
 }
 
-class _GlassPill extends StatelessWidget {
-  const _GlassPill({required this.child, required this.onTap});
+class _GhostAction extends StatelessWidget {
+  const _GhostAction({
+    required this.child,
+    required this.onTap,
+    required this.semanticsLabel,
+  });
 
   final Widget child;
   final VoidCallback onTap;
+  final String semanticsLabel;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-        decoration: BoxDecoration(
-          color: PinitColors.aubergine.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(999),
+    return Semantics(
+      button: true,
+      label: semanticsLabel,
+      excludeSemantics: true,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 44),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Center(widthFactor: 1, child: child),
+          ),
         ),
-        child: child,
+      ),
+    );
+  }
+}
+
+class _ContinueButton extends StatefulWidget {
+  const _ContinueButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  State<_ContinueButton> createState() => _ContinueButtonState();
+}
+
+class _ContinueButtonState extends State<_ContinueButton> {
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed != value) setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: "Let's go",
+      excludeSemantics: true,
+      child: GestureDetector(
+        onTapDown: (_) => _setPressed(true),
+        onTapCancel: () => _setPressed(false),
+        onTapUp: (_) => _setPressed(false),
+        onTap: () {
+          HapticFeedback.lightImpact();
+          widget.onPressed();
+        },
+        child: AnimatedScale(
+          scale: _pressed ? 0.96 : 1,
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOutCubic,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 28),
+            decoration: BoxDecoration(
+              color: PinitColors.aubergine,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  "Let's go",
+                  style: GoogleFonts.manrope(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: PinitColors.cream,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(
+                  Icons.arrow_forward_rounded,
+                  size: 18,
+                  color: PinitColors.cream,
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

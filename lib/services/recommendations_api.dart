@@ -305,6 +305,45 @@ class RecommendationsApi {
         if (url is String && url.isNotEmpty) url,
     ];
   }
+
+  /// Most location ids one [ensureLocationPhotos] call accepts.
+  static const int ensurePhotosBatchSize = 30;
+
+  /// Primary photo URLs for listed places that have no stored photo yet:
+  /// the CDN URL when the server already has one, else a short-lived Google
+  /// URL while it stores the photo. Places it cannot serve yet are absent.
+  Future<Map<int, String>> ensureLocationPhotos(List<int> locationIds) async {
+    final ids = [
+      for (final id in locationIds.toSet())
+        if (id > 0) id,
+    ].take(ensurePhotosBatchSize).toList();
+    if (ids.isEmpty) return const {};
+
+    final uri = Uri.parse('$_baseUrl/locations/photos/ensure');
+    final response = await _client
+        .post(
+          uri,
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({'location_ids': ids}),
+        )
+        .timeout(_locationPhotosTimeout);
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw RecommendationsApiException(
+        'Failed with status ${response.statusCode}: ${response.body}',
+      );
+    }
+
+    final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+    final photos = decoded['photos'];
+    if (photos is! Map) return const {};
+    final out = <int, String>{};
+    photos.forEach((key, value) {
+      final id = int.tryParse(key.toString());
+      if (id != null && value is String && value.isNotEmpty) out[id] = value;
+    });
+    return out;
+  }
 }
 
 String resolveRecommendationsApiBaseUrl({Map<String, String>? env}) {

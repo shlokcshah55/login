@@ -178,5 +178,5 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "lib/assets/AppLogo-world-cup.png"
+  image_path: "lib/assets/AppLogo.png"
   remove_alpha_ios: true

@@ -131,10 +131,32 @@ void main() {
     });
 
     test('asks the server once per location per session', () async {
+      respond = (_) => http.Response(
+            jsonEncode({
+              'photos': [_hero(7, 0), 'https://lh3.googleusercontent.com/a'],
+            }),
+            200,
+          );
       final location = _location(extras: 0, photoCount: 5);
       await LocationHelper.fetchCdnGallery(location, maxPhotos: 10);
       await LocationHelper.fetchCdnGallery(location, maxPhotos: 10);
       expect(requests, hasLength(1));
+    });
+
+    test('asks again on the next open when the server had nothing new',
+        () async {
+      final location = _location(imageStored: false, photoCount: null);
+      expect(await LocationHelper.fetchCdnGallery(location, maxPhotos: 10),
+          isEmpty);
+      respond = (_) => http.Response(
+            jsonEncode({
+              'photos': ['https://lh3.googleusercontent.com/a'],
+            }),
+            200,
+          );
+      expect(await LocationHelper.fetchCdnGallery(location, maxPhotos: 10),
+          ['https://lh3.googleusercontent.com/a']);
+      expect(requests, hasLength(2));
     });
 
     test('a failed request keeps stored photos and retries on next open',
@@ -179,6 +201,92 @@ void main() {
       );
       expect(urls, isEmpty);
       expect(requests, isEmpty);
+    });
+  });
+
+  group('mergeFreshPhotoState', () {
+    test('a photo stored since caching replaces the placeholder', () {
+      final cached = _location(imageStored: false);
+      final merged = LocationHelper.mergeFreshPhotoState(cached, {
+        'location_id': 7,
+        'image_stored': true,
+        'extra_photos_stored': 2,
+      });
+      expect(merged.imageStored, isTrue);
+      expect(merged.extraPhotosStored, 2);
+      expect(merged.imageUrl, '$_cdn/l/7/0_card.webp');
+    });
+
+    test('a stored photo replaces a cached Google link', () {
+      final cached = _location(imageStored: false)
+          .copyWith(imageUrl: 'https://lh3.googleusercontent.com/a');
+      final merged = LocationHelper.mergeFreshPhotoState(
+          cached, {'location_id': 7, 'image_stored': true});
+      expect(merged.imageUrl, '$_cdn/l/7/0_card.webp');
+    });
+
+    test('an unchanged row returns the cached model itself', () {
+      final cached =
+          _location(extras: 1).copyWith(imageUrl: '$_cdn/l/7/0_card.webp');
+      final merged = LocationHelper.mergeFreshPhotoState(cached, {
+        'location_id': 7,
+        'image_stored': true,
+        'extra_photos_stored': 1,
+      });
+      expect(identical(merged, cached), isTrue);
+    });
+  });
+
+  group('withEnsuredPhotos', () {
+    test('fills places without a photo and skips the rest', () async {
+      respond = (_) => http.Response(
+            jsonEncode({
+              'photos': {'2': 'https://lh3.googleusercontent.com/b'},
+            }),
+            200,
+          );
+      final locations = [
+        _location(id: 1).copyWith(imageUrl: '$_cdn/l/1/0_card.webp'),
+        _location(id: 2, imageStored: false),
+        _location(id: 3, imageStored: false, imageUnavailable: true),
+        _location(id: 4, imageStored: false),
+      ];
+      final out = await LocationHelper.withEnsuredPhotos(locations);
+
+      expect(requests, hasLength(1));
+      expect(requests.single.url.path, '/locations/photos/ensure');
+      expect(jsonDecode(requests.single.body), {
+        'location_ids': [2, 4],
+      });
+      expect(out.map((l) => l.imageUrl), [
+        '$_cdn/l/1/0_card.webp',
+        'https://lh3.googleusercontent.com/b',
+        null,
+        null,
+      ]);
+      expect(identical(out[0], locations[0]), isTrue);
+    });
+
+    test('does not ask about the same place again right away', () async {
+      final locations = [_location(id: 2, imageStored: false)];
+      await LocationHelper.withEnsuredPhotos(locations);
+      await LocationHelper.withEnsuredPhotos(locations);
+      expect(requests, hasLength(1));
+    });
+
+    test('splits large lists into batches', () async {
+      final locations = [
+        for (var i = 1; i <= 45; i++) _location(id: i, imageStored: false),
+      ];
+      await LocationHelper.withEnsuredPhotos(locations);
+      expect(requests, hasLength(2));
+    });
+
+    test('a failed request leaves the list unchanged', () async {
+      respond = (_) => http.Response('boom', 500);
+      final locations = [_location(id: 2, imageStored: false)];
+      final out = await LocationHelper.withEnsuredPhotos(locations);
+      expect(identical(out.single, locations.single), isTrue);
     });
   });
 }

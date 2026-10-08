@@ -86,9 +86,18 @@ class LocationHelper {
   static RecommendationsApi get _recommendations =>
       _recommendationsApi ??= RecommendationsApi();
 
+  // CDN mode: when a listed place without a photo was last sent to the
+  // server's ensure endpoint. Each ask can cost a Google Photo request, so
+  // a place is not asked about again until the server has had time to
+  // store it.
+  static final Map<int, DateTime> _ensureRequestedAt = {};
+  static const Duration _ensurePhotosRetryAfter = Duration(minutes: 10);
+  static const Duration _ensurePhotosBudget = Duration(milliseconds: 2500);
+
   @visibleForTesting
   static void resetGalleryRequestsForTesting({RecommendationsApi? api}) {
     _galleryRequested.clear();
+    _ensureRequestedAt.clear();
     _recommendationsApi = api;
   }
 
@@ -298,7 +307,7 @@ class LocationHelper {
 
   /// Coerce the `photos` column (which may come back as List<dynamic> of
   /// maps, or a JSON string depending on the transport) into a typed list.
-  List<Map<String, dynamic>>? _coercePhotosJson(dynamic raw) {
+  static List<Map<String, dynamic>>? _coercePhotosJson(dynamic raw) {
     if (raw == null) return null;
     try {
       if (raw is String) {
@@ -399,18 +408,7 @@ class LocationHelper {
         // re-fires the background download pipeline for every visible
         // location, which was a major source of Google Places API spam.
         final cached = _getFromCache(locationId);
-        if (cached != null) {
-          if (cached.imageUrl != null && cached.imageUrl!.isNotEmpty) {
-            return cached;
-          }
-          final imageUrl = await _getLocationImageUrl(item);
-          if (imageUrl != null && imageUrl != cached.imageUrl) {
-            final updated = cached.copyWith(imageUrl: imageUrl);
-            _cacheLocation(updated);
-            return updated;
-          }
-          return cached;
-        }
+        if (cached != null) return _refreshCached(cached, item);
 
         // Get image URL (fast path - just constructs URL)
         final imageUrl = await _getLocationImageUrl(item);
@@ -447,7 +445,114 @@ class LocationHelper {
     }).toList();
 
     final processed = await Future.wait(futures);
-    return processed.whereType<LocationModel>().toList();
+    final locations = processed.whereType<LocationModel>().toList();
+    if (!PhotoUrls.isConfigured) return locations;
+
+    final withPhotos = await withEnsuredPhotos(locations);
+    for (var i = 0; i < withPhotos.length; i++) {
+      if (!identical(withPhotos[i], locations[i])) {
+        _cacheLocation(withPhotos[i]);
+      }
+    }
+    return withPhotos;
+  }
+
+  /// A cached location brought up to date with a freshly fetched [row]:
+  /// photo flags from the row, and in CDN mode the stored photo replaces a
+  /// cached placeholder or short-lived Google link.
+  Future<LocationModel> _refreshCached(
+    LocationModel cached,
+    Map<String, dynamic> row,
+  ) async {
+    var updated = mergeFreshPhotoState(cached, row);
+    if (updated.imageUrl == null || updated.imageUrl!.isEmpty) {
+      final imageUrl = await _getLocationImageUrl(row);
+      if (imageUrl != null) updated = updated.copyWith(imageUrl: imageUrl);
+    }
+    if (!identical(updated, cached)) _cacheLocation(updated);
+    return updated;
+  }
+
+  /// [cached] with the photo state of a fresh [row]. Returns [cached] itself
+  /// when nothing changed.
+  @visibleForTesting
+  static LocationModel mergeFreshPhotoState(
+    LocationModel cached,
+    Map<String, dynamic> row,
+  ) {
+    final stored = row[SupabaseConstants.columnImageStored];
+    final unavailable = row[SupabaseConstants.columnImageUnavailable];
+    final extras =
+        (row[SupabaseConstants.columnExtraPhotosStored] as num?)?.toInt();
+    final photos = _coercePhotosJson(row[SupabaseConstants.columnPhotos]);
+    final cdnUrl = PhotoUrls.isConfigured ? cdnRowImageUrl(row) : null;
+
+    final changed = (stored is bool && stored != cached.imageStored) ||
+        (unavailable is bool && unavailable != cached.imageUnavailable) ||
+        (extras != null && extras != cached.extraPhotosStored) ||
+        (photos != null &&
+            photos.length != (cached.photos?.length ?? -1)) ||
+        (cdnUrl != null && cdnUrl != cached.imageUrl);
+    if (!changed) return cached;
+
+    return cached.copyWith(
+      imageStored: stored is bool ? stored : null,
+      imageUnavailable: unavailable is bool ? unavailable : null,
+      extraPhotosStored: extras,
+      photos: photos,
+      imageUrl: cdnUrl,
+    );
+  }
+
+  /// Fills in a photo for listed places that have none yet: the server
+  /// returns the stored CDN URL or a short-lived Google link and stores the
+  /// photo, so the next fetch has it. Bounded by [_ensurePhotosBudget]; a
+  /// place is asked about at most once per [_ensurePhotosRetryAfter].
+  @visibleForTesting
+  static Future<List<LocationModel>> withEnsuredPhotos(
+    List<LocationModel> locations,
+  ) async {
+    final now = DateTime.now();
+    final ids = <int>[];
+    for (final location in locations) {
+      final id = location.locationId;
+      final hasImage = location.imageUrl?.isNotEmpty ?? false;
+      if (id <= 0 || hasImage || location.imageUnavailable == true) continue;
+      final last = _ensureRequestedAt[id];
+      if (last != null && now.difference(last) < _ensurePhotosRetryAfter) {
+        continue;
+      }
+      _ensureRequestedAt[id] = now;
+      ids.add(id);
+    }
+    if (ids.isEmpty) return locations;
+
+    const size = RecommendationsApi.ensurePhotosBatchSize;
+    final batches = [
+      for (var i = 0; i < ids.length; i += size)
+        ids.sublist(i, i + size > ids.length ? ids.length : i + size),
+    ];
+    final results = await Future.wait(batches.map(_ensureBatch));
+    final urls = {for (final result in results) ...result};
+    if (urls.isEmpty) return locations;
+
+    return [
+      for (final location in locations)
+        urls[location.locationId] == null
+            ? location
+            : location.copyWith(imageUrl: urls[location.locationId]),
+    ];
+  }
+
+  static Future<Map<int, String>> _ensureBatch(List<int> ids) async {
+    try {
+      return await _recommendations
+          .ensureLocationPhotos(ids)
+          .timeout(_ensurePhotosBudget);
+    } catch (e) {
+      if (kDebugMode) print('[Photos] ensure failed for ${ids.length} ids: $e');
+      return const {};
+    }
   }
 
   /// Streaming variant of [processLocationsWithImages]. Emits each
@@ -470,18 +575,7 @@ class LocationHelper {
         final locationId = item[SupabaseConstants.columnLocationId] as int;
 
         final cached = _getFromCache(locationId);
-        if (cached != null) {
-          if (cached.imageUrl != null && cached.imageUrl!.isNotEmpty) {
-            return cached;
-          }
-          final imageUrl = await _getLocationImageUrl(item);
-          if (imageUrl != null && imageUrl != cached.imageUrl) {
-            final updated = cached.copyWith(imageUrl: imageUrl);
-            _cacheLocation(updated);
-            return updated;
-          }
-          return cached;
-        }
+        if (cached != null) return _refreshCached(cached, item);
 
         final imageUrl = await _getLocationImageUrl(item);
         final location = LocationModel.fromJson(item, imageUrl);
@@ -1755,7 +1849,12 @@ class LocationHelper {
         locationId,
         maxPhotos: maxPhotos,
       );
-      if (remote.length <= stored.length) return stored;
+      if (remote.length <= stored.length) {
+        // Nothing new yet (the server may still be storing the first
+        // photos): ask again on the next open.
+        _galleryRequested.remove(locationId);
+        return stored;
+      }
       final merged = [...stored, ...remote.skip(stored.length)];
       onPartial?.call(merged);
       return merged;
