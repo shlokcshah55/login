@@ -70,6 +70,41 @@ void main() {
     });
   });
 
+  test('magic search tiles always carry the sparkle, never a keyword icon', () {
+    final mark = CategoryMark.resolve(
+      _category(HomeCategoryKind.magic, 'magic_search', 'sweet treats nearby'),
+    );
+    expect(mark.icon, Icons.auto_awesome_rounded);
+    expect(mark.emoji, isNull);
+  });
+
+  testWidgets('magic search chip shows the query and its match count',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Align(
+          alignment: Alignment.bottomCenter,
+          child: CategoryCarousel(
+            categories: [
+              _category(HomeCategoryKind.magic, 'magic_search',
+                  'cosy ramen for a rainy night',
+                  count: 4),
+              _category(HomeCategoryKind.cuisine, 'italian', 'Italian',
+                  count: 13),
+            ],
+            bottomNavVisible: true,
+            onCategorySelected: (_) {},
+          ),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('cosy ramen for a rainy night'), findsOneWidget);
+    expect(find.text('4 MATCHES'), findsOneWidget);
+    expect(find.byIcon(Icons.auto_awesome_rounded), findsOneWidget);
+  });
+
   testWidgets('renders chips, group dots and See all', (tester) async {
     HomeCategory? tapped;
     var seeAllTapped = false;

@@ -48,6 +48,8 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
+                <!-- Must match the redirectTo used by signInWithOAuth in auth.dart. -->
+                <data android:scheme="com.srishlok.pinit" android:host="login-callback" />
                 <data android:scheme="com.example.srishlok.pinit" android:host="login-callback" />
             </intent-filter>
         </activity>

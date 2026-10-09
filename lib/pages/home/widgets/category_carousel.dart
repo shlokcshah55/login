@@ -170,6 +170,7 @@ class _CategoryChipState extends State<CategoryChip> {
       HomeCategoryKind.eatList => 'LIST · $count',
       HomeCategoryKind.vibe => 'VIBE · $count',
       HomeCategoryKind.bubble => 'BUBBLE · $count',
+      HomeCategoryKind.magic => '$count ${count == 1 ? 'MATCH' : 'MATCHES'}',
     };
   }
 

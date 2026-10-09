@@ -712,7 +712,7 @@ class _NariaSocialButton extends StatelessWidget {
   });
 
   final String label;
-  final IconData icon;
+  final FaIconData icon;
   final VoidCallback onTap;
 
   @override

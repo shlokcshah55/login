@@ -7,8 +7,8 @@ import 'package:video_player/video_player.dart';
 
 import '../profile/widgets/pinit_colors.dart';
 
-/// 9:16 intro shown before the account step, letterboxed on cream. Autoplays muted,
-/// skippable, tap to toggle sound. If the video can't load it calls
+/// 9:16 intro shown before the account step, letterboxed on cream. Silent
+/// (the asset has no audio track) and skippable. If the video can't load it calls
 /// [onContinue] straight away so sign-up is never blocked.
 class SignupIntroVideoPage extends StatefulWidget {
   const SignupIntroVideoPage({
@@ -36,7 +36,6 @@ class _SignupIntroVideoPageState extends State<SignupIntroVideoPage>
   late final AnimationController _entrance;
   Timer? _ctaTimer;
   bool _ready = false;
-  bool _muted = true;
   bool _ctaVisible = false;
   bool _finished = false;
   bool _left = false;
@@ -94,12 +93,6 @@ class _SignupIntroVideoPageState extends State<SignupIntroVideoPage>
     setState(() => _ctaVisible = true);
   }
 
-  void _toggleMute() {
-    HapticFeedback.selectionClick();
-    setState(() => _muted = !_muted);
-    _controller.setVolume(_muted ? 0 : 1);
-  }
-
   void _leave() {
     if (_left || !mounted) return;
     _left = true;
@@ -154,29 +147,10 @@ class _SignupIntroVideoPageState extends State<SignupIntroVideoPage>
                   children: [
                     _ChapterProgress(fills: fills),
                     const SizedBox(height: 6),
+                    // The intro video has no audio track, so there is no
+                    // sound toggle — just Skip, right-aligned.
                     Row(
                       children: [
-                        _GhostAction(
-                          onTap: _toggleMute,
-                          semanticsLabel: _muted ? 'Turn sound on' : 'Mute',
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                _muted
-                                    ? Icons.volume_off_rounded
-                                    : Icons.volume_up_rounded,
-                                size: 16,
-                                color: PinitColors.aubergine,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                _muted ? 'TAP FOR SOUND' : 'SOUND ON',
-                                style: _label,
-                              ),
-                            ],
-                          ),
-                        ),
                         const Spacer(),
                         _GhostAction(
                           onTap: () {
@@ -193,29 +167,25 @@ class _SignupIntroVideoPageState extends State<SignupIntroVideoPage>
               ),
               Expanded(
                 child: _ready
-                    ? GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: _toggleMute,
-                        child: AnimatedBuilder(
-                          animation: _entrance,
-                          builder: (context, child) {
-                            final t =
-                                Curves.easeOutCubic.transform(_entrance.value);
-                            return Opacity(
-                              opacity: t,
-                              child: Transform.scale(
-                                scale: reduceMotion ? 1 : 1.03 - 0.03 * t,
-                                child: child,
-                              ),
-                            );
-                          },
-                          child: FittedBox(
-                            fit: BoxFit.contain,
-                            child: SizedBox(
-                              width: _controller.value.size.width,
-                              height: _controller.value.size.height,
-                              child: VideoPlayer(_controller),
+                    ? AnimatedBuilder(
+                        animation: _entrance,
+                        builder: (context, child) {
+                          final t =
+                              Curves.easeOutCubic.transform(_entrance.value);
+                          return Opacity(
+                            opacity: t,
+                            child: Transform.scale(
+                              scale: reduceMotion ? 1 : 1.03 - 0.03 * t,
+                              child: child,
                             ),
+                          );
+                        },
+                        child: FittedBox(
+                          fit: BoxFit.contain,
+                          child: SizedBox(
+                            width: _controller.value.size.width,
+                            height: _controller.value.size.height,
+                            child: VideoPlayer(_controller),
                           ),
                         ),
                       )

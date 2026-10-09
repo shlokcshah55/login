@@ -1,0 +1,960 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <title>Pinit — 3 weeks later</title>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/audio-data.js"></script>
+    <style>
+      /* ── Fonts: the exact files the Flutter app ships / caches ── */
+      @font-face { font-family: "Rova"; src: url("assets/fonts/Rova.ttf") format("truetype"); font-weight: 100 900; font-display: block; }
+      @font-face { font-family: "Naria"; src: url("assets/fonts/Naria.otf") format("opentype"); font-weight: 100 900; font-display: block; }
+      @font-face { font-family: "Manrope"; src: url("assets/fonts/Manrope.ttf") format("truetype"); font-weight: 200 800; font-display: block; }
+      @font-face { font-family: "DM Sans"; src: url("assets/fonts/DMSans-regular.ttf") format("truetype"); font-weight: 400; font-display: block; }
+      @font-face { font-family: "DM Sans"; src: url("assets/fonts/DMSans-500.ttf") format("truetype"); font-weight: 500; font-display: block; }
+      @font-face { font-family: "DM Sans"; src: url("assets/fonts/DMSans-500italic.ttf") format("truetype"); font-weight: 500; font-style: italic; font-display: block; }
+      @font-face { font-family: "DM Sans"; src: url("assets/fonts/DMSans-600.ttf") format("truetype"); font-weight: 600; font-display: block; }
+      @font-face { font-family: "DM Sans"; src: url("assets/fonts/DMSans-700.ttf") format("truetype"); font-weight: 700; font-display: block; }
+      @font-face { font-family: "DM Sans"; src: url("assets/fonts/DMSans-800.ttf") format("truetype"); font-weight: 800; font-display: block; }
+      @font-face { font-family: "DM Sans"; src: url("assets/fonts/DMSans-900.ttf") format("truetype"); font-weight: 900; font-display: block; }
+      @font-face { font-family: "MI"; src: url("assets/fonts/MaterialIcons.otf") format("opentype"); font-display: block; }
+      @font-face { font-family: "FI"; src: url("assets/fonts/Feather.ttf") format("truetype"); font-display: block; }
+      @font-face { font-family: "CI"; src: url("assets/fonts/Cupertino.ttf") format("truetype"); font-display: block; }
+
+      /* ── lib/pages/profile/widgets/pinit_colors.dart ── */
+      :root {
+        --cream: #fbf6f3;
+        --sunk: #f4ede6;
+        --deep: #ece2d8;
+        --aub: #41133d;
+        --aubs: #6b3866;
+        --mute: #8a7a72;
+        --accent: #ec3d2c;
+        --cuisine: #494331;
+        --a-rms: 0.4;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--cream); color: var(--aub); -webkit-font-smoothing: antialiased; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--cream); font-family: "DM Sans", sans-serif; }
+
+      /* icon fonts — same glyph sets Flutter renders */
+      .mi, .fi, .ci { font-style: normal; font-weight: 400; line-height: 1; display: inline-block; flex: none; }
+      .mi { font-family: "MI"; }
+      .fi { font-family: "FI"; }
+      .ci { font-family: "CI"; }
+      .rova { font-family: "Rova", "Naria", serif; font-weight: 400; }
+      .man { font-family: "Manrope", sans-serif; }
+      .sys { font-family: -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif; }
+
+      /* ── Canvas background: App-Store art — cream + faint concentric rings ── */
+      .rings { position: absolute; border-radius: 50%; border: 2px solid rgba(65, 19, 61, 0.05); }
+      #rings-a, #rings-b { position: absolute; width: 900px; height: 900px; opacity: calc(0.6 + var(--a-rms) * 0.4); }
+      #rings-a { left: -520px; top: -420px; }
+      #rings-b { right: -540px; bottom: -380px; }
+
+      /* ── Headlines (App-Store framing) ── */
+      .hl { position: absolute; left: 60px; right: 60px; top: 112px; text-align: center; opacity: 0; }
+      .hl-label { font-family: "DM Sans"; font-weight: 700; font-size: 30px; letter-spacing: 3.6px; text-transform: uppercase; color: var(--accent); }
+      .hl-text { font-family: "Rova", "Naria", serif; font-size: 92px; line-height: 0.98; letter-spacing: 1px; color: var(--aub); margin-top: 18px; }
+
+      /* ── Phone ── */
+      #phone-wrap { position: absolute; left: 178px; top: 424px; width: 724px; height: 1519px; }
+      #phone-glow { position: absolute; left: -60px; right: -60px; top: 40px; bottom: -40px; border-radius: 120px;
+        background: radial-gradient(closest-side, rgba(65, 19, 61, 0.16), rgba(65, 19, 61, 0)); opacity: calc(0.55 + var(--a-rms) * 0.45); }
+      #phone-scale { position: absolute; left: 0; top: 0; width: 414px; height: 868px; transform: scale(1.75); transform-origin: 0 0; }
+      #bezel { position: absolute; inset: 0; border-radius: 64px;
+        background: linear-gradient(135deg, #e9d3a6 0%, #b8955a 30%, #f3e3c0 52%, #a7834c 75%, #e2c793 100%);
+        box-shadow: 0 30px 60px rgba(65, 19, 61, 0.22); }
+      #bezel-inner { position: absolute; inset: 4px; border-radius: 60px; background: #120a10; }
+      #screen { position: absolute; left: 12px; top: 12px; width: 390px; height: 844px; border-radius: 52px; overflow: hidden; background: #000; }
+      .layer { position: absolute; inset: 0; }
+      #tt { z-index: 1; } #home { z-index: 2; } #lock { z-index: 3; } #chat { z-index: 4; }
+      .backdrop, .sheet, #pick, .close { z-index: 10; }
+      #island { position: absolute; left: 132px; top: 11px; width: 126px; height: 37px; border-radius: 20px; background: #000; z-index: 90; }
+
+      /* status bar */
+      .sb { position: absolute; left: 0; right: 0; top: 0; height: 54px; z-index: 89; display: flex; align-items: center; justify-content: space-between; padding: 6px 30px 0 46px; font-family: -apple-system, "SF Pro Text", sans-serif; font-weight: 600; font-size: 17px; letter-spacing: -0.3px; }
+      .sb .ico { display: flex; gap: 6px; align-items: center; }
+      .sb-dark { color: #000; }
+      .sb-light { color: #fff; }
+
+      /* tap indicator */
+      #tap { position: absolute; left: 0; top: 0; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%; background: rgba(65, 19, 61, 0.22); border: 2px solid rgba(251, 246, 243, 0.9); z-index: 95; opacity: 0; }
+
+      /* ═══ TikTok-style feed (third-party, intentionally unbranded) ═══ */
+      #tt { background: #000; }
+      #tt-photo { position: absolute; inset: 0; background: url("assets/img/htacos-bowl.jpg") center/cover; }
+      #tt-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0) 22%, rgba(0,0,0,0) 55%, rgba(0,0,0,0.6) 100%); }
+      #tt-tabs { position: absolute; top: 60px; left: 0; right: 0; text-align: center; font: 600 17px -apple-system, sans-serif; color: rgba(255,255,255,0.6); }
+      #tt-tabs b { color: #fff; font-weight: 700; border-bottom: 2.5px solid #fff; padding-bottom: 5px; margin-left: 18px; }
+      #tt-rail { position: absolute; right: 10px; bottom: 150px; width: 52px; display: flex; flex-direction: column; align-items: center; gap: 18px; color: #fff; font: 600 12px -apple-system, sans-serif; text-shadow: 0 1px 2px rgba(0,0,0,0.4); }
+      #tt-rail .it { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+      #tt-ava { width: 46px; height: 46px; border-radius: 50%; border: 1.5px solid #fff; background: url("assets/img/htacos-store.jpg") center/cover; }
+      #tt-cap { position: absolute; left: 14px; right: 80px; bottom: 102px; color: #fff; font: 400 15px/1.35 -apple-system, sans-serif; text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
+      #tt-cap .h { font-weight: 700; font-size: 16px; margin-bottom: 6px; }
+      #tt-cap .snd { margin-top: 8px; font-size: 14px; }
+      #tt-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 84px; background: #000; display: flex; justify-content: space-around; padding-top: 10px; color: rgba(255,255,255,0.85); font: 500 10px -apple-system, sans-serif; }
+      #tt-bar div { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+
+      /* iOS share sheet */
+      #share { position: absolute; left: 0; right: 0; bottom: 0; height: 430px; background: #f2f2f7; border-radius: 14px 14px 0 0; padding: 18px 16px 0; font-family: -apple-system, sans-serif; }
+      #share .prev { display: flex; align-items: center; gap: 12px; padding-bottom: 14px; border-bottom: 0.5px solid #c6c6c8; }
+      #share .thumb { width: 44px; height: 44px; border-radius: 8px; background: url("assets/img/htacos-bowl.jpg") center/cover; }
+      #share .t1 { font-size: 15px; font-weight: 600; color: #000; }
+      #share .t2 { font-size: 13px; color: #8a8a8e; margin-top: 2px; }
+      #share .x { margin-left: auto; width: 30px; height: 30px; border-radius: 50%; background: #e3e3e8; color: #8a8a8e; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+      #share .apps { display: flex; gap: 22px; padding: 20px 6px 18px; border-bottom: 0.5px solid #c6c6c8; }
+      #share .app { width: 62px; text-align: center; font-size: 11px; color: #000; }
+      #share .app .ic { width: 62px; height: 62px; border-radius: 14px; margin-bottom: 6px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 30px; }
+      #share .rows { margin-top: 14px; background: #fff; border-radius: 12px; }
+      #share .row { padding: 14px 16px; font-size: 16px; color: #000; border-bottom: 0.5px solid #e1e1e3; display: flex; justify-content: space-between; }
+
+      /* URLShareExtension success card (ShareViewController.swift) */
+      #ext-dim { position: absolute; inset: 0; background: transparent; }
+      #ext-card { position: absolute; left: 35px; top: 302px; width: 320px; height: 240px; border-radius: 20px; overflow: hidden; background: #42143d url("assets/img/share-bg.jpg") center/cover; }
+      #ext-card .ov { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.2); }
+      #ext-card .msg { position: absolute; left: 30px; right: 30px; top: 50px; text-align: center; color: #fff; font: 500 17px/1.3 -apple-system, sans-serif; }
+      #ext-card .ok { position: absolute; left: 50px; top: 140px; width: 220px; height: 50px; border-radius: 25px; background: #fff; color: #42143d; font: 700 16px -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; }
+
+      /* iOS notification banner */
+      .notif { position: absolute; left: 9px; right: 9px; border-radius: 22px; background: rgba(246, 243, 245, 0.92); backdrop-filter: blur(20px); padding: 13px 14px; display: flex; gap: 11px; align-items: center; font-family: -apple-system, sans-serif; box-shadow: 0 8px 24px rgba(0,0,0,0.18); }
+      .notif .ic { width: 38px; height: 38px; border-radius: 9px; background: url("assets/img/app-icon.png") center/cover; flex: none; }
+      .notif .tx { flex: 1; min-width: 0; }
+      .notif .tt { font-size: 15px; font-weight: 600; color: #000; display: flex; justify-content: space-between; }
+      .notif .tt span { font-size: 13px; font-weight: 400; color: #7d7d82; }
+      .notif .bd { font-size: 15px; color: #111; margin-top: 1px; }
+      #nb1 { top: 52px; }
+
+      /* ═══ Lock screen ═══ */
+      #lock { background: linear-gradient(170deg, #2a0f27 0%, #41133d 45%, #6b3866 100%); }
+      #lock-photo { position: absolute; inset: 0; background: url("assets/img/date-3.jpg") center/cover; opacity: 0.35; filter: blur(2px); }
+      #lock-date { position: absolute; top: 84px; left: 0; right: 0; text-align: center; color: rgba(255,255,255,0.92); font: 600 19px -apple-system, sans-serif; }
+      #lock-time { position: absolute; top: 114px; left: 0; right: 0; text-align: center; color: rgba(255,255,255,0.95); font: 600 96px/1 -apple-system, "SF Pro Display", sans-serif; letter-spacing: -2px; }
+      #nb2 { top: 330px; }
+      .lock-btn { position: absolute; bottom: 52px; width: 50px; height: 50px; border-radius: 50%; background: rgba(0,0,0,0.3); backdrop-filter: blur(10px); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+      #lock-bar { position: absolute; bottom: 9px; left: 125px; width: 140px; height: 5px; border-radius: 3px; background: #fff; }
+
+      /* ═══ Home (map) — home_page.dart + header shell ═══ */
+      #home { background: #eceaf0; }
+      #map, #map-wide { position: absolute; left: 0; top: -20px; width: 390px; height: 900px; transform-origin: 195px 450px; }
+      #map { background: url("assets/img/map.png") 0 0/390px 900px; }
+      #map-wide { background: url("assets/img/map-wide.png") 0 0/390px 900px; opacity: 0; }
+      #pins-near, #pins-wide { position: absolute; inset: 0; }
+      .dot-pin { position: absolute; width: 8px; height: 8px; border-radius: 50%; background: var(--aub); border: 1px solid var(--cream); box-shadow: 1.4px 1.8px 2px rgba(0,0,0,0.18); }
+      .dot-pin.dp-been { background: #ffb800; }
+      #top-panel { position: absolute; left: 0; right: 0; top: 0; padding: 51px 24px 16px; background: linear-gradient(180deg, #fbf6f3 0%, rgba(251,246,243,0.95) 60%, rgba(251,246,243,0) 100%); z-index: 5; }
+      .srow { display: flex; align-items: flex-end; gap: 10px; }
+      .spill { flex: 1; min-width: 0; height: 52px; display: flex; align-items: center; padding: 0 18px; border-radius: 999px; background: var(--accent); border: 1.5px solid var(--aub); box-shadow: 3px 3px 0 var(--aub); color: var(--cream); }
+      .spill .txt { flex: 1; min-width: 0; margin-left: 12px; font: 700 11px/1 "DM Sans"; letter-spacing: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .spill .wm { width: 42px; height: 20px; margin-left: 10px; background: url("assets/img/wordmark.png") right center/contain no-repeat; flex: none; }
+      .sbtn-box { width: 60px; height: 60px; position: relative; flex: none; }
+      .sbtn { position: absolute; left: 0; bottom: 0; width: 54px; height: 54px; border-radius: 50%; border: 1.5px solid var(--accent); box-shadow: 3px 3px 0 var(--accent); background: var(--cream); color: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 20px; }
+      .sbtn.on { background: var(--accent); border-color: var(--aub); box-shadow: 3px 3px 0 var(--aub); color: var(--cream); }
+      .chips { display: flex; gap: 6px; margin-top: 8px; padding-bottom: 4px; }
+      .chip { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 10px; border-radius: 999px; border: 1.5px solid var(--aub); background: var(--cream); color: var(--aub); font: 800 11px/1 "DM Sans"; letter-spacing: 1px; }
+      .chip.f { background: var(--aub); color: var(--cream); border-color: #000; box-shadow: 2px 2px 0 #000; }
+      .chip .fi { font-size: 12px; }
+      #msearch-chip { position: absolute; left: 0; right: 0; top: 0; display: flex; justify-content: center; }
+      #msearch-chip .chip { flex: none; padding: 9px 14px; }
+      /* inline active input */
+      #s-input { position: absolute; left: 24px; right: 94px; top: 51px; height: 52px; display: flex; align-items: center; padding: 0 12px 0 18px; border-radius: 999px; background: var(--accent); border: 1.5px solid var(--aub); box-shadow: 3px 3px 0 var(--aub); color: var(--cream); z-index: 6; }
+      #s-input .q { flex: 1; margin-left: 12px; font: 700 12px/1 "DM Sans"; letter-spacing: 0.6px; white-space: nowrap; overflow: hidden; display: flex; align-items: center; }
+      #s-input .hint { position: absolute; left: 46px; right: 50px; font: 700 11px/1 "DM Sans"; letter-spacing: 1px; color: rgba(251,246,243,0.78); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      #s-caret { width: 1.5px; height: 15px; background: var(--cream); margin-left: 1px; }
+      #s-input .x { padding: 3px 7px; border-radius: 999px; background: rgba(251,246,243,0.22); border: 1px solid rgba(251,246,243,0.5); font-size: 14px; }
+      #sugg { position: absolute; left: 24px; right: 24px; top: 117px; background: var(--cream); border-radius: 22px; border: 1.5px solid var(--aub); box-shadow: 3px 3px 0 var(--aub); padding: 12px 12px 10px; z-index: 6; }
+      #sugg .hd { display: flex; justify-content: space-between; align-items: center; font: 900 12px "DM Sans"; letter-spacing: 0.4px; margin-bottom: 7px; }
+      #sugg .r { display: flex; align-items: center; padding: 10px 0; font: 800 13px "DM Sans"; letter-spacing: 0.1px; color: var(--aub); }
+      #sugg .r .mi { font-size: 18px; color: var(--aubs); margin-right: 12px; }
+      #sugg .r .ar { margin-left: auto; font-size: 16px; color: var(--aub); }
+      #sugg .dv { height: 1px; background: var(--deep); margin-left: 34px; }
+      #sugg .or { text-align: center; font: 900 10px "DM Sans"; color: var(--aubs); letter-spacing: 1px; margin: 8px 0; }
+      #sable { display: flex; align-items: center; gap: 10px; background: var(--aub); border-radius: 18px; padding: 10px 12px; color: var(--cream); }
+      #sable .av { width: 38px; height: 38px; border-radius: 50%; background: #f4ede6 url("assets/img/sable.png") center 12%/120% no-repeat; flex: none; }
+      #sable .t { font: 900 14px "DM Sans"; }
+      #sable .s { font: 800 10.5px/1.3 "DM Sans"; color: rgba(251,246,243,0.72); margin-top: 2px; }
+      #sable .go { width: 28px; height: 28px; border-radius: 8px; background: var(--cream); color: var(--aub); display: flex; align-items: center; justify-content: center; font-size: 16px; flex: none; }
+      #area { position: absolute; top: 157px; left: 0; right: 0; display: flex; justify-content: center; z-index: 4; }
+      #area div { display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; background: var(--cream); border: 1.5px solid var(--aub); box-shadow: 3px 3px 0 var(--aub); font: 700 12px "DM Sans"; letter-spacing: 0.4px; }
+
+      /* map pins — markers.dart bubble + tail + hard shadow; Mapbox text label */
+      .pin { position: absolute; width: 38px; height: 38px; }
+      .pin .sh, .pin .bb { position: absolute; left: 0; top: 0; width: 37.8px; height: 29.4px; border-radius: 14.7px; }
+      .pin .sh { left: 3px; top: 3px; }
+      .pin .bb { background: linear-gradient(135deg, #f1e9e1 0%, #ece2d8 54%, #f2eae3 100%); border: 0.9px solid rgba(65,19,61,0.14); box-shadow: inset 0 0 0 1.15px rgba(255,255,255,0.31); }
+      .pin .bb::after { content: ""; position: absolute; left: 34%; top: 14%; width: 34%; height: 24%; border-radius: 6px; background: rgba(255,255,255,0.18); }
+      .pin .tl, .pin .tls { position: absolute; left: 14.4px; top: 28px; width: 9px; height: 8.3px; clip-path: polygon(0 0, 100% 0, 50% 100%); background: #ece2d8; }
+      .pin .tls { left: 17.4px; top: 31px; }
+      .pin img { position: absolute; left: 6.9px; top: 2.7px; width: 24px; height: 24px; }
+      .pin .lb { position: absolute; left: 44px; top: 2px; white-space: nowrap; font: 600 11px/1.05 "DM Sans"; color: #1a1a2e;
+        text-shadow: 0 0 2px #fff, 0 0 2px #fff, 1px 1px 1px #fff, -1px -1px 1px #fff, 1px -1px 1px #fff, -1px 1px 1px #fff; }
+      .pin .lb i { display: block; font-style: normal; font-weight: 400; font-size: 9px; color: #707785; margin-top: 2px; }
+      .pin .badge { position: absolute; left: 30px; top: -5px; width: 12.4px; height: 12.4px; border-radius: 50%; border: 1.2px solid #fff; color: #fff; font-size: 6px; display: flex; align-items: center; justify-content: center; }
+      .pin.sel .ring { position: absolute; left: -1.8px; top: -1.8px; width: 41.4px; height: 33px; border-radius: 16.5px; border: 1.8px solid var(--cream); }
+
+      /* map controls */
+      .ctl { position: absolute; display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 999px; background: var(--cream); border: 1.5px solid var(--aub); box-shadow: 3px 3px 0 var(--aub); color: var(--aub); font: 700 12px "DM Sans"; letter-spacing: 0.4px; white-space: pre; z-index: 3; }
+      .ctl .mi, .ctl .fi { font-size: 15px; }
+      #see-all .fi { font-size: 13px; }
+
+      /* carousel card — location_carousel.dart */
+      .card { position: absolute; width: 300px; height: 169px; border-radius: 10px; background: var(--cream); border: 2px solid var(--aub); box-shadow: 5px 5px 0 var(--aub); display: flex; overflow: hidden; }
+      .card.peek { border-width: 1.5px; box-shadow: 4px 4px 0 var(--aub); }
+      .card .ph { width: 122px; flex: none; position: relative; background-size: cover; background-position: center; border-right: 1.5px solid var(--aub); }
+      .card .ph::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0) 55%, rgba(0,0,0,0.2) 100%); }
+      .card .emo { position: absolute; left: 8px; top: 8px; width: 32px; height: 32px; border-radius: 50%; background: var(--cream); border: 1.4px solid var(--aub); display: flex; align-items: center; justify-content: center; z-index: 1; }
+      .card .emo img { width: 18px; height: 18px; }
+      .card .open { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 1; display: flex; align-items: center; gap: 4px; padding: 4px 9px; border-radius: 999px; background: var(--aub); border: 1px solid var(--aub); color: var(--cream); font: 700 10px/1 "DM Sans"; letter-spacing: 0.4px; }
+      .card .rt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+      .card .strip { display: flex; align-items: center; gap: 5px; padding: 6px 12px; background: var(--sunk); font: 700 10px/1 "DM Sans"; letter-spacing: 1px; color: var(--mute); }
+      .card .strip .fi { font-size: 11px; }
+      .card .strip .r { margin-left: auto; display: flex; align-items: center; gap: 3px; }
+      .card .strip .r .fi { font-size: 13px; color: var(--aub); }
+      .card .strip .r b { font: 800 12px "DM Sans"; color: var(--aub); letter-spacing: 0.2px; }
+      .card .strip .r em { font: 600 11px "DM Sans"; font-style: normal; color: var(--mute); letter-spacing: 0; }
+      .card .pct { margin-left: 4px; padding: 3px 7px; border-radius: 999px; font: 800 10px "DM Sans"; letter-spacing: 0.4px; color: #34c759; background: rgba(52,199,89,0.12); border: 1px solid rgba(52,199,89,0.35); }
+      .card .bd { flex: 1; padding: 10px 12px 10px 14px; display: flex; flex-direction: column; }
+      .card .nm { font: 800 17px/1.15 "DM Sans"; letter-spacing: -0.3px; color: var(--aub); }
+      .card .sm { font: 500 11.5px/1.3 "DM Sans"; color: var(--mute); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .card .tags { margin-top: auto; display: flex; height: 24px; align-items: center; overflow: hidden; }
+      .tg { flex: none; margin-right: 5px; display: flex; align-items: center; gap: 4px; padding: 4px 9px; border-radius: 999px; border: 1px solid var(--deep); background: var(--sunk); color: var(--aub); font: 700 10px/1 "DM Sans"; letter-spacing: 0.4px; }
+      .tg .fi { font-size: 10px; }
+      .tg.f { background: var(--aub); border-color: var(--aub); color: var(--cream); }
+      .tg.c { background: var(--cuisine); border-color: var(--cuisine); color: var(--cream); }
+      .tg.a { background: var(--accent); border-color: var(--accent); color: var(--cream); }
+      #car-saved, #car-match { position: absolute; inset: 0; pointer-events: none; }
+      #ms-chip { position: absolute; left: 14px; top: -8px; padding: 5px 10px; border-radius: 999px; background: var(--aub); border: 1.2px solid var(--aub); box-shadow: 2px 2px 0 var(--aub); color: var(--cream); font: 800 10px "DM Sans"; letter-spacing: 0.5px; z-index: 2; }
+      #loading { position: absolute; left: 43px; width: 304px; bottom: 122px; height: 160px; padding: 20px; border-radius: 24px; background: var(--accent); border: 1.5px solid var(--aub); box-shadow: 4px 4px 0 var(--aub); color: var(--cream); }
+      #loading .c { width: 44px; height: 44px; border-radius: 50%; background: rgba(251,246,243,0.18); border: 1.2px solid rgba(251,246,243,0.3); display: flex; align-items: center; justify-content: center; font-size: 18px; }
+      #loading .e { margin-top: 14px; font: 700 10px "DM Sans"; letter-spacing: 1.6px; color: rgba(251,246,243,0.78); }
+      #loading .t { margin-top: 6px; font: 700 18px/1.2 "DM Sans"; }
+
+      /* floating plum nav — bottom_nav_bar.dart */
+      #nav { position: absolute; left: 32px; right: 32px; bottom: 35px; height: 60px; padding: 0 24px; border-radius: 24px; background: rgba(77, 27, 72, 0.95); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 6px 20px rgba(0,0,0,0.16); display: flex; align-items: center; z-index: 4; }
+      #nav .pinbtn { width: 32px; height: 32px; border-radius: 10px; background: rgba(255,255,255,0.18); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 16px; flex: none; }
+      #nav .items { flex: 1; display: flex; justify-content: space-evenly; align-items: center; }
+      #nav .it { color: rgba(255,255,255,0.7); font-size: 24px; padding: 10px 12px; }
+      #nav .it.on { color: #fff; background: rgba(255,255,255,0.14); border-radius: 24px; padding: 10px 20px; display: flex; align-items: center; gap: 8px; }
+      #nav .it.on span { font: 600 14px "Manrope"; }
+
+      /* ═══ Expanded place sheet — expanded_location_card.dart ═══ */
+      .backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.5); }
+      .sheet { position: absolute; left: 0; right: 0; top: 59px; bottom: 0; background: var(--cream); border-radius: 28px 28px 0 0; overflow: hidden; }
+      .sheet .scroll { position: absolute; left: 0; right: 0; top: 0; }
+      .hero { position: relative; height: 219px; background-size: cover; background-position: center; }
+      .hero::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.05) 45%, rgba(0,0,0,0.2) 100%); }
+      .handle { position: absolute; left: 177px; top: 10px; width: 36px; height: 4px; border-radius: 999px; background: var(--deep); z-index: 2; }
+      .glass { position: absolute; top: 28px; left: 16px; display: flex; gap: 8px; z-index: 1; }
+      .glass div { display: flex; align-items: center; gap: 7px; padding: 8px 14px; border-radius: 999px; background: rgba(65,19,61,0.55); border: 1px solid rgba(251,246,243,0.18); color: var(--cream); font: 700 10px/1 "DM Sans"; letter-spacing: 1.5px; text-transform: uppercase; backdrop-filter: blur(14px); }
+      .glass .dot { width: 7px; height: 7px; border-radius: 50%; background: #10b981; }
+      .dots { position: absolute; bottom: 14px; left: 0; right: 0; display: flex; justify-content: center; gap: 6px; z-index: 1; }
+      .dots i { width: 6px; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.54); }
+      .dots i.a { width: 22px; background: #fff; }
+      .close { position: absolute; top: 0px; right: 14px; width: 42px; height: 42px; border-radius: 50%; background: var(--cream); border: 1.5px solid var(--deep); box-shadow: 0 2px 8px rgba(65,19,61,0.06); color: var(--aub); display: flex; align-items: center; justify-content: center; font-size: 20px; z-index: 3; }
+      .body { padding: 24px 20px 0; }
+      .from { display: inline-flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 18px; background: var(--accent); color: var(--cream); box-shadow: 0 2px 8px rgba(65,19,61,0.06); font: 800 12px/1.1 "DM Sans"; letter-spacing: 0.3px; }
+      .from .m1 { font-size: 16px; } .from .m2 { font-size: 14px; }
+      .titlerow { display: flex; align-items: flex-start; gap: 12px; margin-top: 14px; }
+      .ptitle { flex: 1; font-size: 36px; line-height: 1.05; letter-spacing: 1.4px; color: var(--aub); }
+      .been { flex: none; padding: 8px 12px; border-radius: 999px; border: 1.5px solid var(--accent); color: var(--accent); font: 600 12px/1 "DM Sans"; margin-top: 4px; }
+      .eyebrow { font: 600 11px "DM Sans"; letter-spacing: 1.32px; text-transform: uppercase; color: var(--aubs); }
+      .stitle { font-size: 28px; line-height: 1.05; letter-spacing: 1.3px; color: var(--aub); margin-top: 8px; }
+      .sec { margin-top: 28px; }
+      .sec32 { margin-top: 32px; }
+      .quote { margin-top: 16px; display: flex; padding: 16px; border-radius: 20px; background: var(--sunk); border: 1.5px solid var(--deep); }
+      .quote .bar { width: 3px; height: 48px; border-radius: 999px; background: var(--accent); margin-right: 14px; flex: none; }
+      .quote .q { font: italic 500 14px/1.5 "DM Sans"; color: var(--aub); }
+      .quote .by { margin-top: 8px; display: flex; align-items: center; gap: 6px; font: 600 12px "DM Sans"; color: var(--aubs); }
+      .quote .by .mi { font-size: 14px; }
+      .minihd { display: flex; align-items: center; gap: 6px; font: 600 12px "DM Sans"; letter-spacing: 0.3px; color: var(--aubs); }
+      .minihd .mi { font-size: 14px; }
+      .dishes { display: flex; gap: 10px; margin-top: 10px; height: 96px; }
+      .dish { flex: none; width: 180px; padding: 14px; border-radius: 16px; background: var(--cream); border: 1.5px solid var(--deep); }
+      .dish b { display: block; font: 700 14px "DM Sans"; color: var(--aub); }
+      .dish span { display: block; margin-top: 6px; font: 400 12px/1.35 "DM Sans"; color: var(--aubs); }
+      .seen-hd { display: flex; align-items: center; gap: 10px; }
+      .seen-hd .bx { width: 34px; height: 34px; border-radius: 10px; background: var(--aub); color: var(--cream); display: flex; align-items: center; justify-content: center; font-size: 16px; }
+      .seen-hd b { display: block; font: 800 18px "DM Sans"; }
+      .seen-hd span { display: block; font: 600 12px "DM Sans"; color: var(--aubs); }
+      .seen { margin-top: 12px; width: 218px; height: 126px; padding: 12px; border-radius: 14px; background: linear-gradient(135deg, var(--cream), rgba(31,168,154,0.11)); border: 1.2px solid rgba(31,168,154,0.22); box-shadow: 0 2px 8px rgba(65,19,61,0.06); }
+      .seen .top { display: flex; align-items: center; gap: 8px; }
+      .seen .tile { width: 38px; height: 38px; border-radius: 12px; background: var(--aub) url("assets/img/tiktok.png") center/20px no-repeat; box-shadow: 3px 3px 0 rgba(31,168,154,0.28); }
+      .seen .hn { font: 800 13px "DM Sans"; }
+      .seen .pb { margin-top: 3px; display: inline-block; padding: 2px 7px; border-radius: 999px; background: rgba(31,168,154,0.12); font: 800 10px "DM Sans"; color: var(--aub); }
+      .seen .ext { margin-left: auto; width: 26px; height: 26px; border-radius: 50%; background: rgba(251,246,243,0.72); display: flex; align-items: center; justify-content: center; font-size: 13px; align-self: flex-start; }
+      .seen .bt { margin-top: 10px; padding: 8px 10px; border-radius: 10px; background: rgba(251,246,243,0.72); font: 700 12px/1.3 "DM Sans"; color: var(--aubs); }
+      .fr-hd { display: flex; align-items: center; gap: 8px; font: 800 13px "DM Sans"; }
+      .fr-hd .mi { font-size: 18px; }
+      .fr-hd span { margin-left: auto; font: 700 12px "DM Sans"; color: var(--mute); }
+      .fr { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+      .ava { width: 38px; height: 38px; border-radius: 50%; background: var(--sunk); border: 1.5px solid var(--deep); display: flex; align-items: center; justify-content: center; font: 800 13px "DM Sans"; color: var(--aub); flex: none; }
+      .fr .nm b { display: block; font: 800 14px "DM Sans"; }
+      .fr .nm span { display: block; font: 600 12px "DM Sans"; color: var(--mute); margin-top: 1px; }
+      .mchip { margin-left: auto; max-width: 176px; padding: 7px 10px; border-radius: 999px; background: rgba(52,199,89,0.1); border: 1px solid rgba(52,199,89,0.22); color: #34c759; font: 800 11px/1.15 "DM Sans"; text-align: right; }
+      .det { margin-top: 16px; border-radius: 20px; background: var(--sunk); border: 1.5px solid var(--deep); }
+      .det .r { display: flex; align-items: center; gap: 14px; padding: 16px 18px; }
+      .det .r .ic { width: 38px; height: 38px; border-radius: 12px; background: var(--deep); display: flex; align-items: center; justify-content: center; font-size: 18px; color: var(--aub); flex: none; }
+      .det .r .lb { font: 600 11px "DM Sans"; letter-spacing: 1.32px; color: var(--aubs); }
+      .det .r .v { font: 600 14px "DM Sans"; margin-top: 4px; }
+      .det .r .ch { margin-left: auto; font-size: 20px; color: var(--mute); }
+      .det .dv { height: 1px; background: var(--deep); margin: 0 18px 0 70px; }
+      .story { margin-top: 12px; font: 400 15px/1.55 "DM Sans"; color: var(--aubs); }
+      .menu { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+      .menu .m1 { padding: 12px 18px; border-radius: 999px; background: var(--accent); color: var(--cream); font: 700 14px "DM Sans"; }
+      .menu .m2 { padding: 10px 16px; border-radius: 999px; background: var(--sunk); border: 1.5px solid var(--deep); font: 600 13px "DM Sans"; }
+      .rev-hd { display: flex; align-items: baseline; gap: 10px; margin-top: 8px; }
+      .rev-hd span { font: 500 13px "DM Sans"; color: var(--mute); }
+      .rev { margin-top: 16px; padding: 16px; border-radius: 16px; background: var(--aub); color: var(--cream); }
+      .rev .top { display: flex; align-items: center; gap: 10px; }
+      .rev .av { width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid rgba(251,246,243,0.3); background: #80cbc4; display: flex; align-items: center; justify-content: center; font: 800 12px "DM Sans"; color: #fff; }
+      .rev .n { font: 600 14px "DM Sans"; }
+      .rev .s { font: 600 12px "DM Sans"; color: rgba(251,246,243,0.65); margin-top: 1px; }
+      .rev .fb { margin-left: auto; padding: 4px 10px; border-radius: 999px; background: var(--accent); font: 700 9px "DM Sans"; letter-spacing: 1.35px; }
+      .rev .tx { margin-top: 12px; font: 400 13px/1.5 "DM Sans"; }
+      .rev .ago { margin-top: 8px; font: 500 11px "DM Sans"; color: rgba(251,246,243,0.65); }
+      .sim { flex: none; width: 168px; border-radius: 20px; background: var(--sunk); overflow: hidden; }
+      .sim .im { height: 96px; background-size: cover; background-position: center; }
+      .sim b { display: block; padding: 12px 12px 0; font: 800 15px "DM Sans"; color: var(--aub); }
+      .sim span { display: block; padding: 4px 12px; font: 600 12px "DM Sans"; color: var(--mute); }
+      .dock { position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 16px 46px; background: var(--cream); border-top: 1.5px solid var(--deep); box-shadow: 0 -4px 16px rgba(0,0,0,0.08); display: flex; align-items: center; z-index: 2; }
+      .dock .p { flex: 1; height: 48px; border-radius: 999px; display: flex; align-items: center; justify-content: center; gap: 6px; font: 600 13px "DM Sans"; background: var(--sunk); border: 1.5px solid var(--deep); color: var(--aub); }
+      .dock .p .mi { font-size: 16px; }
+      .dock .p.on { background: var(--aub); border-color: var(--aub); color: var(--cream); }
+      .dock .c { flex: none; width: 48px; height: 48px; border-radius: 50%; background: var(--sunk); border: 1.5px solid var(--deep); color: var(--aub); display: flex; align-items: center; justify-content: center; font-size: 20px; }
+
+      /* ═══ Add-to-bubble sheet — add_to_bubble_sheet.dart (Manrope) ═══ */
+      #pick { position: absolute; left: 0; right: 0; bottom: 0; background: var(--cream); border-radius: 28px 28px 0 0; border: 1.5px solid var(--deep); box-shadow: 0 12px 32px rgba(65,19,61,0.12); padding: 12px 18px 40px; font-family: "Manrope"; }
+      #pick .hdl { width: 36px; height: 4px; border-radius: 999px; background: var(--deep); margin: 0 auto 22px; }
+      #pick .ey { font: 700 11px "Manrope"; letter-spacing: 1.32px; color: var(--aubs); }
+      #pick .ti { font-size: 28px; line-height: 1; letter-spacing: 0.24px; margin-top: 12px; }
+      #pick .pn { font: 600 14px "Manrope"; color: var(--aubs); margin-top: 8px; }
+      #pick .note { margin-top: 20px; padding: 16px; border-radius: 20px; background: var(--sunk); border: 1.5px solid var(--deep); font: 500 14px/1.35 "Manrope"; color: var(--mute); position: relative; height: 53px; }
+      #pick .note .typed { position: absolute; left: 16px; top: 16px; font-weight: 600; color: var(--aub); }
+      #pick .list { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; padding-right: 10px; }
+      .bt { position: relative; display: flex; align-items: center; gap: 12px; padding: 16px; border-radius: 5px; border: 1.5px solid var(--deep); background: var(--sunk); box-shadow: 10px 5px 0 var(--aub); }
+      .bt .tx { flex: 1; }
+      .bt .n { font-size: 20px; line-height: 1; color: var(--aub); }
+      .bt .m { font: 600 13px "Manrope"; color: var(--aubs); margin-top: 6px; }
+      .bt .avs { display: flex; }
+      .bt .avs i { width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid var(--cream); margin-left: -10px; display: flex; align-items: center; justify-content: center; font: normal 800 11px "Manrope"; color: #fff; }
+      .bt .avs i:first-child { margin-left: 0; }
+      .bt .ck { width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--aub); display: flex; align-items: center; justify-content: center; font-size: 16px; color: transparent; }
+      .bt-sel { position: absolute; inset: -1.5px; border-radius: 5px; background: var(--aub); border: 1.5px solid var(--aub); box-shadow: 10px 5px 0 #000; display: flex; align-items: center; gap: 12px; padding: 16px; opacity: 0; }
+      .bt-sel .n, .bt-sel .m { color: var(--cream); }
+      .bt-sel .m { color: rgba(251,246,243,0.84); }
+      .bt-sel .avs i { border-color: var(--aub); }
+      .bt-sel .ck { background: var(--cream); border-color: var(--cream); color: var(--aub); }
+      #send-btn { position: relative; margin-top: 18px; height: 48px; border-radius: 999px; }
+      #send-btn div { position: absolute; inset: 0; border-radius: 999px; display: flex; align-items: center; justify-content: center; font: 200 12px "Manrope"; letter-spacing: 1.2px; border: 1.5px solid; }
+      #send-off { background: var(--deep); border-color: var(--deep) !important; color: var(--mute); }
+      #send-on { background: var(--aub); border-color: var(--aub) !important; color: var(--cream); box-shadow: 3px 3px 0 var(--aub); opacity: 0; }
+
+      /* ═══ Bubble chat — bubble_messaging_page.dart ═══ */
+      #chat { background: linear-gradient(180deg, #fbf6f3 0%, #f7efe8 50%, #fbf6f3 100%); font-family: "Manrope"; }
+      #chat .blob1 { position: absolute; right: -40px; top: 24px; width: 164px; height: 164px; border-radius: 50%; background: radial-gradient(closest-side, #ece2d8, rgba(236,226,216,0)); opacity: 0.5; }
+      #chat .blob2 { position: absolute; left: -50px; bottom: 28px; width: 208px; height: 208px; border-radius: 50%; background: radial-gradient(closest-side, rgba(236,61,44,0.08), rgba(236,61,44,0)); opacity: 0.5; }
+      #chat-hd { position: absolute; left: 0; right: 0; top: 54px; padding: 8px 16px 10px; display: flex; align-items: center; gap: 12px; }
+      #chat-hd .bk { width: 44px; height: 44px; border-radius: 50%; background: var(--sunk); border: 1.5px solid var(--deep); display: flex; align-items: center; justify-content: center; font-size: 20px; flex: none; }
+      #chat-hd .cd { flex: 1; display: flex; align-items: center; gap: 12px; padding: 10px 14px 10px 12px; background: var(--cream); border-radius: 24px; border: 1.5px solid var(--deep); box-shadow: 0 4px 16px rgba(65,19,61,0.08); }
+      #chat-hd .gav { width: 46px; height: 46px; border-radius: 50%; background: var(--sunk); border: 1.5px solid var(--deep); display: flex; align-items: center; justify-content: center; }
+      #chat-hd .gav div { width: 40px; height: 40px; border-radius: 50%; background: var(--deep); display: flex; align-items: center; justify-content: center; font-size: 20px; }
+      #chat-hd .l1 { font: 700 10px "Manrope"; letter-spacing: 1.2px; color: var(--aubs); }
+      #chat-hd .l2 { font-size: 24px; letter-spacing: 1.4px; line-height: 1; margin-top: 4px; }
+      #chat-hd .l3 { font: 600 12px "Manrope"; color: var(--mute); margin-top: 4px; }
+      #chat-tabs { position: absolute; left: 16px; top: 146px; display: flex; gap: 8px; }
+      #chat-tabs div { padding: 6px 10px; border-radius: 999px; border: 1.2px solid var(--deep); background: var(--sunk); font: 700 10px "Manrope"; letter-spacing: 1px; }
+      #chat-tabs .on { background: var(--aub); border-color: var(--aub); color: var(--cream); box-shadow: 0 4px 16px rgba(65,19,61,0.08); }
+      #chat-day { position: absolute; left: 16px; right: 16px; top: 196px; display: flex; align-items: center; }
+      #chat-day i { flex: 1; height: 1px; background: var(--deep); }
+      #chat-day span { margin: 0 10px; padding: 5px 10px; border-radius: 999px; background: rgba(251,246,243,0.92); border: 1.2px solid var(--deep); font: 800 11px "Manrope"; color: var(--aubs); }
+      #msg-out { position: absolute; right: 21px; top: 236px; width: 268px; padding: 12px 14px 10px; background: var(--aub); border: 1.5px solid var(--aub); border-radius: 20px 20px 8px 20px; box-shadow: 5px 5px 0 #000; }
+      .shared { background: var(--cream); border-radius: 16px; border: 1.5px solid var(--deep); overflow: hidden; }
+      .shared .ph { height: 104px; background: url("assets/img/date-1.jpg") center/cover; position: relative; }
+      .shared .op { position: absolute; right: 10px; top: 10px; padding: 6px 10px; border-radius: 999px; background: rgba(251,246,243,0.92); border: 1.2px solid var(--deep); font: 800 10px "Manrope"; letter-spacing: 1px; color: var(--aub); }
+      .shared .tb { padding: 12px; }
+      .shared .l { font: 700 10px "Manrope"; letter-spacing: 1.1px; color: var(--aubs); }
+      .shared .n { font: 800 18px/1.15 "DM Sans"; letter-spacing: -0.8px; color: var(--aub); margin-top: 6px; }
+      .shared .a { font: 600 12px/1.3 "Manrope"; color: var(--mute); margin-top: 6px; }
+      .msg-t { font: 600 15px/1.35 "Manrope"; margin-top: 10px; }
+      .msg-time { font: 600 11px "Manrope"; margin-top: 8px; }
+      #msg-out .msg-t { color: var(--cream); }
+      #msg-out .msg-time { color: rgba(251,246,243,0.72); }
+      #msg-in { position: absolute; left: 16px; top: 548px; display: flex; align-items: flex-end; gap: 10px; }
+      #msg-in .av { width: 32px; height: 32px; border-radius: 50%; background: var(--cream); border: 1.5px solid var(--deep); display: flex; align-items: center; justify-content: center; }
+      #msg-in .av div { width: 28px; height: 28px; border-radius: 50%; background: var(--deep); display: flex; align-items: center; justify-content: center; font: 800 12px "Manrope"; color: var(--aub); }
+      #msg-in .who { font: 700 11px "Manrope"; letter-spacing: 1.1px; color: var(--aubs); padding: 0 0 6px 4px; }
+      #msg-in .bub { padding: 12px 14px 10px; background: var(--sunk); border: 1.5px solid var(--deep); border-radius: 20px 20px 20px 8px; box-shadow: 5px 5px 0 var(--aub); }
+      #msg-in .msg-t { margin-top: 0; color: var(--aub); }
+      #msg-in .msg-time { color: var(--mute); }
+      #chat-in { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 16px 46px; background: rgba(251,246,243,0.96); border-top: 1.5px solid var(--deep); box-shadow: 0 12px 32px rgba(65,19,61,0.12); display: flex; gap: 10px; align-items: flex-end; }
+      #chat-in .f { flex: 1; height: 50px; border-radius: 24px; background: var(--sunk); border: 1.5px solid var(--deep); padding: 0 18px; display: flex; align-items: center; font: 500 15px "Manrope"; color: var(--mute); }
+      #chat-in .s { width: 52px; height: 52px; border-radius: 50%; background: var(--aub); box-shadow: 3px 3px 0 var(--aub); color: var(--cream); display: flex; align-items: center; justify-content: center; font-size: 18px; flex: none; }
+      .homebar { position: absolute; bottom: 9px; left: 125px; width: 140px; height: 5px; border-radius: 3px; background: #000; z-index: 88; }
+
+      /* ═══ End card ═══ */
+      #end { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; opacity: 0; }
+      #end-logo { width: 520px; height: 241px; background: url("assets/img/wordmark.png") center/contain no-repeat; }
+      #end-line { font-family: "Rova", "Naria", serif; font-size: 112px; line-height: 1.02; color: var(--aub); margin-top: 56px; text-align: center; letter-spacing: 1px; }
+      #end-sub { font: 700 30px "DM Sans"; letter-spacing: 3.6px; color: var(--accent); margin-top: 34px; text-transform: uppercase; }
+      #end-cta { margin-top: 64px; padding: 30px 64px; border-radius: 999px; background: var(--aub); color: var(--cream); font: 800 38px "DM Sans"; letter-spacing: 1px; box-shadow: 8px 8px 0 #000; border: 3px solid #000; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-width="1080" data-height="1920" data-fps="30" data-duration="31.5">
+      <!-- background rings (App-Store art texture) -->
+      <div id="rings-a"><div class="rings" style="inset:0"></div><div class="rings" style="inset:110px"></div><div class="rings" style="inset:220px"></div><div class="rings" style="inset:330px"></div></div>
+      <div id="rings-b"><div class="rings" style="inset:0"></div><div class="rings" style="inset:110px"></div><div class="rings" style="inset:220px"></div><div class="rings" style="inset:330px"></div></div>
+
+      <!-- headlines -->
+      <div id="hl1" class="hl"><div class="hl-label">1:04 AM, on the FYP</div><div class="hl-text">Seen a spot<br />on TikTok?</div></div>
+      <div id="hl2" class="hl"><div class="hl-label">Two taps</div><div class="hl-text">Share it<br />to Pinit.</div></div>
+      <div id="hl3" class="hl"><div class="hl-label">Saturday, 6:42 PM</div><div class="hl-text">3 weeks<br />later&hellip;</div></div>
+      <div id="hl3b" class="hl"><div class="hl-label">Saved places</div><div class="hl-text">We'll remind you<br />when you're near.</div></div>
+      <div id="hl4" class="hl"><div class="hl-label">From the FYP</div><div class="hl-text">Hear what the<br />creator said.</div></div>
+      <div id="hl4b" class="hl"><div class="hl-label">Your friends</div><div class="hl-text">And what your<br />mates think.</div></div>
+      <div id="hl-ov" class="hl"><div class="hl-label">Saved places</div><div class="hl-text">Every save,<br />on one map.</div></div>
+      <div id="hl5" class="hl"><div class="hl-label">Magic search</div><div class="hl-text">Any vibe, dish,<br />or craving.</div></div>
+      <div id="hl6" class="hl"><div class="hl-label">Bubbles</div><div class="hl-text">Settle the group-<br />chat debate.</div></div>
+
+      <!-- ══ PHONE ══ -->
+      <div id="phone-wrap">
+        <div id="phone-glow"></div>
+        <div id="phone-scale">
+          <div id="bezel"><div id="bezel-inner"></div></div>
+          <div id="screen">
+            <!-- 1 · TikTok-style feed -->
+            <div id="tt" class="layer">
+              <div id="tt-photo"></div>
+              <div id="tt-shade"></div>
+              <div id="tt-tabs">Following <b>For You</b></div>
+              <div id="tt-rail">
+                <div id="tt-ava"></div>
+                <div class="it"><svg width="34" height="32" viewBox="0 0 24 22"><path fill="#fff" d="M12 21.6 10.3 20C4.2 14.5.2 10.9.2 6.5.2 2.9 3 .1 6.6.1c2 0 4 .9 5.4 2.4C13.4 1 15.4.1 17.4.1c3.6 0 6.4 2.8 6.4 6.4 0 4.4-4 8-10.1 13.5L12 21.6Z"/></svg>48.2K</div>
+                <div class="it"><svg width="32" height="30" viewBox="0 0 24 22"><path fill="#fff" d="M12 .5C5.6.5.5 4.7.5 10c0 2.8 1.5 5.4 3.9 7.1L3.5 21.3l5-2.5c1.1.3 2.3.5 3.5.5 6.4 0 11.5-4.2 11.5-9.3S18.4.5 12 .5Z"/><circle cx="7" cy="10" r="1.5" fill="#666"/><circle cx="12" cy="10" r="1.5" fill="#666"/><circle cx="17" cy="10" r="1.5" fill="#666"/></svg>1,204</div>
+                <div class="it"><svg width="26" height="30" viewBox="0 0 18 22"><path fill="#fff" d="M2 0h14a2 2 0 0 1 2 2v20l-9-5.5L0 22V2a2 2 0 0 1 2-2Z"/></svg>9,871</div>
+                <div class="it" id="tt-share"><svg width="32" height="28" viewBox="0 0 24 21"><path fill="#fff" d="M13.6.4v5.2C5.9 6.4.9 11.6.4 20.6c2.6-4.7 6.7-7 13.2-7.3v5.4L23.6 9.6 13.6.4Z"/></svg>Share</div>
+              </div>
+              <div id="tt-cap">
+                <div class="h">@eat.snack.repeat</div>
+                the loaded fries at HTacos are actually insane 🌮🔥 #londonfood #kensington
+                <div class="snd">♫ original sound &middot; eat.snack.repeat</div>
+              </div>
+              <div id="tt-bar"><div><span style="font-size:22px">⌂</span>Home</div><div><span style="font-size:22px">◎</span>Friends</div><div><span style="font-size:24px">＋</span></div><div><span style="font-size:20px">✉</span>Inbox</div><div><span style="font-size:20px">○</span>Profile</div></div>
+              <!-- iOS share sheet -->
+              <div id="share">
+                <div class="prev"><div class="thumb"></div><div><div class="t1">the loaded fries at HTacos are…</div><div class="t2">tiktok.com</div></div><div class="x">✕</div></div>
+                <div class="apps">
+                  <div class="app" id="share-pinit"><div class="ic" style="background:url('assets/img/app-icon.png') center/cover"></div>Pinit</div>
+                  <div class="app"><div class="ic" style="background:#34c759"><i class="fi" style="font-size:30px">&#xe999;</i></div>Messages</div>
+                  <div class="app"><div class="ic" style="background:#1a82fb"><i class="fi" style="font-size:28px">&#xe9cd;</i></div>Mail</div>
+                  <div class="app"><div class="ic" style="background:#fff;color:#f7b500;border:0.5px solid #ddd"><i class="fi" style="font-size:28px">&#xe98d;</i></div>Notes</div>
+                </div>
+                <div class="rows"><div class="row">Copy <span>⧉</span></div><div class="row">Add to Reading List <span>∞</span></div><div class="row" style="border:0">Add Bookmark <span>▭</span></div></div>
+              </div>
+              <!-- URLShareExtension success card -->
+              <div id="ext" class="layer">
+                <div id="ext-dim"></div>
+                <div id="ext-card"><div class="ov"></div><div class="msg">Pinning this location...<br />We will let you know when it is done.</div><div class="ok">OK</div></div>
+              </div>
+              <!-- social_post_review push: saved_count==1 -->
+              <div id="nb1" class="notif"><div class="ic"></div><div class="tx"><div class="tt">Saved from TikTok<span>now</span></div><div class="bd">HTacos was added to your saves.</div></div></div>
+            </div>
+
+            <!-- 4/5 · Home map -->
+            <div id="home" class="layer">
+              <div id="map-wide"></div>
+              <div id="map"></div>
+              <!-- pins -->
+              <div id="pins-near">
+              <div id="pin-taco" class="pin" style="left:216px;top:318px"><div class="sh" style="background:#5f63d3"></div><div class="tls" style="background:#5f63d3"></div><div class="bb"></div><div class="tl"></div><img src="assets/img/1F32E.svg" /><div class="badge" style="background:#5856d6">🌙</div><div class="lb">HTacos<i>★4.4 · $ · late-night</i></div></div>
+              <div id="pin-coffee" class="pin" style="left:64px;top:236px"><div class="sh" style="background:#c98a2e"></div><div class="tls" style="background:#c98a2e"></div><div class="bb"></div><div class="tl"></div><img src="assets/img/2615.svg" /><div class="lb">Kin Cafe<i>★4.6 · $ · cozy</i></div></div>
+              <div id="pin-burger" class="pin" style="left:262px;top:470px"><div class="sh" style="background:#e56a2e"></div><div class="tls" style="background:#e56a2e"></div><div class="bb"></div><div class="tl"></div><img src="assets/img/1F354.svg" /></div>
+              <div id="pin-sushi" class="pin" style="left:40px;top:432px"><div class="sh" style="background:#c5abab"></div><div class="tls" style="background:#c5abab"></div><div class="bb"></div><div class="tl"></div><img src="assets/img/1F363.svg" /></div>
+              </div>
+              <!-- zoomed-out: every saved spot -->
+              <div id="pins-wide"><div class="dot-pin" style="left:116px;top:211px"></div><div class="dot-pin dp-been" style="left:264px;top:178px"></div><div class="dot-pin" style="left:182px;top:258px"></div><div class="dot-pin" style="left:32px;top:286px"></div><div class="dot-pin" style="left:296px;top:258px"></div><div class="dot-pin dp-been" style="left:208px;top:346px"></div><div class="dot-pin" style="left:92px;top:396px"></div><div class="dot-pin" style="left:146px;top:436px"></div><div class="dot-pin" style="left:356px;top:396px"></div><div class="dot-pin dp-been" style="left:236px;top:466px"></div><div class="dot-pin" style="left:26px;top:446px"></div><div class="dot-pin" style="left:276px;top:516px"></div><div class="dot-pin" style="left:126px;top:536px"></div><div class="dot-pin dp-been" style="left:346px;top:226px"></div><div class="dot-pin" style="left:72px;top:296px"></div><div class="dot-pin" style="left:246px;top:386px"></div><div class="dot-pin" style="left:316px;top:556px"></div><div class="dot-pin dp-been" style="left:176px;top:156px"></div><div class="dot-pin" style="left:16px;top:376px"></div><div class="dot-pin" style="left:216px;top:556px"></div><div class="pin wpin" style="left:185px;top:394px"><div class="sh" style="background:#5f63d3"></div><div class="tls" style="background:#5f63d3"></div><div class="bb"></div><div class="tl"></div><img src="assets/img/1F32E.svg" /><div class="badge" style="background:#5856d6">🌙</div><div class="lb">HTacos<i>★4.4 · $ · late-night</i></div></div><div class="pin wpin" style="left:73px;top:231px"><div class="sh" style="background:#c98a2e"></div><div class="tls" style="background:#c98a2e"></div><div class="bb"></div><div class="tl"></div><img src="assets/img/2615.svg" /><div class="lb">Kin Cafe<i>★4.6 · $ · cozy</i></div></div><div class="pin wpin" style="left:281px;top:197px"><div class="sh" style="background:#e57373"></div><div class="tls" style="background:#e57373"></div><div class="bb"></div><div class="tl"></div><img src="assets/img/1F355.svg" /></div><div class="pin wpin" style="left:139px;top:171px"><div class="sh" style="background:#c5abab"></div><div class="tls" style="background:#c5abab"></div><div class="bb"></div><div class="tl"></div><img src="assets/img/1F35C.svg" /><div class="badge" style="background:#ff9500">🔥</div></div><div class="pin wpin" style="left:231px;top:285px"><div class="sh" style="background:#cca03a"></div><div class="tls" style="background:#cca03a"></div><div class="bb"></div><div class="tl"></div><img src="assets/img/1F950.svg" /><div class="badge" style="background:#ffb800">✦</div></div><div class="pin wpin" style="left:37px;top:335px"><div class="sh" style="background:#e56a2e"></div><div class="tls" style="background:#e56a2e"></div><div class="bb"></div><div class="tl"></div><img src="assets/img/1F35B.svg" /></div><div class="pin wpin" style="left:311px;top:315px"><div class="sh" style="background:#8b63c7"></div><div class="tls" style="background:#8b63c7"></div><div class="bb"></div><div class="tl"></div><img src="assets/img/1F378.svg" /><div class="badge" style="background:#ba68c8">🍸</div></div><div class="pin wpin" style="left:121px;top:285px"><div class="sh" style="background:#c5abab"></div><div class="tls" style="background:#c5abab"></div><div class="bb"></div><div class="tl"></div><img src="assets/img/1F363.svg" /></div><div class="pin wpin" style="left:263px;top:423px"><div class="sh" style="background:#4b9a68"></div><div class="tls" style="background:#4b9a68"></div><div class="bb"></div><div class="tl"></div><img src="assets/img/1F37A.svg" /><div class="badge" style="background:#34c759">☀</div><div class="lb">Windsor Castle<i>★4.5 · $$ · pub</i></div></div><div class="pin wpin" style="left:91px;top:455px"><div class="sh" style="background:#e56a2e"></div><div class="tls" style="background:#e56a2e"></div><div class="bb"></div><div class="tl"></div><img src="assets/img/1F354.svg" /></div><div class="pin wpin" style="left:177px;top:493px"><div class="sh" style="background:#c65b88"></div><div class="tls" style="background:#c65b88"></div><div class="bb"></div><div class="tl"></div><img src="assets/img/1F9CB.svg" /></div><div class="pin wpin" style="left:321px;top:465px"><div class="sh" style="background:#c5abab"></div><div class="tls" style="background:#c5abab"></div><div class="bb"></div><div class="tl"></div><img src="assets/img/1F95F.svg" /></div><div class="pin wpin" style="left:29px;top:165px"><div class="sh" style="background:#cca03a"></div><div class="tls" style="background:#cca03a"></div><div class="bb"></div><div class="tl"></div><img src="assets/img/1F368.svg" /></div><div class="pin wpin" style="left:207px;top:225px"><div class="sh" style="background:#c65b88"></div><div class="tls" style="background:#c65b88"></div><div class="bb"></div><div class="tl"></div><img src="assets/img/1F377.svg" /></div><div class="pin wpin" style="left:301px;top:165px"><div class="sh" style="background:#7a6852"></div><div class="tls" style="background:#7a6852"></div><div class="bb"></div><div class="tl"></div><img src="assets/img/1F96F.svg" /></div><div class="pin wpin" style="left:51px;top:505px"><div class="sh" style="background:#4b9a68"></div><div class="tls" style="background:#4b9a68"></div><div class="bb"></div><div class="tl"></div><img src="assets/img/1F957.svg" /></div><div class="pin wpin" style="left:149px;top:377px"><div class="sh" style="background:#e57373"></div><div class="tls" style="background:#e57373"></div><div class="bb"></div><div class="tl"></div><img src="assets/img/1F35D.svg" /></div></div>
+              <!-- magic search result pins -->
+              <div id="pin-wine" class="pin sel" style="left:118px;top:440px"><div class="sh" style="background:#c65b88"></div><div class="tls" style="background:#c65b88"></div><div class="ring"></div><div class="bb"></div><div class="tl"></div><img src="assets/img/1F377.svg" /><div class="badge" style="background:#ffb800">✦</div></div>
+              <div id="pin-cock" class="pin" style="left:286px;top:262px"><div class="sh" style="background:#8b63c7"></div><div class="tls" style="background:#8b63c7"></div><div class="bb"></div><div class="tl"></div><img src="assets/img/1F378.svg" /><div class="badge" style="background:#ba68c8">🍸</div></div>
+              <div id="pin-pasta" class="pin" style="left:84px;top:358px"><div class="sh" style="background:#c65b88"></div><div class="tls" style="background:#c65b88"></div><div class="bb"></div><div class="tl"></div><img src="assets/img/1F35D.svg" /></div>
+              <div id="lbl-wine" class="pin" style="left:118px;top:440px;pointer-events:none"><div class="lb" style="left:58px;top:4px">Petal &amp; Pine<i>★4.6 · $$ · romantic</i></div></div>
+
+              <div id="area"><div><i class="fi">&#xe9cc;</i>Search this area</div></div>
+
+              <!-- header -->
+              <div id="top-panel">
+                <div class="srow" id="srow">
+                  <div class="spill"><i class="fi" style="font-size:16px">&#xe9cc;</i><div class="txt" id="spill-txt"><span id="spill-ph">SEARCH FOR A VIBE, DISH OR SOMETHING YOU ARE FEELING</span><span id="spill-q" style="display:none;letter-spacing:0.6px">cute date spot near me</span></div><div class="wm"></div></div>
+                  <div class="sbtn-box"><div class="sbtn" id="sbtn-idle"><i class="fi">&#xe999;</i></div><div class="sbtn on" id="sbtn-x" style="opacity:0"><i class="ci">&#xf404;</i></div></div>
+                </div>
+                <div style="position:relative">
+                  <div class="chips" id="chips"><div class="chip f"><i class="fi">&#xea02;</i>SAVED</div><div class="chip"><i class="fi">&#xe946;</i>PICKS</div><div class="chip"><i class="fi">&#xe924;</i>EAT-LISTS<i class="fi" style="font-size:11px">&#xe92e;</i></div></div>
+                  <div id="msearch-chip" style="opacity:0"><div class="chip f"><i class="fi">&#xea15;</i>MAGIC SEARCH</div></div>
+                </div>
+              </div>
+              <!-- inline active search + suggestions -->
+              <div id="s-input" style="opacity:0"><i class="fi" style="font-size:16px">&#xe9cc;</i><div class="q"><span id="s-q"></span><span id="s-caret"></span></div><div class="hint" id="s-hint">SEARCH FOR A VIBE, DISH OR SOMETHING YOU ARE FEELING</div><div class="x"><i class="ci">&#xf404;</i></div></div>
+              <div class="sbtn-box" id="sbtn-search" style="position:absolute;right:24px;top:47px;opacity:0;z-index:6"><div class="sbtn on"><i class="fi">&#xe9cc;</i></div></div>
+              <div id="sugg" style="opacity:0">
+                <div class="hd">Suggested<i class="mi" style="font-size:18px;color:var(--aubs)">&#xf647;</i></div>
+                <div class="r"><i class="mi">&#xf5fc;</i>Sweet treat nearby<i class="mi ar">&#xf57a;</i></div><div class="dv"></div>
+                <div class="r"><i class="mi">&#xf6ac;</i>Dinner date spot<i class="mi ar">&#xf57a;</i></div><div class="dv"></div>
+                <div class="r"><i class="mi">&#xf865;</i>Cocktails + small plates<i class="mi ar">&#xf57a;</i></div>
+                <div class="or">OR...</div>
+                <div id="sable"><div class="av"></div><div style="flex:1"><div class="t">Try it Sable's way</div><div class="s">Spin a country wheel and let fate pick the craving.</div></div><div class="go"><i class="mi">&#xf57a;</i></div></div>
+              </div>
+
+              <!-- controls -->
+              <div class="ctl" id="ctl-loc" style="left:16px;bottom:349px"><i class="mi">&#xf8f0;</i></div>
+              <div class="ctl" id="ctl-filter" style="left:16px;bottom:303px"><i class="fi">&#xe9dc;</i></div>
+              <div class="ctl" id="see-all" style="right:19px;bottom:303px"><i class="fi">&#xe98d;</i>    See All    </div>
+
+              <!-- carousel: saved -->
+              <div id="car-saved">
+                <div class="card peek" style="left:-282px;bottom:118px;transform:scale(0.96)"><div class="ph" style="background-image:url('assets/img/date-2.jpg')"></div><div class="rt"><div class="strip">SAVED</div><div class="bd"><div class="nm">Kin Cafe</div></div></div></div>
+                <div class="card" style="left:45px;bottom:118px">
+                  <div class="ph" style="background-image:url('assets/img/htacos-tray.jpg')"><div class="emo"><img src="assets/img/1F32E.svg" /></div><div class="open"><i class="fi">&#xe92b;</i>OPEN</div></div>
+                  <div class="rt"><div class="strip"><i class="fi">&#xe97d;</i>SAVED<div class="r"><i class="fi">&#xe9e1;</i><b>4.4</b><em>(312)</em></div></div>
+                    <div class="bd"><div class="nm">HTacos</div><div class="sm">French tacos &amp; loaded fries, open late</div>
+                      <div class="tags"><div class="tg f">£</div><div class="tg c">French Tacos</div><div class="tg">late-night</div></div></div></div>
+                </div>
+                <div class="card peek" style="left:357px;bottom:118px;transform:scale(0.96)"><div class="ph" style="background-image:url('assets/img/htacos-store.jpg')"></div><div class="rt"><div class="strip">SAVED</div></div></div>
+              </div>
+              <!-- magic search loading -->
+              <div id="loading" style="opacity:0"><div class="c"><i class="fi">&#xea15;</i></div><div class="e">MAGIC SEARCH</div><div class="t">Finding your spots...</div></div>
+              <!-- carousel: magic result -->
+              <div id="car-match" style="opacity:0">
+                <div class="card peek" style="left:-282px;bottom:118px;transform:scale(0.96)"><div class="ph" style="background-image:url('assets/img/date-3.jpg')"></div><div class="rt"><div class="strip">MATCH</div></div></div>
+                <div class="card" id="match-card" style="left:45px;bottom:118px;overflow:visible">
+                  <div id="ms-chip">Cute date spots near you</div>
+                  <div style="display:flex;width:100%;border-radius:8.5px;overflow:hidden">
+                    <div class="ph" style="background-image:url('assets/img/date-1.jpg')"><div class="emo"><img src="assets/img/1F377.svg" /></div><div class="open"><i class="fi">&#xe92b;</i>OPEN</div></div>
+                    <div class="rt"><div class="strip"><i class="fi">&#xe993;</i>MATCH<div class="r"><i class="fi">&#xe9e1;</i><b>4.6</b><em>(412)</em><span class="pct">87%</span></div></div>
+                      <div class="bd"><div class="nm">Petal &amp; Pine</div><div class="sm">Candlelit wine bar, plants everywhere</div>
+                        <div class="tags"><div class="tg f">££</div><div class="tg a"><i class="fi">&#xea03;</i>Max saved</div><div class="tg c">Wine Bar</div><div class="tg">romantic</div></div></div></div>
+                  </div>
+                </div>
+                <div class="card peek" style="left:357px;bottom:118px;transform:scale(0.96)"><div class="ph" style="background-image:url('assets/img/date-2.jpg')"></div><div class="rt"><div class="strip">MATCH</div></div></div>
+              </div>
+
+              <!-- nav -->
+              <div id="nav"><div class="pinbtn"><i class="mi">&#xe4f4;</i></div><div class="items"><div class="it on"><i class="fi">&#xe980;</i><span>Home</span></div><div class="it"><i class="fi">&#xe9cc;</i></div><div class="it"><i class="fi">&#xea02;</i></div></div></div>
+              <div class="homebar"></div>
+
+              <!-- expanded card: HTacos -->
+              <div id="bd1" class="backdrop" style="opacity:0"></div>
+              <div id="sheet1" class="sheet">
+                <div class="scroll" id="scroll1">
+                  <div class="hero" style="background-image:url('assets/img/htacos-store.jpg')"><div class="glass"><div><span class="dot"></span>Open now</div><div>£</div></div><div class="dots"><i class="a"></i><i></i><i></i></div></div>
+                  <div class="body">
+                    <div class="from"><i class="mi m1">&#xf8ed;</i>Saved from @eat.snack.repeat’s TikTok<i class="mi m2">&#xf0034;</i></div>
+                    <div class="titlerow"><div class="ptitle rova">HTacos</div><div class="been">Been here?</div></div>
+                    <div class="sec">
+                      <div class="eyebrow" style="color:var(--accent)">From this TikTok</div>
+                      <div class="stitle rova">What they said</div>
+                      <div class="quote"><div class="bar"></div><div><div class="q">"This French tacos spot goes crazy — the loaded fries with jalapeños and crispy onions are a must, and the portions are massive for the price."</div><div class="by"><i class="mi">&#xf014f;</i>@eat.snack.repeat</div></div></div>
+                      <div class="minihd" style="margin-top:20px"><i class="mi">&#xf0107;</i>Dishes mentioned</div>
+                      <div class="dishes"><div class="dish"><b>Loaded Fries</b><span>Jalapeños, crispy onions, cheese sauce</span></div><div class="dish"><b>French Tacos</b><span>Toasted, stuffed, sauce-heavy</span></div></div>
+                    </div>
+                    <div class="sec">
+                      <div class="seen-hd"><div class="bx"><i class="fi">&#xe9bb;</i></div><div><b>Seen on TikTok</b><span>1 shared post from this place</span></div></div>
+                      <div class="seen"><div class="top"><div class="tile"></div><div><div class="hn">@eat.snack.repeat</div><div class="pb">TikTok</div></div><div class="ext"><i class="fi">&#xe95e;</i></div></div><div class="bt">Try Loaded Fries</div></div>
+                    </div>
+                    <div class="sec" id="friends1">
+                      <div class="fr-hd"><i class="mi">&#xf005c;</i>Saved by friends<span>1 friend</span></div>
+                      <div class="fr"><div class="ava">MC</div><div class="nm"><b>Max Carter</b><span>@maxeats</span></div><div class="mchip">You + Max match 82% here</div></div>
+                    </div>
+                    <div class="sec32">
+                      <div class="eyebrow">Details</div><div class="stitle rova">The essentials</div>
+                      <div class="det">
+                        <div class="r"><div class="ic"><i class="mi">&#xf8a0;</i></div><div><div class="lb">DIRECTIONS</div><div class="v">Open in Google Maps</div></div><i class="mi ch">&#xf63b;</i></div><div class="dv"></div>
+                        <div class="r"><div class="ic"><i class="mi">&#xf012b;</i></div><div><div class="lb">TODAY</div><div class="v">11:00 – 23:30</div></div></div><div class="dv"></div>
+                        <div class="r"><div class="ic"><i class="mi">&#xf8a0;</i></div><div><div class="lb">SHOW ON MAP</div><div class="v">Minimise and locate on the map</div></div><i class="mi ch">&#xf63b;</i></div>
+                      </div>
+                    </div>
+                    <div class="sec32"><div class="eyebrow">Why go</div><div class="stitle rova">The story</div><div class="story">A bright pink French tacos counter inside a Kensington food court — big portions, loud sauces, open late.</div></div>
+                    <div class="sec32"><div class="eyebrow">Worth ordering</div><div class="stitle rova">On the menu</div><div class="menu"><div class="m1">✨ Loaded Fries</div><div class="m2">🍽️ French Tacos</div><div class="m2">🍽️ Nachos</div></div></div>
+                    <div class="sec32" id="reviews1">
+                      <div class="eyebrow">What people say</div>
+                      <div class="rev-hd"><div class="stitle rova" style="margin:0">Reviews</div><span>from your network</span></div>
+                      <div class="rev"><div class="top"><div class="av">M</div><div><div class="n">Max Carter</div><div class="s">8.0 / 10</div></div><div class="fb">FRIEND</div></div><div class="tx">Get the loaded fries and thank me later. Not fancy, just properly good.</div><div class="ago">3d ago</div></div>
+                    </div>
+                    <div style="height:200px"></div>
+                  </div>
+                </div>
+                <div class="handle"></div>
+                <div class="dock"><div class="p on"><i class="mi">&#xf5d1;</i>Saved</div><div style="width:8px"></div><div class="p"><i class="mi">&#xf656;</i>Eat-List</div><div style="width:10px"></div><div class="c"><i class="mi">&#xf022e;</i></div><div style="width:10px"></div><div class="c"><i class="mi">&#xf0147;</i></div></div>
+              </div>
+              <div id="close1" class="close" style="top:59px"><i class="mi">&#xf647;</i></div>
+
+              <!-- expanded card: date spot -->
+              <div id="bd2" class="backdrop" style="opacity:0"></div>
+              <div id="sheet2" class="sheet">
+                <div class="scroll" id="scroll2">
+                  <div class="hero" style="background-image:url('assets/img/date-1.jpg')"><div class="glass"><div><span class="dot"></span>Open now</div><div>££</div></div><div class="dots"><i class="a"></i><i></i><i></i><i></i></div></div>
+                  <div class="body">
+                    <div class="titlerow" style="margin-top:0"><div class="ptitle rova">Petal &amp; Pine</div><div class="been">Been here?</div></div>
+                    <div class="sec">
+                      <div class="seen-hd"><div class="bx"><i class="fi">&#xe9bb;</i></div><div><b>Seen on TikTok</b><span>2 shared posts from this place</span></div></div>
+                      <div style="display:flex;gap:10px">
+                        <div class="seen" style="flex:none"><div class="top"><div class="tile"></div><div><div class="hn">@datenightldn</div><div class="pb">TikTok</div></div><div class="ext"><i class="fi">&#xe95e;</i></div></div><div class="bt">Try the burrata</div></div>
+                        <div class="seen" style="flex:none"><div class="top"><div class="tile"></div><div><div class="hn">@eat.snack.repeat</div><div class="pb">TikTok</div></div><div class="ext"><i class="fi">&#xe95e;</i></div></div><div class="bt">Open shared TikTok</div></div>
+                      </div>
+                    </div>
+                    <div class="sec" id="friends2">
+                      <div class="fr-hd"><i class="mi">&#xf005c;</i>Saved by friends<span>2 friends</span></div>
+                      <div class="fr"><div class="ava">MC</div><div class="nm"><b>Max Carter</b><span>@maxeats</span></div><div class="mchip">You + Max match 87% here</div></div>
+                      <div class="fr" style="margin-top:10px"><div class="ava">PS</div><div class="nm"><b>Priya Shah</b><span>@priyaeats</span></div><div class="mchip">You + Priya match 87% here</div></div>
+                    </div>
+                    <div class="sec32">
+                      <div class="eyebrow">Details</div><div class="stitle rova">The essentials</div>
+                      <div class="det">
+                        <div class="r"><div class="ic"><i class="mi">&#xf8a0;</i></div><div><div class="lb">DIRECTIONS</div><div class="v">Open in Google Maps</div></div><i class="mi ch">&#xf63b;</i></div><div class="dv"></div>
+                        <div class="r"><div class="ic"><i class="mi">&#xf012b;</i></div><div><div class="lb">TODAY</div><div class="v">17:00 – 00:00</div></div></div><div class="dv"></div>
+                        <div class="r"><div class="ic"><i class="mi">&#xf8a0;</i></div><div><div class="lb">SHOW ON MAP</div><div class="v">Minimise and locate on the map</div></div><i class="mi ch">&#xf63b;</i></div>
+                      </div>
+                    </div>
+                    <div class="sec32"><div class="eyebrow">Why go</div><div class="stitle rova">The story</div><div class="story">Candlelit wine bar wrapped in plants, with small plates made for sharing slowly.</div>
+                      <div class="menu" style="margin-top:14px"><div class="m2">💕 Romantic</div><div class="m2">🕯️ Cozy</div><div class="m2">🥂 Bougie</div></div></div>
+                    <div class="sec32"><div class="eyebrow">Worth ordering</div><div class="stitle rova">On the menu</div><div class="menu"><div class="m1">✨ Burrata</div><div class="m2">🍽️ Natural wine flight</div><div class="m2">🍽️ Small plates</div></div></div>
+                    <div class="sec32" id="reviews2">
+                      <div class="eyebrow">What people say</div>
+                      <div class="rev-hd"><div class="stitle rova" style="margin:0">Reviews</div><span>from your network</span></div>
+                      <div class="rev"><div class="top"><div class="av" style="background:#f48fb1">P</div><div><div class="n">Priya Shah</div><div class="s">9.0 / 10</div></div><div class="fb">FRIEND</div></div><div class="tx">Dim lights, great wine, staff who leave you alone. Perfect first-date spot.</div><div class="ago">2w ago</div></div>
+                      <div class="rev" style="margin-top:12px;background:var(--sunk);border:1.5px solid var(--deep);color:var(--aub)"><div class="top"><div class="av" style="background:#b39ddb">J</div><div><div class="n">Jess</div><div class="s" style="color:var(--mute)">8.5 / 10</div></div><div class="fb" style="background:var(--aub);color:var(--cream)">PINIT</div></div><div class="tx">The burrata alone is worth it. Book the window table.</div><div class="ago" style="color:var(--mute)">1mo ago</div></div>
+                    </div>
+                    <div class="sec32" id="similar2"><div class="eyebrow">Similar vibes</div><div class="stitle rova">You might also like</div>
+                      <div style="display:flex;gap:12px;margin-top:16px;height:210px">
+                        <div class="sim"><div class="im" style="background-image:url('assets/img/date-2.jpg')"></div><b>Sorrel Room</b><span>Wine Bar · ££</span></div>
+                        <div class="sim"><div class="im" style="background-image:url('assets/img/date-3.jpg')"></div><b>The Garden Room</b><span>Bistro · £££</span></div>
+                      </div></div>
+                    <div style="height:140px"></div>
+                  </div>
+                </div>
+                <div class="handle"></div>
+                <div class="dock"><div class="p"><i class="mi">&#xf5d1;</i>Save</div><div style="width:8px"></div><div class="p"><i class="mi">&#xf656;</i>Eat-List</div><div style="width:10px"></div><div class="c"><i class="mi">&#xf022e;</i></div><div style="width:10px"></div><div class="c" id="send-ic"><i class="mi">&#xf0147;</i></div></div>
+              </div>
+              <!-- add to bubble sheet -->
+              <div id="bd3" class="backdrop" style="opacity:0"></div>
+              <div id="pick">
+                <div class="hdl"></div>
+                <div class="ey">SEND TO BUBBLES</div>
+                <div class="ti rova">Share this place.</div>
+                <div class="pn">Petal &amp; Pine</div>
+                <div class="note"><span id="note-hint">Add a note for the bubble</span><span class="typed" id="note-typed"></span></div>
+                <div class="list">
+                  <div class="bt" id="bt-date"><div class="tx"><div class="n rova">Date Night 🌹</div><div class="m">2 members</div></div><div class="avs"><i style="background:#80cbc4">S</i><i style="background:#b39ddb">Y</i></div><div class="ck"></div>
+                    <div class="bt-sel" id="bt-date-sel"><div class="tx"><div class="n rova">Date Night 🌹</div><div class="m">2 members</div></div><div class="avs"><i style="background:#80cbc4">S</i><i style="background:#b39ddb">Y</i></div><div class="ck"><i class="mi">&#xf636;</i></div></div></div>
+                  <div class="bt"><div class="tx"><div class="n rova">Midnight Munchies 🌙</div><div class="m">5 members</div></div><div class="avs"><i style="background:#ffcc80">J</i><i style="background:#f48fb1">A</i><i style="background:#b39ddb">M</i></div><div class="ck"></div></div>
+                  <div class="bt"><div class="tx"><div class="n rova">Drinks Up 🍻</div><div class="m">4 members</div></div><div class="avs"><i style="background:#b39ddb">M</i><i style="background:#80cbc4">P</i><i style="background:#ffcc80">R</i></div><div class="ck"></div></div>
+                </div>
+                <div id="send-btn"><div id="send-off">SELECT A BUBBLE</div><div id="send-on">SEND TO 1 BUBBLE</div></div>
+              </div>
+            </div>
+
+            <!-- 3 · Lock screen -->
+            <div id="lock" class="layer">
+              <div id="lock-photo"></div>
+              <div id="lock-date">Saturday 25 October</div>
+              <div id="lock-time">18:42</div>
+              <div id="nb2" class="notif"><div class="ic"></div><div class="tx"><div class="tt">Saved place nearby<span>now</span></div><div class="bd">HTacos is 200m away</div></div></div>
+              <div class="lock-btn" style="left:46px">🔦</div><div class="lock-btn" style="right:46px">📷</div>
+              <div id="lock-bar"></div>
+            </div>
+
+            <!-- 6 · Bubble chat -->
+            <div id="chat" class="layer">
+              <div class="blob1"></div><div class="blob2"></div>
+              <div id="chat-hd"><div class="bk"><i class="mi">&#xf572;</i></div><div class="cd"><div class="gav"><div><i class="mi">&#xf7c6;</i></div></div><div><div class="l1">BUBBLE CHAT</div><div class="l2 rova">Date Night 🌹</div><div class="l3">2 members</div></div></div></div>
+              <div id="chat-tabs"><div>1 PINS</div><div class="on">MESSAGES</div></div>
+              <div id="chat-day"><i></i><span>Today</span><i></i></div>
+              <div id="msg-out"><div class="shared"><div class="ph"><div class="op">OPEN</div></div><div class="tb"><div class="l">SHARED PLACE</div><div class="n">Petal &amp; Pine</div><div class="a">Kensington, London · Wine Bar</div></div></div><div class="msg-t">this saturday? 👀</div><div class="msg-time">6:44 PM</div></div>
+              <div id="msg-in"><div class="av"><div>S</div></div><div><div class="who">Sam</div><div class="bub"><div class="msg-t">omg yes. booking it 😍</div><div class="msg-time">6:45 PM</div></div></div></div>
+              <div id="chat-in"><div class="f">Add a message</div><div class="s"><i class="fi">&#xe917;</i></div></div>
+              <div class="homebar"></div>
+            </div>
+
+            <!-- status bars + island + tap -->
+            <div id="sb-light" class="sb sb-light"><span id="sb-time-l">1:04</span><span class="ico"><svg width="18" height="12" viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1" fill="currentColor"/><rect x="5" y="5.5" width="3" height="6.5" rx="1" fill="currentColor"/><rect x="10" y="3" width="3" height="9" rx="1" fill="currentColor"/><rect x="15" y="0" width="3" height="12" rx="1" fill="currentColor"/></svg><svg width="16" height="12" viewBox="0 0 16 12"><path d="M8 2.5c2.3 0 4.4.9 6 2.4l1.3-1.4A10.6 10.6 0 0 0 8 .6C5.2.6 2.6 1.7.7 3.5L2 4.9c1.6-1.5 3.7-2.4 6-2.4Zm0 3.8c1.3 0 2.5.5 3.4 1.3l1.3-1.4A6.7 6.7 0 0 0 8 4.4c-1.8 0-3.4.7-4.7 1.8l1.3 1.4C5.5 6.8 6.7 6.3 8 6.3Zm0 3.7 1.9-2a2.8 2.8 0 0 0-3.8 0L8 10Z" fill="currentColor"/></svg><svg width="27" height="13" viewBox="0 0 27 13"><rect x="0.5" y="0.5" width="23" height="12" rx="3.5" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="17" height="9" rx="2" fill="currentColor"/><rect x="24.5" y="4.5" width="1.5" height="4" rx="0.7" fill="currentColor" opacity="0.4"/></svg></span></div>
+            <div id="sb-dark" class="sb sb-dark" style="opacity:0"><span>18:44</span><span class="ico"><svg width="18" height="12" viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1" fill="currentColor"/><rect x="5" y="5.5" width="3" height="6.5" rx="1" fill="currentColor"/><rect x="10" y="3" width="3" height="9" rx="1" fill="currentColor"/><rect x="15" y="0" width="3" height="12" rx="1" fill="currentColor"/></svg><svg width="16" height="12" viewBox="0 0 16 12"><path d="M8 2.5c2.3 0 4.4.9 6 2.4l1.3-1.4A10.6 10.6 0 0 0 8 .6C5.2.6 2.6 1.7.7 3.5L2 4.9c1.6-1.5 3.7-2.4 6-2.4Zm0 3.8c1.3 0 2.5.5 3.4 1.3l1.3-1.4A6.7 6.7 0 0 0 8 4.4c-1.8 0-3.4.7-4.7 1.8l1.3 1.4C5.5 6.8 6.7 6.3 8 6.3Zm0 3.7 1.9-2a2.8 2.8 0 0 0-3.8 0L8 10Z" fill="currentColor"/></svg><svg width="27" height="13" viewBox="0 0 27 13"><rect x="0.5" y="0.5" width="23" height="12" rx="3.5" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="17" height="9" rx="2" fill="currentColor"/><rect x="24.5" y="4.5" width="1.5" height="4" rx="0.7" fill="currentColor" opacity="0.4"/></svg></span></div>
+            <div id="island"></div>
+            <div id="tap"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- end card -->
+      <div id="end"><div id="end-logo"></div><div id="end-line">Stop losing<br />the good ones.</div></div>
+
+      <!-- ══ Audio ══ -->
+      <audio id="music" src="assets/music/music.mp3" data-start="0" data-duration="31.5" data-track-index="10"
+        data-automation='{"version":1,"lanes":[{"target":"volume","points":[{"t":0,"v":0.26},{"t":2.4,"v":0.3},{"t":3.0,"v":0.36},{"t":29.1,"v":0.36},{"t":29.5,"v":0.3},{"t":30.7,"v":0.28},{"t":31.5,"v":0}]}]}'></audio>
+      <!-- taps -->
+      <audio id="t1" src="assets/sfx/click2.ogg" data-start="1.25" data-duration="0.06" data-track-index="11" data-volume="0.55"></audio>
+      <audio id="t2" src="assets/sfx/click2.ogg" data-start="2.25" data-duration="0.06" data-track-index="11" data-volume="0.55"></audio>
+      <audio id="t3" src="assets/sfx/click2.ogg" data-start="3.9" data-duration="0.06" data-track-index="11" data-volume="0.55"></audio>
+      <audio id="t4" src="assets/sfx/click2.ogg" data-start="8.5" data-duration="0.06" data-track-index="11" data-volume="0.55"></audio>
+      <audio id="t5" src="assets/sfx/click2.ogg" data-start="14.1" data-duration="0.06" data-track-index="11" data-volume="0.55"></audio>
+      <audio id="t6" src="assets/sfx/click2.ogg" data-start="17.9" data-duration="0.06" data-track-index="11" data-volume="0.55"></audio>
+      
+      <audio id="t8" src="assets/sfx/click2.ogg" data-start="22.75" data-duration="0.06" data-track-index="11" data-volume="0.55"></audio>
+      <audio id="t9" src="assets/sfx/click2.ogg" data-start="25.25" data-duration="0.06" data-track-index="11" data-volume="0.55"></audio>
+      <audio id="t10" src="assets/sfx/click2.ogg" data-start="26.05" data-duration="0.06" data-track-index="11" data-volume="0.55"></audio>
+      <audio id="t11" src="assets/sfx/click2.ogg" data-start="26.51" data-duration="0.06" data-track-index="11" data-volume="0.6"></audio>
+      <!-- sheets -->
+      <audio id="c1" src="assets/sfx/card-slide-1.ogg" data-start="1.4" data-duration="0.6" data-track-index="12" data-volume="0.32"></audio>
+      <audio id="c2" src="assets/sfx/card-slide-1.ogg" data-start="8.9" data-duration="0.6" data-track-index="12" data-volume="0.34"></audio>
+      <audio id="c3" src="assets/sfx/card-slide-1.ogg" data-start="22.9" data-duration="0.6" data-track-index="12" data-volume="0.32"></audio>
+      <audio id="c4" src="assets/sfx/card-slide-1.ogg" data-start="25.4" data-duration="0.6" data-track-index="13" data-volume="0.32"></audio>
+      <audio id="c5" src="assets/sfx/card-slide-1.ogg" data-start="26.7" data-duration="0.6" data-track-index="12" data-volume="0.3"></audio>
+      <!-- notifications -->
+      <audio id="n1" src="assets/sfx/bong_001.ogg" data-start="2.55" data-duration="0.12" data-track-index="14" data-volume="0.45"></audio>
+      <audio id="n2" src="assets/sfx/bong_001.ogg" data-start="4.5" data-duration="0.12" data-track-index="14" data-volume="0.6"></audio>
+      <audio id="n3" src="assets/sfx/bong_001.ogg" data-start="7.1" data-duration="0.12" data-track-index="14" data-volume="0.7"></audio>
+      <audio id="n4" src="assets/sfx/bong_001.ogg" data-start="27.9" data-duration="0.12" data-track-index="14" data-volume="0.5"></audio>
+      <!-- 3 weeks later jump -->
+      <audio id="j1" src="assets/sfx/impactSoft_medium_001.ogg" data-start="6.25" data-duration="0.18" data-track-index="15" data-volume="0.7"></audio>
+      <!-- magic results land / message lands -->
+      <audio id="d1" src="assets/sfx/drop_002.ogg" data-start="21.02" data-duration="0.19" data-track-index="15" data-volume="0.55"></audio>
+      <audio id="d2" src="assets/sfx/drop_002.ogg" data-start="27.05" data-duration="0.19" data-track-index="15" data-volume="0.45"></audio>
+      <!-- saved pins pop on the zoomed-out map -->
+      <audio id="d0" src="assets/sfx/drop_002.ogg" data-start="15.55" data-duration="0.19" data-track-index="15" data-volume="0.5"></audio>
+      <audio id="z1" src="assets/sfx/card-slide-1.ogg" data-start="14.75" data-duration="0.6" data-track-index="13" data-volume="0.22"></audio>
+      <!-- logo -->
+      <audio id="bell" src="assets/sfx/impactBell_heavy_000.ogg" data-start="29.52" data-duration="1.48" data-track-index="16" data-volume="0.45"></audio>
+      <!-- typing: "cute date spot near me" (every other key; alternating tracks) -->
+      <audio id="k1" src="assets/sfx/keypress-003.wav" data-start="18.35" data-duration="0.1" data-track-index="17" data-volume="0.4"></audio>
+      <audio id="k2" src="assets/sfx/keypress-007.wav" data-start="18.47" data-duration="0.1" data-track-index="18" data-volume="0.4"></audio>
+      <audio id="k3" src="assets/sfx/keypress-012.wav" data-start="18.59" data-duration="0.1" data-track-index="17" data-volume="0.4"></audio>
+      <audio id="k4" src="assets/sfx/keypress-015.wav" data-start="18.71" data-duration="0.1" data-track-index="18" data-volume="0.4"></audio>
+      <audio id="k5" src="assets/sfx/keypress-019.wav" data-start="18.83" data-duration="0.1" data-track-index="17" data-volume="0.4"></audio>
+      <audio id="k6" src="assets/sfx/keypress-024.wav" data-start="18.95" data-duration="0.1" data-track-index="18" data-volume="0.4"></audio>
+      <audio id="k7" src="assets/sfx/keypress-028.wav" data-start="19.07" data-duration="0.1" data-track-index="17" data-volume="0.4"></audio>
+      <audio id="k8" src="assets/sfx/keypress-031.wav" data-start="19.19" data-duration="0.1" data-track-index="18" data-volume="0.4"></audio>
+      <audio id="k9" src="assets/sfx/keypress-003.wav" data-start="19.31" data-duration="0.1" data-track-index="17" data-volume="0.4"></audio>
+      <audio id="k10" src="assets/sfx/keypress-012.wav" data-start="19.43" data-duration="0.1" data-track-index="18" data-volume="0.4"></audio>
+      <audio id="k11" src="assets/sfx/keypress-019.wav" data-start="19.55" data-duration="0.1" data-track-index="17" data-volume="0.4"></audio>
+      <audio id="k12" src="assets/sfx/keypress-007.wav" data-start="25.8" data-duration="0.1" data-track-index="17" data-volume="0.35"></audio>
+      <audio id="k13" src="assets/sfx/keypress-024.wav" data-start="25.92" data-duration="0.1" data-track-index="18" data-volume="0.35"></audio>
+    </div>
+
+    <script>
+      (function () {
+        var root = document.getElementById("root");
+        var Q = "cute date spot near me";
+        var NOTE = "this saturday? 👀";
+        var qEl = document.getElementById("s-q");
+        var noteEl = document.getElementById("note-typed");
+        var tlBuilt = false;
+        // The phone is a recreation of the shipped app: its sheets, banners, dock and
+        // map are layered on purpose. Mark those participants so the layout audit
+        // judges only the ad framing around the phone (verified visually via snapshots).
+        Array.prototype.forEach.call(document.querySelectorAll("#screen *"), function (el) {
+          el.setAttribute("data-layout-allow-overlap", "");
+          el.setAttribute("data-layout-allow-occlusion", "");
+          el.setAttribute("data-layout-allow-overflow", "");
+        });
+
+        function build() {
+          if (tlBuilt) return;
+          tlBuilt = true;
+          // tap targets measured from the real layout (before any tweens move things)
+          var scr = document.getElementById("screen").getBoundingClientRect();
+          var K = scr.width / 390;
+          var at = function (sel, fx, fy) {
+            var r = document.querySelector(sel).getBoundingClientRect();
+            return [(r.left - scr.left + r.width * (fx == null ? 0.5 : fx)) / K, (r.top - scr.top + r.height * (fy == null ? 0.5 : fy)) / K];
+          };
+          var T = {
+            share: at("#tt-share svg"), pinit: at("#share-pinit .ic"), ok: at("#ext-card .ok"), notif: at("#nb2"),
+            close: at("#close1"), search: at(".spill", 0.4), card: at("#match-card", 0.55), send: at("#send-ic"),
+            row: at("#bt-date", 0.4), btn: at("#send-btn")
+          };
+          var tl = gsap.timeline({ paused: true });
+          var P = function (sel, from, to, at) { tl.fromTo(sel, from, to, at); };
+          var show = function (sel, at, d) { tl.fromTo(sel, { opacity: 0 }, { opacity: 1, duration: d || 0.25, ease: "power2.out" }, at); };
+          var hide = function (sel, at, d) { tl.to(sel, { opacity: 0, duration: d || 0.25, ease: "power2.in" }, at); };
+          // headline swap: label + text slide up
+          var hlIn = function (sel, at) { P(sel, { opacity: 0, y: 28 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, at); };
+          var hlOut = function (sel, at) { tl.to(sel, { opacity: 0, y: -20, duration: 0.25, ease: "power2.in" }, at); };
+          // simulated tap at phone-logical coordinates
+          var tap = function (pt, at) { var x = pt[0], y = pt[1];
+            tl.set("#tap", { x: x, y: y }, at - 0.12);
+            P("#tap", { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.12, ease: "power2.out" }, at - 0.12);
+            tl.to("#tap", { scale: 1.5, opacity: 0, duration: 0.3, ease: "power2.out" }, at);
+          };
+
+          // audio-reactive: RMS → CSS var (rings + phone glow)
+          var AD = window.AUDIO_DATA;
+          if (AD && AD.rms && AD.rms.length) {
+            var last = AD.rms.length - 1, prox = { f: 0 };
+            tl.to(prox, { f: last, duration: 31.5, ease: "none", onUpdate: function () {
+              var i = Math.max(0, Math.min(last, prox.f | 0));
+              root.style.setProperty("--a-rms", AD.rms[i].toFixed(3));
+            } }, 0);
+          }
+          tl.to("#rings-a", { rotation: 12, duration: 31.5, ease: "none" }, 0);
+          tl.to("#rings-b", { rotation: -10, duration: 31.5, ease: "none" }, 0);
+
+          // initial states (hidden layers)
+          tl.set(["#home", "#lock", "#chat", "#ext", "#nb1"], { opacity: 0 }, 0);
+          tl.set("#share", { y: 440 }, 0);
+          tl.set("#sheet1", { y: 800 }, 0);
+          tl.set("#close1", { opacity: 0 }, 0);
+          tl.set("#sheet2", { y: 800 }, 0);
+          tl.set("#pick", { y: 640 }, 0);
+          tl.set(["#pin-wine", "#pin-cock", "#pin-pasta", "#lbl-wine", "#area"], { opacity: 0 }, 0);
+
+          /* ══ 1 · TikTok (0 → 2.5) ══ */
+          P("#phone-wrap", { y: 70, opacity: 0 }, { y: 0, opacity: 1, duration: 0.55, ease: "power3.out" }, 0);
+          hlIn("#hl1", 0.12);
+          P("#tt-photo", { scale: 1.0 }, { scale: 1.12, duration: 6.3, ease: "none" }, 0);
+          tap(T.share, 1.25);
+          P("#share", { y: 440 }, { y: 0, duration: 0.38, ease: "power3.out" }, 1.4);
+          tap(T.pinit, 2.25);
+
+          /* ══ 2 · Share extension + saved push (2.4 → 6.3) ══ */
+          tl.to("#share", { y: 440, duration: 0.3, ease: "power2.in" }, 2.4);
+          hlOut("#hl1", 2.45);
+          hlIn("#hl2", 2.62);
+          show("#ext", 2.55, 0.2);
+          P("#ext-card", { scale: 0.9, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.3, ease: "back.out(1.4)" }, 2.55);
+          tap(T.ok, 3.9);
+          tl.to("#ext-card", { scale: 0.9, opacity: 0, duration: 0.3, ease: "power2.in" }, 4.0);
+          hide("#ext", 4.15, 0.2);
+          P("#nb1", { y: -120, opacity: 0 }, { y: 0, opacity: 1, duration: 0.42, ease: "back.out(1.2)" }, 4.5);
+          tl.to("#nb1", { y: -120, opacity: 0, duration: 0.32, ease: "power2.in" }, 5.95);
+
+          /* ══ 3 · Lock screen, 3 weeks later (6.2 → 9.0) ══ */
+          hlOut("#hl2", 6.0);
+          P("#hl3", { opacity: 0, scale: 0.92 }, { opacity: 1, scale: 1, duration: 0.4, ease: "power3.out" }, 6.25);
+          show("#lock", 6.3, 0.35);
+          tl.set("#sb-time-l", { opacity: 0 }, 6.3);
+          P("#lock-time", { y: 16, opacity: 0 }, { y: 0, opacity: 1, duration: 0.45, ease: "power3.out" }, 6.4);
+          P("#nb2", { y: -60, opacity: 0, scale: 0.94 }, { y: 0, opacity: 1, scale: 1, duration: 0.45, ease: "back.out(1.3)" }, 7.1);
+          hlOut("#hl3", 7.3);
+          hlIn("#hl3b", 7.5);
+          tap(T.notif, 8.5);
+
+          /* ══ 4 · Expanded card: creator + Max (8.7 → 14.5) ══ */
+          tl.set("#sb-light", { opacity: 0 }, 8.75);
+          tl.set("#sb-dark", { opacity: 1 }, 8.75);
+          tl.set("#tt", { opacity: 0 }, 8.75);
+          show("#home", 8.62, 0.1);
+          tl.to("#lock", { y: -844, duration: 0.38, ease: "power3.in" }, 8.62);
+          show("#bd1", 8.9, 0.4);
+          P("#sheet1", { y: 800 }, { y: 0, duration: 0.4, ease: "power3.out" }, 8.9);
+          show("#close1", 9.2, 0.2);
+          hlOut("#hl3b", 8.8);
+          hlIn("#hl4", 9.1);
+          // scroll: TikTok insight → Saved by friends → Reviews (Max 8.0 / 10)
+          var r1 = document.getElementById("reviews1").offsetTop;
+          var fr = document.getElementById("friends1").offsetTop;
+          tl.to("#scroll1", { y: -(fr - 260), duration: 0.9, ease: "power2.inOut" }, 11.0);
+          tl.to("#scroll1", { y: -(r1 - 170), duration: 0.85, ease: "power2.inOut" }, 12.15);
+          hlOut("#hl4", 11.9);
+          hlIn("#hl4b", 12.1);
+          tap(T.close, 14.1);
+          tl.to("#sheet1", { y: 800, duration: 0.35, ease: "power3.in" }, 14.2);
+          hide("#close1", 14.15, 0.15);
+          hide("#bd1", 14.25, 0.3);
+
+          /* ══ 4b · Every saved spot on one map (14.5 → 17.5) ══ */
+          hlOut("#hl4b", 14.3);
+          hlIn("#hl-ov", 14.55);
+          tl.set("#pins-wide .wpin, #pins-wide .dot-pin", { opacity: 0 }, 0);
+          hide("#pins-near", 14.7, 0.2);
+          tl.fromTo("#map", { scale: 1 }, { scale: 1 / 4.59, duration: 0.9, ease: "power2.inOut" }, 14.75);
+          tl.fromTo("#map-wide", { scale: 4.59 }, { scale: 1, duration: 0.9, ease: "power2.inOut" }, 14.75);
+          tl.set("#map-wide", { opacity: 1 }, 14.74);
+          tl.fromTo("#map", { opacity: 1 }, { opacity: 0, duration: 0.45, ease: "power1.inOut" }, 14.85);
+          tl.fromTo("#pins-wide .dot-pin", { opacity: 0, scale: 0 }, { opacity: 1, scale: 1, duration: 0.25, ease: "back.out(2)", stagger: 0.02 }, 15.45);
+          tl.fromTo("#pins-wide .wpin", { opacity: 0, scale: 0.4 }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(2)", stagger: 0.035 }, 15.52); // beat-grid: 15.52
+          hide("#pins-wide", 16.85, 0.2);
+          tl.to("#map-wide", { scale: 4.59, duration: 0.6, ease: "power2.inOut" }, 16.9);
+          tl.to("#map", { opacity: 1, duration: 0.4, ease: "power1.inOut" }, 17.05);
+          tl.set("#map-wide", { opacity: 0 }, 17.5);
+          tl.to("#map", { scale: 1, duration: 0.6, ease: "power2.inOut" }, 16.9);
+          show("#pins-near", 17.4, 0.2);
+          hlOut("#hl-ov", 17.3);
+
+          /* ══ 5 · Magic Search (17.5 → 22.7) ══ */
+          hlIn("#hl5", 17.55);
+          tap(T.search, 17.9);
+          tl.set("#srow", { opacity: 0 }, 18);
+          tl.set(["#s-input", "#sbtn-search"], { opacity: 1 }, 18);
+          P("#sugg", { opacity: 0, y: -8 }, { opacity: 1, y: 0, duration: 0.22, ease: "power3.out" }, 18.05);
+          hide("#chips", 18, 0.12);
+          tl.set("#s-hint", { opacity: 0 }, 18.35);
+          // typing — 22 chars at 0.059s
+          var tw = { n: 0 };
+          tl.to(tw, { n: Q.length, duration: 1.3, ease: "none", onUpdate: function () { qEl.textContent = Q.slice(0, Math.round(tw.n)); } }, 18.35);
+          tl.fromTo("#s-caret", { opacity: 1 }, { opacity: 0, duration: 0.25, ease: "steps(1)", repeat: 7, yoyo: true }, 18);
+          hide("#sugg", 19.9, 0.18);
+          tl.set(["#s-input", "#sbtn-search"], { opacity: 0 }, 19.95);
+          tl.set("#srow", { opacity: 1 }, 19.95);
+          tl.set("#spill-ph", { display: "none" }, 19.95);
+          tl.set("#spill-q", { display: "inline" }, 19.95);
+          tl.set("#sbtn-idle", { opacity: 0 }, 19.95);
+          tl.set("#sbtn-x", { opacity: 1 }, 19.95);
+          show("#msearch-chip", 19.95, 0.2);
+          hide("#car-saved", 19.9, 0.18);
+          hide(["#pin-coffee", "#pin-sushi", "#pin-burger"], 19.95, 0.2);
+          tl.to("#pin-taco", { opacity: 0.35, duration: 0.2 }, 19.95);
+          show("#loading", 20, 0.2);
+          tl.to("#loading", { opacity: 0.6, duration: 0.35, ease: "sine.inOut", yoyo: true, repeat: 1 }, 20.25);
+          hide("#loading", 20.9, 0.12);
+          // beat-locked: 21.02 — results land
+          P("#pin-wine", { opacity: 0, scale: 0.4 }, { opacity: 1, scale: 1.7, duration: 0.35, ease: "back.out(2)" }, 21.02);
+          show("#lbl-wine", 21.2, 0.25);
+          P("#pin-cock", { opacity: 0, scale: 0.4 }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(2)" }, 21.12);
+          P("#pin-pasta", { opacity: 0, scale: 0.4 }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(2)" }, 21.22);
+          P("#area", { opacity: 0, y: -8 }, { opacity: 1, y: 0, duration: 0.22, ease: "power3.out" }, 21.1);
+          P("#car-match", { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, 21.02);
+
+          /* ══ 6 · Share to Bubble → chat (22.7 → 29.1) ══ */
+          tap(T.card, 22.75);
+          show("#bd2", 22.9, 0.35);
+          P("#sheet2", { y: 800 }, { y: 0, duration: 0.4, ease: "power3.out" }, 22.9);
+          // scroll the fully populated card: socials → friends → details → reviews
+          var f2 = document.getElementById("friends2").offsetTop;
+          var r2 = document.getElementById("reviews2").offsetTop;
+          tl.to("#scroll2", { y: -(f2 - 300), duration: 0.6, ease: "power2.inOut" }, 23.5);
+          tl.to("#scroll2", { y: -(r2 - 140), duration: 0.75, ease: "power2.inOut" }, 24.25);
+          hlOut("#hl5", 25.0);
+          hlIn("#hl6", 25.2);
+          tap(T.send, 25.25);
+          show("#bd3", 25.4, 0.3);
+          P("#pick", { y: 640 }, { y: 0, duration: 0.38, ease: "power3.out" }, 25.4);
+          var nt = { n: 0 };
+          var noteChars = Array.from(NOTE);
+          tl.set("#note-hint", { opacity: 0 }, 25.8);
+          tl.to(nt, { n: noteChars.length, duration: 0.42, ease: "none", onUpdate: function () { noteEl.textContent = noteChars.slice(0, Math.round(nt.n)).join(""); } }, 25.8);
+          tap(T.row, 26.05);
+          show("#bt-date-sel", 26.08, 0.18);
+          show("#send-on", 26.1, 0.18);
+          tap(T.btn, 26.51); // beat-locked: 26.51
+          P("#chat", { opacity: 0, x: 120 }, { opacity: 1, x: 0, duration: 0.35, ease: "power3.out" }, 26.7);
+          P("#msg-out", { opacity: 0, y: 30, scale: 0.96 }, { opacity: 1, y: 0, scale: 1, duration: 0.4, ease: "back.out(1.4)" }, 27.05);
+          P("#msg-in", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.38, ease: "back.out(1.4)" }, 27.9);
+
+          /* ══ 7 · End card (29.1 → 31.5) ══ */
+          hlOut("#hl6", 29.05);
+          tl.to("#phone-wrap", { y: 260, opacity: 0, duration: 0.5, ease: "power3.in" }, 29.1);
+          tl.set("#end", { opacity: 1 }, 29.45);
+          P("#end-logo", { opacity: 0, y: 30, scale: 0.96 }, { opacity: 1, y: 0, scale: 1, duration: 0.55, ease: "power3.out" }, 29.45); // beat-locked: 29.52 bell
+          P("#end-line", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 29.75);
+
+          window.__timelines["main"] = tl;
+        }
+
+        if (document.fonts && document.fonts.ready) {
+          document.fonts.ready.then(build);
+        } else {
+          build();
+        }
+      })();
+    </script>
+  </body>
+</html>

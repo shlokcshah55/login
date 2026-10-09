@@ -716,15 +716,28 @@ class _HomePageState extends State<HomePage> {
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => CarouselListPage(
-            locations: (saved
-                    ? manager.savedLocations
-                    : manager.recommendedLocations)
-                .keys
-                .toList(),
+            locations:
+                (saved ? manager.savedLocations : manager.recommendedLocations)
+                    .keys
+                    .toList(),
             title: saved ? 'Your Saves' : 'Top Picks',
-            listType: saved
-                ? LocationListType.saved
-                : LocationListType.recommended,
+            listType:
+                saved ? LocationListType.saved : LocationListType.recommended,
+            homeViewModel: viewModel,
+          ),
+        ),
+      );
+      return;
+    }
+    final activeCategory = viewModel.activeCategory;
+    if (activeCategory != null &&
+        activeCategory.kind == HomeCategoryKind.magic) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => CarouselListPage(
+            locations: viewModel.locations,
+            title: activeCategory.label,
+            listType: LocationListType.search,
             homeViewModel: viewModel,
           ),
         ),

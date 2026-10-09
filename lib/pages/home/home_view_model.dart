@@ -77,6 +77,11 @@ class HomeViewModel extends ChangeNotifier {
   List<HomeCategory>? _cachedCategories;
   List<double>? _lastVibeAffinity;
 
+  /// The ✨ tile holding the latest magic search results. Null unless a magic
+  /// search is live, so the rail never shows it on an ordinary home view.
+  HomeCategory? _magicCategory;
+  static const String magicCategoryId = 'magic_search';
+
   // ── Server home rail (get_home_rail) ──────────────────────────
   /// Refetch once the point we'd rank for is this far from the last fetch.
   static const double _railRefetchDistanceM = 750;
@@ -284,7 +289,7 @@ class HomeViewModel extends ChangeNotifier {
   /// changes — [_onExternalStateChanged] clears the cache.
   List<HomeCategory> get homeCategories {
     final useServerRail = serverRailEnabled && _railCandidates != null;
-    return _cachedCategories ??= HomeCategoryBuilder.build(
+    final base = _cachedCategories ??= HomeCategoryBuilder.build(
       savedLocations: locationListManager.savedLocations.keys.toList(),
       areaRecommendations:
           locationListManager.recommendedLocations.keys.toList(),
@@ -293,13 +298,24 @@ class HomeViewModel extends ChangeNotifier {
       loadCollectionLocations: (collectionId) =>
           _collectionsHelper.getLocationsForCollection(collectionId),
       railCandidates: useServerRail ? _railCandidates : null,
-      loadLocationsByIds: useServerRail
-          ? locationListManager.fetchLocationsByIdsInOrder
-          : null,
+      loadLocationsByIds:
+          useServerRail ? locationListManager.fetchLocationsByIdsInOrder : null,
       areaLabel: _railAreaLabel,
       bubbleAvatars: _bubbleAvatars,
     );
+    // Live magic results lead the rail so they're the first thing to tap
+    // back into after closing the carousel.
+    final magic = _magicCategory;
+    return magic == null ? base : [magic, ...base];
   }
+
+  /// The ✨ magic search tile, or null when no magic search is live.
+  HomeCategory? get magicCategory => _magicCategory;
+
+  /// True while the focused carousel is showing magic search results.
+  bool get isViewingMagicResults =>
+      _browseStage == HomeBrowseStage.focused &&
+      _activeCategory?.kind == HomeCategoryKind.magic;
 
   /// Area name for the point the rail was ranked for (e.g. 'Islington').
   String? get homeRailAreaLabel => _railAreaLabel;
@@ -1174,6 +1190,17 @@ class HomeViewModel extends ChangeNotifier {
     _isMagicSearchActive = false;
     _showMagicSearchSuggestions = false;
 
+    // Drop the ✨ tile. If the user is looking at its results, step back to
+    // the category tiles too (the overview map rebuild below restores the
+    // landing pins).
+    final wasViewingMagicResults = isViewingMagicResults;
+    _magicCategory = null;
+    if (wasViewingMagicResults) {
+      _browseStage = HomeBrowseStage.categories;
+      _activeCategory = null;
+      mapStateProvider.setSelectedMarkerId(null);
+    }
+
     // Magic search results live on `locationListManager`, not the header
     // search sheet — restore whatever list the home screen was showing
     // before the magic search took over (Saved/Explore/Bubble, etc).
@@ -1186,6 +1213,85 @@ class HomeViewModel extends ChangeNotifier {
     if (locationListManager.currentListType == LocationListType.search) {
       unawaited(locationListManager.setCurrentListType(restoredType));
     }
+    if (wasViewingMagicResults) {
+      unawaited(_syncCategoryStageMap(force: true));
+    }
+  }
+
+  HomeCategory _buildMagicCategory(String query, List<LocationModel> results) {
+    return HomeCategory(
+      kind: HomeCategoryKind.magic,
+      id: magicCategoryId,
+      label: query,
+      emoji: '✨',
+      count: results.length,
+      resolve: () async => results,
+    );
+  }
+
+  /// Runs a magic search for [query] and lands the results in the ✨ tile and
+  /// the focused carousel. Shared by the header, sweet treat and
+  /// "search this area" entry points.
+  Future<void> _runMagicSearch(
+    String query, {
+    required double radiusKm,
+    LatLng? center,
+  }) async {
+    // Move to the focused stage *before* the search starts. On the category
+    // stage every manager change re-syncs the overview map, which would
+    // overwrite the search list while results are in flight — this is why
+    // results never showed on the tiles layout.
+    final pending = _buildMagicCategory(query, const []);
+    _magicCategory = pending;
+    _activeCategory = pending;
+    _browseStage = HomeBrowseStage.focused;
+    unawaited(mapStateProvider.setPinsDotsByDefault(false));
+    notifyListeners();
+
+    await locationListManager.magicSearch(query, radiusKm: radiusKm);
+    if (_disposed) return;
+    if (center != null) {
+      mapStateProvider.setLastSearchedArea(center, radiusKm);
+    }
+
+    final results = locationListManager.searchLocations.keys.toList();
+
+    // Only flip into "results mode" once the search has actually finished —
+    // this is what turns the header search button into a cross, so it
+    // shouldn't happen the instant the query is submitted.
+    _isMagicSearchActive = true;
+    dismissMagicSearchSuggestions();
+
+    // The user may have tapped another tile while we were searching; only
+    // retarget the carousel if they're still on the pending magic tile.
+    final stillOnPending = identical(_activeCategory, pending);
+
+    if (results.isEmpty) {
+      // Nothing to show: no tile, back to the category rail. The page
+      // surfaces the "no results" popover from the manager's error.
+      _magicCategory = null;
+      if (stillOnPending) {
+        _browseStage = HomeBrowseStage.categories;
+        _activeCategory = null;
+        mapStateProvider.setSelectedMarkerId(null);
+        unawaited(_syncCategoryStageMap(force: true));
+      }
+      notifyListeners();
+      return;
+    }
+
+    final category = _buildMagicCategory(query, results);
+    _magicCategory = category;
+    if (stillOnPending) {
+      _activeCategory = category;
+      mapStateProvider.setSelectedMarkerId(results.first.locationId.toString());
+      unawaited(mapStateProvider.focusOnLocations(
+        results,
+        anchor: locationListManager.currentPosition,
+      ));
+    }
+    bottomNavVisibilityProvider.showTemporarily();
+    notifyListeners();
   }
 
   Future<void> submitMagicSearch(String query) async {
@@ -1208,23 +1314,12 @@ class HomeViewModel extends ChangeNotifier {
     final radiusKm =
         (viewData != null ? viewData['radius'] as double : null) ?? 2.0;
 
-    await locationListManager.magicSearch(
+    await _runMagicSearch(
       trimmed,
       radiusKm: radiusKm,
+      center: viewData?['center'] as LatLng?,
     );
-
-    if (viewData != null) {
-      mapStateProvider.setLastSearchedArea(
-        viewData['center'] as LatLng,
-        radiusKm,
-      );
-    }
-
-    // Only flip into "results mode" once the search has actually finished —
-    // this is what turns the header search button into a cross, so it
-    // shouldn't happen the instant the query is submitted.
-    _isMagicSearchActive = true;
-    dismissMagicSearchSuggestions();
+    if (_disposed) return;
 
     if (locationListManager.error != null) {
       log("HomeViewModel: Magic search error: ${locationListManager.error}");
@@ -1478,17 +1573,14 @@ class HomeViewModel extends ChangeNotifier {
     final radiusKm =
         (viewData != null ? viewData['radius'] as double : null) ?? 2.0;
 
-    await locationListManager.magicSearch(
+    // Sweet treat is a magic search under the hood, so it lands in the same
+    // ✨ tile and carousel.
+    await _runMagicSearch(
       trimmed,
       radiusKm: radiusKm,
+      center: viewData?['center'] as LatLng?,
     );
-
-    if (viewData != null) {
-      mapStateProvider.setLastSearchedArea(
-        viewData['center'] as LatLng,
-        radiusKm,
-      );
-    }
+    if (_disposed) return;
 
     if (locationListManager.error != null) {
       log("HomeViewModel: Sweet treat search error: ${locationListManager.error}");
@@ -1512,11 +1604,7 @@ class HomeViewModel extends ChangeNotifier {
         locationListManager.currentListType == LocationListType.search) {
       final query = headerSearchController.text.trim();
       if (query.isNotEmpty) {
-        await locationListManager.magicSearch(
-          query,
-          radiusKm: radiusKm,
-        );
-        mapStateProvider.setLastSearchedArea(center, radiusKm);
+        await _runMagicSearch(query, radiusKm: radiusKm, center: center);
         return;
       }
     }

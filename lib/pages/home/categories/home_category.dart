@@ -3,7 +3,11 @@ import 'package:login/models/locations.dart';
 
 /// The kind of slice a [HomeCategory] represents. Drives the tile's icon
 /// treatment and how its focused list is resolved.
-enum HomeCategoryKind { source, cuisine, vibe, eatList, bubble }
+///
+/// [magic] is the transient ✨ tile holding the latest magic search results.
+/// It is owned by the view model (not the builder) and only exists while a
+/// magic search is live.
+enum HomeCategoryKind { source, cuisine, vibe, eatList, bubble, magic }
 
 /// A single tile in the home category carousel. Tapping it drills into a
 /// focused carousel of the locations returned by [resolve].

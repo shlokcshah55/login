@@ -205,7 +205,7 @@ class HomeCategoryBuilder {
       kind: HomeCategoryKind.source,
       id: sharedFindsId,
       label: sharedFindsLabel,
-      icon: FontAwesomeIcons.tiktok,
+      icon: FontAwesomeIcons.tiktok.data,
       count: matches.length,
       resolve: () async => matches,
     );

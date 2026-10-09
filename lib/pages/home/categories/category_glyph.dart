@@ -27,12 +27,18 @@ class CategoryMark {
     if (category.kind == HomeCategoryKind.bubble) {
       return const CategoryMark._(icon: Icons.groups_rounded);
     }
+    // Magic search tiles are labelled with the user's free-text query, so
+    // never keyword-match them — they always carry the sparkle. An icon, not
+    // the emoji, so it takes the same cream ink as every other chip glyph.
+    if (category.kind == HomeCategoryKind.magic) {
+      return const CategoryMark._(icon: Icons.auto_awesome_rounded);
+    }
 
     final haystack = _normalise('${category.id} ${category.label}');
 
     if (category.kind == HomeCategoryKind.source) {
       if (category.id == HomeCategoryBuilder.sharedFindsId) {
-        return const CategoryMark._(icon: FontAwesomeIcons.tiktok);
+        return CategoryMark._(icon: FontAwesomeIcons.tiktok.data);
       }
       if (haystack.contains('instagram')) {
         return const CategoryMark._(icon: FeatherIcons.instagram);
@@ -293,6 +299,15 @@ class _GlyphSpec {
           rotation: rng.nextDouble() * math.pi,
           fill: tone.$1,
           darkFill: tone.$2,
+        ),
+      HomeCategoryKind.magic => _GlyphSpec(
+          kind: kind,
+          // A crisp starburst behind the sparkle, always in the strong tone.
+          lobes: 12,
+          depth: 0.12,
+          rotation: 0,
+          fill: PinitColors.aubergine,
+          darkFill: true,
         ),
     };
   }
